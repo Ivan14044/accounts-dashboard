@@ -161,6 +161,13 @@
         if (typeof window.updateStickyScrollbar === 'function') {
           window.updateStickyScrollbar();
         }
+        // Инвалидируем dom-cache и RowIdsCache после обновления виртуализации
+        if (typeof domCache !== 'undefined' && typeof domCache.invalidate === 'function') {
+          domCache.invalidate();
+        }
+        if (typeof RowIdsCache !== 'undefined' && typeof RowIdsCache.invalidate === 'function') {
+          RowIdsCache.invalidate();
+        }
       });
     }
 

@@ -55,48 +55,72 @@
                 card.style.setProperty('visibility', 'hidden', 'important');
                 card.style.setProperty('opacity', '0', 'important');
                 card.setAttribute('hidden', '');
-                console.log('⚡ Немедленно скрыта карточка (MutationObserver):', cardId);
+                if (typeof logger !== 'undefined') logger.debug('⚡ Немедленно скрыта карточка (MutationObserver):', cardId);
               } else {
                 // Логируем карточки, которые не в списке скрытых (для отладки)
                 if (cardId === 'custom:email_twofa') {
-                  console.log('🔍 Карточка "Email + 2FA" найдена, но НЕ в списке скрытых. Список скрытых:', Array.from(window._hiddenCardsToHide));
+                  if (typeof logger !== 'undefined') logger.debug('🔍 Карточка "Email + 2FA" найдена, но НЕ в списке скрытых. Список скрытых:', Array.from(window._hiddenCardsToHide));
                 }
               }
             }
             
             // Используем MutationObserver для отслеживания появления карточек
+            // Оптимизированная версия с батчингом и ограниченной областью наблюдения
             const observer = new MutationObserver(function(mutations) {
+              // Батчинг: собираем все карточки для скрытия в Set
+              const cardsToHide = new Set();
+              
               mutations.forEach(function(mutation) {
                 mutation.addedNodes.forEach(function(node) {
                   if (node.nodeType === 1) { // Element node
                     // Проверяем сам узел
                     if (node.classList && node.classList.contains('stat-card')) {
-                      hideCardImmediately(node);
+                      cardsToHide.add(node);
                     }
                     // Проверяем дочерние элементы
                     if (node.querySelectorAll) {
                       const cards = node.querySelectorAll('.stat-card');
-                      cards.forEach(hideCardImmediately);
+                      cards.forEach(card => cardsToHide.add(card));
                     }
                   }
                 });
               });
+              
+              // Применяем изменения батчем через requestAnimationFrame
+              if (cardsToHide.size > 0) {
+                requestAnimationFrame(() => {
+                  cardsToHide.forEach(card => hideCardImmediately(card));
+                });
+              }
             });
             
-            // Начинаем наблюдение сразу
+            // Начинаем наблюдение только за контейнером статистики (оптимизация)
+            // Это значительно уменьшает количество обрабатываемых мутаций
+            function startObserving() {
+              const statsContainer = document.querySelector('.stats-grid');
+              if (statsContainer) {
+                observer.observe(statsContainer, {
+                  childList: true,
+                  subtree: true // Но только внутри stats-grid!
+                });
+              } else {
+                // Fallback: если контейнер еще не готов, наблюдаем за body
+                // но это менее оптимально
+                if (document.body) {
+                  observer.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                  });
+                }
+              }
+            }
+            
+            // Начинаем наблюдение
             if (document.body) {
-              observer.observe(document.body, {
-                childList: true,
-                subtree: true
-              });
+              startObserving();
             } else {
               // Если body еще не готов, ждем его
-              document.addEventListener('DOMContentLoaded', function() {
-                observer.observe(document.body, {
-                  childList: true,
-                  subtree: true
-                });
-              });
+              document.addEventListener('DOMContentLoaded', startObserving);
             }
             
             // Также применяем скрытие к уже существующим карточкам
@@ -115,15 +139,15 @@
                     emailTwoFaFound = true;
                     // Если карточка должна быть скрыта, но не в списке - добавляем в список
                     if (!window._hiddenCardsToHide.has(cardId)) {
-                      console.warn('⚠️ Карточка "Email + 2FA" найдена, но НЕ в списке скрытых. Добавляем в список для скрытия.');
+                      logger.warn('⚠️ Карточка "Email + 2FA" найдена, но НЕ в списке скрытых. Добавляем в список для скрытия.');
                       window._hiddenCardsToHide.add(cardId);
                       // Сохраняем обновленный список в localStorage
                       try {
                         const updatedList = Array.from(window._hiddenCardsToHide);
                         localStorage.setItem('dashboard_hidden_cards', JSON.stringify(updatedList));
-                        console.log('✅ Обновлен список скрытых карточек в localStorage');
+                        logger.debug('✅ Обновлен список скрытых карточек в localStorage');
                       } catch (e) {
-                        console.error('❌ Ошибка обновления localStorage:', e);
+                        logger.error('❌ Ошибка обновления localStorage:', e);
                       }
                     }
                   }
@@ -135,11 +159,11 @@
                 });
                 
                 if (hiddenCount > 0) {
-                  console.log('⚡ Применено скрытие к существующим карточкам:', hiddenCount);
+                  logger.debug('⚡ Применено скрытие к существующим карточкам:', hiddenCount);
                 }
                 
                 if (!emailTwoFaFound) {
-                  console.warn('⚠️ Карточка "Email + 2FA" не найдена в DOM при применении скрытия');
+                  logger.warn('⚠️ Карточка "Email + 2FA" не найдена в DOM при применении скрытия');
                 }
               }
             }
@@ -169,7 +193,7 @@
           }
         }
       } catch (e) {
-        console.error('Error reading hidden cards:', e);
+        logger.error('Error reading hidden cards:', e);
       }
     })();
   </script>
@@ -4018,7 +4042,7 @@ function initializePharmaSlider() {
     const url = new URL(window.location);
     if (vFrom > min) {
       url.searchParams.set('pharma_from', String(vFrom));
-    } else {
+      } else {
       url.searchParams.delete('pharma_from');
     }
     if (vTo < max) {
@@ -4109,7 +4133,7 @@ function loadSelectedIds() {
       selectedIds = new Set(JSON.parse(saved));
     }
   } catch (e) {
-    console.error('Error loading selected IDs:', e);
+    logger.error('Error loading selected IDs:', e);
   }
 }
 
@@ -4117,13 +4141,21 @@ function saveSelectedIds() {
   try {
     localStorage.setItem(LS_KEY_SELECTED, JSON.stringify(Array.from(selectedIds)));
   } catch (e) {
-    console.error('Error saving selected IDs:', e);
+    logger.error('Error saving selected IDs:', e);
   }
+}
+
+// Вспомогательная функция для безопасного получения элемента через dom-cache
+function getElementById(id) {
+  if (typeof domCache !== 'undefined' && domCache.getById) {
+    return domCache.getById(id);
+  }
+  return document.getElementById(id);
 }
 
 function updateSelectedCount() {
   const count = selectedIds.size;
-  const selectedCountEl = document.getElementById('selectedCount');
+  const selectedCountEl = getElementById('selectedCount');
   if (selectedCountEl) {
     selectedCountEl.textContent = selectedAllFiltered ? 'Все по фильтру' : count;
   }
@@ -4132,7 +4164,7 @@ function updateSelectedCount() {
   
   // Показываем/скрываем универсальную кнопку "Сбросить все"
   // Кнопка показывается, если есть выбранные строки ИЛИ активные фильтры
-  const clearAllBtn = document.getElementById('clearAllSelectedBtn');
+  const clearAllBtn = getElementById('clearAllSelectedBtn');
   if (clearAllBtn) {
     const hasSelection = selectedAllFiltered || count > 0;
     // Проверяем наличие активных фильтров через активные чипсы
@@ -4140,7 +4172,7 @@ function updateSelectedCount() {
     clearAllBtn.style.display = (hasSelection || hasActiveFilters) ? '' : 'none';
   }
   
-  const notice = document.getElementById('selectAllNotice');
+  const notice = getElementById('selectAllNotice');
   if (!notice) return;
   const noticeText = notice.querySelector('.selection-notice-text');
   if (!noticeText) return;
@@ -4156,40 +4188,67 @@ function updateSelectedCount() {
     notice.style.display = 'none';
     noticeText.innerHTML = '';
   }
-  // Обновляем компактный счётчик "Отмечено X из Y"
-  updateSelectedOnPageCounter();
+  // Обновляем компактный счётчик "Отмечено X из Y" через batchUpdater
+  if (typeof batchUpdater !== 'undefined' && typeof batchUpdater.add === 'function') {
+    batchUpdater.add('counter', updateSelectedOnPageCounter);
+  } else {
+    updateSelectedOnPageCounter();
+  }
 }
 
+// Дебаунсированная версия updateSelectedOnPageCounter для оптимизации
+const updateSelectedOnPageCounterDebounced = (typeof debounce !== 'undefined' && typeof debounce === 'function')
+  ? debounce(function updateSelectedOnPageCounter() {
+      // Используем dom-cache для кеширования элементов
+      const el = getElementById('selectedOnPageCount');
+      if (!el) return;
+      
+      // Используем getAllRowIdsOnPage для правильного подсчета с учетом виртуализации
+      // Считаем, сколько строк на странице реально выбрано (из selectedIds)
+      const allRowIds = getAllRowIdsOnPage();
+      const selectedCount = allRowIds.filter(id => selectedAllFiltered || selectedIds.has(id)).length;
+      
+      el.textContent = String(selectedCount);
+      
+      // Также обновляем общее количество строк на странице (showingOnPageTop)
+      // Это нужно, так как при виртуализации количество может измениться
+      const showingEl = getElementById('showingOnPageTop');
+      if (showingEl) {
+        showingEl.textContent = String(allRowIds.length);
+      }
+    }, 50)
+  : function updateSelectedOnPageCounter() {
+      // Fallback без дебаунсинга
+      const el = getElementById('selectedOnPageCount');
+      if (!el) return;
+      
+      const allRowIds = getAllRowIdsOnPage();
+      const selectedCount = allRowIds.filter(id => selectedAllFiltered || selectedIds.has(id)).length;
+      
+      el.textContent = String(selectedCount);
+      
+      const showingEl = getElementById('showingOnPageTop');
+      if (showingEl) {
+        showingEl.textContent = String(allRowIds.length);
+      }
+    };
+
+// Экспортируем функцию для обратной совместимости
 function updateSelectedOnPageCounter() {
-  const el = document.getElementById('selectedOnPageCount');
-  if (!el) return;
-  
-  // Используем getAllRowIdsOnPage для правильного подсчета с учетом виртуализации
-  // Считаем, сколько строк на странице реально выбрано (из selectedIds)
-  const allRowIds = getAllRowIdsOnPage();
-  const selectedCount = allRowIds.filter(id => selectedAllFiltered || selectedIds.has(id)).length;
-  
-  el.textContent = String(selectedCount);
-  
-  // Также обновляем общее количество строк на странице (showingOnPageTop)
-  // Это нужно, так как при виртуализации количество может измениться
-  const showingEl = document.getElementById('showingOnPageTop');
-  if (showingEl) {
-    showingEl.textContent = String(allRowIds.length);
-  }
+  updateSelectedOnPageCounterDebounced();
 }
 
 function toggleRowSelection(id, checked) {
   if (checked) {
     selectedIds.add(id);
-    console.log('✅ Добавлен ID:', id, '| Всего выбрано:', selectedIds.size);
+    logger.debug('✅ Добавлен ID:', id, '| Всего выбрано:', selectedIds.size);
   } else {
     selectedIds.delete(id);
-    console.log('❌ Удалён ID:', id, '| Всего выбрано:', selectedIds.size);
+    logger.debug('❌ Удалён ID:', id, '| Всего выбрано:', selectedIds.size);
   }
   saveSelectedIds();
   updateSelectedCount();
-  console.log('📦 Список выбранных ID:', Array.from(selectedIds));
+  logger.debug('📦 Список выбранных ID:', Array.from(selectedIds));
 }
 
 // ===== Управление скрытием карточек =====
@@ -4235,7 +4294,7 @@ async function loadHiddenCards() {
               // БД синхронизирована с localStorage
             }
           } catch (syncError) {
-            console.warn('⚠️ Ошибка синхронизации БД:', syncError);
+            logger.warn('⚠️ Ошибка синхронизации БД:', syncError);
           }
         } else if (cardsToHide.length > 0) {
           // Если БД содержит данные, обновляем localStorage
@@ -4261,7 +4320,7 @@ async function loadHiddenCards() {
     // Fallback на localStorage
     loadHiddenCardsFromLocalStorage();
   } catch (error) {
-    console.warn('Error loading hidden cards from server:', error);
+    logger.warn('Error loading hidden cards from server:', error);
     loadHiddenCardsFromLocalStorage();
   }
 }
@@ -4281,7 +4340,7 @@ function loadHiddenCardsFromLocalStorage() {
       });
     }
   } catch (e) {
-    console.error('Error loading hidden cards from localStorage:', e);
+    logger.error('Error loading hidden cards from localStorage:', e);
   }
 }
 
@@ -4290,12 +4349,12 @@ async function saveHiddenCards() {
   try {
     // Собираем все скрытые карточки
     const allHiddenCards = document.querySelectorAll('.stat-card.hidden');
-    console.log('🔍 Найдено скрытых карточек в DOM:', allHiddenCards.length);
+    logger.debug('🔍 Найдено скрытых карточек в DOM:', allHiddenCards.length);
     
     // Логируем все найденные карточки для отладки
     allHiddenCards.forEach((card, index) => {
       const cardId = card.getAttribute('data-card');
-      console.log(`  [${index}] Карточка ID: "${cardId}", классы:`, card.className);
+      logger.debug(`  [${index}] Карточка ID: "${cardId}", классы:`, card.className);
     });
     
     const hiddenCards = Array.from(allHiddenCards)
@@ -4306,9 +4365,9 @@ async function saveHiddenCards() {
     const emailTwoFaCard = document.querySelector('.stat-card[data-card="custom:email_twofa"]');
     if (emailTwoFaCard) {
       const isHidden = emailTwoFaCard.classList.contains('hidden');
-      console.log('🔍 Карточка "Email + 2FA" найдена, скрыта:', isHidden, 'ID:', emailTwoFaCard.getAttribute('data-card'));
+      logger.debug('🔍 Карточка "Email + 2FA" найдена, скрыта:', isHidden, 'ID:', emailTwoFaCard.getAttribute('data-card'));
     } else {
-      console.warn('⚠️ Карточка "Email + 2FA" не найдена в DOM!');
+      logger.warn('⚠️ Карточка "Email + 2FA" не найдена в DOM!');
     }
     
     
@@ -4316,7 +4375,7 @@ async function saveHiddenCards() {
     try {
       localStorage.setItem(LS_KEY_HIDDEN_CARDS, JSON.stringify(hiddenCards));
     } catch (_) {
-      console.error('❌ Ошибка сохранения в localStorage');
+      logger.error('❌ Ошибка сохранения в localStorage');
     }
     
     // Сохраняем в БД
@@ -4334,23 +4393,23 @@ async function saveHiddenCards() {
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.warn('⚠️ Failed to save hidden cards to server:', response.status, errorText);
-        console.warn('⚠️ Saved to localStorage only');
+        logger.warn('⚠️ Failed to save hidden cards to server:', response.status, errorText);
+        logger.warn('⚠️ Saved to localStorage only');
       } else {
         const data = await response.json();
       }
     } catch (fetchError) {
-      console.error('❌ Ошибка при сохранении в БД:', fetchError);
-      console.warn('⚠️ Saved to localStorage only');
+      logger.error('❌ Ошибка при сохранении в БД:', fetchError);
+      logger.warn('⚠️ Saved to localStorage only');
     }
   } catch (e) {
-    console.error('❌ Error saving hidden cards:', e);
+    logger.error('❌ Error saving hidden cards:', e);
   }
 }
 
 async function hideCard(cardId) {
   if (!cardId || cardId.trim() === '') {
-    console.warn('hideCard: cardId is empty');
+    logger.warn('hideCard: cardId is empty');
     return;
   }
   
@@ -4363,7 +4422,7 @@ async function hideCard(cardId) {
     const card = document.querySelector(`.stat-card[data-card="${cardId}"]`);
     if (card) {
       const isHidden = card.classList.contains('hidden');
-      console.log('🔍 Карточка после скрытия - класс hidden:', isHidden, 'display:', window.getComputedStyle(card).display);
+      logger.debug('🔍 Карточка после скрытия - класс hidden:', isHidden, 'display:', window.getComputedStyle(card).display);
     }
     
     // Сохраняем в БД и localStorage
@@ -4376,7 +4435,7 @@ async function hideCard(cardId) {
       checkbox.checked = false;
       }
   } catch (error) {
-    console.error('❌ Error hiding card:', error, { cardId });
+    logger.error('❌ Error hiding card:', error, { cardId });
     // Откатываем изменения UI при ошибке
     toggleCardVisibility(cardId, true);
     throw error;
@@ -4385,7 +4444,7 @@ async function hideCard(cardId) {
 
 async function showCard(cardId) {
   if (!cardId || cardId.trim() === '') {
-    console.warn('showCard: cardId is empty');
+    logger.warn('showCard: cardId is empty');
     return;
   }
   
@@ -4403,7 +4462,7 @@ async function showCard(cardId) {
       checkbox.checked = true;
     }
   } catch (error) {
-    console.error('Error showing card:', error, { cardId });
+    logger.error('Error showing card:', error, { cardId });
     // Откатываем изменения UI при ошибке
     toggleCardVisibility(cardId, false);
     throw error;
@@ -4422,35 +4481,59 @@ function updateRowSelectedClass(row, isSelected) {
   }
 }
 
-// Вспомогательная функция для получения всех ID строк на странице (с учетом виртуализации)
-// Должна быть определена до initCheckboxStates
-function getAllRowIdsOnPage() {
-  const rowIds = [];
+// Кеш для getAllRowIdsOnPage с TTL
+const RowIdsCache = {
+  cache: null,
+  cacheTime: 0,
+  TTL: 100, // 100ms кеш
   
-  // Пытаемся использовать виртуализацию, если она включена
-  if (window.tableVirtualization && window.tableVirtualization.enabled && window.tableVirtualization.allRows) {
-    // Виртуализация включена - используем allRows
-    window.tableVirtualization.allRows.forEach(row => {
-      const checkbox = row.querySelector('.row-checkbox');
-      if (checkbox) {
-        const rowId = parseInt(checkbox.value);
+  get() {
+    const now = performance.now();
+    if (this.cache && (now - this.cacheTime) < this.TTL) {
+      return this.cache;
+    }
+    
+    const rowIds = [];
+    
+    // Пытаемся использовать виртуализацию, если она включена
+    if (window.tableVirtualization && window.tableVirtualization.enabled && window.tableVirtualization.allRows) {
+      // Виртуализация включена - используем allRows
+      window.tableVirtualization.allRows.forEach(row => {
+        const checkbox = row.querySelector('.row-checkbox');
+        if (checkbox) {
+          const rowId = parseInt(checkbox.value);
+          if (Number.isFinite(rowId)) {
+            rowIds.push(rowId);
+          }
+        }
+      });
+    } else {
+      // Виртуализация отключена - используем DOM
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      checkboxes.forEach(cb => {
+        const rowId = parseInt(cb.value);
         if (Number.isFinite(rowId)) {
           rowIds.push(rowId);
         }
-      }
-    });
-  } else {
-    // Виртуализация отключена - используем DOM
-    const checkboxes = document.querySelectorAll('.row-checkbox');
-    checkboxes.forEach(cb => {
-      const rowId = parseInt(cb.value);
-      if (Number.isFinite(rowId)) {
-        rowIds.push(rowId);
-      }
-    });
-  }
+      });
+    }
+    
+    this.cache = rowIds;
+    this.cacheTime = now;
+    return rowIds;
+  },
   
-  return rowIds;
+  invalidate() {
+    this.cache = null;
+    this.cacheTime = 0;
+  }
+};
+
+// Вспомогательная функция для получения всех ID строк на странице (с учетом виртуализации)
+// Должна быть определена до initCheckboxStates
+// Использует кеширование для оптимизации производительности
+function getAllRowIdsOnPage() {
+  return RowIdsCache.get();
 }
 
 // Инициализация состояния чекбоксов (без добавления обработчиков)
@@ -4469,7 +4552,7 @@ function initCheckboxStates() {
   
   // Обновляем состояние чекбокса "Выбрать все"
   // Используем getAllRowIdsOnPage для правильного подсчета с учетом виртуализации
-  const selectAllCheckbox = document.getElementById('selectAll');
+  const selectAllCheckbox = getElementById('selectAll');
   if (selectAllCheckbox) {
     const allRowIds = getAllRowIdsOnPage();
     const selectedCount = allRowIds.filter(id => selectedAllFiltered || selectedIds.has(id)).length;
@@ -4528,7 +4611,7 @@ function loadSettings() {
         hiddenCards.push(...JSON.parse(savedHidden));
       }
     } catch (e) {
-      console.error('Error loading hidden cards in loadSettings:', e);
+      logger.error('Error loading hidden cards in loadSettings:', e);
     }
     
     // Упрощенная логика: используем только список скрытых карточек
@@ -4536,7 +4619,7 @@ function loadSettings() {
     document.querySelectorAll('.card-toggle').forEach(cb => {
       const cardName = cb.getAttribute('data-card');
       if (!cardName || cardName.trim() === '') {
-        console.warn('loadSettings: card-toggle has empty data-card attribute', {
+        logger.warn('loadSettings: card-toggle has empty data-card attribute', {
           element: cb,
           id: cb.id,
           value: cb.value
@@ -4550,7 +4633,7 @@ function loadSettings() {
 
     // Компактный режим отключен
   } catch (e) {
-    console.error('Error loading settings:', e);
+    logger.error('Error loading settings:', e);
   }
 }
 
@@ -4572,7 +4655,7 @@ function saveSettings() {
     
     showToast('Настройки сохранены', 'success');
   } catch (e) {
-    console.error('Error saving settings:', e);
+    logger.error('Error saving settings:', e);
     showToast('Ошибка сохранения настроек', 'error');
   }
 }
@@ -4605,7 +4688,7 @@ function applySavedColumnVisibility() {
 
 function toggleCardVisibility(cardName, visible) {
   if (!cardName || cardName.trim() === '') {
-    console.warn('toggleCardVisibility: cardName is empty');
+    logger.warn('toggleCardVisibility: cardName is empty');
     return;
   }
   
@@ -4616,7 +4699,7 @@ function toggleCardVisibility(cardName, visible) {
   const cardElement = document.querySelector(`.stat-card[data-card="${escapedCardName}"]`);
   
   if (!cardElement) {
-    console.warn(`Card not found: ${cardName}`, {
+    logger.warn(`Card not found: ${cardName}`, {
       searched: escapedCardName,
       available: Array.from(document.querySelectorAll('.stat-card')).map(c => c.getAttribute('data-card'))
     });
@@ -4676,7 +4759,7 @@ document.addEventListener('click', function(e) {
     
     const cardId = hideBtn.getAttribute('data-card');
     if (cardId) {
-      hideCard(cardId).catch(err => console.error('Error hiding card:', err));
+      hideCard(cardId).catch(err => logger.error('Error hiding card:', err));
     }
     return;
   }
@@ -4702,16 +4785,16 @@ document.addEventListener('click', function(e) {
     card.style.opacity = '1';
     
     // Логируем для отладки
-    console.log('Card clicked, active class added:', card);
-    console.log('Card has active class:', card.classList.contains('active'));
-    console.log('Card computed styles:', window.getComputedStyle(card).background);
+    logger.debug('Card clicked, active class added:', card);
+    logger.debug('Card has active class:', card.classList.contains('active'));
+    logger.debug('Card computed styles:', window.getComputedStyle(card).background);
     
     // Применяем фильтры
     handleCardSwipe(card);
   }
 });
 
-document.addEventListener('DOMContentLoaded', function() {
+      document.addEventListener('DOMContentLoaded', function() {
   loadSelectedIds();
   // ВАЖНО: Сначала применяем скрытие карточек СИНХРОННО из localStorage
   // Это предотвращает мигание скрытых карточек
@@ -4733,7 +4816,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const updatedList = Array.from(hiddenCardsSet);
         localStorage.setItem('dashboard_hidden_cards', JSON.stringify(updatedList));
       } catch (e) {
-        console.error('❌ Ошибка обновления localStorage:', e);
+        logger.error('❌ Ошибка обновления localStorage:', e);
       }
     }
     
@@ -4768,14 +4851,14 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         }
       } catch (e) {
-        console.error('❌ Ошибка проверки localStorage:', e);
+        logger.error('❌ Ошибка проверки localStorage:', e);
       }
     }
   }
   
   // Проверяем прелоадеры сразу
-  const statsLoading = document.getElementById('statsLoading');
-  const tableLoading = document.getElementById('tableLoading');
+  const statsLoading = getElementById('statsLoading');
+  const tableLoading = getElementById('tableLoading');
   
   if (statsLoading) {
     // Скрываем прелоадер сразу (несколько способов для надежности)
@@ -4784,7 +4867,7 @@ document.addEventListener('DOMContentLoaded', function() {
     statsLoading.style.visibility = 'hidden';
     statsLoading.style.opacity = '0';
   } else {
-    console.error('❌ statsLoading элемент не найден!');
+    logger.error('❌ statsLoading элемент не найден!');
   }
   
   if (tableLoading) {
@@ -4794,10 +4877,10 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Загружаем скрытые карточки из БД (синхронное скрытие уже применено выше)
   // Это обновит список из БД и синхронизирует с localStorage
-  loadHiddenCards().catch(err => console.error('Error loading hidden cards:', err));
+  loadHiddenCards().catch(err => logger.error('Error loading hidden cards:', err));
   
   // Инициализируем кастомные карточки
-  initializeCustomCards().catch(err => console.error('Error initializing custom cards:', err));
+  initializeCustomCards().catch(err => logger.error('Error initializing custom cards:', err));
   
   // ===== ОПТИМИЗАЦИЯ ПРОИЗВОДИТЕЛЬНОСТИ =====
   // Определение слабых устройств
@@ -4829,13 +4912,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  // Кэширование часто используемых селекторов
+  // Кэширование часто используемых селекторов (используем dom-cache если доступен)
   const cachedSelectors = {
     tbody: document.querySelector('#accountsTable tbody'),
-    table: document.getElementById('accountsTable'),
-    tableWrap: document.getElementById('tableWrap'),
-    selectAll: document.getElementById('selectAll'),
-    tableLoading: document.getElementById('tableLoading')
+    table: getElementById('accountsTable'),
+    tableWrap: getElementById('tableWrap'),
+    selectAll: getElementById('selectAll'),
+    tableLoading: getElementById('tableLoading')
   };
   
   // Тёмная тема отключена
@@ -4897,7 +4980,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
           hiddenCards.push(...JSON.parse(savedHidden));
         } catch (e) {
-          console.error('Error parsing hidden cards:', e);
+          logger.error('Error parsing hidden cards:', e);
         }
       }
       
@@ -4940,7 +5023,7 @@ document.addEventListener('DOMContentLoaded', function() {
           
           // Логируем для отладки
           if (cardName && !cardName.includes('custom:')) {
-            console.warn(`syncCardCheckboxesWithHidden: Card not found in DOM: ${cardName}`, {
+            logger.warn(`syncCardCheckboxesWithHidden: Card not found in DOM: ${cardName}`, {
               searched: escapedCardName,
               available: Array.from(document.querySelectorAll('.stat-card')).slice(0, 5).map(c => c.getAttribute('data-card'))
             });
@@ -4948,7 +5031,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
     } catch (e) {
-      console.error('Error syncing card checkboxes:', e);
+      logger.error('Error syncing card checkboxes:', e);
     }
   }
 
@@ -4983,7 +5066,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Проверяем, что cardName существует и не пустой
       if (!cardName || cardName.trim() === '') {
-        console.warn('card-toggle: data-card attribute is empty or missing', {
+        logger.warn('card-toggle: data-card attribute is empty or missing', {
           element: t,
           id: t.id,
           value: t.value
@@ -4993,7 +5076,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       const isVisible = !!t.checked;
       
-      console.log('Card toggle changed:', { cardName, isVisible, element: t });
+      logger.debug('Card toggle changed:', { cardName, isVisible, element: t });
       
       // Сохраняем исходное состояние для отката при ошибке
       const previousState = !isVisible;
@@ -5003,7 +5086,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (isVisible) {
         // Показываем карточку и сохраняем в БД
         showCard(cardName).catch(err => {
-          console.error('Error showing card:', err, { cardName });
+          logger.error('Error showing card:', err, { cardName });
           // Откатываем чекбокс при ошибке
           t.checked = previousState;
           showToast('Ошибка показа карточки', 'error');
@@ -5011,7 +5094,7 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         // Скрываем карточку и сохраняем в БД
         hideCard(cardName).catch(err => {
-          console.error('Error hiding card:', err, { cardName });
+          logger.error('Error hiding card:', err, { cardName });
           // Откатываем чекбокс при ошибке
           t.checked = previousState;
           showToast('Ошибка скрытия карточки', 'error');
@@ -5037,7 +5120,7 @@ document.addEventListener('DOMContentLoaded', function() {
   //     return; 
   //   }
   //   // Обычный переход по href - это должно работать
-  //   console.log('Pagination click:', a.getAttribute('href'), 'data-page:', a.getAttribute('data-page'));
+  //   logger.debug('Pagination click:', a.getAttribute('href'), 'data-page:', a.getAttribute('data-page'));
   // });
   
   // Select All и Individual checkboxes теперь обрабатываются через делегирование событий ниже
@@ -5148,7 +5231,7 @@ document.addEventListener('DOMContentLoaded', function() {
           wrap.innerHTML = originalContent;
         }
       } catch (error) {
-        console.error('Error:', error);
+        logger.error('Error:', error);
         showToast('Ошибка при сохранении пароля', 'error');
         wrap.innerHTML = originalContent;
       }
@@ -5266,7 +5349,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (textToCopy) {
       copyToClipboard(textToCopy);
     } else {
-      console.warn('Не удалось найти текст для копирования', copyBtn);
+      logger.warn('Не удалось найти текст для копирования', copyBtn);
     }
   });
 
@@ -5483,7 +5566,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // Режим "все по фильтру"
       if (selectedAllFiltered) {
-        console.log('🗑️ Удаление всех по фильтру');
+        logger.debug('🗑️ Удаление всех по фильтру');
         const params = new URLSearchParams(window.location.search);
         response = await fetch('delete.php?select=all&' + params.toString(), {
           method: 'POST',
@@ -5497,7 +5580,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Обычный режим - удаление выбранных ID
       else {
         if (selectedIds.size === 0) {
-          console.warn('⚠️ Попытка удаления без выбранных ID');
+          logger.warn('⚠️ Попытка удаления без выбранных ID');
           showToast('Не выбрано ни одной записи для удаления', 'warning');
           btn.disabled = false;
           btn.innerHTML = originalText;
@@ -5507,11 +5590,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const ids = Array.from(selectedIds);
         const requestBody = { ids: ids, csrf: '<?= e($csrfToken) ?>' };
         
-        console.group('🗑️ Отправка запроса на удаление');
-        console.log('ID для удаления:', ids);
-        console.log('Количество:', ids.length);
-        console.log('Тело запроса:', requestBody);
-        console.groupEnd();
+        logger.group('🗑️ Отправка запроса на удаление');
+        logger.debug('ID для удаления:', ids);
+        logger.debug('Количество:', ids.length);
+        logger.debug('Тело запроса:', requestBody);
+        logger.groupEnd();
         
         response = await fetch('delete.php', {
           method: 'POST',
@@ -5522,13 +5605,13 @@ document.addEventListener('DOMContentLoaded', function() {
           body: JSON.stringify(requestBody)
         });
         
-        console.log('📡 Статус ответа:', response.status, response.statusText);
+        logger.debug('📡 Статус ответа:', response.status, response.statusText);
       }
       
       if (!response.ok) {
-        console.error('❌ HTTP ошибка:', response.status, response.statusText);
+        logger.error('❌ HTTP ошибка:', response.status, response.statusText);
         const text = await response.text();
-        console.error('Тело ответа:', text);
+        logger.error('Тело ответа:', text);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
@@ -5557,13 +5640,13 @@ document.addEventListener('DOMContentLoaded', function() {
           modal.hide();
         }
         
-        console.log('✅ Удаление завершено успешно. Обновляем статистику...');
+        logger.debug('✅ Удаление завершено успешно. Обновляем статистику...');
         
         // Обновляем статистику сразу после удаления
         refreshDashboardData().then(() => {
-          console.log('✅ Статистика обновлена');
+          logger.debug('✅ Статистика обновлена');
         }).catch(err => {
-          console.error('❌ Ошибка обновления статистики:', err);
+          logger.error('❌ Ошибка обновления статистики:', err);
         });
         
         // Обновляем данные через AJAX вместо перезагрузки страницы
@@ -5576,7 +5659,7 @@ document.addEventListener('DOMContentLoaded', function() {
         showToast('Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
       }
     } catch (error) {
-      console.error('Error:', error);
+      logger.error('Error:', error);
       showToast('Ошибка сети при удалении', 'error');
     } finally {
       // Восстанавливаем кнопку
@@ -5684,7 +5767,7 @@ function syncNumericRange(params, prefix, fromId, toId, sliderId) {
 }
 
 function setTableLoadingState(isLoading) {
-  console.log('setTableLoadingState called with:', isLoading);
+  logger.debug('setTableLoadingState called with:', isLoading);
   const tableOverlay = document.getElementById('tableLoading');
   const statsOverlay = document.getElementById('statsLoading');
   const tableResponsive = document.querySelector('.table-responsive');
@@ -5892,18 +5975,18 @@ document.addEventListener('DOMContentLoaded', function() {
 /*
 async function loadEmptyStatusCount() {
   try {
-    console.log('📊 Загружаем количество пустых статусов...');
+    logger.debug('📊 Загружаем количество пустых статусов...');
     const response = await fetch('empty_status_manager.php?action=get_empty_status_count');
     const data = await response.json();
     
-    console.log('📊 Ответ API пустых статусов:', data);
+    logger.debug('📊 Ответ API пустых статусов:', data);
     
     if (data.success) {
       const countEl = document.getElementById('emptyStatusCount');
       const cardEl = document.querySelector('[data-card="empty_status"]');
       const navBtnEl = document.getElementById('emptyStatusNavBtn');
       
-      console.log('📊 Элементы найдены:', {
+      logger.debug('📊 Элементы найдены:', {
         countEl: !!countEl,
         cardEl: !!cardEl,
         navBtnEl: !!navBtnEl,
@@ -5916,7 +5999,7 @@ async function loadEmptyStatusCount() {
         
         // Показываем/скрываем плитку и кнопку навигации в зависимости от количества
         if (data.count > 0) {
-          console.log('📊 Показываем плитку пустых статусов (count > 0)');
+          logger.debug('📊 Показываем плитку пустых статусов (count > 0)');
           cardEl.classList.remove('force-hidden', 'd-none');
           cardEl.removeAttribute('hidden');
           if (navBtnEl) {
@@ -5933,10 +6016,10 @@ async function loadEmptyStatusCount() {
         }
       }
     } else {
-      console.error('📊 API вернул ошибку:', data.error);
+      logger.error('📊 API вернул ошибку:', data.error);
     }
   } catch (error) {
-    console.error('Ошибка загрузки пустых статусов:', error);
+    logger.error('Ошибка загрузки пустых статусов:', error);
   }
 }
 */
@@ -6164,7 +6247,7 @@ async function refreshDashboardData() {
     // Ищем только элементы .stat-card с атрибутом data-card, начинающимся с "status:"
     // Исключаем кнопки, чекбоксы и другие элементы
     const statusCards = document.querySelectorAll('.stat-card[data-card^="status:"]');
-    console.log('🔄 Обновление карточек статистики:', {
+    logger.debug('🔄 Обновление карточек статистики:', {
       'cards_found': statusCards.length,
       'byStatus_keys': data.byStatus ? Object.keys(data.byStatus) : []
     });
@@ -6225,16 +6308,24 @@ async function refreshDashboardData() {
       }
     }
     
+    // Инвалидируем dom-cache и RowIdsCache после обновления таблицы
+    if (typeof domCache !== 'undefined' && typeof domCache.invalidate === 'function') {
+      domCache.invalidate();
+    }
+    if (typeof RowIdsCache !== 'undefined' && typeof RowIdsCache.invalidate === 'function') {
+      RowIdsCache.invalidate();
+    }
+    
     // Обновляем счетчики в тулбаре после обновления таблицы
     // showingCountTop - сколько строк показано на странице
-    const showingCountTopEl = document.getElementById('showingCountTop');
+    const showingCountTopEl = getElementById('showingCountTop');
     if (showingCountTopEl && Array.isArray(data.rows)) {
       showingCountTopEl.textContent = String(data.rows.length);
     }
     
     // showingOnPageTop - общее количество строк на странице (для "Отмечено: X из Y")
     // Обновляется через updateSelectedOnPageCounter(), но обновим и здесь для надежности
-    const showingOnPageTopEl = document.getElementById('showingOnPageTop');
+    const showingOnPageTopEl = getElementById('showingOnPageTop');
     if (showingOnPageTopEl && Array.isArray(data.rows)) {
       showingOnPageTopEl.textContent = String(data.rows.length);
     }
@@ -6252,7 +6343,7 @@ async function refreshDashboardData() {
     }
     
     // Обработка реальных ошибок AJAX
-    console.error('❌ Ошибка обновления данных:', error);
+    logger.error('❌ Ошибка обновления данных:', error);
     
     // Показываем сообщение об ошибке пользователю
     const errorMessage = error.message || 'Не удалось обновить данные';
@@ -6260,7 +6351,7 @@ async function refreshDashboardData() {
     if (typeof showToast === 'function') {
       showToast(`Ошибка обновления: ${errorMessage}`, 'error');
     } else {
-      console.error('Toast не доступен:', errorMessage);
+      logger.error('Toast не доступен:', errorMessage);
     }
     
     // Скрываем прелоадеры при ошибке
@@ -6535,7 +6626,7 @@ async function handleCardSwipe(card) {
     // Применяем все фильтры из кастомной карточки
     const cardKey = card.getAttribute('data-card-key');
     if (!cardKey) {
-      console.warn('Card swipe: no card key found');
+      logger.warn('Card swipe: no card key found');
       return;
     }
     
@@ -6543,7 +6634,7 @@ async function handleCardSwipe(card) {
     const cards = loadCustomCardsFromLocalStorage();
     const cardData = cards.find(c => c.key === cardKey);
     if (!cardData) {
-      console.warn('Card swipe: card not found', cardKey);
+      logger.warn('Card swipe: card not found', cardKey);
       showToast('Карточка не найдена', 'error');
       return;
     }
@@ -6554,7 +6645,7 @@ async function handleCardSwipe(card) {
     const filters = cardData.filters || {};
     
     // Логируем для отладки
-    console.log('Applying filters from card:', cardKey, filters);
+    logger.debug('Applying filters from card:', cardKey, filters);
     
     // Статусы (множественный выбор - передаем как массив)
     if (filters.status && Array.isArray(filters.status) && filters.status.length > 0) {
@@ -6640,9 +6731,9 @@ function adjustForMobile() {
 
 // Вызываем адаптацию при загрузке и изменении размера
 window.addEventListener('resize', adjustForMobile);
-window.addEventListener('load', function() {
+    window.addEventListener('load', function() {
   adjustForMobile();
-  loadHiddenCards().catch(err => console.error('Error loading hidden cards:', err)); // Загружаем скрытые карточки при загрузке страницы
+  loadHiddenCards().catch(err => logger.error('Error loading hidden cards:', err)); // Загружаем скрытые карточки при загрузке страницы
 });
 
 // ===== КАСТОМНЫЕ КАРТОЧКИ СТАТИСТИКИ =====
@@ -6680,13 +6771,13 @@ async function loadCustomCardsFromStorage() {
         try {
           localStorage.setItem(LS_KEY_CUSTOM_CARDS, JSON.stringify(cards));
         } catch (e) {
-          console.warn('Failed to save to localStorage:', e);
+          logger.warn('Failed to save to localStorage:', e);
         }
         return cards;
       }
     }
   } catch (error) {
-    console.warn('Error loading from server, using localStorage:', error);
+    logger.warn('Error loading from server, using localStorage:', error);
   }
   
   // Fallback на localStorage
@@ -6704,7 +6795,7 @@ function loadCustomCardsFromLocalStorage() {
     if (!Array.isArray(arr)) return [];
     return arr.filter(x => x && typeof x === 'object' && x.key);
   } catch (e) {
-    console.error('Error loading from localStorage:', e);
+    logger.error('Error loading from localStorage:', e);
     return [];
   }
 }
@@ -6714,7 +6805,7 @@ function loadCustomCardsFromLocalStorage() {
  */
 async function saveCustomCardsToStorage(cards) {
   if (!Array.isArray(cards)) {
-    console.error('Invalid cards array');
+    logger.error('Invalid cards array');
     return false;
   }
   
@@ -6722,7 +6813,7 @@ async function saveCustomCardsToStorage(cards) {
   try {
     localStorage.setItem(LS_KEY_CUSTOM_CARDS, JSON.stringify(cards));
   } catch (e) {
-    console.warn('Failed to save to localStorage:', e);
+    logger.warn('Failed to save to localStorage:', e);
   }
   
   // Сохраняем в БД
@@ -6740,13 +6831,13 @@ async function saveCustomCardsToStorage(cards) {
     });
     
     if (!response.ok) {
-      console.warn('Failed to save to server, saved to localStorage only');
+      logger.warn('Failed to save to server, saved to localStorage only');
       return false;
     }
     
     return true;
   } catch (error) {
-    console.error('Error saving to server:', error);
+    logger.error('Error saving to server:', error);
     return false;
   }
 }
@@ -6759,7 +6850,7 @@ async function saveCustomCardsToStorage(cards) {
 async function renderCustomCardsSettings() {
   const list = document.getElementById('customCardsList');
   if (!list) {
-    console.warn('customCardsList element not found');
+    logger.warn('customCardsList element not found');
     return;
   }
   
@@ -6815,7 +6906,7 @@ async function renderCustomCardsSettings() {
 async function renderCustomCardsOnDashboard() {
   const row = document.getElementById('statsRow');
   if (!row) {
-    console.warn('statsRow element not found');
+    logger.warn('statsRow element not found');
     setTimeout(() => renderCustomCardsOnDashboard(), 200);
     return;
   }
@@ -6838,7 +6929,7 @@ async function renderCustomCardsOnDashboard() {
       });
     }
   } catch (e) {
-    console.error('Error loading hidden cards:', e);
+    logger.error('Error loading hidden cards:', e);
   }
   
   // Создаем карточки
@@ -6909,14 +7000,14 @@ async function renderCustomCardsOnDashboard() {
         activeCard.style.boxShadow = `0 0 0 3px ${cardColor}, 0 14px 24px rgba(59, 130, 246, 0.4)`;
         activeCard.style.opacity = '1';
         
-        console.log('Active card restored from URL:', activeCardKey, activeCard);
+        logger.debug('Active card restored from URL:', activeCardKey, activeCard);
         
         // Удаляем параметр из URL без перезагрузки страницы
         urlParams.delete('active_card');
         const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
         window.history.replaceState({}, '', newUrl);
       } else {
-        console.warn('Active card not found:', activeCardKey);
+        logger.warn('Active card not found:', activeCardKey);
       }
     }, 100);
   }
@@ -6960,13 +7051,13 @@ async function refreshCustomCardCounts() {
       });
       
       if (!response.ok) {
-        console.warn(`Failed to refresh card ${c.key}: ${response.status}`);
+        logger.warn(`Failed to refresh card ${c.key}: ${response.status}`);
         return;
       }
       
       const json = await response.json();
       if (!json.success || typeof json.count !== 'number') {
-        console.warn(`Invalid response for card ${c.key}:`, json);
+        logger.warn(`Invalid response for card ${c.key}:`, json);
         return;
       }
       
@@ -6984,7 +7075,7 @@ async function refreshCustomCardCounts() {
         cardEl.style.setProperty('--card-color-dark', darkerColor);
       }
     } catch (e) {
-      console.error(`Error refreshing custom card ${c.key}:`, e);
+      logger.error(`Error refreshing custom card ${c.key}:`, e);
     }
   });
   
@@ -7086,11 +7177,11 @@ async function createCustomCard() {
       if (registerResponse.ok) {
         const registerData = await registerResponse.json();
         if (registerData.success) {
-          console.log(`Статус "${targetStatus}" ${registerData.exists ? 'уже существует' : 'зарегистрирован'}`);
+          logger.debug(`Статус "${targetStatus}" ${registerData.exists ? 'уже существует' : 'зарегистрирован'}`);
         }
       }
     } catch (error) {
-      console.error('Error registering status:', error);
+      logger.error('Error registering status:', error);
     }
   }
   
@@ -7162,11 +7253,11 @@ async function registerMissingStatuses() {
           const data = await response.json();
           if (data.success && !data.exists) {
             registeredCount++;
-            console.log(`Статус "${status}" автоматически зарегистрирован`);
+            logger.debug(`Статус "${status}" автоматически зарегистрирован`);
           }
         }
       } catch (error) {
-        console.warn(`Не удалось зарегистрировать статус "${status}":`, error);
+        logger.warn(`Не удалось зарегистрировать статус "${status}":`, error);
       }
     }
     
@@ -7174,7 +7265,7 @@ async function registerMissingStatuses() {
       showToast(`Зарегистрировано ${registeredCount} новых статусов. Обновите страницу, чтобы увидеть их в фильтрах.`, 'success', 5000);
     }
   } catch (error) {
-    console.error('Error registering missing statuses:', error);
+    logger.error('Error registering missing statuses:', error);
   }
 }
 
@@ -7304,7 +7395,7 @@ async function initializeCustomCards() {
           throw new Error('Не удалось зарегистрировать статус');
         }
       } catch (error) {
-        console.error('Error registering status:', error);
+        logger.error('Error registering status:', error);
         showToast(`Ошибка регистрации статуса: ${error.message}`, 'error');
         registerBtn.disabled = false;
         registerBtn.innerHTML = originalHtml;
@@ -7342,18 +7433,18 @@ if (applyStatusBtn) {
       if (selectedAllFiltered) {
         const params = new URLSearchParams(window.location.search);
         body = { ids: [], status: newStatus, select: 'all', query: params.toString(), csrf: '<?= e($csrfToken) ?>' };
-        console.group('📝 Изменение статуса (все по фильтру)');
+        logger.group('📝 Изменение статуса (все по фильтру)');
       } else {
         const ids = Array.from(selectedIds);
         body = { ids, status: newStatus, csrf: '<?= e($csrfToken) ?>' };
-        console.group('📝 Изменение статуса (выбранные)');
-        console.log('ID для изменения:', ids);
-        console.log('Количество:', ids.length);
+        logger.group('📝 Изменение статуса (выбранные)');
+        logger.debug('ID для изменения:', ids);
+        logger.debug('Количество:', ids.length);
       }
       
-      console.log('Новый статус:', newStatus);
-      console.log('Тело запроса:', body);
-      console.groupEnd();
+      logger.debug('Новый статус:', newStatus);
+      logger.debug('Тело запроса:', body);
+      logger.groupEnd();
       
       const res = await fetch('status_update.php', { 
         method: 'POST', 
@@ -7364,11 +7455,11 @@ if (applyStatusBtn) {
         body: JSON.stringify(body) 
       });
       
-      console.log('📡 Статус ответа:', res.status, res.statusText);
+      logger.debug('📡 Статус ответа:', res.status, res.statusText);
       
       if (!res.ok) {
         const text = await res.text();
-        console.error('❌ Ошибка HTTP:', res.status, text);
+        logger.error('❌ Ошибка HTTP:', res.status, text);
         
         // Пытаемся распарсить JSON для получения детального сообщения об ошибке
         let errorMessage = `HTTP ${res.status}: ${res.statusText}`;
@@ -7388,7 +7479,7 @@ if (applyStatusBtn) {
       }
       
       const json = await res.json();
-      console.log('📥 Ответ сервера:', json);
+      logger.debug('📥 Ответ сервера:', json);
       
       if (!json.success) {
         let errorMessage = json.error || 'Update failed';
@@ -7402,7 +7493,7 @@ if (applyStatusBtn) {
       showToast(`Статус обновлён для ${json.affected || 0} записей`, 'success');
       
       // Обновляем статистику после успешного обновления статуса
-      console.log('🔄 Обновляем статистику после изменения статуса...');
+      logger.debug('🔄 Обновляем статистику после изменения статуса...');
       await refreshDashboardData();
       
       const modalEl = document.getElementById('statusModal');
@@ -7414,7 +7505,7 @@ if (applyStatusBtn) {
       await refreshDashboardData();
       
     } catch (e) { 
-      console.error('Ошибка изменения статуса:', e);
+      logger.error('Ошибка изменения статуса:', e);
       showToast('Ошибка изменения статуса: ' + e.message, 'error'); 
     }
   });
@@ -8316,7 +8407,7 @@ document.addEventListener('click', function(e) {
       }
       
       showToast(errorMessage, 'error');
-      console.error('Field update error:', err);
+      logger.error('Field update error:', err);
     }
   };
   
@@ -8365,26 +8456,54 @@ document.addEventListener('change', function(e) {
     // Получаем все ID строк на странице (с учетом виртуализации)
     const allRowIds = getAllRowIdsOnPage();
     
-    console.log(`[SELECT ALL] Выделение всех строк на странице: ${allRowIds.length} строк, checked: ${isChecked}`);
+    logger.debug(`[SELECT ALL] Выделение всех строк на странице: ${allRowIds.length} строк, checked: ${isChecked}`);
     
-    // Выделяем все строки по их ID
-    allRowIds.forEach(rowId => {
-      toggleRowSelection(rowId, isChecked);
-      
-      // Обновляем чекбокс, если он видим в DOM
-      const checkbox = document.querySelector(`.row-checkbox[value="${rowId}"]`);
-      if (checkbox) {
-        checkbox.checked = isChecked;
-        const row = checkbox.closest('tr[data-id]');
-        if (row) {
-          updateRowSelectedClass(row, isChecked);
+    // Используем батчинг для массового обновления чекбоксов
+    if (typeof batchDOM !== 'undefined' && typeof batchDOM === 'function') {
+      batchDOM(() => {
+        // Сначала обновляем selectedIds (без DOM операций)
+        allRowIds.forEach(rowId => {
+          toggleRowSelection(rowId, isChecked);
+        });
+        
+        // Затем обновляем DOM элементы батчем
+        allRowIds.forEach(rowId => {
+          const checkbox = (typeof domCache !== 'undefined' && domCache.get)
+            ? domCache.get(`.row-checkbox[value="${rowId}"]`)
+            : document.querySelector(`.row-checkbox[value="${rowId}"]`);
+          if (checkbox) {
+            checkbox.checked = isChecked;
+            const row = checkbox.closest('tr[data-id]');
+            if (row) {
+              updateRowSelectedClass(row, isChecked);
+            }
+          }
+        });
+      })();
+    } else {
+      // Fallback без батчинга
+      allRowIds.forEach(rowId => {
+        toggleRowSelection(rowId, isChecked);
+        const checkbox = document.querySelector(`.row-checkbox[value="${rowId}"]`);
+        if (checkbox) {
+          checkbox.checked = isChecked;
+          const row = checkbox.closest('tr[data-id]');
+          if (row) {
+            updateRowSelectedClass(row, isChecked);
+          }
         }
-      }
-    });
+      });
+    }
     
-    // Обновляем счетчик и состояние всех кнопок (включая "Сбросить все")
-    updateSelectedCount();
-    updateSelectedOnPageCounter();
+    // Обновляем счетчики через batchUpdater (если доступен)
+    if (typeof batchUpdater !== 'undefined' && typeof batchUpdater.add === 'function') {
+      batchUpdater.add('counter', updateSelectedOnPageCounter);
+      batchUpdater.add('count', updateSelectedCount);
+    } else {
+      // Fallback без batchUpdater
+      updateSelectedCount();
+      updateSelectedOnPageCounter();
+    }
     return;
   }
   
@@ -8392,7 +8511,7 @@ document.addEventListener('change', function(e) {
   if (e.target && e.target.classList.contains('row-checkbox')) {
     const rowId = parseInt(e.target.value);
     if (!Number.isFinite(rowId)) {
-      console.warn('Invalid row ID:', e.target.value);
+      logger.warn('Invalid row ID:', e.target.value);
       return;
     }
     
@@ -8405,8 +8524,14 @@ document.addEventListener('change', function(e) {
     }
     
     // Обновляем счетчик и состояние всех кнопок (включая "Сбросить все")
-    updateSelectedCount();
-    updateSelectedOnPageCounter();
+    // Используем batchUpdater для батчинга обновлений
+    if (typeof batchUpdater !== 'undefined' && typeof batchUpdater.add === 'function') {
+      batchUpdater.add('count', updateSelectedCount);
+      batchUpdater.add('counter', updateSelectedOnPageCounter);
+    } else {
+      updateSelectedCount();
+      updateSelectedOnPageCounter();
+    }
     
     // Обновляем состояние чекбокса "Выбрать все"
     // Используем getAllRowIdsOnPage для правильного подсчета с учетом виртуализации
@@ -8735,7 +8860,7 @@ if (applyTransferBtn) {
       clearTimeout(timeoutId);
       clearInterval(timerInterval);
       
-      console.log('📥 MASS TRANSFER: Ответ получен', {
+      logger.debug('📥 MASS TRANSFER: Ответ получен', {
         status: res.status,
         statusText: res.statusText,
         ok: res.ok,
@@ -8749,14 +8874,14 @@ if (applyTransferBtn) {
         if (contentType.includes('application/json')) {
           try {
             const errorData = await res.json();
-            console.error('❌ MASS TRANSFER: Ошибка (JSON):', errorData);
+            logger.error('❌ MASS TRANSFER: Ошибка (JSON):', errorData);
             errorMessage = errorData.error || errorMessage;
           } catch (e) {
-            console.error('❌ MASS TRANSFER: Ошибка парсинга JSON ошибки:', e);
+            logger.error('❌ MASS TRANSFER: Ошибка парсинга JSON ошибки:', e);
           }
         } else {
           const errorText = await res.text().catch(() => '');
-          console.error('❌ MASS TRANSFER: Ошибка (текст):', errorText.substring(0, 500));
+          logger.error('❌ MASS TRANSFER: Ошибка (текст):', errorText.substring(0, 500));
           errorMessage = errorText || errorMessage;
         }
         throw new Error(errorMessage);
@@ -8765,22 +8890,22 @@ if (applyTransferBtn) {
       const contentType = res.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
         const textResponse = await res.text().catch(() => '');
-        console.error('❌ MASS TRANSFER: Ответ не JSON:', textResponse.substring(0, 500));
+        logger.error('❌ MASS TRANSFER: Ответ не JSON:', textResponse.substring(0, 500));
         throw new Error('Сервер вернул некорректный ответ. Ожидается JSON.');
       }
       
       const json = await res.json();
-      console.log('✅ MASS TRANSFER: JSON получен', json);
+      logger.debug('✅ MASS TRANSFER: JSON получен', json);
       
       if (!json.success) {
-        console.error('❌ MASS TRANSFER: Импорт не успешен', json);
+        logger.error('❌ MASS TRANSFER: Импорт не успешен', json);
         throw new Error(json.error || 'Неизвестная ошибка');
       }
       
       // Выводим детальную статистику в консоль
-      console.log('Обновлено записей:', json.affected);
-      console.log('Статистика:');
-      console.table({
+      logger.debug('Обновлено записей:', json.affected);
+      logger.debug('Статистика:');
+      logger.table({
         'Распознано токенов (ID аккаунтов)': json.statistics?.parsed_tokens || 0,
         'Распознано числовых ID': json.statistics?.parsed_numeric || 0,
         'Всего строк обработано': json.statistics?.total_lines || 0,
@@ -8790,8 +8915,8 @@ if (applyTransferBtn) {
         'Найдено по cookies (LIKE)': json.statistics?.matched_like_cookies || 0,
         'Всего найдено': json.statistics?.total_found || 0
       });
-      console.log('Новый статус:', json.status);
-      console.groupEnd();
+      logger.debug('Новый статус:', json.status);
+      logger.groupEnd();
       
       // Показываем успешное уведомление
       const stats = json.statistics || {};
@@ -8817,7 +8942,7 @@ if (applyTransferBtn) {
       setTimeout(() => window.location.reload(), 1500);
       
     } catch (e) {
-      console.error('❌ Ошибка массового переноса:', e);
+      logger.error('❌ Ошибка массового переноса:', e);
       
       // Проверяем, не был ли это таймаут
       if (e.name === 'AbortError') {
@@ -8880,7 +9005,7 @@ if (applyBulkFieldBtn) {
       if (modal) modal.hide();
       await refreshDashboardData();
     } catch (e) { 
-      console.error('Bulk edit error:', e);
+      logger.error('Bulk edit error:', e);
       showToast('Ошибка массового изменения: ' + (e.message || e), 'error'); 
     }
   });
@@ -8890,7 +9015,7 @@ if (applyBulkFieldBtn) {
   document.addEventListener('DOMContentLoaded', function(){
     // Отключено для повышения плавности (убираем перерисовки на mousemove)
   });
-})();
+  })();
 
 window.addEventListener('load', () => {
   // Инициализация счётчиков и первичная синхронизация
@@ -8909,6 +9034,17 @@ window.addEventListener('load', () => {
 // ===== Прилипающий горизонтальный скроллбар (новая реализация) =====
 // Код перемещен в assets/js/sticky-scrollbar.js
 </script>
+<!-- Core модули для оптимизации производительности -->
+<script src="assets/js/core/logger.js?v=<?= time() ?>"></script>
+<script src="assets/js/core/dom-cache.js?v=<?= time() ?>"></script>
+<script src="assets/js/core/performance.js?v=<?= time() ?>"></script>
+<!-- Модули дашборда -->
+<script src="assets/js/modules/dashboard-selection.js?v=<?= time() ?>"></script>
+<script src="assets/js/modules/dashboard-filters.js?v=<?= time() ?>"></script>
+<script src="assets/js/modules/dashboard-stats.js?v=<?= time() ?>"></script>
+<script src="assets/js/modules/dashboard-modals.js?v=<?= time() ?>"></script>
+<script src="assets/js/modules/dashboard-main.js?v=<?= time() ?>"></script>
+<!-- Основные модули -->
 <script src="assets/js/sticky-scrollbar.js?v=<?= time() ?>"></script>
 <script src="assets/js/table-module.js?v=<?= time() ?>"></script>
 <script src="assets/js/toast.js?v=<?= time() ?>"></script>
