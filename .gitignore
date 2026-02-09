@@ -1,0 +1,33 @@
+# Оптимизации
+.optimization_applied
+
+# Конфигурация
+.env
+config.local.php
+
+# Логи
+*.log
+/tmp/
+
+# Кэш
+/cache/
+
+# Пользовательские данные
+users.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Временные файлы
+*.tmp
+*.bak
+*.backup

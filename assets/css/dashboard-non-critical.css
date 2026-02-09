@@ -1,0 +1,18 @@
+/**
+ * НЕКРИТИЧЕСКИЕ СТИЛИ
+ * Загружаются асинхронно после первоначального рендеринга
+ * 
+ * ВАЖНО: Этот файл можно загружать с defer или через preload
+ */
+
+/* Импортируем стили для карточек статистики */
+@import url('minimal-components.css');
+@import url('minimal-layout.css');
+@import url('minimal-overrides.css');
+@import url('minimal-performance.css');
+
+/* Импортируем дополнительные стили */
+@import url('toast.css');
+@import url('sticky-scrollbar.css');
+@import url('unified-theme.css');
+@import url('dashboard-inline.css');

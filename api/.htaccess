@@ -1,0 +1,12 @@
+# Rewrite rules for API router
+# Все запросы к /api/* перенаправляются на api/index.php
+
+RewriteEngine On
+RewriteBase /api/
+
+# Если запрашивается файл или директория, отдаем как есть
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Все остальные запросы перенаправляем на index.php
+RewriteRule ^(.*)$ index.php [QSA,L]

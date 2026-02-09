@@ -1,0 +1,298 @@
+/**
+ * МИНИМАЛИСТИЧНЫЕ КОМПОНЕНТЫ
+ * Строгий, чистый стиль - выглядит как новый сайт
+ */
+
+/* ========================================
+   КНОПКИ
+   ======================================== */
+
+.btn-minimal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: 10px 16px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn-minimal:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color-hover);
+}
+
+.btn-minimal:active {
+  transform: translateY(1px);
+}
+
+.btn-minimal:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Акцентная кнопка (primary) */
+.btn-minimal-primary {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+.btn-minimal-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+/* Варианты размеров */
+.btn-minimal-sm {
+  padding: 6px 12px;
+  font-size: var(--font-size-xs);
+}
+
+.btn-minimal-lg {
+  padding: 12px 20px;
+  font-size: var(--font-size-base);
+}
+
+/* Иконки в кнопках */
+.btn-minimal i {
+  font-size: 14px;
+}
+
+.btn-minimal-sm i {
+  font-size: 12px;
+}
+
+/* ========================================
+   КАРТОЧКИ - МИНИМАЛИСТИЧНЫЕ
+   ======================================== */
+
+.card-minimal {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  transition: border-color var(--transition-fast);
+}
+
+.card-minimal:hover {
+  border-color: var(--border-color-hover);
+}
+
+.card-minimal-header {
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.card-minimal-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+}
+
+.card-minimal-body {
+  /* Контент карточки */
+}
+
+.card-minimal-footer {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-color);
+}
+
+/* ========================================
+   ПОЛЯ ВВОДА - СТРОГИЕ
+   ======================================== */
+
+.input-minimal {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: var(--font-size-base);
+  font-family: inherit;
+  line-height: var(--line-height-normal);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  outline: none;
+}
+
+.input-minimal::placeholder {
+  color: var(--text-tertiary);
+}
+
+.input-minimal:hover {
+  border-color: var(--border-color-hover);
+}
+
+.input-minimal:focus {
+  border-color: var(--border-color-focus);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+}
+
+.input-minimal:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+/* ========================================
+   ТАБЛИЦЫ - МИНИМАЛИСТИЧНЫЕ
+   ======================================== */
+
+.table-minimal {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.table-minimal thead {
+  background: var(--bg-secondary);
+}
+
+.table-minimal th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.table-minimal td {
+  padding: 14px 16px;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.table-minimal tbody tr {
+  transition: background var(--transition-fast);
+}
+
+.table-minimal tbody tr:hover {
+  background: var(--bg-secondary);
+}
+
+.table-minimal tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ========================================
+   ХЕДЕР - МИНИМАЛИСТИЧНЫЙ
+   ======================================== */
+
+.header-minimal {
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding: var(--space-md) var(--space-xl);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}
+
+.header-minimal-container {
+  max-width: 1600px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.header-minimal-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.header-minimal-logo {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.header-minimal-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+/* ========================================
+   КОНТЕЙНЕРЫ
+   ======================================== */
+
+.container-minimal {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+.section-minimal {
+  margin-bottom: var(--space-2xl);
+}
+
+.section-minimal:last-child {
+  margin-bottom: 0;
+}
+
+/* ========================================
+   БЕЙДЖИ / ТЕГИ
+   ======================================== */
+
+.badge-minimal {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.badge-minimal-primary {
+  background: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ========================================
+   АДАПТИВНОСТЬ
+   ======================================== */
+
+@media (max-width: 768px) {
+  .container-minimal {
+    padding: var(--space-md);
+  }
+  
+  .header-minimal {
+    padding: var(--space-md);
+  }
+  
+  .header-minimal-container {
+    flex-wrap: wrap;
+  }
+}
+
+

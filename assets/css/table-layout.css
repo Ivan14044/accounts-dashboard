@@ -1,0 +1,632 @@
+/**
+ * ============================================================================
+ * ЧИСТАЯ ВЕРСТКА ТАБЛИЦЫ - ПЕРЕПИСАНО С НУЛЯ
+ * ============================================================================
+ * 
+ * Современная, чистая верстка для таблицы accountsTable
+ * Без лишних зависимостей и сложных конструкций
+ * 
+ * ВЕРСИЯ: 3.0 (полная переработка)
+ * ДАТА: 2024
+ * ============================================================================
+ */
+
+/* ============================================================================
+   ОСНОВНЫЕ ПЕРЕМЕННЫЕ
+   ============================================================================ */
+
+:root {
+  --table-bg: #ffffff;
+  --table-header-bg: #f8f9fa;
+  --table-border: #dee2e6;
+  --table-text: #212529;
+  --table-text-muted: #6c757d;
+  --table-hover: #f1f5f9;
+  --table-selected: #dbeafe;
+  --table-selected-border: #2563eb;
+  --table-radius: 8px;
+  --table-padding: 12px 16px;
+  --table-padding-sm: 8px 12px;
+  --column-checkbox-width: 60px;
+  --column-id-width: 100px;
+  --column-favorite-width: 60px;
+  --column-actions-width: 140px;
+}
+
+/* ============================================================================
+   КОНТЕЙНЕР ТАБЛИЦЫ
+   ============================================================================ */
+
+#tableWrap {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  background: var(--table-bg);
+  border-radius: var(--table-radius);
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ============================================================================
+   ОСНОВНАЯ ТАБЛИЦА
+   ============================================================================ */
+
+#accountsTable {
+  width: 100%;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--table-bg);
+  font-size: 14px;
+  line-height: 1.5;
+  table-layout: auto;
+}
+
+/* ============================================================================
+   ЗАГОЛОВОК ТАБЛИЦЫ
+   ============================================================================ */
+
+#accountsTable thead {
+  background: var(--table-header-bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+#accountsTable thead th {
+  padding: var(--table-padding) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  text-transform: none !important; /* ЯВНО ОТМЕНЯЕМ uppercase из других CSS файлов */
+  letter-spacing: 0.05em !important;
+  color: var(--table-text-muted) !important;
+  background: var(--table-header-bg) !important;
+  border-bottom: 2px solid var(--table-border) !important;
+  border-top: none !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+  vertical-align: middle !important;
+  position: relative !important;
+}
+
+#accountsTable thead th a {
+  color: inherit !important;
+  text-decoration: none !important;
+  display: block !important;
+  width: 100% !important;
+}
+
+#accountsTable thead th a:hover {
+  color: var(--table-selected-border) !important;
+}
+
+/* Специальные колонки в заголовке */
+#accountsTable thead th.checkbox-cell {
+  width: var(--column-checkbox-width);
+  min-width: var(--column-checkbox-width);
+  max-width: var(--column-checkbox-width);
+  text-align: center;
+  padding: var(--table-padding-sm);
+  overflow: visible;
+}
+
+#accountsTable thead th.checkbox-cell .form-check {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  min-height: 24px;
+}
+
+#accountsTable thead th.checkbox-cell .form-check-input {
+  margin: 0;
+  position: relative;
+  z-index: 1;
+}
+
+#accountsTable thead th.favorite-header-cell {
+  width: var(--column-favorite-width);
+  min-width: var(--column-favorite-width);
+  max-width: var(--column-favorite-width);
+  text-align: center;
+  padding: var(--table-padding-sm);
+}
+
+#accountsTable thead th[data-col="actions"] {
+  width: var(--column-actions-width);
+  min-width: var(--column-actions-width);
+  max-width: var(--column-actions-width);
+  text-align: right;
+  padding: var(--table-padding);
+}
+
+/* ============================================================================
+   STICKY КОЛОНКИ
+   ============================================================================ */
+
+#accountsTable thead th.checkbox-cell,
+#accountsTable tbody td.checkbox-cell {
+  position: sticky;
+  left: 0;
+  z-index: 30;
+  background: var(--table-bg);
+}
+
+#accountsTable thead th.checkbox-cell {
+  background: var(--table-header-bg);
+  z-index: 40;
+  top: 0;
+}
+
+#accountsTable thead th[data-col="id"],
+#accountsTable tbody td[data-col="id"],
+#accountsTable tbody td.sticky-id {
+  width: var(--column-id-width);
+  min-width: var(--column-id-width);
+  max-width: var(--column-id-width);
+  position: sticky;
+  left: var(--column-checkbox-width);
+  z-index: 29;
+  background: var(--table-bg);
+}
+
+#accountsTable thead th[data-col="id"] {
+  background: var(--table-header-bg);
+  z-index: 39;
+  top: 0;
+}
+
+#accountsTable thead th.favorite-header-cell,
+#accountsTable tbody td.favorite-cell {
+  position: sticky;
+  left: calc(var(--column-checkbox-width) + var(--column-id-width));
+  z-index: 28;
+  background: var(--table-bg);
+}
+
+#accountsTable thead th.favorite-header-cell {
+  background: var(--table-header-bg);
+  z-index: 38;
+  top: 0;
+}
+
+#accountsTable thead th[data-col="actions"],
+#accountsTable tbody td.sticky-actions {
+  position: sticky;
+  right: 0;
+  z-index: 31;
+  background: var(--table-bg);
+}
+
+#accountsTable thead th[data-col="actions"] {
+  background: var(--table-header-bg);
+  z-index: 41;
+  top: 0;
+}
+
+#accountsTable tbody td.checkbox-cell,
+#accountsTable tbody td.sticky-id,
+#accountsTable tbody td.favorite-cell,
+#accountsTable tbody td.sticky-actions {
+  box-shadow: 1px 0 0 var(--table-border);
+}
+
+#accountsTable tbody td.sticky-actions {
+  box-shadow: -1px 0 0 var(--table-border);
+}
+
+/* ============================================================================
+   ТЕЛО ТАБЛИЦЫ
+   ============================================================================ */
+
+#accountsTable tbody tr {
+  border-bottom: 1px solid var(--table-border);
+  transition: background-color 0.15s ease;
+}
+
+#accountsTable tbody tr:hover {
+  background: var(--table-hover);
+}
+
+#accountsTable tbody tr:last-child {
+  border-bottom: none;
+}
+
+/* Выделенная строка */
+#accountsTable tbody tr.row-selected {
+  background-color: var(--table-selected) !important;
+  border-left: 4px solid var(--table-selected-border) !important;
+}
+
+#accountsTable tbody tr.row-selected td {
+  background-color: var(--table-selected) !important;
+}
+
+#accountsTable tbody tr.row-selected:hover {
+  background-color: #bfdbfe !important;
+}
+
+#accountsTable tbody tr.row-selected:hover td {
+  background-color: #bfdbfe !important;
+}
+
+/* Ячейки */
+#accountsTable tbody td {
+  padding: var(--table-padding);
+  font-size: 14px;
+  color: var(--table-text);
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 500px;
+}
+
+/* Ячейки в режиме редактирования - убираем ограничения */
+#accountsTable tbody td[data-editing="true"] {
+  overflow: visible !important;
+  white-space: normal !important;
+  text-overflow: clip !important;
+  position: relative;
+  z-index: 5;
+}
+
+/* Специальные ячейки */
+#accountsTable tbody td.checkbox-cell {
+  width: var(--column-checkbox-width);
+  min-width: var(--column-checkbox-width);
+  max-width: var(--column-checkbox-width);
+  text-align: center;
+  padding: var(--table-padding-sm);
+  overflow: visible;
+}
+
+#accountsTable tbody td.checkbox-cell .form-check {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  min-height: 24px;
+}
+
+#accountsTable tbody td.checkbox-cell .form-check-input {
+  margin: 0;
+  position: relative;
+  z-index: 1;
+}
+
+#accountsTable tbody td.favorite-cell {
+  width: var(--column-favorite-width);
+  min-width: var(--column-favorite-width);
+  max-width: var(--column-favorite-width);
+  text-align: center;
+  padding: var(--table-padding-sm);
+}
+
+#accountsTable tbody td[data-col="actions"] {
+  width: var(--column-actions-width);
+  min-width: var(--column-actions-width);
+  max-width: var(--column-actions-width);
+  text-align: right;
+  padding: var(--table-padding);
+}
+
+/* ============================================================================
+   КОНТЕНТ ЯЧЕЕК
+   ============================================================================ */
+
+/* Обертка для редактируемых полей */
+.editable-field-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Когда поле редактируется, убираем ограничения */
+.editable-field-wrap[data-editing="true"] {
+  overflow: visible;
+  white-space: normal;
+  min-width: auto;
+}
+
+/* Input и textarea внутри редактируемого поля */
+.editable-field-wrap[data-editing="true"] input,
+.editable-field-wrap[data-editing="true"] textarea {
+  flex: 1;
+  min-width: 120px;
+  max-width: 100%;
+  width: auto;
+  display: block;
+  visibility: visible;
+  opacity: 1;
+  color: inherit;
+  background: #fff;
+  border: 1px solid #ced4da;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  z-index: 10;
+  position: relative;
+}
+
+.editable-field-wrap[data-editing="true"] input:focus,
+.editable-field-wrap[data-editing="true"] textarea:focus {
+  border-color: #80bdff;
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Кнопки внутри редактируемого поля */
+.editable-field-wrap[data-editing="true"] .btn {
+  flex-shrink: 0;
+  z-index: 10;
+  position: relative;
+}
+
+.field-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* Кнопки действий в ячейках */
+.field-edit-btn,
+.copy-btn,
+.pw-toggle,
+.pw-edit {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  cursor: pointer;
+  color: var(--table-text-muted);
+  font-size: 14px;
+  opacity: 0.6;
+  transition: opacity 0.2s ease, color 0.2s ease;
+  border-radius: 4px;
+}
+
+.field-edit-btn:hover,
+.copy-btn:hover,
+.pw-toggle:hover,
+.pw-edit:hover {
+  opacity: 1;
+  color: var(--table-selected-border);
+  background: var(--table-hover);
+}
+
+/* ============================================================================
+   МАСКИРОВАНИЕ ПАРОЛЕЙ
+   ============================================================================ */
+
+.pw-mask {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+  width: 100%;
+  min-width: 0;
+}
+
+.pw-dots {
+  font-family: monospace;
+  letter-spacing: 2px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.pw-text {
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+/* ============================================================================
+   ОБРЕЗКА ТЕКСТА
+   ============================================================================ */
+
+.truncate {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.truncate.mono {
+  font-family: monospace;
+  font-size: 13px;
+}
+
+/* ============================================================================
+   БЕЙДЖИ СТАТУСОВ
+   ============================================================================ */
+
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge-new {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.badge-add_selphi_true {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.badge-error_login {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.badge-empty-status {
+  background: rgba(253, 126, 20, 0.1);
+  color: #fd7e14;
+  font-style: italic;
+}
+
+.badge-default {
+  background-color: #e5e7eb;
+  color: #111827;
+}
+
+/* ============================================================================
+   ЗАГРУЗКА
+   ============================================================================ */
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: var(--table-radius);
+}
+
+.loading-overlay.show {
+  display: flex;
+}
+
+/* ============================================================================
+   ПУСТАЯ ТАБЛИЦА
+   ============================================================================ */
+
+#accountsTable tbody tr:only-child td {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--table-text-muted);
+}
+
+/* ============================================================================
+   КОМПАКТНЫЙ РЕЖИМ
+   ============================================================================ */
+
+#accountsTable.table-sm thead th {
+  padding: var(--table-padding-sm);
+  font-size: 11px;
+}
+
+#accountsTable.table-sm tbody td {
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+/* ============================================================================
+   АДАПТИВНОСТЬ
+   ============================================================================ */
+
+@media (max-width: 992px) {
+  /* Отключаем sticky для ID и favorite на планшетах и мобильных */
+  #accountsTable thead th[data-col="id"],
+  #accountsTable tbody td[data-col="id"],
+  #accountsTable tbody td.sticky-id {
+    position: relative !important;
+    left: auto !important;
+  }
+  
+  #accountsTable thead th.favorite-header-cell,
+  #accountsTable tbody td.favorite-cell {
+    position: relative !important;
+    left: auto !important;
+  }
+  
+  /* Оставляем только checkbox слева и actions справа */
+  #accountsTable thead th.checkbox-cell,
+  #accountsTable tbody td.checkbox-cell {
+    left: 0 !important;
+  }
+  
+  #accountsTable thead th[data-col="actions"],
+  #accountsTable tbody td.sticky-actions {
+    right: 0 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  #accountsTable {
+    font-size: 12px;
+  }
+  
+  #accountsTable thead th {
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+  }
+  
+  #accountsTable tbody td {
+    padding: 10px !important;
+    font-size: 12px !important;
+  }
+  
+  /* На мобильных отключаем все sticky кроме checkbox */
+  #accountsTable thead th[data-col="actions"],
+  #accountsTable tbody td.sticky-actions {
+    position: relative !important;
+    right: auto !important;
+  }
+}
+
+@media (max-width: 576px) {
+  /* На маленьких экранах отключаем даже checkbox sticky */
+  #accountsTable thead th.checkbox-cell,
+  #accountsTable tbody td.checkbox-cell {
+    position: relative !important;
+    left: auto !important;
+  }
+  
+  /* Уменьшаем ширины колонок */
+  :root {
+    --column-checkbox-width: 50px;
+    --column-id-width: 80px;
+    --column-favorite-width: 50px;
+    --column-actions-width: 120px;
+  }
+}
+
+/* ============================================================================
+   TEXTAREA ПРИ РЕДАКТИРОВАНИИ
+   ============================================================================ */
+
+#accountsTable td textarea {
+  min-height: 80px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--table-border);
+  border-radius: 4px;
+  resize: vertical;
+}
+
+#accountsTable td textarea:focus {
+  outline: none;
+  border-color: var(--table-selected-border);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* ============================================================================
+   КОНЕЦ ФАЙЛА
+   ============================================================================ */

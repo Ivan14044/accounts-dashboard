@@ -1,0 +1,324 @@
+:root {
+  --table-bg: #ffffff;
+  --table-border: #e2e8f0;
+  --table-header-bg: #f8fafc;
+  --table-hover: #f1f5f9;
+  --table-selected: #dbeafe;
+  --table-selected-border: #2563eb;
+  --table-text: #0f172a;
+  --table-text-muted: #64748b;
+  --toolbar-bg: #f8fafc;
+  --toolbar-border: #e2e8f0;
+  --row-height: 56px;
+  --col-checkbox: 60px;
+  --col-id: 110px;
+  --col-favorite: 60px;
+  --col-actions: 150px;
+  --z-table-header: 50;        /* Увеличен: должен быть выше всех sticky колонок */
+  --z-sticky-left-1: 40;       /* Checkbox в body */
+  --z-sticky-left-2: 39;       /* ID в body (не используется) */
+  --z-sticky-left-3: 38;       /* Favorite в body (не используется) */
+  --z-sticky-right: 41;        /* Actions в body */
+}
+
+.dashboard-table {
+  border: 1px solid var(--table-border);
+  border-radius: 16px;
+  margin-bottom: 1.5rem;
+  background: var(--table-bg);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+}
+
+.dashboard-table__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.dashboard-table__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--toolbar-border);
+  background: var(--toolbar-bg);
+}
+
+.dashboard-table__toolbar-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.dashboard-table__counter {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.dashboard-table__counter-value,
+.dashboard-table__counter-total {
+  font-weight: 600;
+  color: var(--table-text);
+}
+
+.dashboard-table__toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.dashboard-table__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--table-border);
+  background: var(--table-bg);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-table-header);
+}
+
+.dashboard-table__header-actions .btn + .btn {
+  margin-left: 0.25rem;
+}
+
+.dashboard-table__body {
+  position: relative;
+}
+
+.dashboard-table__scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+#tableWrap {
+  width: 100%;
+  overflow: auto;
+  max-height: clamp(400px, 65vh, 720px);
+}
+
+.ac-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
+}
+
+.ac-table thead th,
+.ac-table tbody td {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ac-cell {
+  background: var(--table-bg);
+  border-bottom: 1px solid var(--table-border);
+}
+
+.ac-cell--checkbox {
+  width: var(--col-checkbox);
+  min-width: var(--col-checkbox);
+  max-width: var(--col-checkbox);
+  text-align: center;
+  position: sticky;
+  left: 0;
+  z-index: var(--z-sticky-left-1);
+  background: var(--table-bg);
+}
+
+/* Чекбокс в заголовке должен быть выше всего */
+.ac-table thead th.ac-cell--checkbox {
+  z-index: calc(var(--z-table-header) + 1);
+  background: var(--table-header-bg);
+}
+
+.ac-cell--id {
+  width: var(--col-id);
+  min-width: var(--col-id);
+  max-width: var(--col-id);
+  /* position: sticky; */ /* УБРАНО - колонка ID не должна прилипать */
+  /* left: var(--col-checkbox); */
+  /* z-index: var(--z-sticky-left-2); */
+}
+
+.ac-cell--favorite {
+  width: var(--col-favorite);
+  min-width: var(--col-favorite);
+  max-width: var(--col-favorite);
+  /* position: sticky; */ /* УБРАНО - колонка favorite не должна прилипать */
+  /* left: calc(var(--col-checkbox) + var(--col-id)); */
+  text-align: center;
+  /* z-index: var(--z-sticky-left-3); */
+}
+
+.ac-cell--actions {
+  width: var(--col-actions);
+  min-width: var(--col-actions);
+  max-width: var(--col-actions);
+  text-align: right;
+  position: sticky;
+  right: 0;
+  z-index: var(--z-sticky-right);
+  background: var(--table-bg);
+}
+
+/* Actions в заголовке должен быть выше всего */
+.ac-table thead th.ac-cell--actions {
+  z-index: calc(var(--z-table-header) + 2);
+  background: var(--table-header-bg);
+}
+
+.ac-table thead th {
+  background: var(--table-header-bg);
+  text-transform: none;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--table-text-muted);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-table-header);
+}
+
+.ac-table thead th .ac-cell__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ac-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.ac-table tbody tr:hover {
+  background: var(--table-hover);
+}
+
+.ac-table tbody tr.row-selected {
+  background: var(--table-selected);
+  border-left: 4px solid var(--table-selected-border);
+}
+
+.favorite-cell .favorite-btn {
+  color: #fbbf24;
+}
+
+.dashboard-table__loader {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.95);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.dashboard-table__loader.show {
+  display: flex;
+}
+
+.sticky-scrollbar-wrapper {
+  position: sticky;
+  top: 0;
+  background: var(--table-bg);
+  border-bottom: 1px solid var(--table-border);
+  z-index: var(--z-table-header);
+}
+
+.sticky-scrollbar {
+  overflow-x: auto;
+}
+
+.sticky-scrollbar-content {
+  height: 1px;
+}
+
+.dashboard-table__footer {
+  border-top: 1px solid var(--table-border);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dashboard-table__footer-info {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dashboard-table__pagination .page-link {
+  border-radius: 999px;
+}
+
+@media (max-width: 992px) {
+  /* ID и favorite больше не sticky даже на desktop, поэтому не нужны правила */
+  .ac-cell--checkbox {
+    position: sticky;
+    left: 0;
+  }
+}
+
+.dashboard-table--density-comfortable .ac-table thead th,
+.dashboard-table--density-comfortable .ac-table tbody td {
+  padding: 0.75rem 1rem;
+}
+
+.dashboard-table--density-compact .ac-table thead th,
+.dashboard-table--density-compact .ac-table tbody td {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8125rem;
+}
+
+.dashboard-table--density-compact .dashboard-table__toolbar,
+.dashboard-table--density-compact .dashboard-table__header,
+.dashboard-table--density-compact .dashboard-table__footer {
+  padding: 0.5rem 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .dashboard-table__toolbar,
+  .dashboard-table__header,
+  .dashboard-table__footer {
+    padding: 0.75rem;
+  }
+  .ac-table thead th,
+  .ac-table tbody td {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+  #tableWrap {
+    max-height: none;
+  }
+  .ac-cell--checkbox,
+  .ac-cell--actions {
+    position: relative;
+    left: auto;
+    right: auto;
+  }
+}
+
+@media (max-width: 576px) {
+  .dashboard-table__toolbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .dashboard-table__footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

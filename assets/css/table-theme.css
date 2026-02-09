@@ -1,0 +1,263 @@
+.dashboard-table__action {
+  min-width: 110px;
+}
+
+.dashboard-table__action[data-table-density] {
+  min-width: unset;
+}
+
+.dashboard-table__header-title {
+  font-weight: 600;
+  color: var(--table-text);
+}
+
+.sort-indicator {
+  font-size: 0.75rem;
+  color: var(--table-text-muted);
+}
+
+.ac-table tbody tr.row-selected .ac-cell {
+  background: var(--table-selected);
+}
+
+.ac-table tbody tr.row-selected:hover .ac-cell {
+  background: #bfdbfe;
+}
+
+/* ============================================================================
+   КРИТИЧНО: ВЫРАВНИВАНИЕ ЧЕКБОКСОВ
+   ============================================================================
+   Чекбоксы должны быть на одном уровне с содержимым строк
+   ============================================================================ */
+
+/* Убираем фиксированную высоту строк */
+.ac-table tbody tr,
+.ac-table thead tr {
+  height: auto !important;
+}
+
+/* Все ячейки: одинаковый padding, vertical-align, line-height */
+#accountsTable.ac-table tbody td,
+#accountsTable.ac-table thead th {
+  padding: 0.75rem 1rem !important;
+  vertical-align: middle !important;
+  line-height: 1.5 !important;
+  box-sizing: border-box;
+}
+
+/* Ячейки в режиме редактирования - убираем ограничения */
+#accountsTable.ac-table tbody td[data-editing="true"] {
+  overflow: visible !important;
+  white-space: normal !important;
+  text-overflow: clip !important;
+  position: relative;
+  z-index: 5;
+}
+
+/* Чекбокс-ячейка: текст по центру, без лишних стилей */
+#accountsTable tbody td.ac-cell--checkbox,
+#accountsTable thead th.ac-cell--checkbox {
+  text-align: center !important;
+  padding: 0.75rem 0.5rem !important;
+}
+
+/* form-check контейнер: простой block без flexbox */
+#accountsTable .ac-cell--checkbox .form-check {
+  display: block;
+  margin: 0 auto;
+  padding: 0;
+  width: fit-content;
+  line-height: 1;
+}
+
+/* Сам input чекбокс: центрируем через margin */
+#accountsTable .ac-cell--checkbox .form-check-input {
+  display: block;
+  margin: 0 auto !important;
+  padding: 0;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  vertical-align: baseline;
+}
+
+/* Убираем любые transform/position offset от Bootstrap */
+#accountsTable .form-check-input {
+  position: static !important;
+  transform: none !important;
+}
+
+.editable-field-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Когда поле редактируется, убираем ограничения */
+.editable-field-wrap[data-editing="true"] {
+  overflow: visible !important;
+  white-space: normal !important;
+  min-width: auto !important;
+}
+
+/* Input и textarea внутри редактируемого поля */
+.editable-field-wrap[data-editing="true"] input,
+.editable-field-wrap[data-editing="true"] textarea {
+  flex: 1;
+  min-width: 120px;
+  max-width: 100%;
+  width: auto;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #212529 !important;
+  background: #fff !important;
+  border: 1px solid #ced4da !important;
+  padding: 0.375rem 0.75rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+  z-index: 10;
+  position: relative;
+}
+
+.editable-field-wrap[data-editing="true"] input:focus,
+.editable-field-wrap[data-editing="true"] textarea:focus {
+  border-color: #80bdff !important;
+  outline: 0 !important;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+}
+
+/* Кнопки внутри редактируемого поля */
+.editable-field-wrap[data-editing="true"] .btn {
+  flex-shrink: 0;
+  z-index: 10;
+  position: relative;
+}
+
+.editable-field-wrap .field-value {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-edit-btn,
+.copy-btn,
+.pw-toggle,
+.pw-edit {
+  border: none;
+  background: transparent;
+  padding: 0.1rem 0.25rem;
+  color: var(--table-text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.field-edit-btn:hover,
+.copy-btn:hover,
+.pw-toggle:hover,
+.pw-edit:hover {
+  color: var(--table-selected-border);
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.pw-mask {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+}
+
+.pw-dots {
+  font-family: monospace;
+  letter-spacing: 2px;
+}
+
+.truncate {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.truncate.mono {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.8125rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-default {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.badge-empty-status {
+  background: rgba(253, 186, 116, 0.2);
+  color: #92400e;
+  font-style: italic;
+}
+
+.badge-new {
+  background: rgba(16, 185, 129, 0.2);
+  color: #065f46;
+}
+
+.badge-add_selphi_true {
+  background: rgba(59, 130, 246, 0.15);
+  color: #1d4ed8;
+}
+
+.badge-error_login {
+  background: rgba(248, 113, 113, 0.2);
+  color: #991b1b;
+}
+
+.dashboard-table__loader .loader {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.dashboard-table__toolbar .btn,
+.dashboard-table__header .btn {
+  border-radius: 999px;
+}
+
+.dashboard-table__toolbar .btn-outline-secondary.active,
+.dashboard-table__toolbar .btn-outline-secondary:focus {
+  background: var(--table-selected);
+  border-color: var(--table-selected-border);
+  color: var(--table-selected-border);
+  box-shadow: none;
+}
+
+.dashboard-table__header-actions .badge {
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--table-text);
+}
+
+.ac-table tbody td.cell-clipped .field-value {
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+}
+
+/* Loader visibility compatibility */
+.dashboard-table__loader.show {
+  display: flex;
+}
+
+/* Legacy class mapping */
+#tableLoading.show {
+  display: flex;
+}

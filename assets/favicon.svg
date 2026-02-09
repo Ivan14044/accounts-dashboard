@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="12" fill="url(#grad)"/>
+  <g fill="white">
+    <!-- Иконка таблицы/дашборда -->
+    <rect x="12" y="16" width="40" height="32" rx="2" fill="none" stroke="white" stroke-width="2.5" fill-opacity="0.2"/>
+    <line x1="12" y1="24" x2="52" y2="24" stroke="white" stroke-width="2"/>
+    <line x1="12" y1="32" x2="52" y2="32" stroke="white" stroke-width="2"/>
+    <line x1="12" y1="40" x2="52" y2="40" stroke="white" stroke-width="2"/>
+    <circle cx="20" cy="20" r="2" fill="white"/>
+    <circle cx="20" cy="28" r="2" fill="white"/>
+    <circle cx="20" cy="36" r="2" fill="white"/>
+  </g>
+</svg>
+
+
+
+
+

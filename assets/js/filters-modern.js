@@ -1,0 +1,431 @@
+/**
+ * JavaScript для современных фильтров
+ * Обработка interactions, animations, ripple effects
+ */
+
+// ========================================
+// УПРАВЛЕНИЕ CHIPS (Активные фильтры)
+// ========================================
+
+/**
+ * Удаление фильтра через chip
+ */
+function removeFilterChip(filterName) {
+    // Делаем функцию глобально доступной
+    if (!window.removeFilterChip) {
+        window.removeFilterChip = removeFilterChip;
+    }
+    const url = new URL(window.location);
+    
+    // Удаляем параметр из URL
+    switch (filterName) {
+        case 'q':
+            url.searchParams.delete('q');
+            break;
+        case 'has_email':
+            url.searchParams.delete('has_email');
+            break;
+        case 'has_two_fa':
+            url.searchParams.delete('has_two_fa');
+            break;
+        case 'has_token':
+            url.searchParams.delete('has_token');
+            break;
+        case 'has_fan_page':
+            url.searchParams.delete('has_fan_page');
+            break;
+        case 'has_avatar':
+            url.searchParams.delete('has_avatar');
+            break;
+        case 'has_password':
+            url.searchParams.delete('has_password');
+            break;
+        case 'has_cover':
+            url.searchParams.delete('has_cover');
+            break;
+        case 'full_filled':
+            url.searchParams.delete('full_filled');
+            break;
+        case 'pharma':
+            url.searchParams.delete('pharma_from');
+            url.searchParams.delete('pharma_to');
+            break;
+        case 'friends':
+            url.searchParams.delete('friends_from');
+            url.searchParams.delete('friends_to');
+            break;
+        case 'year_created':
+            url.searchParams.delete('year_created_from');
+            url.searchParams.delete('year_created_to');
+            break;
+        case 'limit_rk':
+            url.searchParams.delete('limit_rk_from');
+            url.searchParams.delete('limit_rk_to');
+            break;
+        case 'status_marketplace':
+            url.searchParams.delete('status_marketplace');
+            break;
+        case 'currency':
+            url.searchParams.delete('currency');
+            break;
+        case 'geo':
+            url.searchParams.delete('geo');
+            break;
+        case 'status_rk':
+            url.searchParams.delete('status_rk');
+            break;
+        default:
+            console.warn('Unknown filter:', filterName);
+            return;
+    }
+    
+    // Сбрасываем на первую страницу
+    url.searchParams.set('page', '1');
+    window.location.href = url.toString();
+}
+
+/**
+ * Удаление конкретного статуса через chip
+ */
+function removeStatusChip(statusValue) {
+    if (!statusValue) {
+        console.error('removeStatusChip: statusValue is required');
+        return;
+    }
+    
+    const url = new URL(window.location);
+    
+    if (statusValue === '__empty__') {
+        // Удаляем empty_status
+        url.searchParams.delete('empty_status');
+    } else {
+        // Получаем все текущие статусы (проверяем оба варианта: status[] и status)
+        let currentStatuses = url.searchParams.getAll('status[]');
+        
+        // Если status[] пустой, пробуем получить из status
+        if (currentStatuses.length === 0) {
+            const statusParam = url.searchParams.get('status');
+            if (statusParam) {
+                currentStatuses = statusParam.split(',').map(s => s.trim()).filter(s => s);
+            }
+        }
+        
+        // Удаляем все статусы из URL
+        url.searchParams.delete('status[]');
+        url.searchParams.delete('status');
+        
+        // Добавляем обратно всё кроме удаляемого (строгое сравнение)
+        currentStatuses.forEach(st => {
+            if (String(st) !== String(statusValue)) {
+                url.searchParams.append('status[]', st);
+            }
+        });
+    }
+    
+    // Сбрасываем на первую страницу
+    url.searchParams.set('page', '1');
+    window.location.href = url.toString();
+}
+
+// Делаем функцию глобально доступной
+window.removeStatusChip = removeStatusChip;
+
+// ========================================
+// ПОЛЕ ПОИСКА
+// ========================================
+
+let searchTimeout = null;
+
+/**
+ * Очистка поля поиска
+ */
+function clearSearch() {
+    const input = document.getElementById('modernSearchInput');
+    if (input) {
+        input.value = '';
+        input.focus();
+        
+        // Если есть форма, отправляем
+        const form = input.closest('form');
+        if (form) {
+            form.submit();
+        }
+    }
+}
+
+/**
+ * Автоматическое применение поиска с задержкой (debounce)
+ */
+function handleSearchInput() {
+    const input = document.getElementById('modernSearchInput');
+    if (!input) return;
+    
+    // Очищаем предыдущий таймер
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
+    
+    // Устанавливаем новый таймер (800ms задержка)
+    searchTimeout = setTimeout(() => {
+        const form = input.closest('form');
+        if (form) {
+            form.submit();
+        }
+    }, 800);
+}
+
+// Инициализация автоматического поиска
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('modernSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', handleSearchInput);
+    }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl+F для фокуса на поиск
+    if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault();
+        const searchInput = document.getElementById('modernSearchInput');
+        if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+        }
+    }
+    
+    // Escape для очистки поиска
+    if (e.key === 'Escape') {
+        const searchInput = document.getElementById('modernSearchInput');
+        if (searchInput && searchInput === document.activeElement) {
+            clearSearch();
+        }
+    }
+});
+
+// ========================================
+// DROPDOWN СТАТУСОВ (стандартный функционал уже есть)
+// ========================================
+
+// ========================================
+// БЫСТРЫЕ ФИЛЬТРЫ (TOGGLE SWITCHES)
+// ========================================
+
+/**
+ * Toggle быстрого фильтра с автоматическим применением
+ */
+function toggleQuickFilter(filterName, wrapper) {
+    const checkbox = wrapper.querySelector('input[type="checkbox"]');
+    if (!checkbox) return;
+    
+    // Toggle checkbox
+    checkbox.checked = !checkbox.checked;
+    
+    // Toggle wrapper класс
+    if (checkbox.checked) {
+        wrapper.classList.add('active');
+    } else {
+        wrapper.classList.remove('active');
+    }
+    
+    // Автоматически отправляем форму
+    const form = checkbox.closest('form');
+    if (form) {
+        form.submit();
+    }
+}
+
+
+// ========================================
+// АВТОМАТИЧЕСКОЕ ПРИМЕНЕНИЕ ФИЛЬТРОВ
+// ========================================
+
+// Отслеживаем изменения в полях формы для автоматического применения
+// Используем делегирование событий для работы с динамически обновляемыми элементами
+document.addEventListener('DOMContentLoaded', function() {
+    const filtersForm = document.getElementById('filtersForm');
+    if (!filtersForm) return;
+    
+    // Делегирование событий на форме для чекбоксов статусов
+    filtersForm.addEventListener('change', function(e) {
+        if (e.target.classList.contains('status-checkbox')) {
+            // Небольшая задержка для визуальной обратной связи
+            setTimeout(() => {
+                if (filtersForm.parentNode) { // Проверяем, что форма еще в DOM
+                    filtersForm.submit();
+                }
+            }, 100);
+        }
+    });
+    
+    // Делегирование для select (status_marketplace, currency)
+    filtersForm.addEventListener('change', function(e) {
+        const target = e.target;
+        if (target.tagName === 'SELECT' && 
+            (target.name === 'status_marketplace' || target.name === 'currency')) {
+            setTimeout(() => {
+                if (filtersForm.parentNode) {
+                    filtersForm.submit();
+                }
+            }, 100);
+        }
+    });
+    
+    // Делегирование для диапазонных фильтров при потере фокуса
+    filtersForm.addEventListener('blur', function(e) {
+        const target = e.target;
+        if (target.classList.contains('range-input-modern')) {
+            // Проверяем что значение изменилось
+            if (target.dataset.initialValue !== target.value) {
+                setTimeout(() => {
+                    if (filtersForm.parentNode) {
+                        filtersForm.submit();
+                    }
+                }, 100);
+            }
+        }
+    }, true); // Используем capture phase для blur
+    
+    // Сохраняем начальное значение при фокусе
+    filtersForm.addEventListener('focus', function(e) {
+        const target = e.target;
+        if (target.classList.contains('range-input-modern')) {
+            target.dataset.initialValue = target.value;
+        }
+    }, true); // Используем capture phase для focus
+    
+    // Enter тоже применяет
+    filtersForm.addEventListener('keypress', function(e) {
+        const target = e.target;
+        if (target.classList.contains('range-input-modern') && e.key === 'Enter') {
+            e.preventDefault();
+            if (filtersForm.parentNode) {
+                filtersForm.submit();
+            }
+        }
+    });
+});
+
+// ========================================
+// УПРАВЛЕНИЕ АКТИВНЫМИ CHIPS
+// ========================================
+
+/**
+ * Обновление видимости секции активных фильтров
+ */
+function updateActiveFiltersVisibility() {
+    const section = document.getElementById('activeFiltersSection');
+    if (!section) return;
+    
+    const chips = section.querySelectorAll('.filter-chip');
+    
+    if (chips.length > 0) {
+        section.classList.add('has-filters');
+    } else {
+        section.classList.remove('has-filters');
+    }
+}
+
+// ========================================
+// ИНИЦИАЛИЗАЦИЯ
+// ========================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем видимость активных фильтров
+    updateActiveFiltersVisibility();
+    
+    // Добавляем плавные анимации для chips
+    document.querySelectorAll('.filter-chip').forEach((chip, index) => {
+        chip.style.animationDelay = (index * 50) + 'ms';
+    });
+    
+    // Делегирование событий для удаления filter-chip (более надежно чем inline onclick)
+    document.addEventListener('click', function(e) {
+        const removeBtn = e.target.closest('.filter-chip-remove');
+        if (!removeBtn) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const chip = removeBtn.closest('.filter-chip');
+        if (!chip) return;
+        
+        const filterType = chip.getAttribute('data-filter');
+        const statusValue = chip.getAttribute('data-status-value');
+        
+        // Обработка удаления статуса
+        if (filterType === 'status') {
+            // Проверяем наличие значения статуса
+            if (statusValue !== null && statusValue !== '') {
+                // Вызываем removeStatusChip с правильным значением
+                if (typeof removeStatusChip === 'function') {
+                    removeStatusChip(statusValue);
+                } else {
+                    console.error('removeStatusChip function not found');
+                }
+            } else {
+                console.warn('Status chip missing data-status-value attribute');
+            }
+            return;
+        }
+        
+        // Обработка других фильтров
+        if (filterType && filterType !== 'status') {
+            if (typeof removeFilterChip === 'function') {
+                removeFilterChip(filterType);
+            } else {
+                console.error('removeFilterChip function not found');
+            }
+        }
+    });
+    
+    // Индикация загрузки при отправке формы
+    const filtersForm = document.getElementById('filtersForm');
+    if (filtersForm) {
+        filtersForm.addEventListener('submit', function(e) {
+            // Показываем индикатор загрузки на кнопке
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="loader loader-sm loader-white" style="display:inline-block;vertical-align:middle;width:14px;height:14px;border-top-width:2px;border-right-width:2px;margin-right:6px;"></span>Применение...';
+            }
+        });
+    }
+    
+    console.log('✓ Modern Filters initialized (auto-apply mode)');
+});
+
+// ========================================
+// ACCESSIBILITY
+// ========================================
+
+// Tab navigation для toggle switches
+document.querySelectorAll('.toggle-switch-wrapper').forEach(wrapper => {
+    wrapper.setAttribute('tabindex', '0');
+    wrapper.setAttribute('role', 'switch');
+    
+    const checkbox = wrapper.querySelector('input[type="checkbox"]');
+    wrapper.setAttribute('aria-checked', checkbox.checked);
+    
+    // Поддержка клавиатуры
+    wrapper.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            wrapper.click();
+        }
+    });
+});
+
+// Tab navigation для кнопок статусов
+document.querySelectorAll('.status-btn-modern').forEach(btn => {
+    btn.setAttribute('tabindex', '0');
+    btn.setAttribute('role', 'button');
+    
+    btn.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            btn.click();
+        }
+    });
+});
+
