@@ -333,6 +333,7 @@ window.DashboardSelection = {
   getSelectedIds: () => selectedIds,
   getSelectedAllFiltered: () => selectedAllFiltered,
   setSelectedAllFiltered: (value) => { selectedAllFiltered = value; },
+  getFilteredTotalLive: () => filteredTotalLive,
   setFilteredTotalLive: (value) => { filteredTotalLive = value; },
   clearSelection: () => {
     selectedIds.clear();

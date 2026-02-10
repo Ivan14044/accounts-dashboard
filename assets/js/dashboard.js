@@ -12,8 +12,10 @@ logger.debug('📜 [DASHBOARD.JS] Текущее время:', new Date().toISOS
 logger.debug('📜 [DASHBOARD.JS] URL файла:', document.currentScript ? document.currentScript.src : 'unknown');
 
 // Используем DOMCache для оптимизации DOM запросов (загружается через dom-cache.js)
-// Fallback на прямые вызовы, если domCache еще не загружен
-const domCache = (function() {
+// Fallback на прямые вызовы, если глобальный window.domCache еще не загружен.
+// ВАЖНО: используем отдельное имя `dashboardDomCache`, чтобы не конфликтовать
+// с глобальной константой `domCache`, создаваемой в `core/dom-cache.js`.
+const dashboardDomCache = (function() {
   if (window.domCache) {
     return window.domCache;
   }
@@ -35,8 +37,10 @@ const domCache = (function() {
         hasWindow: typeof window !== 'undefined',
         inlineActive: typeof window !== 'undefined' ? window.__INLINE_DASHBOARD_ACTIVE__ : 'no window'
     });
-    
-    // Глобальная функция для загрузки аккаунтов (работает независимо от класса Dashboard)
+
+    // Загрузка аккаунтов вынесена в assets/js/modules/dashboard-upload.js
+    // Fallback: определяем handleUploadAccountsGlobal только если модуль не загружен
+    if (typeof window.handleUploadAccountsGlobal !== 'function') {
     window.handleUploadAccountsGlobal = async function(e) {
         logger.debug('🚨🚨🚨 === ГЛОБАЛЬНАЯ ФУНКЦИЯ ЗАГРУЗКИ АККАУНТОВ === 🚨🚨🚨');
         logger.debug('🚨 [GLOBAL UPLOAD] Функция handleUploadAccountsGlobal вызвана!');
@@ -47,11 +51,11 @@ const domCache = (function() {
             logger.debug('🚨 [GLOBAL UPLOAD] preventDefault() вызван');
         }
         
-        const form = domCache.getById('uploadAccountsForm');
-        const submitBtn = domCache.getById('uploadAccountsBtn');
-        const errorsDiv = domCache.getById('addAccountErrors');
-        const successDiv = domCache.getById('addAccountSuccess');
-        const fileInput = domCache.getById('accountsFile');
+        const form = dashboardDomCache.getById('uploadAccountsForm');
+        const submitBtn = dashboardDomCache.getById('uploadAccountsBtn');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
+        const fileInput = dashboardDomCache.getById('accountsFile');
         
         logger.debug('🚨 [GLOBAL UPLOAD] Элементы формы:', {
             form: form ? 'найден' : 'не найден',
@@ -371,7 +375,7 @@ const domCache = (function() {
                     // 4. Закрываем модальное окно только если нет ошибок
                     // Если есть ошибки, оставляем модальное окно открытым, чтобы пользователь видел детали
                     if (errorsCount === 0) {
-                        const addAccountModal = domCache.getById('addAccountModal');
+                        const addAccountModal = dashboardDomCache.getById('addAccountModal');
                         if (addAccountModal) {
                             try {
                                 // Пробуем получить существующий инстанс
@@ -482,67 +486,12 @@ const domCache = (function() {
             logger.error('❌ [GLOBAL UPLOAD] submitBtn не найден!');
         }
     };
-    
+    } // конец fallback handleUploadAccountsGlobal
+
     if (typeof window !== 'undefined' && window.__INLINE_DASHBOARD_ACTIVE__) {
-        // Inline dashboard скрипт активен — пропускаем инициализацию класса Dashboard
-        logger.warn('⚠️ [DASHBOARD.JS] Inline dashboard активен, пропускаем инициализацию класса Dashboard');
-        logger.debug('✅ [DASHBOARD.JS] Глобальная функция handleUploadAccountsGlobal создана и доступна');
-        
-        // Привязываем обработчик к форме при загрузке DOM
-        document.addEventListener('DOMContentLoaded', () => {
-            logger.debug('🔧 [GLOBAL] Инициализация глобального обработчика для формы загрузки...');
-            const uploadBtn = domCache.getById('uploadAccountsBtn');
-            const uploadForm = domCache.getById('uploadAccountsForm');
-            
-            logger.debug('🔧 [GLOBAL] Элементы:', {
-                uploadBtn: uploadBtn ? 'найден' : 'НЕ НАЙДЕН',
-                uploadForm: uploadForm ? 'найден' : 'НЕ НАЙДЕН'
-            });
-            
-            if (uploadForm) {
-                logger.debug('✅ [GLOBAL] Форма uploadAccountsForm найдена, привязываем обработчик submit...');
-                uploadForm.addEventListener('submit', function(e) {
-                    logger.debug('🚨🚨🚨 [GLOBAL FORM SUBMIT] Событие submit формы перехвачено!');
-                    window.handleUploadAccountsGlobal(e);
-                });
-            } else {
-                logger.warn('⚠️ [GLOBAL] Форма uploadAccountsForm не найдена');
-            }
-            
-            if (uploadBtn) {
-                logger.debug('✅ [GLOBAL] Кнопка uploadAccountsBtn найдена, привязываем обработчик click...');
-                uploadBtn.addEventListener('click', function(e) {
-                    e.preventDefault(); // Предотвращаем стандартную отправку
-                    e.stopPropagation(); // Останавливаем всплытие
-                    logger.debug('🚨🚨🚨 [GLOBAL CLICK] Клик по кнопке загрузки аккаунтов!');
-                    const form = domCache.getById('uploadAccountsForm');
-                    if (form) {
-                        logger.debug('🚨 [GLOBAL CLICK] Форма найдена, проверяем файл...');
-                        const fileInput = domCache.getById('accountsFile');
-                        if (fileInput && fileInput.files && fileInput.files.length > 0) {
-                            logger.debug('🚨 [GLOBAL CLICK] Файл выбран:', fileInput.files[0].name);
-                            // Вызываем глобальную функцию загрузки напрямую
-                            const fakeEvent = { 
-                                preventDefault: () => {}, 
-                                target: form,
-                                stopPropagation: () => {}
-                            };
-                            window.handleUploadAccountsGlobal(fakeEvent);
-                        } else {
-                            logger.warn('⚠️ [GLOBAL CLICK] Файл не выбран');
-                            const errorsDiv = domCache.getById('addAccountErrors');
-                            if (errorsDiv) {
-                                errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки';
-                                errorsDiv.classList.remove('d-none');
-                            }
-                        }
-                    }
-                });
-            } else {
-                logger.warn('⚠️ [GLOBAL] Кнопка uploadAccountsBtn не найдена');
-            }
-        });
-        
+        // Inline dashboard скрипт активен — модуль dashboard-upload уже привязал форму
+        logger.debug('✅ [DASHBOARD.JS] Inline dashboard активен, модуль upload подключен');
+        // Модуль dashboard-upload уже привязал форму при DOMContentLoaded
         return;
     }
 
@@ -628,11 +577,11 @@ class Dashboard {
                 if (k) knownCols = JSON.parse(k) || [];
             } catch (_) {}
             
-            const allColKeys = Array.from(domCache.getAll('.column-toggle'))
+            const allColKeys = Array.from(dashboardDomCache.getAll('.column-toggle'))
                 .map(cb => cb.getAttribute('data-col'));
             const newCols = allColKeys.filter(c => !knownCols.includes(c));
             
-            domCache.getAll('.column-toggle').forEach(cb => {
+            dashboardDomCache.getAll('.column-toggle').forEach(cb => {
                 const colName = cb.getAttribute('data-col');
                 let isChecked = cb.checked;
                 if (visibleColumns) {
@@ -651,7 +600,7 @@ class Dashboard {
             const savedCards = localStorage.getItem(this.LS_KEYS.CARDS);
             if (savedCards) {
                 const visibleCards = JSON.parse(savedCards);
-                domCache.getAll('.card-toggle').forEach(cb => {
+                dashboardDomCache.getAll('.card-toggle').forEach(cb => {
                     const cardId = cb.getAttribute('data-card');
                     cb.checked = visibleCards.includes(cardId);
                 });
@@ -777,7 +726,7 @@ class Dashboard {
         }
         
         // Селект страниц (пагинация) - оставляем автоприменение
-        const pageSelect = domCache.getById('pageSelect');
+        const pageSelect = dashboardDomCache.getById('pageSelect');
         if (pageSelect) {
             pageSelect.addEventListener('change', this.handlePageSelectChange.bind(this));
         }
@@ -845,7 +794,7 @@ class Dashboard {
     }
     
     handlePageSelectChange() {
-        const pageSelect = domCache.getById('pageSelect');
+        const pageSelect = dashboardDomCache.getById('pageSelect');
         const selectedPage = parseInt(pageSelect.value);
         
         if (selectedPage && selectedPage > 0) {
@@ -854,7 +803,7 @@ class Dashboard {
             history.replaceState(null, '', url.toString());
             
             // Обновляем номер страницы немедленно
-            const pageNumEl = domCache.getById('pageNum');
+            const pageNumEl = dashboardDomCache.getById('pageNum');
             if (pageNumEl) pageNumEl.textContent = String(selectedPage);
             
             // НЕ очищаем selectedIds при пагинации - выбранные строки должны сохраняться между страницами
@@ -910,10 +859,10 @@ class Dashboard {
     }
     
     updatePageUI(pageNum) {
-        const pageNumEl = domCache.getById('pageNum');
+        const pageNumEl = dashboardDomCache.getById('pageNum');
         if (pageNumEl) pageNumEl.textContent = String(pageNum);
         
-        const pageSelectEl = domCache.getById('pageSelect');
+        const pageSelectEl = dashboardDomCache.getById('pageSelect');
         if (pageSelectEl) pageSelectEl.value = String(pageNum);
     }
     
@@ -1019,7 +968,7 @@ class Dashboard {
     }
     
     updateTable(data) {
-        const tbody = domCache.get('#accountsTable tbody');
+        const tbody = dashboardDomCache.get('#accountsTable tbody');
         if (!tbody || !Array.isArray(data.rows)) return;
         
         // Сохраняем позицию скролла
@@ -1045,13 +994,13 @@ class Dashboard {
     
     generateTableRows(rows) {
         if (!rows.length) {
-            const colCount = domCache.getAll('#accountsTable thead th').length;
+            const colCount = dashboardDomCache.getAll('#accountsTable thead th').length;
             return `<tr><td colspan="${colCount}" class="text-center text-muted py-5">
                 <i class="fas fa-search fa-2x mb-3"></i><div>Ничего не найдено</div>
             </td></tr>`;
         }
         
-        const headKeys = Array.from(domCache.getAll('#accountsTable thead th[data-col]'))
+        const headKeys = Array.from(dashboardDomCache.getAll('#accountsTable thead th[data-col]'))
             .map(th => th.getAttribute('data-col'));
         
         return rows.map(row => this.generateTableRow(row, headKeys)).join('');
@@ -1153,7 +1102,7 @@ class Dashboard {
     // Очистка памяти и предотвращение утечек
     cleanupMemory() {
         // Очищаем старые обработчики событий
-        const oldElements = domCache.getAll('[data-cleanup]');
+        const oldElements = dashboardDomCache.getAll('[data-cleanup]');
         oldElements.forEach(el => {
             el.removeEventListener('click', el._clickHandler);
             el.removeEventListener('change', el._changeHandler);
@@ -1213,7 +1162,7 @@ class Dashboard {
     }
     
     showLoadingOverlay() {
-        const overlay = domCache.getById('tableLoading');
+        const overlay = dashboardDomCache.getById('tableLoading');
         if (overlay) {
             overlay.classList.add('show');
             this.overlayShownAt = Date.now();
@@ -1221,7 +1170,7 @@ class Dashboard {
     }
     
     hideLoadingOverlay() {
-        const overlay = domCache.getById('tableLoading');
+        const overlay = dashboardDomCache.getById('tableLoading');
         if (overlay) {
             const elapsed = Date.now() - (this.overlayShownAt || 0);
             const minMs = 300;
@@ -1282,7 +1231,7 @@ class Dashboard {
         const title = target.getAttribute('data-title') || 'Данные';
         if (!full) return;
         
-        let modal = domCache.getById('fullDataModal');
+        let modal = dashboardDomCache.getById('fullDataModal');
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'fullDataModal';
@@ -1322,7 +1271,7 @@ class Dashboard {
     
     // Обновление счётчиков выбранных записей и кнопок
     updateSelectedCount() {
-        const selectedCountEl = domCache.getById('selectedCount');
+        const selectedCountEl = dashboardDomCache.getById('selectedCount');
         if (selectedCountEl) {
             selectedCountEl.textContent = this.selectedAllFiltered ? 'Все по фильтру' : String(this.selectedIds.size);
         }
@@ -1341,7 +1290,7 @@ class Dashboard {
     
     // Обработка главного чекбокса
     handleSelectAllChange(master) {
-        const rows = domCache.getAll('#accountsTable tbody .row-checkbox');
+        const rows = dashboardDomCache.getAll('#accountsTable tbody .row-checkbox');
         rows.forEach(cb => {
             cb.checked = master.checked;
             const id = parseInt(cb.value, 10);
@@ -1373,9 +1322,9 @@ class Dashboard {
     // Инициализация формы добавления аккаунта
     initAddAccountForm() {
         logger.debug('🔧 [INIT] Инициализация формы добавления аккаунта...');
-        const addAccountModal = domCache.getById('addAccountModal');
-        const uploadForm = domCache.getById('uploadAccountsForm');
-        const uploadBtn = domCache.getById('uploadAccountsBtn');
+        const addAccountModal = dashboardDomCache.getById('addAccountModal');
+        const uploadForm = dashboardDomCache.getById('uploadAccountsForm');
+        const uploadBtn = dashboardDomCache.getById('uploadAccountsBtn');
         
         logger.debug('🔧 [INIT] Элементы формы:', {
             addAccountModal: addAccountModal ? 'найден' : 'НЕ НАЙДЕН',
@@ -1410,9 +1359,9 @@ class Dashboard {
                 e.preventDefault(); // Предотвращаем стандартную отправку формы
                 e.stopPropagation(); // Останавливаем всплытие события
                 logger.debug('🚨 [BUTTON] Клик по кнопке загрузки, проверяем форму...');
-                const form = domCache.getById('uploadAccountsForm');
+                const form = dashboardDomCache.getById('uploadAccountsForm');
                 if (form) {
-                    const fileInput = domCache.getById('accountsFile');
+                    const fileInput = dashboardDomCache.getById('accountsFile');
                     if (fileInput && fileInput.files && fileInput.files.length > 0) {
                         logger.debug('🚨 [BUTTON] Файл выбран, инициируем submit формы...');
                         // Создаем событие submit и вызываем обработчик напрямую
@@ -1421,7 +1370,7 @@ class Dashboard {
                         this.handleUploadAccounts(submitEvent);
                     } else {
                         logger.warn('⚠️ [BUTTON] Файл не выбран');
-                        const errorsDiv = domCache.getById('addAccountErrors');
+                        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
                         if (errorsDiv) {
                             errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки';
                             errorsDiv.classList.remove('d-none');
@@ -1437,11 +1386,11 @@ class Dashboard {
             this.clearAddAccountForm();
             
             // Дополнительная очистка элементов (на случай если clearAddAccountForm не отработал)
-            const errorsDiv = domCache.getById('addAccountErrors');
-            const successDiv = domCache.getById('addAccountSuccess');
-            const form = domCache.getById('uploadAccountsForm');
-            const fileInput = domCache.getById('accountsFile');
-            const submitBtn = domCache.getById('uploadAccountsBtn');
+            const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+            const successDiv = dashboardDomCache.getById('addAccountSuccess');
+            const form = dashboardDomCache.getById('uploadAccountsForm');
+            const fileInput = dashboardDomCache.getById('accountsFile');
+            const submitBtn = dashboardDomCache.getById('uploadAccountsBtn');
             
             if (errorsDiv) {
                 errorsDiv.classList.add('d-none');
@@ -1490,12 +1439,12 @@ class Dashboard {
     
     // Очистка формы добавления аккаунта
     clearAddAccountForm() {
-        const form = domCache.getById('uploadAccountsForm');
+        const form = dashboardDomCache.getById('uploadAccountsForm');
         if (form) {
             form.reset();
         }
-        const errorsDiv = domCache.getById('addAccountErrors');
-        const successDiv = domCache.getById('addAccountSuccess');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
         if (errorsDiv) {
             errorsDiv.classList.add('d-none');
             errorsDiv.textContent = '';
@@ -1518,11 +1467,11 @@ class Dashboard {
         }
         
         // Получаем форму из события или находим по ID
-        const form = (e && e.target && e.target.tagName === 'FORM') ? e.target : domCache.getById('uploadAccountsForm');
-        const submitBtn = domCache.getById('uploadAccountsBtn');
-        const errorsDiv = domCache.getById('addAccountErrors');
-        const successDiv = domCache.getById('addAccountSuccess');
-        const fileInput = domCache.getById('accountsFile');
+        const form = (e && e.target && e.target.tagName === 'FORM') ? e.target : dashboardDomCache.getById('uploadAccountsForm');
+        const submitBtn = dashboardDomCache.getById('uploadAccountsBtn');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
+        const fileInput = dashboardDomCache.getById('accountsFile');
         
         logger.debug('Элементы формы:', {
             form: form ? 'найден' : 'не найден',
@@ -1787,7 +1736,7 @@ class Dashboard {
     
     // Добавление новой строки в таблицу
     addAccountRow() {
-        const tbody = domCache.getById('addAccountsTableBody');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
         if (!tbody) return;
         
         const rowCount = tbody.children.length;
@@ -1843,7 +1792,7 @@ class Dashboard {
     
     // Очистка таблицы
     clearAddAccountTable() {
-        const tbody = domCache.getById('addAccountsTableBody');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
         if (tbody) {
             tbody.innerHTML = '';
             this.addAccountRow(); // Добавляем одну пустую строку
@@ -1853,8 +1802,8 @@ class Dashboard {
     
     // Обновление счетчика строк
     updateRowCount() {
-        const tbody = domCache.getById('addAccountsTableBody');
-        const countEl = domCache.getById('accountsTableRowCount');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
+        const countEl = dashboardDomCache.getById('accountsTableRowCount');
         if (tbody && countEl) {
             const count = tbody.children.length;
             countEl.textContent = count;
@@ -1888,7 +1837,7 @@ class Dashboard {
         const lines = pastedData.split(/\r?\n/).filter(line => line.trim() !== '');
         if (lines.length === 0) return;
         
-        const tbody = domCache.getById('addAccountsTableBody');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
         if (!tbody) return;
         
         // Находим активную строку (где был клик) или последнюю
@@ -1985,7 +1934,7 @@ class Dashboard {
         }
         
         const selectedStatus = statuses[index];
-        const tbody = domCache.getById('addAccountsTableBody');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
         if (!tbody) return;
         
         const selects = tbody.querySelectorAll('select[name="status"]');
@@ -2008,7 +1957,7 @@ class Dashboard {
     
     // Валидация всех строк таблицы
     validateAccountsTable() {
-        const tbody = domCache.getById('addAccountsTableBody');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
         if (!tbody) return { valid: false, errors: [] };
         
         const rows = Array.from(tbody.children);
@@ -2074,7 +2023,7 @@ class Dashboard {
     
     // Сбор данных из таблицы
     collectAccountsData() {
-        const tbody = domCache.getById('addAccountsTableBody');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
         if (!tbody) return [];
         
         const accounts = [];
@@ -2112,9 +2061,9 @@ class Dashboard {
     async handleAddAccountsBulkSubmit(e) {
         e.preventDefault();
         
-        const submitBtn = domCache.getById('submitAddAccount');
-        const errorsDiv = domCache.getById('addAccountErrors');
-        const successDiv = domCache.getById('addAccountSuccess');
+        const submitBtn = dashboardDomCache.getById('submitAddAccount');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
         
         // Валидация таблицы
         const validation = this.validateAccountsTable();
@@ -2149,7 +2098,7 @@ class Dashboard {
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Создание...';
             
             try {
-                const csrfInput = domCache.getById('addAccountCsrf');
+                const csrfInput = dashboardDomCache.getById('addAccountCsrf');
                 const csrfToken = csrfInput ? csrfInput.value : '';
                 
                 // Отправляем bulk запрос
@@ -2201,8 +2150,8 @@ class Dashboard {
     
     // Показ результата массового создания
     showAddAccountsBulkSuccess(result) {
-        const successDiv = domCache.getById('addAccountSuccess');
-        const errorsDiv = domCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
         
         if (errorsDiv) errorsDiv.classList.add('d-none');
         
@@ -2292,9 +2241,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Дополнительная проверка элементов формы через некоторое время
     setTimeout(() => {
         logger.debug('🔍 [DELAYED CHECK] Проверка элементов формы через 500ms...');
-        const uploadBtn = domCache.getById('uploadAccountsBtn');
-        const uploadForm = domCache.getById('uploadAccountsForm');
-        const addAccountModal = domCache.getById('addAccountModal');
+        const uploadBtn = dashboardDomCache.getById('uploadAccountsBtn');
+        const uploadForm = dashboardDomCache.getById('uploadAccountsForm');
+        const addAccountModal = dashboardDomCache.getById('addAccountModal');
         
         logger.debug('🔍 [DELAYED CHECK] Элементы:', {
             uploadBtn: uploadBtn ? 'найден' : 'НЕ НАЙДЕН',
@@ -2315,7 +2264,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 
-                const fileInput = domCache.getById('accountsFile');
+                const fileInput = dashboardDomCache.getById('accountsFile');
                 if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
                     logger.warn('⚠️ [GLOBAL FALLBACK] Файл не выбран');
                     alert('Пожалуйста, выберите файл для загрузки');
