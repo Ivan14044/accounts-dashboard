@@ -121,136 +121,15 @@ if (typeof window.showToast !== 'function') {
 const LS_KEY_COLUMNS = 'dashboard_visible_columns';
 const LS_KEY_CARDS = 'dashboard_visible_cards';
 const LS_KEY_KNOWN_COLS = 'dashboard_known_columns';
+const LS_KEY_HIDDEN_CARDS = 'dashboard_hidden_cards';
 
 // ===== Управление чекбоксами =====
 // Состояние selectedIds / selectedAllFiltered / filteredTotalLive теперь
 // хранится и управляется в модуле `dashboard-selection.js`
 const ACTIVE_FILTERS_COUNT = <?= (int)$activeFiltersCount ?>;
 
-// Инициализация ползунка Scenario pharma
-function initializePharmaSlider() {
-  const slider = document.getElementById('pharmaSlider');
-  if (!slider || typeof noUiSlider === 'undefined') return;
-  const min = parseInt(slider.getAttribute('data-min') || '0', 10);
-  const max = parseInt(slider.getAttribute('data-max') || '50', 10);
-  const fromInit = slider.getAttribute('data-from');
-  const toInit = slider.getAttribute('data-to');
-  const from = (fromInit!==null && fromInit!=='') ? parseInt(fromInit, 10) : min;
-  const to = (toInit!==null && toInit!=='') ? parseInt(toInit, 10) : max;
-  const fromInput = document.getElementById('pharma_from');
-  const toInput = document.getElementById('pharma_to');
-  const fromDisp = document.getElementById('pharmaFromDisplay');
-  const toDisp = document.getElementById('pharmaToDisplay');
-
-  noUiSlider.create(slider, {
-    start: [Math.max(min, from), Math.min(max, to)],
-    connect: true,
-    range: { min, max },
-    step: 1,
-    behaviour: 'tap-drag',
-    tooltips: false,
-    format: {
-      to: (v) => Math.round(v),
-      from: (v) => Number(v)
-    }
-  });
-
-  slider.noUiSlider.on('update', (values) => {
-    const [vFrom, vTo] = values.map(Number);
-    if (fromDisp) fromDisp.textContent = String(vFrom);
-    if (toDisp) toDisp.textContent = String(vTo);
-    if (fromInput) fromInput.value = String(vFrom);
-    if (toInput) toInput.value = String(vTo);
-  });
-  slider.noUiSlider.on('change', debounce(() => {
-    // Получаем значения из слайдера
-    const values = slider.noUiSlider.get();
-    const vFrom = Math.round(Number(values[0]));
-    const vTo = Math.round(Number(values[1]));
-    
-    // Обновляем URL параметры
-    const url = new URL(window.location);
-    if (vFrom > min) {
-      url.searchParams.set('pharma_from', String(vFrom));
-      } else {
-      url.searchParams.delete('pharma_from');
-    }
-    if (vTo < max) {
-      url.searchParams.set('pharma_to', String(vTo));
-    } else {
-      url.searchParams.delete('pharma_to');
-    }
-    url.searchParams.set('page', '1');
-    
-    // Обновляем URL без перезагрузки
-    history.replaceState(null, '', url.toString());
-    window.DashboardSelection.clearSelection();
-    // Обновляем данные через AJAX
-    refreshDashboardData();
-  }, 500)); // Дебаунс 500ms для слайдеров
-}
-
-function initializeFriendsSlider() {
-  const slider = document.getElementById('friendsSlider');
-  if (!slider || typeof noUiSlider === 'undefined') return;
-  const min = parseInt(slider.getAttribute('data-min') || '0', 10);
-  const max = parseInt(slider.getAttribute('data-max') || '1000', 10);
-  const fromInit = slider.getAttribute('data-from');
-  const toInit = slider.getAttribute('data-to');
-  const from = (fromInit!==null && fromInit!=='') ? parseInt(fromInit, 10) : min;
-  const to = (toInit!==null && toInit!=='') ? parseInt(toInit, 10) : max;
-  const fromInput = document.getElementById('friends_from');
-  const toInput = document.getElementById('friends_to');
-  const fromDisp = document.getElementById('friendsFromDisplay');
-  const toDisp = document.getElementById('friendsToDisplay');
-
-  noUiSlider.create(slider, {
-    start: [Math.max(min, from), Math.min(max, to)],
-    connect: true,
-    range: { min, max },
-    step: 1,
-    behaviour: 'tap-drag',
-    tooltips: false,
-    format: {
-      to: (v) => Math.round(v),
-      from: (v) => Number(v)
-    }
-  });
-
-  slider.noUiSlider.on('update', (values) => {
-    const [vFrom, vTo] = values.map(Number);
-    if (fromDisp) fromDisp.textContent = String(vFrom);
-    if (toDisp) toDisp.textContent = String(vTo);
-    if (fromInput) fromInput.value = String(vFrom);
-    if (toInput) toInput.value = String(vTo);
-  });
-  slider.noUiSlider.on('change', debounce(() => {
-    // Получаем значения из слайдера
-    const values = slider.noUiSlider.get();
-    const vFrom = Math.round(Number(values[0]));
-    const vTo = Math.round(Number(values[1]));
-    
-    // Обновляем URL параметры
-    const url = new URL(window.location);
-    if (vFrom > min) {
-      url.searchParams.set('friends_from', String(vFrom));
-    } else {
-      url.searchParams.delete('friends_from');
-    }
-    if (vTo < max) {
-      url.searchParams.set('friends_to', String(vTo));
-    } else {
-      url.searchParams.delete('friends_to');
-    }
-    url.searchParams.set('page', '1');
-    
-    // Обновляем URL без перезагрузки
-    history.replaceState(null, '', url.toString());
-    window.DashboardSelection.clearSelection();
-    // Обновляем данные через AJAX
-    refreshDashboardData();
-  }, 500)); // Дебаунс 500ms для слайдеров
-}
+// ===== Слайдеры pharma/friends перенесены в модуль dashboard-filters.js =====
+// Используйте window.DashboardFilters.initializePharmaSlider / initializeFriendsSlider
 
 // ===== Функции выбора строк перенесены в модуль dashboard-selection.js =====
 // Используйте window.DashboardSelection для доступа к функциям:
@@ -276,6 +155,12 @@ function getElementById(id) {
     return domCache.getById(id);
   }
   return document.getElementById(id);
+}
+function getSel(selector) {
+  if (typeof domCache !== 'undefined' && domCache.get) {
+    return domCache.get(selector);
+  }
+  return document.querySelector(selector);
 }
 
 // ===== Управление скрытием карточек =====
@@ -333,7 +218,7 @@ async function loadHiddenCards() {
         // Применяем скрытие к карточкам
         if (cardsToHide.length > 0) {
           cardsToHide.forEach(cardId => {
-            const card = document.querySelector(`.stat-card[data-card="${cardId}"]`);
+            const card = getSel(`.stat-card[data-card="${cardId}"]`);
             if (card) {
               card.classList.add('hidden');
               card.style.display = 'none'; // Дополнительное скрытие
@@ -359,7 +244,7 @@ function loadHiddenCardsFromLocalStorage() {
     if (saved) {
       const hiddenIds = JSON.parse(saved);
       hiddenIds.forEach(cardId => {
-        const card = document.querySelector(`.stat-card[data-card="${cardId}"]`);
+        const card = getSel(`.stat-card[data-card="${cardId}"]`);
         if (card) {
           card.classList.add('hidden');
           card.style.display = 'none'; // Дополнительное скрытие
@@ -389,7 +274,7 @@ async function saveHiddenCards() {
       .filter(id => id !== null && id !== '');
     
     // Проверяем, есть ли карточка "Email + 2FA"
-    const emailTwoFaCard = document.querySelector('.stat-card[data-card="custom:email_twofa"]');
+    const emailTwoFaCard = getSel('.stat-card[data-card="custom:email_twofa"]');
     if (emailTwoFaCard) {
       const isHidden = emailTwoFaCard.classList.contains('hidden');
       logger.debug('🔍 Карточка "Email + 2FA" найдена, скрыта:', isHidden, 'ID:', emailTwoFaCard.getAttribute('data-card'));
@@ -446,7 +331,7 @@ async function hideCard(cardId) {
     toggleCardVisibility(cardId, false);
     
     // Проверяем, что карточка действительно скрыта
-    const card = document.querySelector(`.stat-card[data-card="${cardId}"]`);
+    const card = getSel(`.stat-card[data-card="${cardId}"]`);
     if (card) {
       const isHidden = card.classList.contains('hidden');
       logger.debug('🔍 Карточка после скрытия - класс hidden:', isHidden, 'display:', window.getComputedStyle(card).display);
@@ -457,7 +342,7 @@ async function hideCard(cardId) {
     
     // Синхронизируем чекбокс, если он существует
     const escapedCardId = cardId.replace(/[!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, '\\$&');
-    const checkbox = document.querySelector(`.card-toggle[data-card="${escapedCardId}"]`);
+    const checkbox = getSel(`.card-toggle[data-card="${escapedCardId}"]`);
     if (checkbox) {
       checkbox.checked = false;
       }
@@ -484,7 +369,7 @@ async function showCard(cardId) {
     
     // Синхронизируем чекбокс, если он существует
     const escapedCardId = cardId.replace(/[!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, '\\$&');
-    const checkbox = document.querySelector(`.card-toggle[data-card="${escapedCardId}"]`);
+    const checkbox = getSel(`.card-toggle[data-card="${escapedCardId}"]`);
     if (checkbox) {
       checkbox.checked = true;
     }
@@ -618,7 +503,7 @@ function toggleCardVisibility(cardName, visible) {
   const escapedCardName = cardName.replace(/[!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, '\\$&');
   
   // Используем селектор для поиска карточки с правильным атрибутом
-  const cardElement = document.querySelector(`.stat-card[data-card="${escapedCardName}"]`);
+  const cardElement = getSel(`.stat-card[data-card="${escapedCardName}"]`);
   
   if (!cardElement) {
     logger.warn(`Card not found: ${cardName}`, {
@@ -728,7 +613,7 @@ document.addEventListener('click', function(e) {
     // Специальная проверка для карточки "Email + 2FA"
     // Если пользователь говорит, что она должна быть скрыта, но её нет в списке,
     // добавляем её в список и скрываем
-    const emailTwoFaCard = document.querySelector('.stat-card[data-card="custom:email_twofa"]');
+    const emailTwoFaCard = getSel('.stat-card[data-card="custom:email_twofa"]');
     if (emailTwoFaCard && !hiddenCardsSet.has('custom:email_twofa')) {
       hiddenCardsSet.add('custom:email_twofa');
       window._hiddenCardsToHide = hiddenCardsSet; // Обновляем глобальную переменную
@@ -744,7 +629,7 @@ document.addEventListener('click', function(e) {
     
     // Применяем скрытие ко всем карточкам сразу
     hiddenCardsSet.forEach(cardId => {
-      const card = document.querySelector(`.stat-card[data-card="${cardId}"]`);
+      const card = getSel(`.stat-card[data-card="${cardId}"]`);
       if (card) {
         // Применяем все способы скрытия для надежности
         card.classList.add('hidden');
@@ -759,7 +644,7 @@ document.addEventListener('click', function(e) {
   } else {
     // Если список скрытых карточек не загружен, проверяем карточку "Email + 2FA"
     // и скрываем её, если она должна быть скрыта
-    const emailTwoFaCard = document.querySelector('.stat-card[data-card="custom:email_twofa"]');
+    const emailTwoFaCard = getSel('.stat-card[data-card="custom:email_twofa"]');
     if (emailTwoFaCard) {
       try {
         const saved = localStorage.getItem('dashboard_hidden_cards');
@@ -828,7 +713,7 @@ document.addEventListener('click', function(e) {
     });
     
     // Уменьшаем количество строк по умолчанию
-    const perPageSelect = document.querySelector('select[name="per_page"]');
+    const perPageSelect = getSel('select[name="per_page"]');
     if (perPageSelect && !perPageSelect.value) {
       perPageSelect.value = '25';
     }
@@ -836,7 +721,7 @@ document.addEventListener('click', function(e) {
   
   // Кэширование часто используемых селекторов (используем dom-cache если доступен)
   const cachedSelectors = {
-    tbody: document.querySelector('#accountsTable tbody'),
+    tbody: getSel('#accountsTable tbody'),
     table: getElementById('accountsTable'),
     tableWrap: getElementById('tableWrap'),
     selectAll: getElementById('selectAll'),
@@ -860,27 +745,26 @@ document.addEventListener('click', function(e) {
       window.updateStickyScrollbar();
     }
   });
-  if (typeof initializePharmaSlider === 'function') { initializePharmaSlider(); }
-  if (typeof initializeFriendsSlider === 'function') { initializeFriendsSlider(); }
+  // Слайдеры инициализируются через DashboardFilters.init() в dashboard-main.js
   // Гарантируем синхронизацию значений ползунков перед отправкой формы
   document.addEventListener('submit', function(e){
     const form = e.target;
     if (!(form instanceof HTMLFormElement)) return;
     // Pharma
-    const p = document.getElementById('pharmaSlider');
+    const p = getElementById('pharmaSlider');
     if (p && p.noUiSlider) {
       const [vFrom, vTo] = p.noUiSlider.get().map(Number);
-      const pf = document.getElementById('pharma_from');
-      const pt = document.getElementById('pharma_to');
+      const pf = getElementById('pharma_from');
+      const pt = getElementById('pharma_to');
       if (pf) pf.value = String(vFrom);
       if (pt) pt.value = String(vTo);
     }
     // Friends
-    const f = document.getElementById('friendsSlider');
+    const f = getElementById('friendsSlider');
     if (f && f.noUiSlider) {
       const [vFrom, vTo] = f.noUiSlider.get().map(Number);
-      const ff = document.getElementById('friends_from');
-      const ft = document.getElementById('friends_to');
+      const ff = getElementById('friends_from');
+      const ft = getElementById('friends_to');
       if (ff) ff.value = String(vFrom);
       if (ft) ft.value = String(vTo);
     }
@@ -908,7 +792,7 @@ document.addEventListener('click', function(e) {
         const escapedCardName = cardName.replace(/[!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~]/g, '\\$&');
         
         // Находим соответствующую карточку в DOM
-        const cardElement = document.querySelector(`.stat-card[data-card="${escapedCardName}"]`);
+        const cardElement = getSel(`.stat-card[data-card="${escapedCardName}"]`);
         
         if (cardElement) {
           // Проверяем реальное состояние карточки в DOM
@@ -951,7 +835,7 @@ document.addEventListener('click', function(e) {
   }
 
   // Обработчик открытия модального окна настроек
-  const settingsModalEl = document.getElementById('settingsModal');
+  const settingsModalEl = getElementById('settingsModal');
   if (settingsModalEl) {
     settingsModalEl.addEventListener('show.bs.modal', function() {
       // Синхронизируем чекбоксы при открытии модального окна
@@ -1179,9 +1063,9 @@ document.addEventListener('click', function(e) {
     const full = target.getAttribute('data-full') || '';
     const title = target.getAttribute('data-title') || 'Полное значение';
     
-    const cellModalTitle = document.getElementById('cellModalTitle');
-    const cellModalBody = document.getElementById('cellModalBody');
-    const cellModal = document.getElementById('cellModal');
+    const cellModalTitle = getElementById('cellModalTitle');
+    const cellModalBody = getElementById('cellModalBody');
+    const cellModal = getElementById('cellModal');
     
     if (cellModalTitle) cellModalTitle.textContent = title;
     if (cellModalBody) cellModalBody.textContent = full;
@@ -1193,10 +1077,10 @@ document.addEventListener('click', function(e) {
   });
   
   // Copy cell content
-  const cellCopyBtn = document.getElementById('cellCopyBtn');
+  const cellCopyBtn = getElementById('cellCopyBtn');
   if (cellCopyBtn) {
     cellCopyBtn.addEventListener('click', function() {
-      const body = document.getElementById('cellModalBody');
+      const body = getElementById('cellModalBody');
       copyToClipboard(body.textContent || '');
     });
   }
@@ -1283,10 +1167,10 @@ document.addEventListener('click', function(e) {
     current.searchParams.set('page', String(pageParam));
     history.replaceState(null, '', current.toString());
     // Обновляем номер страницы в футере немедленно
-    const pageNumEl = document.getElementById('pageNum');
+    const pageNumEl = getElementById('pageNum');
     if (pageNumEl) pageNumEl.textContent = String(pageParam);
     // Обновляем селект страниц
-    const pageSelectEl = document.getElementById('pageSelect');
+    const pageSelectEl = getElementById('pageSelect');
     if (pageSelectEl) pageSelectEl.value = String(pageParam);
     // НЕ очищаем selectedIds при пагинации - выбранные строки должны сохраняться между страницами
     // selectedAllFiltered сбрасываем, так как это относится к текущему фильтру
@@ -1298,7 +1182,7 @@ document.addEventListener('click', function(e) {
   });
   
   // Export selected CSV
-  const exportSelectedCsv = document.getElementById('exportSelectedCsv');
+  const exportSelectedCsv = getElementById('exportSelectedCsv');
   if (exportSelectedCsv) {
     exportSelectedCsv.addEventListener('click', function() {
       const DS = window.DashboardSelection;
@@ -1357,7 +1241,7 @@ document.addEventListener('click', function(e) {
   }
    
   // Export selected TXT (pipe-delimited, только видимые колонки)
-  const exportSelectedTxt = document.getElementById('exportSelectedTxt');
+  const exportSelectedTxt = getElementById('exportSelectedTxt');
   if (exportSelectedTxt) {
     exportSelectedTxt.addEventListener('click', function() {
       const DS = window.DashboardSelection;
@@ -1427,21 +1311,21 @@ document.addEventListener('click', function(e) {
   }
   
   // Delete selected
-  const deleteSelectedBtn = document.getElementById('deleteSelected');
+  const deleteSelectedBtn = getElementById('deleteSelected');
   if (deleteSelectedBtn) {
     deleteSelectedBtn.addEventListener('click', function() {
       const DS = window.DashboardSelection;
       if (!DS || (!DS.getSelectedAllFiltered() && DS.getSelectedIds().size === 0)) return;
       
       // Обновляем счётчик в модальном окне
-      const deleteCount = document.getElementById('deleteCount');
+      const deleteCount = getElementById('deleteCount');
       if (deleteCount) {
         deleteCount.textContent = DS.getSelectedAllFiltered() 
           ? 'все по фильтру' 
           : DS.getSelectedIds().size;
       }
       
-      const modalEl = document.getElementById('deleteConfirmModal');
+      const modalEl = getElementById('deleteConfirmModal');
       if (modalEl) {
         const modal = new bootstrap.Modal(modalEl);
         modal.show();
@@ -1452,7 +1336,7 @@ document.addEventListener('click', function(e) {
   // Настройки сохраняются автоматически при изменении, обработчик кнопки не нужен
   
   // Reset stat labels
-  const resetStatLabelsBtn = document.getElementById('resetStatLabels');
+  const resetStatLabelsBtn = getElementById('resetStatLabels');
   if (resetStatLabelsBtn) {
     resetStatLabelsBtn.addEventListener('click', function() {
       if (confirm('Вы действительно хотите сбросить все названия блоков к исходным значениям?')) {
@@ -1463,7 +1347,7 @@ document.addEventListener('click', function(e) {
   }
   
   // Preview stat labels
-  const previewStatLabelsBtn = document.getElementById('previewStatLabels');
+  const previewStatLabelsBtn = getElementById('previewStatLabels');
   if (previewStatLabelsBtn) {
     previewStatLabelsBtn.addEventListener('click', function() {
       previewStatLabels();
@@ -1471,7 +1355,7 @@ document.addEventListener('click', function(e) {
   }
   
   // Confirm delete - КРИТИЧЕСКИ ВАЖНО для работы удаления!
-  const confirmDeleteBtn = document.getElementById('confirmDelete');
+  const confirmDeleteBtn = getElementById('confirmDelete');
   if (confirmDeleteBtn) {
     confirmDeleteBtn.addEventListener('click', async function() {
       const btn = this;
@@ -1550,10 +1434,10 @@ document.addEventListener('click', function(e) {
         
         // Снимаем галочки
         document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
-        document.getElementById('selectAll').checked = false;
+        getElementById('selectAll').checked = false;
         
         // Закрываем модалку
-        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+        const modal = bootstrap.Modal.getInstance(getElementById('deleteConfirmModal'));
         if (modal) {
           modal.hide();
         }
@@ -1578,7 +1462,7 @@ document.addEventListener('click', function(e) {
   }
   
   // Селект быстрого перехода по страницам
-  const pageSelect = document.getElementById('pageSelect');
+  const pageSelect = getElementById('pageSelect');
   if (pageSelect) {
     pageSelect.addEventListener('change', () => {
       const selectedPage = parseInt(pageSelect.value);
@@ -1587,7 +1471,7 @@ document.addEventListener('click', function(e) {
         url.searchParams.set('page', String(selectedPage));
         history.replaceState(null, '', url.toString());
         // Обновляем номер страницы в футере немедленно
-        const pageNumEl = document.getElementById('pageNum');
+        const pageNumEl = getElementById('pageNum');
         if (pageNumEl) pageNumEl.textContent = String(selectedPage);
         window.DashboardSelection && window.DashboardSelection.clearSelection();
         refreshDashboardData();
@@ -1597,7 +1481,7 @@ document.addEventListener('click', function(e) {
 });
 
 // ===== Адаптивность таблицы =====
-let isRefreshing = false;
+// isRefreshing, overlayShownAt — в dashboard-refresh.js
 
 // Простая функция настройки плотности таблицы
 function adjustTableDensity() {
@@ -1608,11 +1492,9 @@ function adjustTableDensity() {
 
 // applyCompactMode отключен
 
-let overlayShownAt = 0;
-
 // Функции для управления глобальным прелоадером
 function showPageLoader() {
-  let loader = document.getElementById('pageLoader');
+  let loader = getElementById('pageLoader');
   if (!loader) {
     // Создаём прелоадер если его нет
     loader = document.createElement('div');
@@ -1629,92 +1511,14 @@ function showPageLoader() {
 }
 
 function hidePageLoader() {
-  const loader = document.getElementById('pageLoader');
+  const loader = getElementById('pageLoader');
   if (loader && !loader.classList.contains('hidden')) {
     loader.classList.add('hidden');
     // НЕ удаляем элемент - он будет использоваться повторно
   }
 }
 
-function collectRefreshParams() {
-  const params = new URLSearchParams(window.location.search);
-  syncNumericRange(params, 'pharma', 'pharma_from', 'pharma_to', 'pharmaSlider');
-  syncNumericRange(params, 'friends', 'friends_from', 'friends_to', 'friendsSlider');
-  return params;
-}
-
-function syncNumericRange(params, prefix, fromId, toId, sliderId) {
-  const fromInput = document.getElementById(fromId);
-  const toInput = document.getElementById(toId);
-  const slider = document.getElementById(sliderId);
-  const min = slider ? parseInt(slider.getAttribute('data-min') || '0', 10) : null;
-  const max = slider ? parseInt(slider.getAttribute('data-max') || '0', 10) : null;
-  const fromVal = fromInput ? fromInput.value.trim() : '';
-  const toVal = toInput ? toInput.value.trim() : '';
-
-  if (fromVal !== '') {
-    params.set(`${prefix}_from`, fromVal);
-  } else {
-    params.delete(`${prefix}_from`);
-  }
-
-  if (toVal !== '') {
-    params.set(`${prefix}_to`, toVal);
-  } else {
-    params.delete(`${prefix}_to`);
-  }
-
-  if (min !== null && max !== null && fromVal !== '' && toVal !== '') {
-    const numericFrom = parseInt(fromVal, 10);
-    const numericTo = parseInt(toVal, 10);
-    if (!Number.isNaN(numericFrom) && !Number.isNaN(numericTo) && numericFrom <= min && numericTo >= max) {
-      params.delete(`${prefix}_from`);
-      params.delete(`${prefix}_to`);
-    }
-  }
-}
-
-function setTableLoadingState(isLoading) {
-  logger.debug('setTableLoadingState called with:', isLoading);
-  const tableOverlay = document.getElementById('tableLoading');
-  const statsOverlay = document.getElementById('statsLoading');
-  const tableResponsive = document.querySelector('.table-responsive');
-
-  if (isLoading) {
-    if (tableOverlay) {
-      tableOverlay.style.display = '';
-      tableOverlay.classList.add('show');
-      overlayShownAt = Date.now();
-    }
-    if (statsOverlay) {
-      statsOverlay.style.display = '';
-      statsOverlay.classList.add('show');
-    }
-    if (tableResponsive) {
-      tableResponsive.classList.add('loading');
-    }
-    return;
-  }
-
-  if (tableOverlay) {
-    const elapsed = Date.now() - (overlayShownAt || 0);
-    const minMs = 300;
-    const hide = () => tableOverlay.classList.remove('show');
-    if (elapsed < minMs) {
-      setTimeout(hide, Math.max(minMs - elapsed, 0));
-    } else {
-      hide();
-    }
-  }
-
-  if (statsOverlay) {
-    statsOverlay.classList.remove('show');
-  }
-
-  if (tableResponsive) {
-    tableResponsive.classList.remove('loading');
-  }
-}
+// ===== collectRefreshParams, syncNumericRange, setTableLoadingState перенесены в dashboard-refresh.js =====
 
 // ===== Фиксированный горизонтальный скролл таблицы =====
 // Код перемещен в assets/js/sticky-scrollbar.js
@@ -1866,13 +1670,13 @@ document.addEventListener('DOMContentLoaded', function() {
   // loadEmptyStatusCount(); // Отключено - функционал встроен в основной фильтр
   
   // Скрываем прелоадеры при загрузке страницы (данные уже загружены сервером)
-  const statsOverlay = document.getElementById('statsLoading');
+  const statsOverlay = getElementById('statsLoading');
   if (statsOverlay) {
     statsOverlay.classList.remove('show');
     statsOverlay.style.display = 'none';
   }
   
-  const tableOverlay = document.getElementById('tableLoading');
+  const tableOverlay = getElementById('tableLoading');
   if (tableOverlay) {
     tableOverlay.classList.remove('show');
     tableOverlay.style.display = 'none';
@@ -1890,9 +1694,9 @@ async function loadEmptyStatusCount() {
     logger.debug('📊 Ответ API пустых статусов:', data);
     
     if (data.success) {
-      const countEl = document.getElementById('emptyStatusCount');
-      const cardEl = document.querySelector('[data-card="empty_status"]');
-      const navBtnEl = document.getElementById('emptyStatusNavBtn');
+      const countEl = getElementById('emptyStatusCount');
+      const cardEl = getSel('[data-card="empty_status"]');
+      const navBtnEl = getElementById('emptyStatusNavBtn');
       
       logger.debug('📊 Элементы найдены:', {
         countEl: !!countEl,
@@ -2040,9 +1844,9 @@ function previewStatLabels() {
   });
   
   // Показываем в модальном окне
-  const previewModal = document.getElementById('previewModal');
-  const previewModalTitle = document.getElementById('previewModalTitle');
-  const previewModalBody = document.getElementById('previewModalBody');
+  const previewModal = getElementById('previewModal');
+  const previewModalTitle = getElementById('previewModalTitle');
+  const previewModalBody = getElementById('previewModalBody');
   
   if (previewModalTitle) previewModalTitle.textContent = 'Предварительный просмотр названий';
   if (previewModalBody) previewModalBody.textContent = previewText;
@@ -2058,11 +1862,10 @@ function previewStatLabels() {
 // ===== Автообновление данных =====
 let autoRefreshInterval = null;
 let isAutoRefreshEnabled = false;
-let refreshController = null;
-let refreshQueued = false;
+// refreshController, refreshQueued — в dashboard-refresh.js
 
 function initializeAutoRefresh() {
-  const toggleBtn = document.getElementById('autoRefreshToggle');
+  const toggleBtn = getElementById('autoRefreshToggle');
   if (!toggleBtn) return;
   
   toggleBtn.addEventListener('click', function() {
@@ -2082,7 +1885,7 @@ function initializeAutoRefresh() {
 
 function startAutoRefresh() {
   isAutoRefreshEnabled = true;
-  const toggleBtn = document.getElementById('autoRefreshToggle');
+  const toggleBtn = getElementById('autoRefreshToggle');
   if (!toggleBtn) return;
   
   toggleBtn.classList.add('active');
@@ -2101,7 +1904,7 @@ function startAutoRefresh() {
 
 function stopAutoRefresh() {
   isAutoRefreshEnabled = false;
-  const toggleBtn = document.getElementById('autoRefreshToggle');
+  const toggleBtn = getElementById('autoRefreshToggle');
   if (!toggleBtn) return;
   
   toggleBtn.classList.remove('active');
@@ -2113,260 +1916,17 @@ function stopAutoRefresh() {
     autoRefreshInterval = null;
   }
   // Отменяем текущий запрос, если он есть
-  try { if (refreshController) refreshController.abort(); } catch(_) {}
+  try { if (window.refreshController) window.refreshController.abort(); } catch(_) {}
   
   localStorage.setItem('dashboard_auto_refresh', 'disabled');
   showToast('Автообновление отключено', 'info');
 }
 
-async function refreshDashboardData() {
-  // Single-flight: если уже идёт обновление, поставим перезапуск в очередь
-  if (refreshController) {
-    refreshQueued = true;
-    try { refreshController.abort(); } catch(_) {}
-  }
-    const params = new URLSearchParams(window.location.search);
-    const url = 'refresh.php?' + params.toString();
-  refreshController = new AbortController();
-  const signal = refreshController.signal;
-  try {
-    const res = await fetch(url, { 
-      credentials: 'same-origin', 
-      signal, 
-      cache: 'no-store',
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest'
-      }
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    if (!data.success) return;
-
-    // Обновляем KPI
-    const totalEl = document.querySelector('[data-card="total"] .stat-value');
-    if (totalEl && data.totals && typeof data.totals.all === 'number') {
-      updateStatValue(totalEl, data.totals.all);
-    }
-    if (typeof data.filteredTotal === 'number' && window.DashboardSelection) {
-      window.DashboardSelection.setFilteredTotalLive(data.filteredTotal);
-    }
-
-    // Обновляем карточки по статусам
-    // Ищем только элементы .stat-card с атрибутом data-card, начинающимся с "status:"
-    // Исключаем кнопки, чекбоксы и другие элементы
-    const statusCards = document.querySelectorAll('.stat-card[data-card^="status:"]');
-    logger.debug('🔄 Обновление карточек статистики:', {
-      'cards_found': statusCards.length,
-      'byStatus_keys': data.byStatus ? Object.keys(data.byStatus) : []
-    });
-    
-    statusCards.forEach(cardElement => {
-      // Берем статус прямо с элемента карточки (он сам является .stat-card)
-      const statusKey = cardElement.getAttribute('data-status');
-      
-      // Пропускаем элементы без data-status (это не карточки статусов)
-      if (!statusKey) {
-        return;
-      }
-      
-      // Ищем значение в byStatus (используем реальное имя статуса)
-      const cnt = data.byStatus && typeof data.byStatus[statusKey] !== 'undefined' 
-        ? data.byStatus[statusKey] 
-        : null;
-      
-      if (cnt !== null) {
-        const valEl = cardElement.querySelector('.stat-value');
-        if (valEl) {
-          updateStatValue(valEl, cnt);
-        }
-      } else {
-        // Если статус не найден в byStatus, возможно он был удален или изменен
-        // Устанавливаем 0 для таких карточек
-        const valEl = cardElement.querySelector('.stat-value');
-        if (valEl) {
-          updateStatValue(valEl, 0);
-        }
-      }
-    });
-
-    // Обновляем счетчики в dropdown статусов
-    if (data.byStatus) {
-      const statusCountElements = document.querySelectorAll('.status-count');
-      statusCountElements.forEach(el => {
-        const status = el.getAttribute('data-status');
-        const count = data.byStatus[status] || 0;
-        el.textContent = count;
-      });
-    }
-
-    // Обновляем таблицу
-    if (window.tableModule && typeof window.tableModule.updateRows === 'function') {
-      window.tableModule.updateRows(data);
-    } else {
-      const fallbackBody = document.querySelector('#accountsTable tbody');
-      if (fallbackBody && Array.isArray(data.rows)) {
-        const columnsCount = document.querySelectorAll('#accountsTable thead th').length || 1;
-        if (!data.rows.length) {
-          fallbackBody.innerHTML = `<tr><td colspan="${columnsCount}" class="text-center text-muted py-5">Ничего не найдено</td></tr>`;
-        } else {
-          fallbackBody.innerHTML = data.rows
-            .map(row => `<tr><td colspan="${columnsCount}" class="text-muted">#${row.id}</td></tr>`)
-            .join('');
-        }
-      }
-    }
-    
-    // Инвалидируем dom-cache и RowIdsCache после обновления таблицы
-    if (typeof domCache !== 'undefined' && typeof domCache.invalidate === 'function') {
-      domCache.invalidate();
-    }
-    if (window.DashboardSelection && typeof window.DashboardSelection.invalidateCache === 'function') {
-      window.DashboardSelection.invalidateCache();
-    }
-    
-    // Обновляем счетчики в тулбаре после обновления таблицы
-    // showingCountTop - сколько строк показано на странице
-    const showingCountTopEl = getElementById('showingCountTop');
-    if (showingCountTopEl && Array.isArray(data.rows)) {
-      showingCountTopEl.textContent = String(data.rows.length);
-    }
-    
-    // showingOnPageTop - общее количество строк на странице (для "Отмечено: X из Y")
-    // Обновляется через updateSelectedOnPageCounter(), но обновим и здесь для надежности
-    const showingOnPageTopEl = getElementById('showingOnPageTop');
-    if (showingOnPageTopEl && Array.isArray(data.rows)) {
-      showingOnPageTopEl.textContent = String(data.rows.length);
-    }
-    
-    // Обновляем счетчик выбранных строк на странице
-    if (window.DashboardSelection && typeof window.DashboardSelection.updateSelectedOnPageCounter === 'function') {
-      window.DashboardSelection.updateSelectedOnPageCounter();
-    }
-
-  } catch (error) {
-    // Игнорируем AbortError (когда запрос отменяется намеренно)
-    if (error.name === 'AbortError' || error.message?.includes('aborted')) {
-      // Запрос был отменен намеренно, это не ошибка
-      return;
-    }
-    
-    // Обработка реальных ошибок AJAX
-    logger.error('❌ Ошибка обновления данных:', error);
-    
-    // Показываем сообщение об ошибке пользователю
-    const errorMessage = error.message || 'Не удалось обновить данные';
-    
-    if (typeof showToast === 'function') {
-      showToast(`Ошибка обновления: ${errorMessage}`, 'error');
-    } else {
-      logger.error('Toast не доступен:', errorMessage);
-    }
-    
-    // Скрываем прелоадеры при ошибке
-    const tableOverlay = document.getElementById('tableLoading');
-    const statsOverlay = document.getElementById('statsLoading');
-    
-    if (tableOverlay) {
-      tableOverlay.classList.remove('show');
-    }
-    if (statsOverlay) {
-      statsOverlay.classList.remove('show');
-      statsOverlay.style.display = 'none';
-    }
-    
-    // Опционально: добавляем кнопку "Повторить" в интерфейс
-    const retryButton = document.createElement('button');
-    retryButton.textContent = 'Повторить попытку';
-    retryButton.className = 'btn btn-sm btn-primary mt-2';
-    retryButton.onclick = () => {
-      retryButton.remove();
-      refreshDashboardData();
-    };
-    
-    // Добавляем кнопку в контейнер таблицы (если нужно)
-    const tbody = document.querySelector('#accountsTable tbody');
-    if (tbody && tbody.children.length === 0) {
-      const tr = document.createElement('tr');
-      const td = document.createElement('td');
-      td.colSpan = 100;
-      td.className = 'text-center py-5';
-      td.innerHTML = `
-        <i class="fas fa-exclamation-triangle fa-2x mb-3 text-danger"></i>
-        <div class="mb-3">${errorMessage}</div>
-      `;
-      td.appendChild(retryButton);
-      tr.appendChild(td);
-      tbody.innerHTML = '';
-      tbody.appendChild(tr);
-    }
-  } finally {
-    // Пересчёт позиции/ширины фиксированного скролла после обновления данных
-    // Обновляем sticky scrollbar после загрузки данных
-    if (typeof window.updateStickyScrollbar === 'function') {
-      window.updateStickyScrollbar();
-    }
-    // Сбрасываем флаг обновления
-    isRefreshing = false;
-    
-    // Финальный пересчет верстки таблицы с задержкой для гарантии корректного отображения
-    // Это исправляет проблему, когда верстка "сыпется" после AJAX обновления
-    setTimeout(() => {
-      const table = document.getElementById('accountsTable');
-      if (!table) return;
-      
-      // Принудительно вызываем reflow для корректного расчета размеров
-      void table.offsetHeight;
-      
-      // Пересчитываем верстку таблицы после обновления
-      // Используем новый менеджер верстки, если он доступен
-      if (window.tableLayoutManager && typeof window.tableLayoutManager.refresh === 'function') {
-        window.tableLayoutManager.refresh();
-      } else {
-        // Fallback на старые функции
-        requestAnimationFrame(() => {
-          adjustTableDensity();
-          syncHeaderWidths();
-        });
-      }
-      
-      if (window.tableVirtualization && typeof window.tableVirtualization.refresh === 'function') {
-        window.tableVirtualization.refresh();
-      }
-      
-      if (typeof window.updateStickyScrollbar === 'function') {
-        window.updateStickyScrollbar();
-      }
-    }, 200);
-    
-    // Скрываем прелоадеры
-    const tableOverlay = document.getElementById('tableLoading');
-    const statsOverlay = document.getElementById('statsLoading');
-    const tableResponsive = document.querySelector('.table-responsive');
-    
-    if (tableOverlay) {
-      const elapsed = Date.now() - (overlayShownAt || 0);
-      const minMs = 300;
-      if (elapsed < minMs) {
-        setTimeout(() => tableOverlay.classList.remove('show'), minMs - elapsed);
-      } else {
-        tableOverlay.classList.remove('show');
-      }
-    }
-    
-    if (statsOverlay) {
-      statsOverlay.classList.remove('show');
-      statsOverlay.style.display = 'none';
-    }
-    
-    if (tableResponsive) {
-      tableResponsive.classList.remove('loading');
-    }
-  }
-}
+// ===== refreshDashboardData перенесена в dashboard-refresh.js =====
 
 // ===== Кнопка "Наверх" =====
 function initScrollToTop() {
-  const scrollToTopBtn = document.getElementById('scrollToTop');
+  const scrollToTopBtn = getElementById('scrollToTop');
   if (!scrollToTopBtn) return;
 
   // Показываем/скрываем кнопку в зависимости от позиции скролла
@@ -2752,7 +2312,7 @@ async function saveCustomCardsToStorage(cards) {
  * Отображение списка карточек в настройках
  */
 async function renderCustomCardsSettings() {
-  const list = document.getElementById('customCardsList');
+  const list = getElementById('customCardsList');
   if (!list) {
     logger.warn('customCardsList element not found');
     return;
@@ -2808,7 +2368,7 @@ async function renderCustomCardsSettings() {
  * Отображение карточек на дашборде
  */
 async function renderCustomCardsOnDashboard() {
-  const row = document.getElementById('statsRow');
+  const row = getElementById('statsRow');
   if (!row) {
     logger.warn('statsRow element not found');
     setTimeout(() => renderCustomCardsOnDashboard(), 200);
@@ -2893,7 +2453,7 @@ async function renderCustomCardsOnDashboard() {
   if (activeCardKey) {
     // Небольшая задержка, чтобы карточки успели отрендериться
     setTimeout(() => {
-      const activeCard = document.querySelector(`.stat-card[data-card-key="${activeCardKey}"]`);
+      const activeCard = getSel(`.stat-card[data-card-key="${activeCardKey}"]`);
       if (activeCard) {
         activeCard.classList.add('active');
         
@@ -2965,13 +2525,13 @@ async function refreshCustomCardCounts() {
         return;
       }
       
-      const wrap = document.querySelector(`[data-card="custom:${c.key}"] .stat-value`);
+      const wrap = getSel(`[data-card="custom:${c.key}"] .stat-value`);
       if (wrap) {
         updateStatValue(wrap, json.count);
       }
       
       // Применяем цвет карточки
-      const cardEl = document.querySelector(`[data-card="custom:${c.key}"]`);
+      const cardEl = getSel(`[data-card="custom:${c.key}"]`);
       if (cardEl && c.settings?.color) {
         cardEl.style.setProperty('--card-color', c.settings.color);
         const rgb = hexToRgb(c.settings.color);
@@ -2990,7 +2550,7 @@ async function refreshCustomCardCounts() {
  * Создание новой кастомной карточки
  */
 async function createCustomCard() {
-  const name = (document.getElementById('customCardName')?.value || '').trim();
+  const name = (getElementById('customCardName')?.value || '').trim();
   if (!name) {
     showToast('Введите название карточки', 'error');
     return;
@@ -3000,7 +2560,7 @@ async function createCustomCard() {
   const filters = {};
   
   // Статусы (множественный выбор)
-  const statusSelect = document.getElementById('customCardStatuses');
+  const statusSelect = getElementById('customCardStatuses');
   if (statusSelect) {
     const selectedStatuses = Array.from(statusSelect.selectedOptions).map(opt => opt.value);
     if (selectedStatuses.length > 0) {
@@ -3009,60 +2569,60 @@ async function createCustomCard() {
   }
   
   // Булевы фильтры
-  filters.has_email = !!document.getElementById('customHasEmail')?.checked;
-  filters.has_two_fa = !!document.getElementById('customHasTwoFa')?.checked;
-  filters.has_token = !!document.getElementById('customHasToken')?.checked;
-  filters.has_avatar = !!document.getElementById('customHasAvatar')?.checked;
-  filters.has_cover = !!document.getElementById('customHasCover')?.checked;
-  filters.has_password = !!document.getElementById('customHasPassword')?.checked;
-  filters.has_fan_page = !!document.getElementById('customHasFanPage')?.checked;
-  filters.full_filled = !!document.getElementById('customFullFilled')?.checked;
+  filters.has_email = !!getElementById('customHasEmail')?.checked;
+  filters.has_two_fa = !!getElementById('customHasTwoFa')?.checked;
+  filters.has_token = !!getElementById('customHasToken')?.checked;
+  filters.has_avatar = !!getElementById('customHasAvatar')?.checked;
+  filters.has_cover = !!getElementById('customHasCover')?.checked;
+  filters.has_password = !!getElementById('customHasPassword')?.checked;
+  filters.has_fan_page = !!getElementById('customHasFanPage')?.checked;
+  filters.full_filled = !!getElementById('customFullFilled')?.checked;
   
   // Диапазоны
-  const pharmaFrom = (document.getElementById('customPharmaFrom')?.value || '').trim();
-  const pharmaTo = (document.getElementById('customPharmaTo')?.value || '').trim();
+  const pharmaFrom = (getElementById('customPharmaFrom')?.value || '').trim();
+  const pharmaTo = (getElementById('customPharmaTo')?.value || '').trim();
   if (pharmaFrom) filters.pharma_from = pharmaFrom;
   if (pharmaTo) filters.pharma_to = pharmaTo;
   
-  const friendsFrom = (document.getElementById('customFriendsFrom')?.value || '').trim();
-  const friendsTo = (document.getElementById('customFriendsTo')?.value || '').trim();
+  const friendsFrom = (getElementById('customFriendsFrom')?.value || '').trim();
+  const friendsTo = (getElementById('customFriendsTo')?.value || '').trim();
   if (friendsFrom) filters.friends_from = friendsFrom;
   if (friendsTo) filters.friends_to = friendsTo;
   
-  const yearFrom = (document.getElementById('customYearCreatedFrom')?.value || '').trim();
-  const yearTo = (document.getElementById('customYearCreatedTo')?.value || '').trim();
+  const yearFrom = (getElementById('customYearCreatedFrom')?.value || '').trim();
+  const yearTo = (getElementById('customYearCreatedTo')?.value || '').trim();
   if (yearFrom) filters.year_created_from = yearFrom;
   if (yearTo) filters.year_created_to = yearTo;
   
   // Одиночные фильтры
-  const statusMarketplace = document.getElementById('customStatusMarketplace')?.value;
+  const statusMarketplace = getElementById('customStatusMarketplace')?.value;
   if (statusMarketplace) filters.status_marketplace = statusMarketplace;
   
-  const statusRk = document.getElementById('customStatusRk')?.value;
+  const statusRk = getElementById('customStatusRk')?.value;
   if (statusRk) filters.status_rk = statusRk;
   
   // Limit RK (диапазон)
-  const limitRkFrom = (document.getElementById('customLimitRkFrom')?.value || '').trim();
-  const limitRkTo = (document.getElementById('customLimitRkTo')?.value || '').trim();
+  const limitRkFrom = (getElementById('customLimitRkFrom')?.value || '').trim();
+  const limitRkTo = (getElementById('customLimitRkTo')?.value || '').trim();
   if (limitRkFrom) filters.limit_rk_from = limitRkFrom;
   if (limitRkTo) filters.limit_rk_to = limitRkTo;
   
-  const currency = document.getElementById('customCurrency')?.value;
+  const currency = getElementById('customCurrency')?.value;
   if (currency) filters.currency = currency;
   
-  const geo = document.getElementById('customGeo')?.value;
+  const geo = getElementById('customGeo')?.value;
   if (geo) filters.geo = geo;
   
   // Булевы фильтры
-  const favoritesOnly = document.querySelector('input[type="checkbox"][name="favorites_only"]')?.checked;
+  const favoritesOnly = getSel('input[type="checkbox"][name="favorites_only"]')?.checked;
   if (favoritesOnly) filters.favorites_only = true;
   
   // Целевой статус
-  let targetStatus = (document.getElementById('customCardTargetStatus')?.value || '').trim();
+  let targetStatus = (getElementById('customCardTargetStatus')?.value || '').trim();
   const wasNewStatus = (targetStatus === '__new__');
   
   if (targetStatus === '__new__') {
-    targetStatus = (document.getElementById('customCardNewStatus')?.value || '').trim();
+    targetStatus = (getElementById('customCardNewStatus')?.value || '').trim();
     if (!targetStatus) {
       showToast('Введите название нового статуса', 'error');
       return;
@@ -3098,7 +2658,7 @@ async function createCustomCard() {
     filters: filters,
     targetStatus: targetStatus || null,
     settings: {
-      color: document.getElementById('customCardColor')?.value || '#3b82f6'
+      color: getElementById('customCardColor')?.value || '#3b82f6'
     }
   };
   
@@ -3108,7 +2668,7 @@ async function createCustomCard() {
   await saveCustomCardsToStorage(cards);
   
   // Закрываем модальное окно
-  const modal = bootstrap.Modal.getInstance(document.getElementById('customCardModal'));
+  const modal = bootstrap.Modal.getInstance(getElementById('customCardModal'));
   if (modal) modal.hide();
   
   // Обновляем UI
@@ -3187,20 +2747,20 @@ async function initializeCustomCards() {
   }
   
   // Обработчик кнопки создания карточки
-  const addBtn = document.getElementById('addCustomCardBtn');
+  const addBtn = getElementById('addCustomCardBtn');
   if (addBtn) {
     addBtn.addEventListener('click', () => {
-      document.getElementById('customCardForm')?.reset();
-      document.getElementById('customCardColor').value = '#3b82f6';
-      const newStatusInputGroup = document.getElementById('newStatusInputGroup');
+      getElementById('customCardForm')?.reset();
+      getElementById('customCardColor').value = '#3b82f6';
+      const newStatusInputGroup = getElementById('newStatusInputGroup');
       if (newStatusInputGroup) newStatusInputGroup.style.display = 'none';
     });
   }
   
   // Обработчик изменения селекта целевого статуса
-  const targetStatusSelect = document.getElementById('customCardTargetStatus');
-  const newStatusInputGroup = document.getElementById('newStatusInputGroup');
-  const newStatusInput = document.getElementById('customCardNewStatus');
+  const targetStatusSelect = getElementById('customCardTargetStatus');
+  const newStatusInputGroup = getElementById('newStatusInputGroup');
+  const newStatusInput = getElementById('customCardNewStatus');
   
   if (targetStatusSelect) {
     targetStatusSelect.addEventListener('change', function() {
@@ -3221,7 +2781,7 @@ async function initializeCustomCards() {
   }
   
   // Обработчик сохранения карточки
-  const saveBtn = document.getElementById('saveCustomCardBtn');
+  const saveBtn = getElementById('saveCustomCardBtn');
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
       await createCustomCard();
@@ -3229,10 +2789,10 @@ async function initializeCustomCards() {
   }
   
   // Обработчик закрытия модального окна
-  const modal = document.getElementById('customCardModal');
+  const modal = getElementById('customCardModal');
   if (modal) {
     modal.addEventListener('hidden.bs.modal', () => {
-      document.getElementById('customCardForm')?.reset();
+      getElementById('customCardForm')?.reset();
       if (newStatusInputGroup) newStatusInputGroup.style.display = 'none';
       if (newStatusInput) {
         newStatusInput.value = '';
@@ -3312,20 +2872,20 @@ async function initializeCustomCards() {
 // Все функции кастомных карточек определены выше в новой версии (строки 6300-6924)
 
 // Change status (bulk)
-const changeStatusSelected = document.getElementById('changeStatusSelected');
+const changeStatusSelected = getElementById('changeStatusSelected');
 if (changeStatusSelected) {
   changeStatusSelected.addEventListener('click', function() {
     const DS = window.DashboardSelection;
     if (!DS || (!DS.getSelectedAllFiltered() && DS.getSelectedIds().size === 0)) return;
-    const modal = new bootstrap.Modal(document.getElementById('statusModal'));
+    const modal = new bootstrap.Modal(getElementById('statusModal'));
     modal.show();
   });
 }
-const applyStatusBtn = document.getElementById('applyStatusBtn');
+const applyStatusBtn = getElementById('applyStatusBtn');
 if (applyStatusBtn) {
   applyStatusBtn.addEventListener('click', async function() {
-    const statusSelect = document.getElementById('statusSelect');
-    const statusNewInput = document.getElementById('statusNewInput');
+    const statusSelect = getElementById('statusSelect');
+    const statusNewInput = getElementById('statusNewInput');
     const newStatus = (statusNewInput?.value || '').trim() || statusSelect?.value;
     
     if (!newStatus) { 
@@ -3402,7 +2962,7 @@ if (applyStatusBtn) {
       logger.debug('🔄 Обновляем статистику после изменения статуса...');
       await refreshDashboardData();
       
-      const modalEl = document.getElementById('statusModal');
+      const modalEl = getElementById('statusModal');
       if (modalEl) {
         const modal = bootstrap.Modal.getInstance(modalEl);
         if (modal) modal.hide();
@@ -3426,7 +2986,7 @@ document.addEventListener('click', function(e) {
       window.DashboardSelection.setSelectedAllFiltered(true);
       window.DashboardSelection.getSelectedIds().clear();
       document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = true);
-      const sa = document.getElementById('selectAll'); if (sa) sa.checked = true;
+      const sa = getElementById('selectAll'); if (sa) sa.checked = true;
       window.DashboardSelection.updateSelectedCount();
     }
   }
@@ -3435,7 +2995,7 @@ document.addEventListener('click', function(e) {
     if (window.DashboardSelection) {
       window.DashboardSelection.clearSelection();
       document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
-      const sa = document.getElementById('selectAll'); if (sa) sa.checked = false;
+      const sa = getElementById('selectAll'); if (sa) sa.checked = false;
     }
   }
 });
@@ -3453,7 +3013,7 @@ const debouncedRefreshDashboardData = debounce(() => {
 }, 300); // 300ms дебаунс для фильтров
 
 document.addEventListener('DOMContentLoaded', function() {
-  const searchInput = document.getElementById('modernSearchInput');
+  const searchInput = getElementById('modernSearchInput');
   if (searchInput) {
     const applyLiveSearch = debounce(() => {
       const url = new URL(window.location);
@@ -3464,7 +3024,7 @@ document.addEventListener('DOMContentLoaded', function() {
       refreshDashboardData();
       
       // Показываем/скрываем кнопку очистки
-      const clearBtn = document.querySelector('.header-search-clear');
+      const clearBtn = getSel('.header-search-clear');
       if (clearBtn) {
         clearBtn.style.display = searchInput.value ? 'flex' : 'none';
       }
@@ -3473,20 +3033,20 @@ document.addEventListener('DOMContentLoaded', function() {
     searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
     
     // Показываем/скрываем кнопку очистки при загрузке
-    const clearBtn = document.querySelector('.header-search-clear');
+    const clearBtn = getSel('.header-search-clear');
     if (clearBtn) {
       clearBtn.style.display = searchInput.value ? 'flex' : 'none';
     }
   }
   // Блокируем сабмит формы фильтров
-  const filterForm = document.querySelector('.card.mb-4 form');
+  const filterForm = getSel('.card.mb-4 form');
   if (filterForm) {
     filterForm.addEventListener('submit', (e) => e.preventDefault());
   }
   // Статус (множественный выбор через чекбоксы)
   const statusCheckboxes = document.querySelectorAll('.status-checkbox');
-  const statusDropdownLabel = document.getElementById('statusDropdownLabel');
-  const statusDropdownMenu = document.querySelector('.status-dropdown-menu');
+  const statusDropdownLabel = getElementById('statusDropdownLabel');
+  const statusDropdownMenu = getSel('.status-dropdown-menu');
   
   // Функция обновления UI (мгновенно)
   function updateStatusUI() {
@@ -3563,7 +3123,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Кнопка "Выбрать все"
-  const selectAllStatusesBtn = document.getElementById('selectAllStatusesBtn');
+  const selectAllStatusesBtn = getElementById('selectAllStatusesBtn');
   if (selectAllStatusesBtn) {
     selectAllStatusesBtn.addEventListener('click', () => {
       statusCheckboxes.forEach(cb => cb.checked = true);
@@ -3576,7 +3136,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Кнопка "Очистить все"
-  const clearAllStatusesBtn = document.getElementById('clearAllStatusesBtn');
+  const clearAllStatusesBtn = getElementById('clearAllStatusesBtn');
   if (clearAllStatusesBtn) {
     clearAllStatusesBtn.addEventListener('click', () => {
       statusCheckboxes.forEach(cb => cb.checked = false);
@@ -3589,7 +3149,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Поиск по статусам
-  const statusSearch = document.getElementById('statusSearch');
+  const statusSearch = getElementById('statusSearch');
   if (statusSearch) {
     statusSearch.addEventListener('input', (e) => {
       const searchTerm = e.target.value.toLowerCase();
@@ -3611,8 +3171,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   // Статус Marketplace (dropdown с красивым дизайном)
   const statusMarketplaceItems = document.querySelectorAll('.status-marketplace-item');
-  const statusMarketplaceDropdownLabel = document.getElementById('statusMarketplaceDropdownLabel');
-  const statusMarketplaceInput = document.getElementById('statusMarketplaceInput');
+  const statusMarketplaceDropdownLabel = getElementById('statusMarketplaceDropdownLabel');
+  const statusMarketplaceInput = getElementById('statusMarketplaceInput');
   
   if (statusMarketplaceItems.length > 0 && statusMarketplaceDropdownLabel && statusMarketplaceInput) {
     statusMarketplaceItems.forEach(item => {
@@ -3642,7 +3202,7 @@ document.addEventListener('DOMContentLoaded', function() {
         debouncedRefreshDashboardData(); // Используем дебаунсированную версию для фильтров
         
         // Закрываем dropdown
-        const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('statusMarketplaceDropdown'));
+        const dropdown = bootstrap.Dropdown.getInstance(getElementById('statusMarketplaceDropdown'));
         if (dropdown) dropdown.hide();
       });
     });
@@ -3650,8 +3210,8 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Currency фильтр (dropdown с красивым дизайном)
   const currencyItems = document.querySelectorAll('.currency-item');
-  const currencyDropdownLabel = document.getElementById('currencyDropdownLabel');
-  const currencyInput = document.getElementById('currencyInput');
+  const currencyDropdownLabel = getElementById('currencyDropdownLabel');
+  const currencyInput = getElementById('currencyInput');
   
   if (currencyItems.length > 0 && currencyDropdownLabel && currencyInput) {
     currencyItems.forEach(item => {
@@ -3681,7 +3241,7 @@ document.addEventListener('DOMContentLoaded', function() {
         debouncedRefreshDashboardData(); // Используем дебаунсированную версию для фильтров
         
         // Закрываем dropdown
-        const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('currencyDropdown'));
+        const dropdown = bootstrap.Dropdown.getInstance(getElementById('currencyDropdown'));
         if (dropdown) dropdown.hide();
       });
     });
@@ -3689,8 +3249,8 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Geo фильтр (dropdown с красивым дизайном)
   const geoItems = document.querySelectorAll('.geo-item');
-  const geoDropdownLabel = document.getElementById('geoDropdownLabel');
-  const geoInput = document.getElementById('geoInput');
+  const geoDropdownLabel = getElementById('geoDropdownLabel');
+  const geoInput = getElementById('geoInput');
   
   if (geoItems.length > 0 && geoDropdownLabel && geoInput) {
     geoItems.forEach(item => {
@@ -3720,7 +3280,7 @@ document.addEventListener('DOMContentLoaded', function() {
         debouncedRefreshDashboardData(); // Используем дебаунсированную версию для фильтров
         
         // Закрываем dropdown
-        const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('geoDropdown'));
+        const dropdown = bootstrap.Dropdown.getInstance(getElementById('geoDropdown'));
         if (dropdown) dropdown.hide();
       });
     });
@@ -3728,8 +3288,8 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Status RK фильтр (dropdown с красивым дизайном)
   const statusRkItems = document.querySelectorAll('.status-rk-item');
-  const statusRkDropdownLabel = document.getElementById('statusRkDropdownLabel');
-  const statusRkInput = document.getElementById('statusRkInput');
+  const statusRkDropdownLabel = getElementById('statusRkDropdownLabel');
+  const statusRkInput = getElementById('statusRkInput');
   
   if (statusRkItems.length > 0 && statusRkDropdownLabel && statusRkInput) {
     statusRkItems.forEach(item => {
@@ -3759,14 +3319,14 @@ document.addEventListener('DOMContentLoaded', function() {
         debouncedRefreshDashboardData(); // Используем дебаунсированную версию для фильтров
         
         // Закрываем dropdown
-        const dropdown = bootstrap.Dropdown.getInstance(document.getElementById('statusRkDropdown'));
+        const dropdown = bootstrap.Dropdown.getInstance(getElementById('statusRkDropdown'));
         if (dropdown) dropdown.hide();
       });
     });
   }
   
   // Пер-страница (селект)
-  const perPageSelect = document.querySelector('select[name="per_page"]');
+  const perPageSelect = getSel('select[name="per_page"]');
   if (perPageSelect) {
     perPageSelect.addEventListener('change', () => {
       const url = new URL(window.location);
@@ -3887,9 +3447,9 @@ document.addEventListener('click', function(e) {
 });
 
 function getActionsWidth() {
-  const td = document.querySelector('#accountsTable tbody tr td.sticky-actions');
+  const td = getSel('#accountsTable tbody tr td.sticky-actions');
   if (td) return td.offsetWidth;
-  const th = document.querySelector('#accountsTable thead th[data-col="actions"]');
+  const th = getSel('#accountsTable thead th[data-col="actions"]');
   return th ? th.offsetWidth : 0;
 }
 
@@ -4128,7 +3688,7 @@ document.addEventListener('click', function(e) {
   }, 0);
   
   // Блокируем скролл во время редактирования для защиты от проблем с виртуализацией
-  const scrollContainer = document.getElementById('tableWrap');
+  const scrollContainer = getElementById('tableWrap');
   let scrollBlocked = false;
   let savedScrollTop = 0;
   
@@ -4377,7 +3937,7 @@ document.addEventListener('change', function(e) {
         allRowIds.forEach(rowId => {
           const checkbox = (typeof domCache !== 'undefined' && domCache.get)
             ? domCache.get(`.row-checkbox[value="${rowId}"]`)
-            : document.querySelector(`.row-checkbox[value="${rowId}"]`);
+            : getSel(`.row-checkbox[value="${rowId}"]`);
           if (checkbox) {
             checkbox.checked = isChecked;
             const row = checkbox.closest('tr[data-id]');
@@ -4388,7 +3948,7 @@ document.addEventListener('change', function(e) {
     } else {
       allRowIds.forEach(rowId => {
         DS.toggleRowSelection(rowId, isChecked);
-        const checkbox = document.querySelector(`.row-checkbox[value="${rowId}"]`);
+        const checkbox = getSel(`.row-checkbox[value="${rowId}"]`);
         if (checkbox) {
           checkbox.checked = isChecked;
           const row = checkbox.closest('tr[data-id]');
@@ -4431,7 +3991,7 @@ document.addEventListener('change', function(e) {
       DS.updateSelectedOnPageCounter();
     }
     
-    const selectAllCheckbox = document.getElementById('selectAll');
+    const selectAllCheckbox = getElementById('selectAll');
     if (selectAllCheckbox) {
       const allRowIds = DS.getAllRowIdsOnPage();
       const selectedCount = allRowIds.filter(id => DS.getSelectedIds().has(id)).length;
@@ -4501,7 +4061,7 @@ document.addEventListener('click', function(e) {
     window.DashboardSelection.updateSelectedCount();
   }
   
-  const selectAllCheckbox = document.getElementById('selectAll');
+  const selectAllCheckbox = getElementById('selectAll');
   if (selectAllCheckbox) {
     const allCheckboxes = document.querySelectorAll('.row-checkbox');
     const checkedCheckboxes = document.querySelectorAll('.row-checkbox:checked');
@@ -4510,14 +4070,14 @@ document.addEventListener('click', function(e) {
 });
 
 // Bulk edit: open modal
-const bulkFieldSelect = document.getElementById('bulkFieldSelect');
-const bulkGlobalWarning = document.getElementById('bulkGlobalWarning');
+const bulkFieldSelect = getElementById('bulkFieldSelect');
+const bulkGlobalWarning = getElementById('bulkGlobalWarning');
 const bulkGlobalFieldLabel = bulkGlobalWarning ? bulkGlobalWarning.querySelector('.bulk-global-field') : null;
 const bulkGlobalCountLabel = bulkGlobalWarning ? bulkGlobalWarning.querySelector('.bulk-global-count') : null;
-const bulkGlobalConfirm = document.getElementById('bulkGlobalConfirm');
-const bulkFieldModalEl = document.getElementById('bulkFieldModal');
-const bulkEditBtn = document.getElementById('bulkEditFieldBtn');
-const applyBulkFieldBtn = document.getElementById('applyBulkFieldBtn');
+const bulkGlobalConfirm = getElementById('bulkGlobalConfirm');
+const bulkFieldModalEl = getElementById('bulkFieldModal');
+const bulkEditBtn = getElementById('bulkEditFieldBtn');
+const applyBulkFieldBtn = getElementById('applyBulkFieldBtn');
 
 function shouldWarnGlobalBulk() {
   const DS = window.DashboardSelection;
@@ -4551,7 +4111,7 @@ if (bulkEditBtn && bulkFieldModalEl) {
     if (!DS || (!DS.getSelectedAllFiltered() && DS.getSelectedIds().size === 0)) return;
     const modal = bootstrap.Modal.getOrCreateInstance(bulkFieldModalEl);
     // Сбрасываем введённое значение перед открытием
-    const input = document.getElementById('bulkFieldValue');
+    const input = getElementById('bulkFieldValue');
     if (input) input.value = '';
     updateBulkWarningState();
     modal.show();
@@ -4585,7 +4145,7 @@ if (bulkFieldSelect) {
 }
 
 // Универсальная кнопка "Сбросить все" - очищает выбранные строки и/или фильтры
-const clearAllSelectedBtn = document.getElementById('clearAllSelectedBtn');
+const clearAllSelectedBtn = getElementById('clearAllSelectedBtn');
 if (clearAllSelectedBtn) {
   clearAllSelectedBtn.addEventListener('click', function() {
     const DS = window.DashboardSelection;
@@ -4609,7 +4169,7 @@ if (clearAllSelectedBtn) {
         if (row) DS.updateRowSelectedClass(row, false);
       });
       
-      const selectAllCheckbox = document.getElementById('selectAll');
+      const selectAllCheckbox = getElementById('selectAll');
       if (selectAllCheckbox) selectAllCheckbox.checked = false;
       
       const exportBtns = document.querySelectorAll('#exportSelectedCsv, #exportSelectedTxt, #deleteSelected, #changeStatusSelected, #bulkEditFieldBtn');
@@ -4619,24 +4179,24 @@ if (clearAllSelectedBtn) {
 }
 
 // ===== Массовый перенос аккаунтов (V3.0) =====
-const transferBtn = document.getElementById('transferAccountsBtn');
+const transferBtn = getElementById('transferAccountsBtn');
 if (transferBtn) {
   transferBtn.addEventListener('click', function() {
     // Открываем модальное окно
-    const modal = new bootstrap.Modal(document.getElementById('transferAccountsModal'));
+    const modal = new bootstrap.Modal(getElementById('transferAccountsModal'));
     modal.show();
   });
 }
 
-const applyTransferBtn = document.getElementById('applyTransferBtn');
+const applyTransferBtn = getElementById('applyTransferBtn');
 if (applyTransferBtn) {
   applyTransferBtn.addEventListener('click', async function() {
     // Получаем значения из формы
-    const text = (document.getElementById('transferText')?.value || '').trim();
-    const statusSelect = (document.getElementById('transferStatusSelect')?.value || '').trim();
-    const statusCustom = (document.getElementById('transferStatusCustom')?.value || '').trim();
+    const text = (getElementById('transferText')?.value || '').trim();
+    const statusSelect = (getElementById('transferStatusSelect')?.value || '').trim();
+    const statusCustom = (getElementById('transferStatusCustom')?.value || '').trim();
     const status = statusCustom || statusSelect;
-    const enableLike = document.getElementById('transferEnableLike')?.checked ?? false;
+    const enableLike = getElementById('transferEnableLike')?.checked ?? false;
     
     // Валидация полей
     if (!text) { 
@@ -4701,7 +4261,7 @@ if (applyTransferBtn) {
       const startTime = Date.now();
       const timerInterval = setInterval(() => {
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        const timerEl = document.getElementById('transferTimer');
+        const timerEl = getElementById('transferTimer');
         if (timerEl) {
           timerEl.textContent = `Прошло: ${elapsed} сек`;
         }
@@ -4802,13 +4362,13 @@ if (applyTransferBtn) {
       showToast(message, 'success');
       
       // Очищаем форму
-      document.getElementById('transferText').value = '';
-      document.getElementById('transferStatusSelect').value = '';
-      document.getElementById('transferStatusCustom').value = '';
-      document.getElementById('transferEnableLike').checked = false;
+      getElementById('transferText').value = '';
+      getElementById('transferStatusSelect').value = '';
+      getElementById('transferStatusCustom').value = '';
+      getElementById('transferEnableLike').checked = false;
       
       // Закрываем модальное окно
-      const modalEl = document.getElementById('transferAccountsModal');
+      const modalEl = getElementById('transferAccountsModal');
       if (modalEl) {
         const modal = bootstrap.Modal.getInstance(modalEl);
         if (modal) modal.hide();
@@ -4831,7 +4391,7 @@ if (applyTransferBtn) {
       if (typeof hidePageLoader === 'function') hidePageLoader();
       
       // Удаляем информационное окно
-      const loadingInfo = document.getElementById('massTransferLoadingInfo');
+      const loadingInfo = getElementById('massTransferLoadingInfo');
       if (loadingInfo) loadingInfo.remove();
       
       // Очищаем таймер если он ещё работает
@@ -4844,8 +4404,8 @@ if (applyTransferBtn) {
 // Bulk edit: apply
 if (applyBulkFieldBtn) {
   applyBulkFieldBtn.addEventListener('click', async function() {
-    const field = (document.getElementById('bulkFieldSelect')?.value || '').trim();
-    const value = (document.getElementById('bulkFieldValue')?.value || '').trim();
+    const field = (getElementById('bulkFieldSelect')?.value || '').trim();
+    const value = (getElementById('bulkFieldValue')?.value || '').trim();
     if (!field) { showToast('Выберите поле', 'error'); return; }
     const DS = window.DashboardSelection;
     const scope = DS && DS.getSelectedAllFiltered() 
@@ -4901,7 +4461,7 @@ window.addEventListener('load', () => {
   
   // Скрываем прелоадер после загрузки страницы
   // Не удаляем элемент, а просто скрываем его
-  const pageLoader = document.getElementById('pageLoader');
+  const pageLoader = getElementById('pageLoader');
   if (pageLoader) {
     // Скрываем прелоадер немедленно, не ждем асинхронных операций
     pageLoader.classList.add('hidden');

@@ -75,7 +75,7 @@ function removeFilterChip(filterName) {
             url.searchParams.delete('status_rk');
             break;
         default:
-            console.warn('Unknown filter:', filterName);
+            (typeof logger !== 'undefined' ? logger.warn : console.warn)('Unknown filter:', filterName);
             return;
     }
     
@@ -89,7 +89,7 @@ function removeFilterChip(filterName) {
  */
 function removeStatusChip(statusValue) {
     if (!statusValue) {
-        console.error('removeStatusChip: statusValue is required');
+        (typeof logger !== 'undefined' ? logger.error : console.error)('removeStatusChip: statusValue is required');
         return;
     }
     
@@ -361,10 +361,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (typeof removeStatusChip === 'function') {
                     removeStatusChip(statusValue);
                 } else {
-                    console.error('removeStatusChip function not found');
+                    (typeof logger !== 'undefined' ? logger.error : console.error)('removeStatusChip function not found');
                 }
             } else {
-                console.warn('Status chip missing data-status-value attribute');
+                (typeof logger !== 'undefined' ? logger.warn : console.warn)('Status chip missing data-status-value attribute');
             }
             return;
         }
@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (typeof removeFilterChip === 'function') {
                 removeFilterChip(filterType);
             } else {
-                console.error('removeFilterChip function not found');
+                (typeof logger !== 'undefined' ? logger.error : console.error)('removeFilterChip function not found');
             }
         }
     });
@@ -392,7 +392,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    console.log('✓ Modern Filters initialized (auto-apply mode)');
+    if (typeof logger !== 'undefined') logger.debug('✓ Modern Filters initialized (auto-apply mode)');
 });
 
 // ========================================

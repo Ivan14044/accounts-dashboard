@@ -185,7 +185,8 @@ function parseCSV($filePath) {
  * Импорт аккаунтов в БД
  */
 function importAccounts($data, $duplicateAction, $service, $allColumns) {
-    global $mysqli;
+    require_once __DIR__ . '/includes/Database.php';
+    $mysqli = Database::getInstance()->getConnection();
     
     $imported = 0;
     $updated = 0;

@@ -345,7 +345,7 @@ class QuickSearch {
             
             this.showEmpty();
         } catch (error) {
-            console.error('Quick search error:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Quick search error:', error);
             this.showError('Ошибка при выполнении поиска');
         }
     }

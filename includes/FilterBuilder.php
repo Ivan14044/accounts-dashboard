@@ -305,8 +305,9 @@ class FilterBuilder {
             // Проверяем через ColumnMetadata, если доступен
             try {
                 require_once __DIR__ . '/ColumnMetadata.php';
-                global $mysqli;
-                if (isset($mysqli) && $mysqli instanceof mysqli) {
+                require_once __DIR__ . '/Database.php';
+                $mysqli = Database::getInstance()->getConnection();
+                if ($mysqli instanceof mysqli) {
                     $metadata = ColumnMetadata::getInstance($mysqli);
                     $hasDeletedAtColumn = $metadata->columnExists('deleted_at');
                 }
@@ -314,7 +315,7 @@ class FilterBuilder {
                 // Игнорируем ошибки проверки
             }
         }
-        
+
         // Добавляем условие только если колонка существует
         if ($hasDeletedAtColumn) {
             // Проверяем, есть ли уже фильтр по deleted_at
@@ -373,8 +374,9 @@ class FilterBuilder {
                 // Проверяем через ColumnMetadata, если доступен
                 try {
                     require_once __DIR__ . '/ColumnMetadata.php';
-                    global $mysqli;
-                    if (isset($mysqli) && $mysqli instanceof mysqli) {
+                    require_once __DIR__ . '/Database.php';
+                    $mysqli = Database::getInstance()->getConnection();
+                    if ($mysqli instanceof mysqli) {
                         $metadata = ColumnMetadata::getInstance($mysqli);
                         $hasDeletedAtColumn = $metadata->columnExists('deleted_at');
                     }
@@ -382,7 +384,7 @@ class FilterBuilder {
                     // Игнорируем ошибки проверки
                 }
             }
-            
+
             // Добавляем фильтр по deleted_at только если колонка существует
             if ($hasDeletedAtColumn) {
                 // Добавляем фильтр по deleted_at, если не включены удалённые и нет фильтра для показа удалённых

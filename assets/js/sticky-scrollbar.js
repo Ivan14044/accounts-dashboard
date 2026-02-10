@@ -59,7 +59,7 @@
       // Проверка наличия элементов
       if (!this.wrapper || !this.scrollbar || !this.content || !this.tableWrap || !this.table) {
         if (this.options.debug) {
-          console.warn('StickyScrollbar: Не найдены необходимые элементы', {
+          (typeof logger !== 'undefined' ? logger.warn : console.warn)('StickyScrollbar: Не найдены необходимые элементы', {
             wrapper: !!this.wrapper,
             scrollbar: !!this.scrollbar,
             content: !!this.content,
@@ -83,7 +83,7 @@
       window.updateStickyScrollbar = () => this.update();
       
       if (this.options.debug) {
-        console.log('StickyScrollbar: Инициализация завершена');
+        if (typeof logger !== 'undefined') logger.debug('StickyScrollbar: Инициализация завершена');
       }
     }
     
@@ -207,7 +207,7 @@
       }
       
       if (this.options.debug) {
-        console.log('StickyScrollbar: update', {
+        if (typeof logger !== 'undefined') logger.debug('StickyScrollbar: update', {
           tableWidth,
           containerWidth,
           needsScrollbar,

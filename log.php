@@ -56,7 +56,8 @@ $totalAuditCount = 0;
 
 if ($logType === 'actions') {
     // Получаем историю действий пользователей (audit log)
-    global $mysqli;
+    require_once __DIR__ . '/includes/Database.php';
+    $mysqli = Database::getInstance()->getConnection();
     $auditLogger = AuditLogger::getInstance();
     
     // Формируем SQL запрос с фильтрами

@@ -93,7 +93,7 @@ class DashboardMain {
       if (typeof logger !== 'undefined') {
         logger.error('❌ Ошибка инициализации Dashboard:', error);
       }
-      console.error('Dashboard initialization error:', error);
+      (typeof logger !== 'undefined' ? logger.error : console.error)('Dashboard initialization error:', error);
     }
   }
   

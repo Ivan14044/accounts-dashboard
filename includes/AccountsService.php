@@ -21,14 +21,8 @@ class AccountsService {
     private $statistics;
     
     public function __construct() {
-        global $mysqli;
-        
-        // Проверяем, что подключение к БД установлено
-        if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
-            throw new Exception('Database connection not initialized. Please check config.php');
-        }
-        
         $this->db = Database::getInstance();
+        $mysqli = $this->db->getConnection();
         $this->metadata = ColumnMetadata::getInstance($mysqli);
         $this->db->ensureIndexes();
         

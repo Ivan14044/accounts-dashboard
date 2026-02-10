@@ -20,13 +20,8 @@ class AccountsRepository {
     private $metadata;
     
     public function __construct() {
-        global $mysqli;
-        
-        if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
-            throw new Exception('Database connection not initialized. Please check config.php');
-        }
-        
         $this->db = Database::getInstance();
+        $mysqli = $this->db->getConnection();
         $this->metadata = ColumnMetadata::getInstance($mysqli);
     }
     
@@ -617,14 +612,14 @@ class AccountsRepository {
             return;
         }
         
-        global $mysqli;
+        $mysqli = $this->db->getConnection();
         if (!($mysqli instanceof mysqli)) {
             return;
         }
-        
+
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $types = str_repeat('i', count($ids));
-        
+
         // Удаляем из избранного
         $sql = "DELETE FROM account_favorites WHERE account_id IN ($placeholders)";
         $stmt = $mysqli->prepare($sql);

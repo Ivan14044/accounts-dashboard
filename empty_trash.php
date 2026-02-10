@@ -70,16 +70,12 @@ try {
     Logger::debug('EMPTY TRASH: Инициализация Database и ColumnMetadata...');
     require_once __DIR__ . '/includes/Database.php';
     require_once __DIR__ . '/includes/ColumnMetadata.php';
-    global $mysqli;
-    
-    if (!$mysqli) {
-        throw new Exception('Database connection not available');
-    }
-    
+    $db = Database::getInstance();
+    $mysqli = $db->getConnection();
+
     Logger::debug('EMPTY TRASH: Проверка поддержки Soft Delete...');
     // Проверяем, поддерживается ли Soft Delete (безопасная проверка)
     try {
-        $db = Database::getInstance();
         $metadata = ColumnMetadata::getInstance($mysqli);
         
         if (!$metadata->columnExists('deleted_at')) {

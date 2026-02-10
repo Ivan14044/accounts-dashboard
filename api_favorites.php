@@ -48,24 +48,8 @@ try {
         }
     }
     
-    global $mysqli;
-    
-    // Проверяем подключение к БД
-    if (!$mysqli) {
-        require_once __DIR__ . '/includes/Logger.php';
-        Logger::error('Database connection failed in api_favorites.php (mysqli is null)');
-        throw new RuntimeException('Database connection failed (mysqli is null)');
-    }
-    
-    if ($mysqli->connect_errno) {
-        require_once __DIR__ . '/includes/Logger.php';
-        Logger::error('Database connection error in api_favorites.php', [
-            'errno' => $mysqli->connect_errno,
-            'error' => $mysqli->connect_error
-        ]);
-        throw new RuntimeException('Database connection failed: ' . $mysqli->connect_error);
-    }
-    
+    $mysqli = Database::getInstance()->getConnection();
+
     // Проверяем существование таблицы и создаём, если её нет (безопасная проверка)
     $db = Database::getInstance();
     if (!$db->tableExists('account_favorites')) {
@@ -83,7 +67,7 @@ try {
         
         $allowedTables = ['account_favorites'];
         if (!$db->executeDDL($createTableSQL, $allowedTables)) {
-            Logger::error('Failed to create favorites table', ['error' => $mysqli->error]);
+            Logger::error('Failed to create favorites table', ['error' => $db->getConnection()->error]);
             json_error('Ошибка создания таблицы избранного. Обратитесь к администратору.');
         }
         

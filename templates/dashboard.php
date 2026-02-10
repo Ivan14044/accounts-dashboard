@@ -2839,6 +2839,7 @@
 <script src="assets/js/core/logger.js?v=<?= time() ?>"></script>
 <script src="assets/js/core/dom-cache.js?v=<?= time() ?>"></script>
 <script src="assets/js/core/performance.js?v=<?= time() ?>"></script>
+<script src="assets/js/modules/dashboard-refresh.js?v=<?= time() ?>"></script>
 <!-- Модули дашборда -->
 <script src="assets/js/modules/dashboard-selection.js?v=<?= time() ?>"></script>
 <script src="assets/js/modules/dashboard-filters.js?v=<?= time() ?>"></script>

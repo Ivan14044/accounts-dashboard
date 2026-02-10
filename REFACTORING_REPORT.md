@@ -224,9 +224,54 @@
 
 ---
 
-## 4. План дальнейшего рефакторинга
+## 3.8. Фаза 1 — JS‑рефакторинг и производительность (2026-02-10) ✅
 
-### 4.1. Фаза 1 — JS‑рефакторинг и производительность
+**Сделано:**
+- **Logger:** Заменены `console.log/warn/error` на `logger.debug/warn/error` в модулях: dashboard-main.js, filters-modern.js, performance.js, quick-search.js, saved-filters.js, favorites.js, trash.js, sticky-scrollbar.js.
+- **Dom-cache:** В init-script и table-module.js добавлены `getElementById`, `getSel` поверх domCache; вызовы `domCache.invalidate()` после обновления таблицы.
+- **Debounce и batchDOM:** Проверено использование в init-script, dashboard-selection, dashboard-filters; batchUpdater для `updateSelectedCount` и `updateSelectedOnPageCounter`.
+
+**Результат:** Убрано логирование в продакшен, снижено количество DOM-запросов.
+
+---
+
+## 3.9. Фаза 2 — Перенос логики из init-script (2026-02-10) ✅
+
+**Сделано:**
+- **Слайдеры:** `initializePharmaSlider`, `initializeFriendsSlider` перенесены в `dashboard-filters.js` (убраны дубли из init-script).
+- **Refresh:** Создан `dashboard-refresh.js` — `refreshDashboardData`, `collectRefreshParams`, `syncNumericRange`, `setTableLoadingState`.
+
+**Результат:** init-script сокращён; слайдеры и refresh вынесены в модули.
+
+---
+
+## 3.10. Фаза 3 — Унификация БД через Database (2026-02-10) ✅
+
+**Сделано:**
+- Заменён `global $mysqli` на `Database::getInstance()->getConnection()` в:
+  - api_register_status.php, api_user_settings.php, api_saved_filters.php, api_favorites.php
+  - api/index.php
+  - includes/AccountsRepository.php, AccountsService.php, StatisticsService.php
+  - includes/FilterBuilder.php, AuditLogger.php, MassTransferService.php
+  - includes/DashboardController.php
+  - delete_permanent.php, empty_trash.php, setup_trash.php, setup_favorites.php, log.php, import.php, duplicate.php, debug.php
+
+**Результат:** Единая точка доступа к БД через `Database::getInstance()`.
+
+---
+
+## 3.11. Фаза 4 — Документация (2026-02-10) ✅
+
+**Сделано:**
+- Обновлены REFACTORING_REPORT.md, PERFORMANCE_ANALYSIS_REPORT.md.
+- Создан DEVELOPER_GUIDE.md.
+- Добавлен раздел «Архитектура для разработчиков» в README.
+
+---
+
+## 4. План дальнейшего рефакторинга (опционально)
+
+### 4.1. Фаза 1 — Дополнительные оптимизации (если требуется)
 
 - **Цели:**
   - Уменьшить размер и сложность `dashboard.php` и `assets/js/dashboard.js`.
@@ -307,8 +352,8 @@
 - Исправлены критичные баги выбора строк, пагинации и виртуализации.
 - Улучшена UX‑логика (индикатор виртуализации, корректные счетчики).
 - Укреплена безопасность (конфигурация, `.gitignore`, подготовка к GitHub).
-- Подготовлена инфраструктура для производительного и модульного JS.
-- Далее фокус: реальный перенос логики в core‑модули и поэтапное «размоноличивание» `dashboard.php` и `dashboard.js`.
+- **Фазы 1–4 выполнены (2026-02-10):** Logger, dom-cache, debounce/batchDOM; слайдеры и refresh вынесены в модули; унифицирован доступ к БД через Database; обновлена документация.
+- Проект готов к дальнейшей разработке. Опционально: вынос dashboard-settings и dashboard-custom-cards в отдельные модули.
 
 Этот отчет можно использовать как **дорожную карту** для дальнейшего рефакторинга и как документацию для любого разработчика, который подключается к проекту.
 

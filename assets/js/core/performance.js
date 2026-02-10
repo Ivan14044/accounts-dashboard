@@ -112,7 +112,7 @@ class BatchUpdater {
         try {
           updater();
         } catch (error) {
-          console.error('BatchUpdater error:', error);
+          (typeof logger !== 'undefined' ? logger.error : console.error)('BatchUpdater error:', error);
         }
       });
     });
@@ -141,7 +141,7 @@ function measurePerformance(label, fn) {
   if (typeof logger !== 'undefined') {
     logger.debug(`⏱️ ${label}: ${(end - start).toFixed(2)}ms`);
   } else {
-    console.log(`⏱️ ${label}: ${(end - start).toFixed(2)}ms`);
+    if (typeof logger !== 'undefined') logger.debug(`⏱️ ${label}: ${(end - start).toFixed(2)}ms`);
   }
   
   return result;
@@ -154,7 +154,7 @@ function measurePerformance(label, fn) {
  */
 function lazyLoad(modulePath) {
   return import(modulePath).catch(error => {
-    console.error(`Failed to load module ${modulePath}:`, error);
+    (typeof logger !== 'undefined' ? logger.error : console.error)(`Failed to load module ${modulePath}:`, error);
     throw error;
   });
 }

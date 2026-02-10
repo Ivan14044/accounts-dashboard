@@ -48,7 +48,7 @@ class SavedFiltersManager {
                 this.renderFiltersDropdown();
             }
         } catch (error) {
-            console.error('Error loading saved filters:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error loading saved filters:', error);
         }
     }
     
@@ -69,7 +69,7 @@ class SavedFiltersManager {
                 filtersSection = document.querySelector('.filters-modern-header-actions');
             }
             if (!filtersSection) {
-                console.warn('SavedFilters: Cannot find container for dropdown');
+                (typeof logger !== 'undefined' ? logger.warn : console.warn)('SavedFilters: Cannot find container for dropdown');
                 // Пробуем создать контейнер, если его нет
                 const header = document.querySelector('.filters-modern-header');
                 if (header) {
@@ -218,7 +218,7 @@ class SavedFiltersManager {
                 throw new Error(data.error || 'Ошибка сохранения');
             }
         } catch (error) {
-            console.error('Error saving filter:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error saving filter:', error);
             if (typeof window.showToast === 'function') {
                 window.showToast('Ошибка при сохранении фильтра: ' + error.message, 'error');
             }
@@ -296,7 +296,7 @@ class SavedFiltersManager {
                 throw new Error(data.error || 'Ошибка удаления');
             }
         } catch (error) {
-            console.error('Error deleting filter:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error deleting filter:', error);
             if (typeof window.showToast === 'function') {
                 window.showToast('Ошибка при удалении фильтра: ' + error.message, 'error');
             }

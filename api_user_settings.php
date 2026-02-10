@@ -39,26 +39,10 @@ try {
     // Получаем тип настройки из параметра
     $settingType = $_GET['type'] ?? $_POST['type'] ?? 'custom_cards';
     
-    // Подключаемся к БД
-    global $mysqli;
-    if (!$mysqli) {
-        require_once __DIR__ . '/includes/Logger.php';
-        Logger::error('Database connection failed in api_user_settings.php (mysqli is null)');
-        throw new RuntimeException('Database connection failed (mysqli is null)');
-    }
-    
-    if ($mysqli->connect_errno) {
-        require_once __DIR__ . '/includes/Logger.php';
-        Logger::error('Database connection error in api_user_settings.php', [
-            'errno' => $mysqli->connect_errno,
-            'error' => $mysqli->connect_error
-        ]);
-        throw new RuntimeException('Database connection failed: ' . $mysqli->connect_error);
-    }
-    
-    // Проверяем существование таблицы и создаём, если её нет (безопасная проверка)
+    // Подключаемся к БД через Database
     require_once __DIR__ . '/includes/Database.php';
     $db = Database::getInstance();
+    $mysqli = $db->getConnection();
     if (!$db->tableExists('user_settings')) {
         // Создаем таблицу, если её нет
         $createTableSQL = "
@@ -77,7 +61,7 @@ try {
         
         $allowedTables = ['user_settings'];
         if (!$db->executeDDL($createTableSQL, $allowedTables)) {
-            throw new Exception('Failed to create user_settings table: ' . $mysqli->error);
+            throw new Exception('Failed to create user_settings table: ' . $db->getConnection()->error);
         }
     }
     

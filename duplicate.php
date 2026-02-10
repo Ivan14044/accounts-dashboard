@@ -8,6 +8,7 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/includes/AccountsService.php';
 require_once __DIR__ . '/includes/Utils.php';
 require_once __DIR__ . '/includes/Logger.php';
+require_once __DIR__ . '/includes/Database.php';
 
 try {
     requireAuth();
@@ -46,7 +47,7 @@ try {
     }
     
     // Вставляем новую запись
-    global $mysqli;
+    $mysqli = Database::getInstance()->getConnection();
     $columns = array_keys($newAccount);
     $placeholders = array_map(function($col) { return '`' . $col . '` = ?'; }, $columns);
     $values = array_values($newAccount);

@@ -190,7 +190,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(data.error || 'Ошибка восстановления');
             }
         } catch (error) {
-            console.error('Restore error:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Restore error:', error);
             if (typeof showToast === 'function') {
                 showToast('Ошибка при восстановлении аккаунтов: ' + error.message, 'error');
             } else {
@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(data.error || 'Ошибка удаления');
             }
         } catch (error) {
-            console.error('Delete permanent error:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Delete permanent error:', error);
             if (typeof showToast === 'function') {
                 showToast('Ошибка при удалении аккаунтов: ' + error.message, 'error');
             } else {
@@ -279,16 +279,16 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     async function emptyTrash() {
         try {
-            console.log('🗑️ [EMPTY TRASH] Начало очистки корзины...');
+            if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] Начало очистки корзины...');
             emptyTrashBtn.disabled = true;
             
             const csrfToken = getCsrfToken();
-            console.log('🗑️ [EMPTY TRASH] CSRF токен получен:', csrfToken ? (csrfToken.substring(0, 20) + '...') : 'НЕ НАЙДЕН');
+            if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] CSRF токен получен:', csrfToken ? (csrfToken.substring(0, 20) + '...') : 'НЕ НАЙДЕН');
             
             const requestBody = {
                 csrf: csrfToken
             };
-            console.log('🗑️ [EMPTY TRASH] Отправка запроса с телом:', requestBody);
+            if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] Отправка запроса с телом:', requestBody);
             
             const response = await fetch('empty_trash.php', {
                 method: 'POST',
@@ -300,7 +300,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify(requestBody)
             });
             
-            console.log('🗑️ [EMPTY TRASH] Ответ получен:', {
+            if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] Ответ получен:', {
                 status: response.status,
                 statusText: response.statusText,
                 ok: response.ok,
@@ -316,14 +316,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (isJson) {
                     try {
                         const errorData = await response.json();
-                        console.error('🗑️ [EMPTY TRASH] Ошибка (JSON):', errorData);
+                        (typeof logger !== 'undefined' ? logger.error : console.error)('🗑️ [EMPTY TRASH] Ошибка (JSON):', errorData);
                         errorMessage = errorData.error || errorMessage;
                     } catch (e) {
-                        console.error('🗑️ [EMPTY TRASH] Ошибка парсинга JSON ошибки:', e);
+                        (typeof logger !== 'undefined' ? logger.error : console.error)('🗑️ [EMPTY TRASH] Ошибка парсинга JSON ошибки:', e);
                     }
                 } else {
                     const textResponse = await response.text().catch(() => '');
-                    console.error('🗑️ [EMPTY TRASH] Ошибка (текст):', textResponse.substring(0, 500));
+                    (typeof logger !== 'undefined' ? logger.error : console.error)('🗑️ [EMPTY TRASH] Ошибка (текст):', textResponse.substring(0, 500));
                     errorMessage = textResponse || errorMessage;
                 }
                 
@@ -332,10 +332,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (isJson) {
                 const data = await response.json();
-                console.log('🗑️ [EMPTY TRASH] Данные ответа:', data);
+                if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] Данные ответа:', data);
                 
                 if (data.success) {
-                    console.log('✅ [EMPTY TRASH] Корзина успешно очищена!', {
+                    if (typeof logger !== 'undefined') logger.debug('✅ [EMPTY TRASH] Корзина успешно очищена!', {
                         deleted_count: data.deleted_count || 0
                     });
                     
@@ -352,12 +352,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else {
                 const textResponse = await response.text().catch(() => '');
-                console.error('🗑️ [EMPTY TRASH] Ответ не JSON:', textResponse.substring(0, 500));
+                (typeof logger !== 'undefined' ? logger.error : console.error)('🗑️ [EMPTY TRASH] Ответ не JSON:', textResponse.substring(0, 500));
                 throw new Error('Сервер вернул некорректный ответ');
             }
         } catch (error) {
-            console.error('❌ [EMPTY TRASH] Критическая ошибка:', error);
-            console.error('❌ [EMPTY TRASH] Детали ошибки:', {
+            (typeof logger !== 'undefined' ? logger.error : console.error)('❌ [EMPTY TRASH] Критическая ошибка:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('❌ [EMPTY TRASH] Детали ошибки:', {
                 name: error.name,
                 message: error.message,
                 stack: error.stack

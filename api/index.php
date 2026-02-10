@@ -313,8 +313,8 @@ $router->post('/status/register', function() {
     
     // Создаем запись с новым статусом, чтобы он появился в списке доступных статусов
     // Используем специальный префикс для идентификации таких записей
-    global $mysqli;
-    
+    $mysqli = Database::getInstance()->getConnection();
+
     // Проверяем, есть ли уже служебная запись с таким статусом
     $serviceLogin = '__status_marker_' . md5($status);
     $checkStmt = $mysqli->prepare("SELECT id FROM accounts WHERE login = ? AND status = ? LIMIT 1");
@@ -346,12 +346,11 @@ $router->get('/favorites', function() {
         json_error('Необходима авторизация');
         return;
     }
-    
-    global $mysqli;
-    
-    // Проверяем существование таблицы и создаём, если её нет
-    require_once __DIR__ . '/../includes/Database.php';
+
     $db = Database::getInstance();
+    $mysqli = $db->getConnection();
+
+    // Проверяем существование таблицы и создаём, если её нет
     if (!$db->tableExists('account_favorites')) {
         $createTableSQL = "
         CREATE TABLE IF NOT EXISTS `account_favorites` (
@@ -415,12 +414,11 @@ $router->post('/favorites', function() {
         json_error('Invalid account ID');
         return;
     }
-    
-    global $mysqli;
-    
-    // Проверяем существование таблицы
-    require_once __DIR__ . '/../includes/Database.php';
+
     $db = Database::getInstance();
+    $mysqli = $db->getConnection();
+
+    // Проверяем существование таблицы
     if (!$db->tableExists('account_favorites')) {
         $createTableSQL = "
         CREATE TABLE IF NOT EXISTS `account_favorites` (
@@ -479,8 +477,8 @@ $router->delete('/favorites', function() {
         json_error('Invalid account ID');
         return;
     }
-    
-    global $mysqli;
+
+    $mysqli = Database::getInstance()->getConnection();
     $stmt = $mysqli->prepare("DELETE FROM account_favorites WHERE user_id = ? AND account_id = ?");
     if (!$stmt) {
         throw new Exception('Failed to prepare statement: ' . $mysqli->error);
@@ -503,14 +501,13 @@ $router->get('/settings', function() {
     if (!$username) {
         throw new Exception('User not authenticated');
     }
-    
+
     $settingType = $_GET['type'] ?? 'custom_cards';
-    
-    global $mysqli;
-    
-    // Проверяем существование таблицы
-    require_once __DIR__ . '/../includes/Database.php';
+
     $db = Database::getInstance();
+    $mysqli = $db->getConnection();
+
+    // Проверяем существование таблицы
     if (!$db->tableExists('user_settings')) {
         $createTableSQL = "
         CREATE TABLE IF NOT EXISTS `user_settings` (
@@ -572,12 +569,11 @@ $router->post('/settings', function() {
     if (!isset($input['value'])) {
         throw new Exception('Value is required');
     }
-    
-    global $mysqli;
-    
-    // Проверяем существование таблицы
-    require_once __DIR__ . '/../includes/Database.php';
+
     $db = Database::getInstance();
+    $mysqli = $db->getConnection();
+
+    // Проверяем существование таблицы
     if (!$db->tableExists('user_settings')) {
         $createTableSQL = "
         CREATE TABLE IF NOT EXISTS `user_settings` (
@@ -646,12 +642,11 @@ $router->put('/settings', function() {
     if (!isset($input['value'])) {
         throw new Exception('Value is required');
     }
-    
-    global $mysqli;
-    
-    // Проверяем существование таблицы
-    require_once __DIR__ . '/../includes/Database.php';
+
     $db = Database::getInstance();
+    $mysqli = $db->getConnection();
+
+    // Проверяем существование таблицы
     if (!$db->tableExists('user_settings')) {
         $createTableSQL = "
         CREATE TABLE IF NOT EXISTS `user_settings` (
@@ -705,13 +700,8 @@ $router->get('/filters', function() {
         json_error('Необходима авторизация');
         return;
     }
-    
-    global $mysqli;
-    
-    // Проверяем подключение к БД
-    if (!$mysqli || $mysqli->connect_errno) {
-        throw new RuntimeException('Database connection failed');
-    }
+
+    $mysqli = Database::getInstance()->getConnection();
     
     $stmt = $mysqli->prepare("SELECT id, name, filters, created_at, updated_at FROM saved_filters WHERE user_id = ? ORDER BY updated_at DESC");
     if (!$stmt) {
@@ -765,8 +755,8 @@ $router->post('/filters', function() {
         json_error('Фильтры должны быть массивом');
         return;
     }
-    
-    global $mysqli;
+
+    $mysqli = Database::getInstance()->getConnection();
     $filtersJson = json_encode($filters, JSON_UNESCAPED_UNICODE);
     $stmt = $mysqli->prepare("INSERT INTO saved_filters (user_id, name, filters) VALUES (?, ?, ?)");
     if (!$stmt) {
@@ -816,8 +806,8 @@ $router->put('/filters', function() {
         json_error('Фильтры должны быть массивом');
         return;
     }
-    
-    global $mysqli;
+
+    $mysqli = Database::getInstance()->getConnection();
     $filtersJson = json_encode($filters, JSON_UNESCAPED_UNICODE);
     $stmt = $mysqli->prepare("UPDATE saved_filters SET name = ?, filters = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?");
     if (!$stmt) {
@@ -854,8 +844,8 @@ $router->delete('/filters', function() {
         json_error('Invalid filter id');
         return;
     }
-    
-    global $mysqli;
+
+    $mysqli = Database::getInstance()->getConnection();
     $stmt = $mysqli->prepare("DELETE FROM saved_filters WHERE id = ? AND user_id = ?");
     if (!$stmt) {
         throw new Exception('Failed to prepare statement');

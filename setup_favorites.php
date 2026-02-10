@@ -73,8 +73,9 @@ header('Content-Type: text/html; charset=utf-8');
         
         <?php
         try {
-            global $mysqli;
-            
+            require_once __DIR__ . '/includes/Database.php';
+            $mysqli = Database::getInstance()->getConnection();
+
             if (!$mysqli) {
                 throw new Exception('Не удалось подключиться к базе данных');
             }

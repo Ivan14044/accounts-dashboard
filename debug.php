@@ -99,8 +99,9 @@ $dashboardData = $controller->prepareDashboardData();
     <div class="section">
         <h2>🔌 Проверка подключения к БД</h2>
         <?php
-        global $mysqli;
-        if (isset($mysqli) && $mysqli instanceof mysqli) {
+        require_once __DIR__ . '/includes/Database.php';
+        $mysqli = Database::getInstance()->getConnection();
+        if ($mysqli instanceof mysqli) {
             echo '<div class="success">✅ Подключение к БД установлено</div>';
             echo '<p>Host: ' . htmlspecialchars($mysqli->host_info) . '</p>';
             echo '<p>Database: ' . htmlspecialchars($mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? 'N/A') . '</p>';

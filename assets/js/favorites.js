@@ -61,7 +61,7 @@ class FavoritesManager {
                 const text = await response.text();
                 data = JSON.parse(text);
             } catch (e) {
-                console.error('JSON parse error when loading favorites:', e);
+                (typeof logger !== 'undefined' ? logger.error : console.error)('JSON parse error when loading favorites:', e);
                 throw new Error('Некорректный ответ сервера');
             }
             
@@ -70,13 +70,13 @@ class FavoritesManager {
                 this.updateFavoritesUI();
                 this.loaded = true;
             } else {
-                console.warn('Invalid favorites response:', data);
+                (typeof logger !== 'undefined' ? logger.warn : console.warn)('Invalid favorites response:', data);
                 // Устанавливаем пустой список, чтобы не блокировать работу
                 this.favorites = new Set();
                 this.loaded = true;
             }
         } catch (error) {
-            console.error('Error loading favorites:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error loading favorites:', error);
             // Устанавливаем пустой список, чтобы не блокировать работу
             this.favorites = new Set();
             this.loaded = true;
@@ -89,7 +89,7 @@ class FavoritesManager {
     async toggleFavorite(accountId) {
         // Защита от множественных кликов
         if (this.processingIds.has(accountId)) {
-            console.log('Favorite toggle already in progress for account:', accountId);
+            if (typeof logger !== 'undefined') logger.debug('Favorite toggle already in progress for account:', accountId);
             return;
         }
         
@@ -135,7 +135,7 @@ class FavoritesManager {
                 const text = await response.text();
                 data = JSON.parse(text);
             } catch (e) {
-                console.error('JSON parse error:', e, 'Response:', text);
+                (typeof logger !== 'undefined' ? logger.error : console.error)('JSON parse error:', e, 'Response:', text);
                 throw new Error('Некорректный ответ сервера');
             }
             
@@ -160,7 +160,7 @@ class FavoritesManager {
                 );
             }
         } catch (error) {
-            console.error('Error toggling favorite:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error toggling favorite:', error);
             
             // Откатываем оптимистичное обновление при ошибке
             if (originalState) {

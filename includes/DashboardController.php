@@ -85,7 +85,7 @@ class DashboardController {
         
         try {
             if (isset($_SESSION['username'])) {
-                global $mysqli;
+                $mysqli = \Database::getInstance()->getConnection();
                 if ($mysqli instanceof mysqli) {
                     $stmt = $mysqli->prepare("SELECT setting_value FROM user_settings WHERE username = ? AND setting_type = 'custom_cards' LIMIT 1");
                     if ($stmt) {

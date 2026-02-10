@@ -60,15 +60,15 @@ try {
     
     // Создаем запись с новым статусом, чтобы он появился в списке доступных статусов
     // Используем специальный префикс для идентификации таких записей
-    global $mysqli;
-    
+    $mysqli = Database::getInstance()->getConnection();
+
     // Проверяем, есть ли уже служебная запись с таким статусом
     $checkStmt = $mysqli->prepare("SELECT id FROM accounts WHERE login = ? AND status = ? LIMIT 1");
     $serviceLogin = '__status_marker_' . md5($status);
     $checkStmt->bind_param('ss', $serviceLogin, $status);
     $checkStmt->execute();
     $checkResult = $checkStmt->get_result();
-    
+
     if ($checkResult->num_rows === 0) {
         // Создаем служебную запись с новым статусом
         $insertStmt = $mysqli->prepare("INSERT INTO accounts (login, status, created_at) VALUES (?, ?, NOW())");
@@ -76,7 +76,7 @@ try {
         $insertStmt->execute();
         $insertStmt->close();
     }
-    
+
     $checkStmt->close();
     
     // Очищаем кэш метаданных и кэши запросов, чтобы новый статус появился в списке

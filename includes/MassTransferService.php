@@ -13,6 +13,7 @@
  */
 
 require_once __DIR__ . '/AccountsService.php';
+require_once __DIR__ . '/Database.php';
 
 class MassTransferService {
     private $db;
@@ -35,8 +36,7 @@ class MassTransferService {
      * Конструктор
      */
     public function __construct() {
-        global $mysqli;
-        $this->db = $mysqli;
+        $this->db = Database::getInstance()->getConnection();
     }
     
     /**

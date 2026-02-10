@@ -47,24 +47,9 @@ try {
         }
     }
     
-    global $mysqli;
-    
-    // Проверяем подключение к БД
-    if (!$mysqli) {
-        require_once __DIR__ . '/includes/Logger.php';
-        Logger::error('Database connection failed in api_saved_filters.php (mysqli is null)');
-        throw new RuntimeException('Database connection failed (mysqli is null)');
-    }
-    
-    if ($mysqli->connect_errno) {
-        require_once __DIR__ . '/includes/Logger.php';
-        Logger::error('Database connection error in api_saved_filters.php', [
-            'errno' => $mysqli->connect_errno,
-            'error' => $mysqli->connect_error
-        ]);
-        throw new RuntimeException('Database connection failed: ' . $mysqli->connect_error);
-    }
-    
+    require_once __DIR__ . '/includes/Database.php';
+    $mysqli = Database::getInstance()->getConnection();
+
     switch ($method) {
         case 'GET':
             // Получение списка сохранённых фильтров
@@ -120,7 +105,7 @@ try {
             }
             $stmt->bind_param('sss', $userId, $name, $filtersJson);
             $stmt->execute();
-            $filterId = $mysqli->insert_id;
+            $filterId = $mysqli->insert_id ?? 0;
             $stmt->close();
             
             Logger::info('Filter saved', ['user' => $userId, 'filter_id' => $filterId, 'name' => $name]);

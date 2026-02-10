@@ -17,13 +17,16 @@
   const TOKEN_CLIP = 20;
   const LONG_FIELDS = ['cookies', 'user_agent', 'extra_info_1', 'extra_info_2', 'extra_info_3', 'extra_info_4'];
 
+  const getEl = (id) => (typeof domCache !== 'undefined' && domCache.getById ? domCache.getById(id) : document.getElementById(id));
+  const getSel = (sel) => (typeof domCache !== 'undefined' && domCache.get ? domCache.get(sel) : document.querySelector(sel));
+
   class TableModule {
     constructor(root, options = {}) {
       this.root = root;
-      this.table = document.getElementById('accountsTable');
+      this.table = getEl('accountsTable');
       this.tbody = this.table ? this.table.querySelector('tbody') : null;
-      this.toolbar = document.getElementById('rowsCounterBar');
-      this.scrollContainer = document.getElementById('tableWrap');
+      this.toolbar = getEl('rowsCounterBar');
+      this.scrollContainer = getEl('tableWrap');
       this.options = Object.assign({
         virtualization: {
           threshold: 80,
@@ -319,8 +322,8 @@
         table: null,
         scrollContainer: null
       }, options);
-      this.table = this.options.table || document.getElementById('accountsTable');
-      this.scrollTarget = this.options.scrollContainer || document.getElementById('tableWrap') || window;
+      this.table = this.options.table || getEl('accountsTable');
+      this.scrollTarget = this.options.scrollContainer || getEl('tableWrap') || window;
       this.tbody = this.table ? this.table.querySelector('tbody') : null;
       this.allRows = [];
       this.spacerTop = null;
@@ -339,8 +342,8 @@
     }
 
     mount() {
-      this.table = this.options.table || document.getElementById('accountsTable');
-      this.scrollTarget = this.options.scrollContainer || document.getElementById('tableWrap') || window;
+      this.table = this.options.table || getEl('accountsTable');
+      this.scrollTarget = this.options.scrollContainer || getEl('tableWrap') || window;
       this.tbody = this.table ? this.table.querySelector('tbody') : null;
       this.useWindowScroll = this.scrollTarget === window;
       if (!this.table || !this.tbody) {
@@ -551,9 +554,9 @@
     }
     
     updateVirtualizationHint() {
-      const hintEl = document.getElementById('virtualizationHint');
-      const visibleCountEl = document.getElementById('visibleRowsCount');
-      const totalCountEl = document.getElementById('totalRowsOnPage');
+      const hintEl = getEl('virtualizationHint');
+      const visibleCountEl = getEl('visibleRowsCount');
+      const totalCountEl = getEl('totalRowsOnPage');
       
       if (!hintEl) return;
       
@@ -613,7 +616,7 @@
   }
 
   function bootstrapTableModule() {
-    const root = document.querySelector('[data-module="accounts-table"]');
+    const root = getSel('[data-module="accounts-table"]');
     if (!root) return;
     new TableModule(root);
   }

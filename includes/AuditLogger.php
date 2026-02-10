@@ -3,17 +3,15 @@
  * Класс для логирования изменений аккаунтов (Audit Log)
  * Записывает все изменения в таблицу account_history
  */
+require_once __DIR__ . '/Database.php';
+
 class AuditLogger {
     private static $instance = null;
     private $mysqli;
     private $enabled = true;
-    
+
     private function __construct() {
-        global $mysqli;
-        if (!($mysqli instanceof mysqli)) {
-            throw new Exception('Database connection not available');
-        }
-        $this->mysqli = $mysqli;
+        $this->mysqli = Database::getInstance()->getConnection();
     }
     
     public static function getInstance() {

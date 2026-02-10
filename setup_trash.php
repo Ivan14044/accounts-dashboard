@@ -14,9 +14,10 @@ echo "pre{background:#f5f5f5;padding:10px;border-radius:5px;}</style></head><bod
 echo "<h1>🔧 Настройка функционала корзины</h1>";
 
 try {
-    global $mysqli;
-    
-    if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
+    require_once __DIR__ . '/includes/Database.php';
+    $mysqli = Database::getInstance()->getConnection();
+
+    if (!($mysqli instanceof mysqli)) {
         throw new Exception('Подключение к БД не установлено');
     }
     

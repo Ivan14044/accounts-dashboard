@@ -20,13 +20,8 @@ class StatisticsService {
     private $metadata;
     
     public function __construct() {
-        global $mysqli;
-        
-        if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
-            throw new Exception('Database connection not initialized. Please check config.php');
-        }
-        
         $this->db = Database::getInstance();
+        $mysqli = $this->db->getConnection();
         $this->metadata = ColumnMetadata::getInstance($mysqli);
     }
     
