@@ -140,8 +140,7 @@
           
           if (nonEmptyLines.length < 2) {
             errors.push('Файл пустой или содержит только заголовки');
-            resolve({ valid: false, errors, warnings, preview: null });
-            return;
+            return { valid: false, errors, warnings, preview: null };
           }
           
           // Определяем разделитель

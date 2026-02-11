@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Тест валидации CSV</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        #result { margin-top: 20px; padding: 15px; border: 1px solid #ddd; white-space: pre-wrap; }
+        .error { color: red; }
+        .success { color: green; }
+        .warning { color: orange; }
+    </style>
+</head>
+<body>
+    <h1>Тест валидации CSV</h1>
+    <input type="file" id="fileInput" accept=".csv,.txt">
+    <div id="result"></div>
+
+    <script>
+        // Копия кода валидации из dashboard-upload.js
+        const config = {
+            MAX_IMPORT_FILE_SIZE: 20 * 1024 * 1024,
+            MAX_IMPORT_ROWS: 10000
+        };
+
+        function parseAndValidate(text, isPartial, fileSize) {
+            const errors = [];
+            const warnings = [];
+            let validDataLines = [];
+            
+            console.log('[parseAndValidate] Начало парсинга:', {
+                textLength: text.length,
+                isPartial,
+                fileSize,
+                fileSizeMB: Math.round(fileSize / 1024 / 1024 * 100) / 100
+            });
+            
+            if (isPartial) {
+                warnings.push(`Файл очень большой (${Math.round(fileSize / 1024 / 1024)} МБ). Валидация выполнена только для первых 10 МБ.`);
+            }
+            
+            const lines = text.split('\n');
+            
+            const nonEmptyLines = lines.filter(line => {
+                const trimmed = line.trim();
+                return trimmed !== '' && !trimmed.startsWith('#');
+            });
+            
+            if (nonEmptyLines.length < 2) {
+                errors.push('Файл пустой или содержит только заголовки');
+                return { valid: false, errors, warnings, preview: null };
+            }
+            
+            const delimiter = text.includes(';') ? ';' : ',';
+            
+            const headerLine = nonEmptyLines[0];
+            console.log('[CSV VALIDATION] Исходная строка заголовков:', {
+                length: headerLine.length,
+                preview: headerLine.substring(0, 200)
+            });
+            
+            const headers = headerLine.split(delimiter).map(h => {
+                return h.trim()
+                        .replace(/\uFEFF/g, '')
+                        .replace(/\*/g, '')
+                        .replace(/[^\x20-\x7E\u0400-\u04FF]/g, '')
+                        .toLowerCase();
+            });
+            
+            console.log('[CSV VALIDATION] Заголовки после нормализации:', headers);
+            console.log('[CSV VALIDATION] Проверяем наличие обязательных полей:', {
+                hasLogin: headers.includes('login'),
+                hasStatus: headers.includes('status'),
+                loginIndex: headers.indexOf('login'),
+                statusIndex: headers.indexOf('status')
+            });
+            
+            const requiredFields = ['login', 'status'];
+            const missingFields = requiredFields.filter(field => !headers.includes(field));
+            
+            if (missingFields.length > 0) {
+                errors.push(`В файле отсутствуют обязательные поля: ${missingFields.join(', ')}`);
+                console.warn('[CSV VALIDATION] Отсутствующие поля:', missingFields, 'Найденные заголовки:', headers);
+            }
+            
+            const loginIdx = headers.indexOf('login');
+            const statusIdx = headers.indexOf('status');
+            
+            const maxLinesToCheck = Math.min(11, nonEmptyLines.length);
+            const rowErrors = [];
+            
+            for (let i = 1; i < maxLinesToCheck; i++) {
+                const line = nonEmptyLines[i];
+                const values = line.split(delimiter);
+                
+                const rowNum = i + 1;
+                const rowData = {
+                    rowNum,
+                    login: values[loginIdx]?.trim() || '',
+                    status: values[statusIdx]?.trim() || '',
+                    valid: true,
+                    errors: []
+                };
+                
+                if (!rowData.login) {
+                    rowData.valid = false;
+                    rowData.errors.push('отсутствует login');
+                    rowErrors.push(`Строка ${rowNum}: отсутствует login`);
+                }
+                
+                if (!rowData.status) {
+                    rowData.valid = false;
+                    rowData.errors.push('отсутствует status');
+                    rowErrors.push(`Строка ${rowNum}: отсутствует status`);
+                }
+                
+                if (values.length !== headers.length) {
+                    rowData.valid = false;
+                    rowData.errors.push(`неверное количество колонок (${values.length} вместо ${headers.length})`);
+                    warnings.push(`Строка ${rowNum}: количество колонок не совпадает`);
+                }
+                
+                validDataLines.push(rowData);
+            }
+            
+            if (rowErrors.length > 0) {
+                errors.push(...rowErrors.slice(0, 5));
+                if (rowErrors.length > 5) {
+                    warnings.push(`... и ещё ${rowErrors.length - 5} ошибок в других строках`);
+                }
+            }
+            
+            const totalDataLines = nonEmptyLines.length - 1;
+            const maxRows = config.MAX_IMPORT_ROWS || 10000;
+            
+            if (totalDataLines > 1000) {
+                warnings.push(`Файл содержит ${totalDataLines} строк. Импорт может занять несколько минут.`);
+            }
+            
+            if (totalDataLines > maxRows) {
+                errors.push(`Файл содержит ${totalDataLines} строк, что превышает максимум (${maxRows}). Файл будет обрезан.`);
+            }
+            
+            const result = {
+                valid: errors.length === 0,
+                errors,
+                warnings,
+                preview: {
+                    headers,
+                    rows: validDataLines,
+                    totalRows: isPartial ? '~' + totalDataLines + '+' : totalDataLines,
+                    delimiter,
+                    isPartial
+                }
+            };
+            
+            console.log('[CSV VALIDATION] Результат валидации:', result);
+            return result;
+        }
+
+        async function validateCsvFile(file) {
+            return new Promise((resolve, reject) => {
+                const maxValidationSize = 10 * 1024 * 1024;
+                const fileSize = file.size;
+                
+                if (fileSize > maxValidationSize) {
+                    console.warn('[CSV VALIDATION] Файл слишком большой для полной валидации, проверяем только начало');
+                    const blob = file.slice(0, maxValidationSize);
+                    const reader = new FileReader();
+                    
+                    reader.onload = (e) => {
+                        try {
+                            const text = e.target.result;
+                            const result = parseAndValidate(text, true, fileSize);
+                            resolve(result);
+                        } catch (parseError) {
+                            console.error('[CSV VALIDATION] Ошибка парсинга:', parseError);
+                            reject(new Error('Ошибка чтения файла: ' + parseError.message));
+                        }
+                    };
+                    
+                    reader.onerror = () => {
+                        reject(new Error('Ошибка чтения файла'));
+                    };
+                    
+                    reader.readAsText(blob, 'UTF-8');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    try {
+                        const text = e.target.result;
+                        const result = parseAndValidate(text, false, fileSize);
+                        resolve(result);
+                    } catch (parseError) {
+                        console.error('[CSV VALIDATION] Ошибка парсинга:', parseError);
+                        reject(new Error('Ошибка чтения файла: ' + parseError.message));
+                    }
+                };
+                
+                reader.onerror = () => {
+                    reject(new Error('Ошибка чтения файла'));
+                };
+                
+                reader.readAsText(file, 'UTF-8');
+            });
+        }
+
+        document.getElementById('fileInput').addEventListener('change', async function(e) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Проверка файла...';
+            
+            if (!e.target.files || e.target.files.length === 0) {
+                resultDiv.innerHTML = 'Файл не выбран';
+                return;
+            }
+            
+            const file = e.target.files[0];
+            
+            try {
+                const validation = await validateCsvFile(file);
+                
+                let html = '';
+                html += `<div><strong>Файл:</strong> ${file.name}</div>`;
+                html += `<div><strong>Размер:</strong> ${Math.round(file.size / 1024)} КБ (${file.size} байт)</div>`;
+                html += `<div><strong>Валидация:</strong> ${validation.valid ? '<span class="success">✅ Пройдена</span>' : '<span class="error">❌ Не пройдена</span>'}</div>`;
+                html += '<hr>';
+                
+                if (validation.errors.length > 0) {
+                    html += '<div class="error"><strong>❌ Ошибки:</strong></div>';
+                    validation.errors.forEach(err => {
+                        html += `<div class="error">• ${err}</div>`;
+                    });
+                    html += '<hr>';
+                }
+                
+                if (validation.warnings.length > 0) {
+                    html += '<div class="warning"><strong>⚠️ Предупреждения:</strong></div>';
+                    validation.warnings.forEach(warn => {
+                        html += `<div class="warning">• ${warn}</div>`;
+                    });
+                    html += '<hr>';
+                }
+                
+                if (validation.preview) {
+                    html += `<div><strong>Заголовки (${validation.preview.headers.length}):</strong></div>`;
+                    html += `<div>${validation.preview.headers.slice(0, 10).join(', ')}...</div>`;
+                    html += '<hr>';
+                    html += `<div><strong>Строк данных:</strong> ${validation.preview.totalRows}</div>`;
+                    html += `<div><strong>Разделитель:</strong> "${validation.preview.delimiter}"</div>`;
+                }
+                
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Ошибка: ${error.message}</div>`;
+                console.error('Ошибка валидации:', error);
+            }
+        });
+    </script>
+</body>
+</html>
