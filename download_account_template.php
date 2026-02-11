@@ -96,7 +96,7 @@ $output = fopen('php://output', 'w');
 // Записываем инструкции как комментарии
 fputcsv($output, ['# ИНСТРУКЦИЯ ПО ЗАПОЛНЕНИЮ CSV ФАЙЛА'], ';');
 fputcsv($output, ['# 1. Обязательные поля помечены звёздочкой (*) - их нужно заполнить для всех строк'], ';');
-fputcsv($output, ['# 2. Допустимые статусы: ' . implode(', ', Config::ALLOWED_STATUSES)], ';');
+fputcsv($output, ['# 2. Поле status - обязательное, может содержать любое значение (например: active, banned, custom_status, test, и т.д.)'], ';');
 fputcsv($output, ['# 3. Формат email: user@example.com'], ';');
 fputcsv($output, ['# 4. Формат social_url: https://vk.com/id123 или https://facebook.com/username'], ';');
 fputcsv($output, ['# 5. Числовые поля (pharma, limit_rk, friends): только целые числа'], ';');

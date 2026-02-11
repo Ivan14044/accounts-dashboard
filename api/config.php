@@ -20,7 +20,6 @@ try {
         'MAX_IMPORT_FILE_SIZE' => Config::MAX_IMPORT_FILE_SIZE,
         'MAX_IMPORT_ROWS' => Config::MAX_IMPORT_ROWS,
         'IMPORT_BATCH_SIZE' => Config::IMPORT_BATCH_SIZE,
-        'ALLOWED_STATUSES' => Config::ALLOWED_STATUSES,
         
         // Пагинация
         'DEFAULT_PAGE_SIZE' => Config::DEFAULT_PAGE_SIZE,

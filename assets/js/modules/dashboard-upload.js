@@ -16,8 +16,7 @@
   // Конфигурация (загружается с сервера или используется fallback)
   let config = {
     MAX_IMPORT_FILE_SIZE: 20 * 1024 * 1024,
-    MAX_IMPORT_ROWS: 10000,
-    ALLOWED_STATUSES: ['active', 'banned', 'suspended', 'deleted', 'test']
+    MAX_IMPORT_ROWS: 10000
   };
   
   /**
@@ -186,16 +185,8 @@
               rowData.valid = false;
               rowData.errors.push('отсутствует status');
               rowErrors.push(`Строка ${rowNum}: отсутствует status`);
-            } else {
-              // Проверка допустимых статусов (используем конфигурацию)
-              // ВАЖНО: Это только ПРЕДУПРЕЖДЕНИЕ, а не ошибка - сервер может принять любой status
-              const allowedStatuses = config.ALLOWED_STATUSES || ['active', 'banned', 'suspended', 'deleted', 'test'];
-              if (!allowedStatuses.includes(rowData.status.toLowerCase())) {
-                // НЕ блокируем загрузку - только предупреждаем
-                rowData.errors.push(`необычный статус '${rowData.status}'`);
-                warnings.push(`Строка ${rowNum}: статус '${rowData.status}' не входит в список рекомендованных (${allowedStatuses.join(', ')}). Сервер может отклонить эту строку.`);
-              }
             }
+            // Любое непустое значение status принимается без валидации
             
             // Проверка количества колонок
             if (values.length !== headers.length) {

@@ -122,11 +122,6 @@ class Config {
     const IMPORT_RATE_LIMIT = 5;
     
     /**
-     * Допустимые статусы для аккаунтов
-     */
-    const ALLOWED_STATUSES = ['active', 'banned', 'suspended', 'deleted', 'test'];
-    
-    /**
      * Время блокировки при превышении лимита входа (секунд)
      */
     const LOGIN_BLOCK_TIME = 300; // 5 минут
