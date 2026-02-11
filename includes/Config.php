@@ -347,7 +347,9 @@ class Config {
      * @return array
      */
     public static function getRequiredCsvFields(): array {
-        return array_keys(array_filter(self::CSV_STRUCTURE, fn($field) => $field['required'] ?? false));
+        return array_keys(array_filter(self::CSV_STRUCTURE, function($field) {
+            return $field['required'] ?? false;
+        }));
     }
     
     /**
@@ -365,7 +367,9 @@ class Config {
      * @return array
      */
     public static function getSensitiveCsvFields(): array {
-        return array_keys(array_filter(self::CSV_STRUCTURE, fn($field) => $field['sensitive'] ?? false));
+        return array_keys(array_filter(self::CSV_STRUCTURE, function($field) {
+            return $field['sensitive'] ?? false;
+        }));
     }
 }
 
