@@ -514,50 +514,43 @@
     
     html += '</div>'; // Конец row
     
-    // Детали ошибок
+    // Информация об ошибках валидации
     if (hasErrors) {
-      html += '<div class="alert alert-danger">';
-      html += '<h6 class="alert-heading"><i class="fas fa-exclamation-circle me-2"></i>Детали ошибок:</h6><hr>';
-      
       // Группируем ошибки по типу
       const errorGroups = {};
       errors.forEach(err => {
         const msg = err.message || 'Неизвестная ошибка';
         if (!errorGroups[msg]) {
-          errorGroups[msg] = { message: msg, count: 0, rows: [] };
+          errorGroups[msg] = { message: msg, count: 0 };
         }
         errorGroups[msg].count++;
-        if (errorGroups[msg].rows.length < 10) {
-          errorGroups[msg].rows.push(err.row);
-        }
       });
       
-      // Отображаем каждую группу
+      // Отображаем каждую группу ошибок
       Object.values(errorGroups).forEach(group => {
-        html += '<div class="mb-3"><div class="fw-semibold">' + group.message + ' ';
-        html += '<span class="badge bg-danger ms-2">' + group.count + '</span></div>';
+        html += '<div class="alert alert-danger">';
+        html += '<div class="d-flex align-items-center">';
+        html += '<i class="fas fa-exclamation-circle fa-2x text-danger me-3"></i>';
+        html += '<div>';
         
-        if (group.rows.length > 0) {
-          html += '<small class="text-muted">Примеры строк: ' + group.rows.join(', ');
-          if (group.count > group.rows.length) {
-            html += ' и ещё ' + (group.count - group.rows.length);
-          }
-          html += '</small>';
+        // Формируем понятное сообщение
+        let userMessage = '';
+        if (group.message === 'Login is required') {
+          userMessage = 'Не заполнено обязательное поле <strong>Login</strong>';
+        } else if (group.message === 'Status is required') {
+          userMessage = 'Не заполнено обязательное поле <strong>Status</strong>';
+        } else if (group.message.includes('already exists')) {
+          userMessage = 'Дубликаты логинов';
+        } else {
+          userMessage = group.message;
         }
+        
+        html += '<h6 class="mb-1">' + userMessage + ': ' + group.count + ' ' + (group.count === 1 ? 'строка' : group.count < 5 ? 'строки' : 'строк') + '</h6>';
+        html += '<small class="text-muted">Проверьте CSV файл и исправьте ошибки в указанных строках</small>';
+        html += '</div>';
+        html += '</div>';
         html += '</div>';
       });
-      
-      // Рекомендации
-      html += '<hr><div class="mt-3"><strong>💡 Рекомендации:</strong><ul class="mb-0">';
-      if (errorGroups['Status is required']) {
-        html += '<li>Убедитесь, что поле <code>status</code> заполнено для всех строк</li>';
-      }
-      if (errorGroups['Login is required']) {
-        html += '<li>Убедитесь, что поле <code>login</code> заполнено для всех строк</li>';
-      }
-      html += '<li>Проверьте CSV файл и исправьте ошибки</li>';
-      html += '<li>Попробуйте импорт снова</li>';
-      html += '</ul></div></div>';
     }
     
     // Информация о пропущенных аккаунтах (дубликаты)
