@@ -55,7 +55,7 @@
   async function validateCsvFile(file) {
     return new Promise((resolve, reject) => {
       // Проверка размера файла перед чтением
-      const maxValidationSize = 5 * 1024 * 1024; // 5 MB для валидации
+      const maxValidationSize = 10 * 1024 * 1024; // 10 MB для валидации (увеличено с 5 MB)
       const fileSize = file.size;
       
       if (fileSize > maxValidationSize) {
@@ -118,9 +118,16 @@
     const warnings = [];
     let validDataLines = [];
     
+    log.debug('[parseAndValidate] Начало парсинга:', {
+      textLength: text.length,
+      isPartial,
+      fileSize,
+      fileSizeMB: Math.round(fileSize / 1024 / 1024 * 100) / 100
+    });
+    
     // Если файл был частично прочитан, добавляем предупреждение
     if (isPartial) {
-      warnings.push(`Файл очень большой (${Math.round(fileSize / 1024 / 1024)} МБ). Валидация выполнена только для первых 5 МБ. Полная валидация будет выполнена на сервере.`);
+      warnings.push(`Файл очень большой (${Math.round(fileSize / 1024 / 1024)} МБ). Валидация выполнена только для первых 10 МБ. Полная валидация будет выполнена на сервере.`);
     }
     
     const lines = text.split('\n');
@@ -142,6 +149,11 @@
           
           // Парсим заголовки
           const headerLine = nonEmptyLines[0];
+          log.debug('[CSV VALIDATION] Исходная строка заголовков:', {
+            length: headerLine.length,
+            preview: headerLine.substring(0, 200)
+          });
+          
           const headers = headerLine.split(delimiter).map(h => {
             // Убираем звёздочки, BOM, непечатаемые символы и приводим к нижнему регистру
             return h.trim()
@@ -151,7 +163,13 @@
                     .toLowerCase();
           });
           
-          log.debug('[CSV VALIDATION] Заголовки найдены:', headers);
+          log.debug('[CSV VALIDATION] Заголовки после нормализации:', headers);
+          log.debug('[CSV VALIDATION] Проверяем наличие обязательных полей:', {
+            hasLogin: headers.includes('login'),
+            hasStatus: headers.includes('status'),
+            loginIndex: headers.indexOf('login'),
+            statusIndex: headers.indexOf('status')
+          });
           
           // Проверяем обязательные поля
           const requiredFields = ['login', 'status'];
