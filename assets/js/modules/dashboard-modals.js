@@ -487,6 +487,7 @@ function initModalsModule() {
   initStatusModal();
   initBulkEditModal();
   initSettingsModal();
+  initTransferModal();
   
   // Общая валидация для всех форм в модальных окнах
   document.addEventListener('submit', function(e) {
@@ -512,5 +513,6 @@ window.DashboardModals = {
   initStatusModal: initStatusModal,
   initBulkEditModal: initBulkEditModal,
   initSettingsModal: initSettingsModal,
+  initTransferModal: initTransferModal,
   validateModalForm: validateModalForm
 };
