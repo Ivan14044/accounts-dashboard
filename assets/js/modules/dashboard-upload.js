@@ -143,8 +143,12 @@
           // Парсим заголовки
           const headerLine = nonEmptyLines[0];
           const headers = headerLine.split(delimiter).map(h => {
-            // Убираем звёздочки и приводим к нижнему регистру
-            return h.trim().toLowerCase().replace('*', '');
+            // Убираем звёздочки, BOM, непечатаемые символы и приводим к нижнему регистру
+            return h.trim()
+                    .replace(/\uFEFF/g, '') // BOM
+                    .replace(/\*/g, '') // Звёздочки (все)
+                    .replace(/[^\x20-\x7E\u0400-\u04FF]/g, '') // Непечатаемые символы
+                    .toLowerCase();
           });
           
           log.debug('[CSV VALIDATION] Заголовки найдены:', headers);
@@ -155,6 +159,7 @@
           
           if (missingFields.length > 0) {
             errors.push(`В файле отсутствуют обязательные поля: ${missingFields.join(', ')}`);
+            log.warn('[CSV VALIDATION] Отсутствующие поля:', missingFields, 'Найденные заголовки:', headers);
           }
           
           // Находим индексы обязательных полей
@@ -586,22 +591,35 @@
             }
           }
           
-          // Показываем ошибки и БЛОКИРУЕМ кнопку
+          // Показываем ошибки и БЛОКИРУЕМ кнопку (только для маленьких файлов)
           if (!validation.valid) {
             const errorMsg = '<div class="mb-2"><strong>❌ Ошибки валидации:</strong></div>' + 
                             validation.errors.map(e => '• ' + e).join('<br>') +
-                            '<div class="mt-3"><small>Исправьте ошибки в CSV файле и выберите файл заново.</small></div>';
+                            '<div class="mt-3"><small>' + 
+                            (validation.preview && validation.preview.isPartial 
+                              ? 'Файл очень большой. Полная валидация будет выполнена на сервере. Вы можете попробовать загрузить файл.' 
+                              : 'Исправьте ошибки в CSV файле и выберите файл заново.') +
+                            '</small></div>';
             if (errorsDiv) {
               errorsDiv.innerHTML = errorMsg;
               errorsDiv.classList.remove('d-none', 'alert-warning');
               errorsDiv.classList.add('alert-danger');
             }
             
-            // БЛОКИРУЕМ кнопку при ошибках
+            // БЛОКИРУЕМ кнопку ТОЛЬКО для маленьких файлов (где валидация полная)
+            // Для больших файлов позволяем загрузку на сервер для полной валидации
             if (uploadBtn) {
-              uploadBtn.disabled = true;
-              uploadBtn.classList.add('disabled');
-              log.debug('[FILE CHANGE] Кнопка заблокирована из-за ошибок валидации');
+              if (validation.preview && validation.preview.isPartial) {
+                // Большой файл - разблокируем, пусть сервер валидирует
+                uploadBtn.disabled = false;
+                uploadBtn.classList.remove('disabled');
+                log.debug('[FILE CHANGE] Большой файл - кнопка разблокирована, серверная валидация');
+              } else {
+                // Маленький файл - блокируем при ошибках
+                uploadBtn.disabled = true;
+                uploadBtn.classList.add('disabled');
+                log.debug('[FILE CHANGE] Кнопка заблокирована из-за ошибок валидации');
+              }
             }
           } else {
             // Если нет ошибок - разблокируем кнопку
