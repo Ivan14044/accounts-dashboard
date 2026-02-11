@@ -466,38 +466,33 @@
       flex-wrap: wrap;
     }
     
-    /* Стили для уведомления о выборе строк */
-    .selection-notice-wrapper {
-      margin-top: var(--space-2);
-      padding-top: var(--space-2);
-      border-top: 1px solid var(--border-light);
-      animation: slideDown 0.2s ease-out;
-    }
-    
-    .selection-notice {
+    /* Стили для уведомления о выборе строк (интегрировано в toolbar таблицы) */
+    .dashboard-table__selection-notice {
       display: flex;
       align-items: center;
-      padding: 0.5rem 0.75rem;
+      gap: 0.5rem;
+      padding: 0.625rem 0.75rem;
+      margin-top: 0.5rem;
       background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
       border-left: 3px solid #2196f3;
       border-radius: var(--radius-md);
       font-size: 0.875rem;
       color: #1565c0;
-      gap: 0.5rem;
+      animation: slideDown 0.2s ease-out;
     }
     
-    .selection-notice i {
+    .dashboard-table__selection-notice i {
       color: #2196f3;
       font-size: 1rem;
       flex-shrink: 0;
     }
     
-    .selection-notice-text {
+    .dashboard-table__selection-text {
       flex: 1;
       line-height: 1.5;
     }
     
-    .selection-notice-text a {
+    .dashboard-table__selection-text a {
       color: #1976d2;
       font-weight: 600;
       text-decoration: none;
@@ -506,12 +501,12 @@
       white-space: nowrap;
     }
     
-    .selection-notice-text a:hover {
+    .dashboard-table__selection-text a:hover {
       color: #0d47a1;
       text-decoration: underline;
     }
     
-    .selection-notice-text strong {
+    .dashboard-table__selection-text strong {
       font-weight: 700;
       color: #0d47a1;
     }
@@ -532,18 +527,18 @@
         flex-wrap: wrap;
       }
       
-      .selection-notice {
+      .dashboard-table__selection-notice {
         font-size: 0.8125rem;
         padding: 0.4rem 0.6rem;
         flex-wrap: wrap;
       }
       
-      .selection-notice-text {
+      .dashboard-table__selection-text {
         flex-basis: 100%;
         margin-top: 0.25rem;
       }
       
-      .selection-notice-text a {
+      .dashboard-table__selection-text a {
         display: inline-block;
         margin-left: 0;
         margin-top: 0.25rem;
@@ -2168,13 +2163,6 @@
               Сбросить все
             </button>
           </div>
-        </div>
-      </div>
-      <!-- Уведомление о выборе строк (отдельная строка для избежания смещения таблицы) -->
-      <div class="selection-notice-wrapper" id="selectAllNotice" style="display: none;">
-        <div class="selection-notice">
-          <i class="fas fa-info-circle me-2"></i>
-          <span class="selection-notice-text"></span>
         </div>
       </div>
     </div>

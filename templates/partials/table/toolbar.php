@@ -1,6 +1,7 @@
 <?php
 /**
  * Toolbar для таблицы аккаунтов
+ * Включает счётчики и уведомление о выборе строк
  */
 ?>
 <div class="dashboard-table__toolbar" id="rowsCounterBar">
@@ -18,5 +19,11 @@
       <span class="text-muted">из</span>
       <span class="dashboard-table__counter-total" id="showingOnPageTop"><?= count($rows) ?></span>
     </div>
+  </div>
+  
+  <!-- Уведомление о выборе всех строк (интегрировано в toolbar) -->
+  <div class="dashboard-table__selection-notice" id="selectAllNotice" style="display: none;">
+    <i class="fas fa-info-circle"></i>
+    <span class="dashboard-table__selection-text"></span>
   </div>
 </div>

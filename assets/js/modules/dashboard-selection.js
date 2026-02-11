@@ -152,10 +152,10 @@ function updateSelectedCount() {
     }
     return;
   }
-  const noticeText = notice.querySelector('.selection-notice-text');
+  const noticeText = notice.querySelector('.dashboard-table__selection-text');
   if (!noticeText) {
     if (typeof logger !== 'undefined') {
-      logger.warn('[SELECT] Element .selection-notice-text not found in #selectAllNotice');
+      logger.warn('[SELECT] Element .dashboard-table__selection-text not found in #selectAllNotice');
     }
     return;
   }

@@ -190,7 +190,7 @@ function updateSelectedCount() {
   const notice = document.getElementById('selectAllNotice');
   const rowsCounterBar = document.getElementById('rowsCounterBar');
   if (!notice) return;
-  const noticeText = notice.querySelector('.selection-notice-text');
+  const noticeText = notice.querySelector('.dashboard-table__selection-text');
   if (!noticeText) return;
   
   const totalFiltered = filteredTotalLive;
