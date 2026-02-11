@@ -67,28 +67,33 @@ class CsvParser {
     
     /**
      * Определяет разделитель в CSV файле
+     * Подсчитывает количество ; и , и выбирает тот, которого больше
      * 
      * @param resource $handle Дескриптор файла
      * @return string Разделитель (';' или ',')
      */
     private function detectDelimiter($handle): string {
-        $firstLine = fgets($handle);
+        $position = ftell($handle);
+        $firstLine = null;
         
-        if ($firstLine === false) {
-            rewind($handle);
+        // Ищем первую непустую строку без комментария
+        while (($line = fgets($handle)) !== false) {
+            if (!$this->isCommentOrEmpty($line)) {
+                $firstLine = $line;
+                break;
+            }
+        }
+        
+        fseek($handle, $position);
+        
+        if ($firstLine === null) {
             return $this->delimiter;
         }
         
-        // Пропускаем строки-комментарии
-        while ($firstLine !== false && (trim($firstLine) === '' || strpos(trim($firstLine), '#') === 0)) {
-            $firstLine = fgets($handle);
-        }
+        $semicolonCount = substr_count($firstLine, ';');
+        $commaCount = substr_count($firstLine, ',');
         
-        $delimiter = strpos($firstLine, ';') !== false ? ';' : ',';
-        
-        rewind($handle);
-        
-        return $delimiter;
+        return $semicolonCount > $commaCount ? ';' : ',';
     }
     
     /**
@@ -101,28 +106,40 @@ class CsvParser {
         $normalized = [];
         
         foreach ($headers as $header) {
-            $clean = mb_strtolower(trim($header), 'UTF-8');
-            
-            // Удаляем BOM (\xEF\xBB\xBF) и непечатаемые ASCII символы
-            $clean = preg_replace('/^\xEF\xBB\xBF/', '', $clean);
-            $clean = preg_replace('/[\x00-\x1F\x7F]/', '', $clean);
-            
-            // Убираем звёздочки (обозначение обязательных полей в шаблоне)
-            $clean = str_replace('*', '', $clean);
-            
-            // Заменяем пробелы и различные типы тире на подчеркивания
-            $clean = str_replace([' ', '-', '—', '–', '\t'], '_', $clean);
-            
-            // Убираем множественные подчеркивания
-            $clean = preg_replace('/_+/', '_', $clean);
-            
-            // Убираем подчеркивания в начале и конце
-            $clean = trim($clean, '_');
-            
-            $normalized[] = $clean;
+            $normalized[] = self::normalizeHeader($header);
         }
         
         return $normalized;
+    }
+    
+    /**
+     * Нормализует один заголовок CSV
+     * ВАЖНО: Логика должна быть ИДЕНТИЧНА dashboard-upload.js::normalizeHeader()
+     * 
+     * @param string $header Исходный заголовок
+     * @return string Нормализованный заголовок
+     */
+    public static function normalizeHeader(string $header): string {
+        // 1. Trim
+        $clean = trim($header);
+        
+        // 2. toLowerCase
+        $clean = mb_strtolower($clean, 'UTF-8');
+        
+        // 3. Удалить BOM (везде, не только в начале)
+        $clean = str_replace("\xEF\xBB\xBF", '', $clean);
+        $clean = str_replace("\u{FEFF}", '', $clean); // Unicode BOM
+        
+        // 4. Удалить все звёздочки
+        $clean = str_replace('*', '', $clean);
+        
+        // 5. Удалить непечатаемые символы (ASCII 0x00-0x1F, 0x7F)
+        $clean = preg_replace('/[\x00-\x1F\x7F]/', '', $clean);
+        
+        // 6. НЕ заменяем пробелы (чтобы соответствовать JS)
+        
+        // 7. Финальный trim
+        return trim($clean);
     }
     
     /**
@@ -142,12 +159,10 @@ class CsvParser {
         
         // Пропускаем строки-комментарии в заголовках
         while (($rawLine = fgets($handle)) !== false) {
-            $trimmed = trim($rawLine);
-            if ($trimmed === '' || strpos($trimmed, '#') === 0) {
-                continue;
+            if (!$this->isCommentOrEmpty($rawLine)) {
+                // Это строка с заголовками, пропускаем её (уже прочитали)
+                break;
             }
-            // Это строка с заголовками, пропускаем её (уже прочитали)
-            break;
         }
         
         // Читаем данные построчно
@@ -160,8 +175,8 @@ class CsvParser {
                 continue;
             }
             
-            // Пропускаем комментарии (строки, начинающиеся с #)
-            if (isset($values[0]) && strpos(trim($values[0]), '#') === 0) {
+            // Пропускаем комментарии (проверяем первое значение)
+            if (isset($values[0]) && $this->isCommentOrEmpty($values[0])) {
                 $skippedComments++;
                 continue;
             }
@@ -192,6 +207,17 @@ class CsvParser {
         }
         
         return $data;
+    }
+    
+    /**
+     * Проверяет, является ли строка пустой или комментарием
+     * 
+     * @param string $line Строка для проверки
+     * @return bool true если строка пустая или комментарий
+     */
+    private function isCommentOrEmpty(string $line): bool {
+        $trimmed = trim($line);
+        return $trimmed === '' || strpos($trimmed, '#') === 0;
     }
     
     /**

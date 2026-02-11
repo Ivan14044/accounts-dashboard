@@ -35,6 +35,11 @@
         if (data.success && data.config) {
           config = { ...config, ...data.config };
           log.debug('[CONFIG] Конфигурация загружена с сервера:', config);
+          
+          // НОВОЕ: Используем REQUIRED_CSV_FIELDS из сервера
+          if (config.REQUIRED_CSV_FIELDS) {
+            log.debug('[CONFIG] Обязательные поля:', config.REQUIRED_CSV_FIELDS);
+          }
         }
       }
     } catch (err) {
@@ -106,6 +111,63 @@
   }
   
   /**
+   * Нормализует заголовок CSV
+   * ВАЖНО: Логика должна быть ИДЕНТИЧНА CsvParser::normalizeHeader()
+   * 
+   * @param {string} header - Исходный заголовок
+   * @returns {string} Нормализованный заголовок
+   */
+  function normalizeHeader(header) {
+    // 1. Trim
+    let clean = header.trim();
+    
+    // 2. toLowerCase
+    clean = clean.toLowerCase();
+    
+    // 3. Удалить BOM (везде)
+    clean = clean.replace(/\uFEFF/g, '');
+    
+    // 4. Удалить все звёздочки
+    clean = clean.replace(/\*/g, '');
+    
+    // 5. Удалить непечатаемые символы (ASCII 0x00-0x1F, 0x7F)
+    clean = clean.replace(/[\x00-\x1F\x7F]/g, '');
+    
+    // 6. НЕ заменяем пробелы
+    
+    // 7. Финальный trim
+    return clean.trim();
+  }
+  
+  /**
+   * Определяет разделитель CSV по первой строке
+   * Подсчитывает количество ; и , и выбирает тот, которого больше
+   * 
+   * @param {string} text - Текст CSV файла
+   * @returns {string} Разделитель (';' или ',')
+   */
+  function detectDelimiter(text) {
+    const lines = text.split('\n');
+    let firstDataLine = null;
+    
+    // Ищем первую непустую строку без комментария
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        firstDataLine = line;
+        break;
+      }
+    }
+    
+    if (!firstDataLine) return ',';
+    
+    const semicolonCount = (firstDataLine.match(/;/g) || []).length;
+    const commaCount = (firstDataLine.match(/,/g) || []).length;
+    
+    return semicolonCount > commaCount ? ';' : ',';
+  }
+  
+  /**
    * Внутренняя функция для парсинга и валидации CSV текста
    * 
    * @param {string} text - Текст CSV файла
@@ -144,7 +206,7 @@
           }
           
           // Определяем разделитель
-          const delimiter = text.includes(';') ? ';' : ',';
+          const delimiter = detectDelimiter(text);
           
           // Парсим заголовки
           const headerLine = nonEmptyLines[0];
@@ -153,14 +215,7 @@
             preview: headerLine.substring(0, 200)
           });
           
-          const headers = headerLine.split(delimiter).map(h => {
-            // Убираем звёздочки, BOM, непечатаемые символы и приводим к нижнему регистру
-            return h.trim()
-                    .replace(/\uFEFF/g, '') // BOM
-                    .replace(/\*/g, '') // Звёздочки (все)
-                    .replace(/[^\x20-\x7E\u0400-\u04FF]/g, '') // Непечатаемые символы
-                    .toLowerCase();
-          });
+          const headers = headerLine.split(delimiter).map(h => normalizeHeader(h));
           
           log.debug('[CSV VALIDATION] Заголовки после нормализации:', headers);
           log.debug('[CSV VALIDATION] Проверяем наличие обязательных полей:', {
@@ -170,8 +225,8 @@
             statusIndex: headers.indexOf('status')
           });
           
-          // Проверяем обязательные поля
-          const requiredFields = ['login', 'status'];
+          // Проверяем обязательные поля (используем динамическую конфигурацию)
+          const requiredFields = config.REQUIRED_CSV_FIELDS || ['login', 'status'];
           const missingFields = requiredFields.filter(field => !headers.includes(field));
           
           if (missingFields.length > 0) {
@@ -185,6 +240,12 @@
           
           // Проверяем первые 10 строк данных (или все, если меньше)
           const maxLinesToCheck = Math.min(11, nonEmptyLines.length);
+          
+          // НОВОЕ: Предупреждение о частичной проверке
+          if (nonEmptyLines.length > maxLinesToCheck) {
+            warnings.push(`⚠️ Проверены только первые ${maxLinesToCheck - 1} строк из ${nonEmptyLines.length - 1}. Остальные строки будут проверены на сервере.`);
+          }
+          
           const rowErrors = [];
           
           for (let i = 1; i < maxLinesToCheck; i++) {
@@ -192,10 +253,18 @@
             const values = line.split(delimiter);
             
             const rowNum = i + 1;
+            
+            // Создаём объект со всеми данными
+            const rowDataFull = {};
+            headers.forEach((header, idx) => {
+              rowDataFull[header] = values[idx]?.trim() || '';
+            });
+            
             const rowData = {
               rowNum,
               login: values[loginIdx]?.trim() || '',
               status: values[statusIdx]?.trim() || '',
+              data: rowDataFull,  // ← НОВОЕ: все данные строки
               valid: true,
               errors: []
             };
@@ -280,13 +349,13 @@
     let html = '<div class="csv-preview">';
     html += '<h6 class="mb-3"><i class="fas fa-eye me-2"></i>Предпросмотр (первые 10 строк из ' + totalRows + '):</h6>';
     html += '<div class="table-responsive">';
-    html += '<table class="table table-sm table-bordered">';
+    html += '<table class="table table-sm table-bordered table-hover">';
     
     // Заголовки
     html += '<thead class="table-light"><tr>';
     headers.forEach(h => {
       const isRequired = h === 'login' || h === 'status';
-      html += '<th>' + h + (isRequired ? '<span class="text-danger">*</span>' : '') + '</th>';
+      html += '<th class="text-nowrap">' + h + (isRequired ? '<span class="text-danger">*</span>' : '') + '</th>';
     });
     html += '</tr></thead>';
     
@@ -296,12 +365,31 @@
       const rowClass = row.valid ? '' : 'table-danger';
       const title = row.errors.length > 0 ? 'title="' + row.errors.join(', ') + '"' : '';
       html += '<tr class="' + rowClass + '" ' + title + '>';
-      html += '<td>' + (row.login || '<em class="text-muted">пусто</em>') + '</td>';
-      html += '<td>' + (row.status || '<em class="text-muted">пусто</em>') + '</td>';
-      // Остальные колонки (если есть)
-      for (let i = 2; i < headers.length; i++) {
-        html += '<td></td>'; // Упрощённо, без всех данных
-      }
+      
+      // Показываем ВСЕ колонки (не только login и status)
+      headers.forEach(header => {
+        let value = '';
+        
+        // Специальная обработка для login и status (они хранятся отдельно в объекте row)
+        if (header === 'login') {
+          value = row.login || '';
+        } else if (header === 'status') {
+          value = row.status || '';
+        } else {
+          // Остальные поля получаем из data
+          value = row.data?.[header] || '';
+        }
+        
+        // Обрезаем длинные значения для читаемости
+        const maxLength = 50;
+        let displayValue = value;
+        if (value.length > maxLength) {
+          displayValue = value.substring(0, maxLength) + '...';
+        }
+        
+        html += '<td>' + (displayValue || '<em class="text-muted">пусто</em>') + '</td>';
+      });
+      
       html += '</tr>';
     });
     html += '</tbody></table></div>';
@@ -309,14 +397,190 @@
     // Легенда
     html += '<div class="mt-2 small text-muted">';
     html += '<i class="fas fa-info-circle me-1"></i>';
-    html += 'Строки с ошибками подсвечены красным. Наведите курсор для деталей.';
+    html += 'Строки с ошибками подсвечены красным. Наведите курсор для деталей. ';
+    html += 'Длинные значения обрезаны для читаемости.';
     html += '</div>';
     html += '</div>';
     
     previewContainer.innerHTML = html;
     previewContainer.classList.remove('d-none');
   }
-
+  
+  /**
+   * Показывает модальное окно с детальными результатами импорта
+   * 
+   * @param {object} result - Результаты импорта от сервера
+   */
+  function showImportResults(result) {
+    const modal = cache.getById('importResultsModal');
+    const body = cache.getById('importResultsBody');
+    
+    if (!modal || !body) {
+      log.warn('[IMPORT RESULTS] Модальное окно не найдено');
+      return;
+    }
+    
+    const { created = 0, updated = 0, skipped = 0, errors = [], total = 0 } = result;
+    const hasErrors = errors.length > 0;
+    
+    let html = '<div class="import-results-summary">';
+    
+    // Общая статистика
+    html += '<div class="row g-3 mb-4">';
+    
+    if (created > 0) {
+      html += '<div class="col-md-3"><div class="card border-success"><div class="card-body text-center">';
+      html += '<i class="fas fa-check-circle fa-2x text-success mb-2"></i>';
+      html += '<h3 class="mb-0">' + created + '</h3>';
+      html += '<small class="text-muted">Добавлено</small>';
+      html += '</div></div></div>';
+    }
+    
+    if (updated > 0) {
+      html += '<div class="col-md-3"><div class="card border-info"><div class="card-body text-center">';
+      html += '<i class="fas fa-sync fa-2x text-info mb-2"></i>';
+      html += '<h3 class="mb-0">' + updated + '</h3>';
+      html += '<small class="text-muted">Обновлено</small>';
+      html += '</div></div></div>';
+    }
+    
+    if (skipped > 0) {
+      html += '<div class="col-md-3"><div class="card border-warning"><div class="card-body text-center">';
+      html += '<i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i>';
+      html += '<h3 class="mb-0">' + skipped + '</h3>';
+      html += '<small class="text-muted">Пропущено</small>';
+      html += '</div></div></div>';
+    }
+    
+    if (hasErrors) {
+      html += '<div class="col-md-3"><div class="card border-danger"><div class="card-body text-center">';
+      html += '<i class="fas fa-times-circle fa-2x text-danger mb-2"></i>';
+      html += '<h3 class="mb-0">' + errors.length + '</h3>';
+      html += '<small class="text-muted">Ошибок</small>';
+      html += '</div></div></div>';
+    }
+    
+    html += '</div>'; // Конец row
+    
+    // Детали ошибок
+    if (hasErrors) {
+      html += '<div class="alert alert-danger">';
+      html += '<h6 class="alert-heading"><i class="fas fa-exclamation-circle me-2"></i>Детали ошибок:</h6><hr>';
+      
+      // Группируем ошибки по типу
+      const errorGroups = {};
+      errors.forEach(err => {
+        const msg = err.message || 'Неизвестная ошибка';
+        if (!errorGroups[msg]) {
+          errorGroups[msg] = { message: msg, count: 0, rows: [] };
+        }
+        errorGroups[msg].count++;
+        if (errorGroups[msg].rows.length < 10) {
+          errorGroups[msg].rows.push(err.row);
+        }
+      });
+      
+      // Отображаем каждую группу
+      Object.values(errorGroups).forEach(group => {
+        html += '<div class="mb-3"><div class="fw-semibold">' + group.message + ' ';
+        html += '<span class="badge bg-danger ms-2">' + group.count + '</span></div>';
+        
+        if (group.rows.length > 0) {
+          html += '<small class="text-muted">Примеры строк: ' + group.rows.join(', ');
+          if (group.count > group.rows.length) {
+            html += ' и ещё ' + (group.count - group.rows.length);
+          }
+          html += '</small>';
+        }
+        html += '</div>';
+      });
+      
+      // Рекомендации
+      html += '<hr><div class="mt-3"><strong>💡 Рекомендации:</strong><ul class="mb-0">';
+      if (errorGroups['Status is required']) {
+        html += '<li>Убедитесь, что поле <code>status</code> заполнено для всех строк</li>';
+      }
+      if (errorGroups['Login is required']) {
+        html += '<li>Убедитесь, что поле <code>login</code> заполнено для всех строк</li>';
+      }
+      html += '<li>Проверьте CSV файл и исправьте ошибки</li>';
+      html += '<li>Попробуйте импорт снова</li>';
+      html += '</ul></div></div>';
+    }
+    
+    // Сообщение об успехе
+    if (!hasErrors && (created > 0 || updated > 0)) {
+      html += '<div class="alert alert-success text-center">';
+      html += '<i class="fas fa-check-circle fa-3x mb-3"></i>';
+      html += '<h5>Импорт завершён успешно!</h5>';
+      html += '<p class="mb-0">Все аккаунты были обработаны без ошибок.</p>';
+      html += '</div>';
+    }
+    
+    html += '</div>'; // Конец import-results-summary
+    
+    body.innerHTML = html;
+    
+    // Показываем модальное окно
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+      const modalInstance = bootstrap.Modal.getOrCreateInstance(modal);
+      modalInstance.show();
+    }
+  }
+  
+  /**
+   * Симулирует прогресс загрузки
+   * @param {number} estimatedDuration - Оценочная длительность в мс
+   * @returns {object} - Объект с функциями для управления прогрессом
+   */
+  function simulateProgress(estimatedDuration) {
+    const progressContainer = cache.getById('importProgressContainer');
+    const progressBar = cache.getById('importProgressBar');
+    const progressPercent = cache.getById('importProgressPercent');
+    
+    if (!progressContainer || !progressBar) return { complete: () => {}, cancel: () => {} };
+    
+    progressContainer.classList.remove('d-none');
+    
+    let currentProgress = 0;
+    const step = 100 / (estimatedDuration / 500); // Обновление каждые 500ms
+    
+    const interval = setInterval(() => {
+      currentProgress += step;
+      if (currentProgress >= 95) {
+        currentProgress = 95; // Останавливаемся на 95%, пока не придёт ответ
+        clearInterval(interval);
+      }
+      
+      progressBar.style.width = currentProgress + '%';
+      progressBar.setAttribute('aria-valuenow', Math.round(currentProgress));
+      if (progressPercent) {
+        progressPercent.textContent = Math.round(currentProgress) + '%';
+      }
+    }, 500);
+    
+    return {
+      complete: () => {
+        clearInterval(interval);
+        progressBar.style.width = '100%';
+        progressBar.setAttribute('aria-valuenow', 100);
+        if (progressPercent) {
+          progressPercent.textContent = '100%';
+        }
+        setTimeout(() => {
+          progressContainer.classList.add('d-none');
+        }, 1000);
+      },
+      cancel: () => {
+        clearInterval(interval);
+        progressContainer.classList.add('d-none');
+      }
+    };
+  }
+  
+  // Глобальный контроллер для отмены запроса
+  let currentAbortController = null;
+  
   async function handleUpload(e) {
     if (e && typeof e.preventDefault === 'function') e.preventDefault();
 
@@ -326,6 +590,11 @@
     const successDiv = cache.getById('addAccountSuccess');
     const fileInput = cache.getById('accountsFile');
     const previewContainer = cache.getById('csvPreviewContainer');
+    
+    let progressControl = null;
+    
+    // Создаём новый AbortController для этого запроса
+    currentAbortController = new AbortController();
 
     if (errorsDiv) errorsDiv.classList.add('d-none');
     if (successDiv) successDiv.classList.add('d-none');
@@ -404,10 +673,16 @@
       submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Загрузка...';
 
       try {
+        // Оценка длительности импорта: 1000 строк ≈ 10 секунд
+        const rowCount = parseInt(cache.getById('csvPreviewContainer')?.textContent?.match(/\d+/)?.[0] || '100');
+        const estimatedDuration = Math.min(rowCount * 10, 30000); // Максимум 30 секунд
+        progressControl = simulateProgress(estimatedDuration);
+        
         const response = await fetch('import_accounts.php', {
           method: 'POST',
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
-          body: formData
+          body: formData,
+          signal: currentAbortController.signal  // ← Поддержка отмены
         });
 
         const ct = response.headers.get('content-type') || '';
@@ -425,6 +700,9 @@
         const result = isJson ? await response.json() : null;
         if (!result || !result.success) throw new Error(result?.error || 'Ошибка при загрузке файла');
 
+        // Показываем детальные результаты в модальном окне
+        showImportResults(result);
+        
         const created = result.created || 0;
         const updated = result.updated || 0;
         const duplicates = result.skipped || 0;
@@ -495,6 +773,14 @@
           } else window.location.reload();
         }, 400);
       } catch (err) {
+        if (progressControl) progressControl.cancel();
+        
+        // Обработка отмены запроса пользователем
+        if (err.name === 'AbortError') {
+          log.info('[UPLOAD] Запрос отменён пользователем');
+          return; // Не показываем ошибку при отмене
+        }
+        
         const msg = (err instanceof Error ? err.message : String(err)) || 'Ошибка при загрузке файла';
         const safe = document.createElement('div');
         safe.textContent = msg;
@@ -502,6 +788,7 @@
         if (errorsDiv) { errorsDiv.textContent = safeMsg; errorsDiv.classList.remove('d-none'); }
         if (typeof window.showToast === 'function') window.showToast(safeMsg, 'error');
       } finally {
+        if (progressControl) progressControl.complete();
         if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = originalText; }
       }
     }
@@ -608,13 +895,13 @@
             }
           }
           
-          // Показываем ошибки и БЛОКИРУЕМ кнопку (только для маленьких файлов)
+          // Показываем ошибки
           if (!validation.valid) {
             const errorMsg = '<div class="mb-2"><strong>❌ Ошибки валидации:</strong></div>' + 
                             validation.errors.map(e => '• ' + e).join('<br>') +
                             '<div class="mt-3"><small>' + 
                             (validation.preview && validation.preview.isPartial 
-                              ? 'Файл очень большой. Полная валидация будет выполнена на сервере. Вы можете попробовать загрузить файл.' 
+                              ? '⚠️ Файл большой, проверена только часть. Полная валидация будет на сервере. Вы можете продолжить загрузку.' 
                               : 'Исправьте ошибки в CSV файле и выберите файл заново.') +
                             '</small></div>';
             if (errorsDiv) {
@@ -623,19 +910,29 @@
               errorsDiv.classList.add('alert-danger');
             }
             
-            // БЛОКИРУЕМ кнопку ТОЛЬКО для маленьких файлов (где валидация полная)
-            // Для больших файлов позволяем загрузку на сервер для полной валидации
+            // НОВАЯ ЛОГИКА БЛОКИРОВКИ:
             if (uploadBtn) {
-              if (validation.preview && validation.preview.isPartial) {
-                // Большой файл - разблокируем, пусть сервер валидирует
+              const isPartialValidation = validation.preview && validation.preview.isPartial;
+              const hasCriticalError = validation.errors.some(err => 
+                err.includes('отсутствуют обязательные поля') || 
+                err.includes('Файл пустой')
+              );
+              
+              if (isPartialValidation) {
+                // Partial validation - ВСЕГДА разблокируем (серверная валидация сделает финальную проверку)
                 uploadBtn.disabled = false;
                 uploadBtn.classList.remove('disabled');
-                log.debug('[FILE CHANGE] Большой файл - кнопка разблокирована, серверная валидация');
-              } else {
-                // Маленький файл - блокируем при ошибках
+                log.debug('[FILE CHANGE] Partial validation - кнопка разблокирована');
+              } else if (hasCriticalError) {
+                // Критическая ошибка в маленьком файле - блокируем
                 uploadBtn.disabled = true;
                 uploadBtn.classList.add('disabled');
-                log.debug('[FILE CHANGE] Кнопка заблокирована из-за ошибок валидации');
+                log.debug('[FILE CHANGE] Критическая ошибка - кнопка заблокирована');
+              } else {
+                // Некритические ошибки (неверное кол-во строк и т.п.) - разблокируем
+                uploadBtn.disabled = false;
+                uploadBtn.classList.remove('disabled');
+                log.debug('[FILE CHANGE] Некритическая ошибка - кнопка разблокирована');
               }
             }
           } else {
@@ -664,6 +961,33 @@
       });
     }
   }
+  
+  /**
+   * Привязывает обработчик кнопки отмены импорта
+   */
+  function bindCancelImport() {
+    const cancelBtn = cache.getById('cancelImportBtn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function() {
+        if (currentAbortController) {
+          currentAbortController.abort();
+          log.info('[IMPORT] Импорт отменён пользователем');
+          
+          const progressContainer = cache.getById('importProgressContainer');
+          if (progressContainer) {
+            progressContainer.classList.add('d-none');
+          }
+          
+          if (typeof window.showToast === 'function') {
+            window.showToast('Импорт отменён', 'warning');
+          }
+          
+          // Сбрасываем контроллер
+          currentAbortController = null;
+        }
+      });
+    }
+  }
 
   // Инициализация с обработкой ошибок
   try {
@@ -671,12 +995,14 @@
       document.addEventListener('DOMContentLoaded', function() {
         try {
           bindForm();
+          bindCancelImport();
         } catch (err) {
           console.error('[DASHBOARD-UPLOAD] Ошибка при инициализации после DOMContentLoaded:', err);
         }
       });
     } else {
       bindForm();
+      bindCancelImport();
     }
   } catch (err) {
     console.error('[DASHBOARD-UPLOAD] Критическая ошибка при загрузке модуля:', err);

@@ -2346,10 +2346,29 @@
           <strong>Как использовать:</strong>
           <ol class="mb-0 mt-2">
             <li>Нажмите кнопку <strong>"Скачать шаблон CSV"</strong> ниже</li>
-            <li>Откройте скачанный файл в Excel или Google Sheets</li>
-            <li>Заполните данные аккаунтов (обязательные поля: <strong>login</strong> и <strong>status</strong>)</li>
-            <li>Сохраните файл и загрузите его через форму ниже</li>
+            <li>Откройте скачанный файл в Excel, Google Sheets или текстовом редакторе</li>
+            <li>Заполните данные аккаунтов:
+              <ul>
+                <li><span class="text-danger">*</span> <strong>login</strong> и <strong>status</strong> — обязательные поля</li>
+                <li>Остальные поля заполняйте по необходимости</li>
+              </ul>
+            </li>
+            <li>Выберите действие при обнаружении дубликатов:
+              <ul>
+                <li><strong>Пропустить</strong> — не добавлять аккаунты с существующим логином (рекомендуется)</li>
+                <li><strong>Обновить</strong> — заменить данные существующих аккаунтов</li>
+                <li><strong>Ошибка</strong> — показать ошибку для дубликатов</li>
+              </ul>
+            </li>
+            <li>Сохраните файл в формате CSV и загрузите через форму ниже</li>
           </ol>
+          <div class="mt-2">
+            <small class="text-muted">
+              <i class="fas fa-lightbulb me-1"></i>
+              <strong>Совет:</strong> Для больших файлов (>500 строк) импорт может занять несколько минут. 
+              Дождитесь завершения процесса.
+            </small>
+          </div>
         </div>
         
         <!-- Кнопка скачивания шаблона -->
@@ -2401,6 +2420,8 @@
     </div>
   </div>
 </div>
+
+<?php require_once __DIR__ . '/partials/dashboard/modals/import-results-modal.php'; ?>
 
 <!-- Модалка предварительного просмотра отключена -->
 

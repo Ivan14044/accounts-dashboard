@@ -30,6 +30,49 @@ try {
     checkSessionTimeout();
     Logger::debug('IMPORT ACCOUNTS: Авторизация успешна');
     
+    // Rate limiting для предотвращения злоупотреблений
+    $userId = $_SESSION['user_id'] ?? 0;
+    
+    // Проверка минутного лимита
+    $minuteKey = "import_rate_limit_minute_{$userId}";
+    $minuteCount = function_exists('apcu_exists') && apcu_exists($minuteKey) ? apcu_fetch($minuteKey) : 0;
+    
+    if ($minuteCount >= Config::IMPORT_RATE_LIMIT_PER_MINUTE) {
+        Logger::warning('IMPORT ACCOUNTS: Превышен минутный лимит', [
+            'user_id' => $userId,
+            'count' => $minuteCount,
+            'limit' => Config::IMPORT_RATE_LIMIT_PER_MINUTE
+        ]);
+        throw new InvalidArgumentException('Превышен лимит импортов (5 в минуту). Пожалуйста, подождите и попробуйте снова.');
+    }
+    
+    if (function_exists('apcu_store')) {
+        apcu_store($minuteKey, $minuteCount + 1, 60); // TTL = 60 секунд
+    }
+    
+    // Проверка часового лимита
+    $hourKey = "import_rate_limit_hour_{$userId}";
+    $hourCount = function_exists('apcu_exists') && apcu_exists($hourKey) ? apcu_fetch($hourKey) : 0;
+    
+    if ($hourCount >= Config::IMPORT_RATE_LIMIT_PER_HOUR) {
+        Logger::warning('IMPORT ACCOUNTS: Превышен часовой лимит', [
+            'user_id' => $userId,
+            'count' => $hourCount,
+            'limit' => Config::IMPORT_RATE_LIMIT_PER_HOUR
+        ]);
+        throw new InvalidArgumentException('Превышен лимит импортов (20 в час). Попробуйте через час.');
+    }
+    
+    if (function_exists('apcu_store')) {
+        apcu_store($hourKey, $hourCount + 1, 3600); // TTL = 3600 секунд (1 час)
+    }
+    
+    Logger::debug('IMPORT ACCOUNTS: Rate limit проверен', [
+        'user_id' => $userId,
+        'minute_count' => $minuteCount + 1,
+        'hour_count' => $hourCount + 1
+    ]);
+    
     // Проверка метода запроса
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         Logger::warning('IMPORT ACCOUNTS: Неверный метод запроса', ['method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown']);
@@ -266,82 +309,51 @@ try {
     }
     
     // Фильтруем данные - оставляем только существующие колонки
-        Logger::debug('IMPORT ACCOUNTS: Фильтрация данных по существующим колонкам...');
-    Logger::debug('IMPORT ACCOUNTS: Доступные колонки в БД', ['columns' => $allColumns, 'columns_count' => count($allColumns)]);
-    Logger::debug('IMPORT ACCOUNTS: Первая строка данных (ключи)', ['keys' => !empty($data) ? array_keys($data[0] ?? []) : []]);
-    Logger::debug('IMPORT ACCOUNTS: Все строки данных (первые 3)', [
+    Logger::debug('IMPORT ACCOUNTS: Начало фильтрации данных', [
         'total_rows' => count($data),
-        'sample_rows' => array_slice($data, 0, 3)
+        'available_columns' => count($allColumns)
     ]);
     
+    // ОДИН РАЗ создаём хеш-таблицу для O(1) поиска
+    $columnMapping = [];
+    foreach ($allColumns as $dbCol) {
+        $columnMapping[mb_strtolower($dbCol, 'UTF-8')] = $dbCol;
+    }
+    
+    Logger::debug('IMPORT ACCOUNTS: Маппинг колонок создан', [
+        'total_columns' => count($columnMapping)
+    ]);
+    
+    // Системные поля, которые нужно пропустить
+    $systemFields = ['id', 'created_at', 'updated_at', 'deleted_at'];
+    
     $filteredData = [];
+    $unknownCols = []; // Без static!
+    
     foreach ($data as $rowIndex => $row) {
         $filteredRow = [];
-        Logger::info("IMPORT ACCOUNTS: Обработка строки {$rowIndex}", [
-            'row_keys' => array_keys($row),
-            'row_data' => $row,
-            'has_login_key' => isset($row['login']),
-            'has_status_key' => isset($row['status']),
-            'login_in_row' => $row['login'] ?? 'NOT IN ROW',
-            'status_in_row' => $row['status'] ?? 'NOT IN ROW'
-        ]);
         
         foreach ($row as $key => $value) {
-            $keyTrimmed = trim($key);
-            $valueTrimmed = is_string($value) ? trim($value) : $value;
+            $keyLower = mb_strtolower(trim($key), 'UTF-8');
+            $foundKey = $columnMapping[$keyLower] ?? null;
             
-            // Проверяем существование колонки (без учета регистра для ключей из CSV)
-            // Используем mb_strtolower для корректной работы с UTF-8
-            $foundKey = false;
-            $keyLower = mb_strtolower($keyTrimmed, 'UTF-8');
-            foreach ($allColumns as $dbCol) {
-                if (mb_strtolower($dbCol, 'UTF-8') === $keyLower) {
-                    $foundKey = $dbCol;
-                    break;
-                }
-            }
-            
-            if ($foundKey) {
-                // Пропускаем системные поля
-                if (!in_array($foundKey, ['id', 'created_at', 'updated_at', 'deleted_at'], true)) {
-                    $filteredRow[$foundKey] = $valueTrimmed;
-                }
-            } else {
-                // Логируем только один раз для каждой неизвестной колонки
-                static $unknownCols = [];
-                if (!isset($unknownCols[$keyTrimmed])) {
-                    Logger::warning("IMPORT ACCOUNTS: Колонка '{$keyTrimmed}' из CSV не найдена в БД", [
-                        'csv_key' => $keyTrimmed,
-                        'db_columns' => $allColumns
-                    ]);
-                    $unknownCols[$keyTrimmed] = true;
-                }
+            if ($foundKey && !in_array($foundKey, $systemFields, true)) {
+                $filteredRow[$foundKey] = is_string($value) ? trim($value) : $value;
+            } elseif (!$foundKey && !isset($unknownCols[$key])) {
+                Logger::warning("IMPORT ACCOUNTS: Неизвестная колонка '{$key}'");
+                $unknownCols[$key] = true;
             }
         }
         
-        Logger::info("IMPORT ACCOUNTS: После фильтрации строки {$rowIndex}", [
-            'filtered_keys' => array_keys($filteredRow),
-            'filtered_data' => $filteredRow,
-            'has_login' => isset($filteredRow['login']),
-            'has_status' => isset($filteredRow['status']),
-            'login_value' => $filteredRow['login'] ?? 'NOT SET',
-            'status_value' => $filteredRow['status'] ?? 'NOT SET',
-            'filtered_empty' => empty($filteredRow)
-        ]);
-        
         if (!empty($filteredRow)) {
             $filteredData[] = $filteredRow;
-        } else {
-            Logger::warning("IMPORT ACCOUNTS: Строка {$rowIndex} отфильтрована (нет валидных полей)", [
-                'original_row' => $row
-            ]);
         }
     }
     
     Logger::debug('IMPORT ACCOUNTS: Фильтрация завершена', [
         'original_rows' => count($data),
         'filtered_rows' => count($filteredData),
-        'sample_row' => !empty($filteredData) ? array_keys($filteredData[0] ?? []) : []
+        'unknown_columns' => array_keys($unknownCols)
     ]);
     
     if (empty($filteredData)) {

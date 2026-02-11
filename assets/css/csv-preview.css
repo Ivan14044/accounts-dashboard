@@ -148,3 +148,18 @@
   background-color: inherit;
   border-color: inherit;
 }
+
+/* Прогресс-бар импорта */
+#importProgressContainer {
+  animation: fadeIn 0.3s ease-in;
+}
+
+#importProgressBar {
+  transition: width 0.3s ease;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+#importProgressPercent {
+  line-height: 30px;
+}

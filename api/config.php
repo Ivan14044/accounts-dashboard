@@ -20,6 +20,11 @@ try {
         'MAX_IMPORT_FILE_SIZE' => Config::MAX_IMPORT_FILE_SIZE,
         'MAX_IMPORT_ROWS' => Config::MAX_IMPORT_ROWS,
         'IMPORT_BATCH_SIZE' => Config::IMPORT_BATCH_SIZE,
+        'IMPORT_RATE_LIMIT' => Config::IMPORT_RATE_LIMIT,
+        
+        // CSV структура
+        'CSV_STRUCTURE' => Config::CSV_STRUCTURE,
+        'REQUIRED_CSV_FIELDS' => Config::getRequiredCsvFields(),
         
         // Пагинация
         'DEFAULT_PAGE_SIZE' => Config::DEFAULT_PAGE_SIZE,

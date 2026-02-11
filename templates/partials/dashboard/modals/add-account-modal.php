@@ -118,6 +118,37 @@
             <!-- Здесь будет отображаться предпросмотр CSV -->
           </div>
           
+          <!-- Прогресс-бар импорта (скрыт по умолчанию) -->
+          <div id="importProgressContainer" class="d-none mt-3">
+            <div class="alert alert-info">
+              <i class="fas fa-spinner fa-spin me-2"></i>
+              <strong>Импорт в процессе...</strong>
+            </div>
+            <div class="progress" style="height: 30px;">
+              <div 
+                id="importProgressBar" 
+                class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                role="progressbar" 
+                style="width: 0%"
+                aria-valuenow="0" 
+                aria-valuemin="0" 
+                aria-valuemax="100"
+              >
+                <span id="importProgressPercent">0%</span>
+              </div>
+            </div>
+            <div class="mt-2 text-center">
+              <small class="text-muted">
+                Обработано: <strong id="importProgressText">0 / 0</strong> аккаунтов
+              </small>
+            </div>
+            <div class="mt-2 text-center">
+              <button type="button" class="btn btn-sm btn-outline-danger" id="cancelImportBtn">
+                <i class="fas fa-times me-1"></i>Отменить импорт
+              </button>
+            </div>
+          </div>
+          
         </form>
       </div>
       <div class="modal-footer">

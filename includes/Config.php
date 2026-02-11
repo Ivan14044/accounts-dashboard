@@ -273,6 +273,100 @@ class Config {
         $constantName = 'self::FEATURE_' . strtoupper($feature);
         return defined($constantName) && constant($constantName);
     }
+    
+    /**
+     * Структура CSV файла для импорта аккаунтов
+     * Это единственное место, где определены все поля CSV
+     */
+    public const CSV_STRUCTURE = [
+        'login' => [
+            'required' => true,
+            'type' => 'string',
+            'max_length' => 255,
+            'label' => 'Логин',
+            'description' => 'Уникальный идентификатор аккаунта'
+        ],
+        'status' => [
+            'required' => true,
+            'type' => 'string',
+            'max_length' => 100,
+            'label' => 'Статус',
+            'description' => 'Текущий статус аккаунта (любое значение)'
+        ],
+        'password' => [
+            'required' => false,
+            'type' => 'string',
+            'max_length' => 255,
+            'label' => 'Пароль',
+            'sensitive' => true
+        ],
+        'email' => [
+            'required' => false,
+            'type' => 'email',
+            'max_length' => 255,
+            'label' => 'Email'
+        ],
+        'email_password' => [
+            'required' => false,
+            'type' => 'string',
+            'max_length' => 255,
+            'label' => 'Пароль от Email',
+            'sensitive' => true
+        ],
+        'cookies' => [
+            'required' => false,
+            'type' => 'text',
+            'label' => 'Cookies',
+            'sensitive' => true
+        ],
+        'token' => [
+            'required' => false,
+            'type' => 'string',
+            'max_length' => 500,
+            'label' => 'Token',
+            'sensitive' => true
+        ],
+        'two_fa' => [
+            'required' => false,
+            'type' => 'string',
+            'max_length' => 255,
+            'label' => '2FA код',
+            'sensitive' => true
+        ]
+    ];
+    
+    /**
+     * Rate limiting для импорта
+     */
+    public const IMPORT_RATE_LIMIT_PER_MINUTE = 5;
+    public const IMPORT_RATE_LIMIT_PER_HOUR = 20;
+    
+    /**
+     * Получить обязательные поля CSV
+     * 
+     * @return array
+     */
+    public static function getRequiredCsvFields(): array {
+        return array_keys(array_filter(self::CSV_STRUCTURE, fn($field) => $field['required'] ?? false));
+    }
+    
+    /**
+     * Получить все поля CSV
+     * 
+     * @return array
+     */
+    public static function getAllCsvFields(): array {
+        return array_keys(self::CSV_STRUCTURE);
+    }
+    
+    /**
+     * Получить чувствительные поля (пароли, cookies и т.п.)
+     * 
+     * @return array
+     */
+    public static function getSensitiveCsvFields(): array {
+        return array_keys(array_filter(self::CSV_STRUCTURE, fn($field) => $field['sensitive'] ?? false));
+    }
 }
 
 // Создать необходимые директории при загрузке
