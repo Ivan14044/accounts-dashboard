@@ -2985,13 +2985,23 @@ document.addEventListener('click', function(e) {
   if (selAll) {
     e.preventDefault();
     if (window.DashboardSelection) {
+      // Включаем режим "выделены все по фильтру"
       window.DashboardSelection.setSelectedAllFiltered(true);
-      window.DashboardSelection.getSelectedIds().clear();
-      // Выделяем все строки на текущей странице через handleSelectAllChange
+      const selectedIds = window.DashboardSelection.getSelectedIds();
+      if (selectedIds && typeof selectedIds.clear === 'function') {
+        selectedIds.clear();
+      }
+      // Выделяем все строки на текущей странице через handleSelectAllChange,
+      // но не сбрасываем флаг selectedAllFiltered (keepAllFilteredMode = true)
       const selectAllCheckbox = getElementById('selectAll');
       if (selectAllCheckbox) {
         selectAllCheckbox.checked = true;
-        window.DashboardSelection.handleSelectAllChange(true);
+        window.DashboardSelection.handleSelectAllChange(true, true);
+      } else {
+        // На всякий случай синхронизируем чекбоксы и счётчики напрямую
+        window.DashboardSelection.initCheckboxStates();
+        window.DashboardSelection.updateSelectedCount();
+        window.DashboardSelection.updateSelectedOnPageCounter();
       }
     }
   }

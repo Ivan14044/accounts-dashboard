@@ -254,8 +254,15 @@ function initCheckboxStates() {
 }
 
 // Обработчик изменения чекбокса "Выбрать все"
-function handleSelectAllChange(isChecked) {
-  selectedAllFiltered = false;
+// Второй параметр keepAllFilteredMode используется, когда мы переключаемся в режим
+// "выделены все по фильтру" и не хотим сбрасывать флаг selectedAllFiltered.
+function handleSelectAllChange(isChecked, keepAllFilteredMode = false) {
+  // По умолчанию при ручном клике по чекбоксу "Выбрать все" мы выходим
+  // из режима "все по фильтру". Если keepAllFilteredMode === true (клик
+  // по ссылке "Выделить все по фильтру"), флаг не трогаем.
+  if (!keepAllFilteredMode) {
+    selectedAllFiltered = false;
+  }
   const allRowIds = getAllRowIdsOnPage();
   
   if (typeof logger !== 'undefined') {
