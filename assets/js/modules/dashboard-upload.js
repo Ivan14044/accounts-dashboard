@@ -501,15 +501,32 @@
     
     if (uploadBtn) {
       uploadBtn.addEventListener('click', function(e) {
+        log.debug('[UPLOAD BTN] Клик по кнопке загрузки');
+        
+        // Проверяем, не заблокирована ли кнопка
+        if (uploadBtn.disabled || uploadBtn.classList.contains('disabled')) {
+          log.warn('[UPLOAD BTN] Кнопка заблокирована, игнорируем клик');
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        
         e.preventDefault();
         e.stopPropagation();
+        
         const form = cache.getById('uploadAccountsForm');
         const fileInput = cache.getById('accountsFile');
+        
         if (form && fileInput && fileInput.files && fileInput.files.length > 0) {
+          log.debug('[UPLOAD BTN] Файл выбран, начинаем загрузку');
           handleUpload({ preventDefault: () => {} });
         } else {
+          log.warn('[UPLOAD BTN] Файл не выбран');
           const errorsDiv = cache.getById('addAccountErrors');
-          if (errorsDiv) { errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки'; errorsDiv.classList.remove('d-none'); }
+          if (errorsDiv) { 
+            errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки'; 
+            errorsDiv.classList.remove('d-none'); 
+          }
         }
       });
     }
@@ -523,13 +540,31 @@
         if (errorsDiv) errorsDiv.classList.add('d-none');
         if (previewContainer) previewContainer.classList.add('d-none');
         
+        // Разблокируем кнопку по умолчанию
+        if (uploadBtn) {
+          uploadBtn.disabled = false;
+          uploadBtn.classList.remove('disabled');
+        }
+        
         if (!e.target.files || e.target.files.length === 0) {
           return;
         }
         
         const file = e.target.files[0];
         
-        log.debug('[FILE CHANGE] Начало автоматической валидации...');
+        log.debug('[FILE CHANGE] Начало автоматической валидации...', {
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type
+        });
+        
+        // Показываем индикатор загрузки
+        if (uploadBtn) {
+          const originalText = uploadBtn.innerHTML;
+          uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Проверка файла...';
+          uploadBtn.disabled = true;
+          uploadBtn.dataset.originalText = originalText;
+        }
         
         try {
           const validation = await validateCsvFile(file);
@@ -539,7 +574,7 @@
             showCsvPreview(validation.preview);
           }
           
-          // Показываем предупреждения
+          // Показываем предупреждения (НЕ блокируют кнопку)
           if (validation.warnings.length > 0) {
             const warningMsg = '<div class="mb-2"><strong>⚠️ Предупреждения:</strong></div>' + 
                               validation.warnings.map(w => '• ' + w).join('<br>');
@@ -550,7 +585,7 @@
             }
           }
           
-          // Показываем ошибки
+          // Показываем ошибки и БЛОКИРУЕМ кнопку
           if (!validation.valid) {
             const errorMsg = '<div class="mb-2"><strong>❌ Ошибки валидации:</strong></div>' + 
                             validation.errors.map(e => '• ' + e).join('<br>') +
@@ -560,10 +595,35 @@
               errorsDiv.classList.remove('d-none', 'alert-warning');
               errorsDiv.classList.add('alert-danger');
             }
+            
+            // БЛОКИРУЕМ кнопку при ошибках
+            if (uploadBtn) {
+              uploadBtn.disabled = true;
+              uploadBtn.classList.add('disabled');
+              log.debug('[FILE CHANGE] Кнопка заблокирована из-за ошибок валидации');
+            }
+          } else {
+            // Если нет ошибок - разблокируем кнопку
+            if (uploadBtn) {
+              uploadBtn.disabled = false;
+              uploadBtn.classList.remove('disabled');
+              log.debug('[FILE CHANGE] Кнопка разблокирована - валидация успешна');
+            }
           }
           
         } catch (validationError) {
           log.error('[FILE CHANGE] Ошибка валидации:', validationError);
+          // При ошибке валидации - разблокируем кнопку (пусть попробует отправить)
+          if (uploadBtn) {
+            uploadBtn.disabled = false;
+            uploadBtn.classList.remove('disabled');
+          }
+        } finally {
+          // Восстанавливаем текст кнопки
+          if (uploadBtn && uploadBtn.dataset.originalText) {
+            uploadBtn.innerHTML = uploadBtn.dataset.originalText;
+            delete uploadBtn.dataset.originalText;
+          }
         }
       });
     }
