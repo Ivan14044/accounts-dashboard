@@ -730,6 +730,10 @@ document.addEventListener('click', function(e) {
   
   // Тёмная тема отключена
   
+  // Глобальная конфигурация дашборда (CSRF и прочее)
+  window.DashboardConfig = window.DashboardConfig || {};
+  window.DashboardConfig.csrfToken = '<?= e($csrfToken) ?>';
+  
   // НЕ сохраняем выбранные строки при перезагрузке - очищаем выбор
   if (window.DashboardSelection) {
     // Инициализируем filteredTotalLive из серверного значения
@@ -1338,24 +1342,7 @@ document.addEventListener('click', function(e) {
   
   // Настройки сохраняются автоматически при изменении, обработчик кнопки не нужен
   
-  // Reset stat labels
-  const resetStatLabelsBtn = getElementById('resetStatLabels');
-  if (resetStatLabelsBtn) {
-    resetStatLabelsBtn.addEventListener('click', function() {
-      if (confirm('Вы действительно хотите сбросить все названия блоков к исходным значениям?')) {
-        resetStatLabels();
-        showToast('Названия блоков сброшены к исходным значениям', 'success');
-      }
-    });
-  }
-  
-  // Preview stat labels
-  const previewStatLabelsBtn = getElementById('previewStatLabels');
-  if (previewStatLabelsBtn) {
-    previewStatLabelsBtn.addEventListener('click', function() {
-      previewStatLabels();
-    });
-  }
+  // Логика reset/preview названий блоков вынесена в модуль `dashboard-stats.js`.
   
   // Confirm delete - КРИТИЧЕСКИ ВАЖНО для работы удаления!
   const confirmDeleteBtn = getElementById('confirmDelete');
@@ -2873,111 +2860,7 @@ async function initializeCustomCards() {
 // ===== ДУБЛИРУЮЩИЙСЯ КОД УДАЛЕН =====
 // Все функции кастомных карточек определены выше в новой версии (строки 6300-6924)
 
-// Change status (bulk)
-const changeStatusSelected = getElementById('changeStatusSelected');
-if (changeStatusSelected) {
-  changeStatusSelected.addEventListener('click', function() {
-    const DS = window.DashboardSelection;
-    if (!DS || (!DS.getSelectedAllFiltered() && DS.getSelectedIds().size === 0)) return;
-    const modal = new bootstrap.Modal(getElementById('statusModal'));
-    modal.show();
-  });
-}
-const applyStatusBtn = getElementById('applyStatusBtn');
-if (applyStatusBtn) {
-  applyStatusBtn.addEventListener('click', async function() {
-    const statusSelect = getElementById('statusSelect');
-    const statusNewInput = getElementById('statusNewInput');
-    const newStatus = (statusNewInput?.value || '').trim() || statusSelect?.value;
-    
-    if (!newStatus) { 
-      showToast('Укажите статус', 'error'); 
-      return; 
-    }
-    
-    try {
-      const DS = window.DashboardSelection;
-      let body;
-      if (DS && DS.getSelectedAllFiltered()) {
-        const params = new URLSearchParams(window.location.search);
-        body = { ids: [], status: newStatus, select: 'all', query: params.toString(), csrf: '<?= e($csrfToken) ?>' };
-        logger.group('📝 Изменение статуса (все по фильтру)');
-      } else {
-        const ids = Array.from(DS ? DS.getSelectedIds() : []);
-        body = { ids, status: newStatus, csrf: '<?= e($csrfToken) ?>' };
-        logger.group('📝 Изменение статуса (выбранные)');
-        logger.debug('ID для изменения:', ids);
-        logger.debug('Количество:', ids.length);
-      }
-      
-      logger.debug('Новый статус:', newStatus);
-      logger.debug('Тело запроса:', body);
-      logger.groupEnd();
-      
-      const res = await fetch('status_update.php', { 
-        method: 'POST', 
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        }, 
-        body: JSON.stringify(body) 
-      });
-      
-      logger.debug('📡 Статус ответа:', res.status, res.statusText);
-      
-      if (!res.ok) {
-        const text = await res.text();
-        logger.error('❌ Ошибка HTTP:', res.status, text);
-        
-        // Пытаемся распарсить JSON для получения детального сообщения об ошибке
-        let errorMessage = `HTTP ${res.status}: ${res.statusText}`;
-        try {
-          const errorJson = JSON.parse(text);
-          if (errorJson.error) {
-            errorMessage = errorJson.error;
-            // Улучшаем сообщение для ошибок валидации
-            if (errorMessage.includes('invalid characters') || errorMessage.includes('Status contains')) {
-              errorMessage = 'Статус содержит недопустимые символы. Разрешены только буквы (включая кириллицу), цифры, подчеркивания, дефисы и пробелы.';
-            }
-          }
-        } catch (e) {
-          // Если не удалось распарсить JSON, используем стандартное сообщение
-        }
-        throw new Error(errorMessage);
-      }
-      
-      const json = await res.json();
-      logger.debug('📥 Ответ сервера:', json);
-      
-      if (!json.success) {
-        let errorMessage = json.error || 'Update failed';
-        // Улучшаем сообщение для ошибок валидации
-        if (errorMessage.includes('invalid characters') || errorMessage.includes('Status contains')) {
-          errorMessage = 'Статус содержит недопустимые символы. Разрешены только буквы (включая кириллицу), цифры, подчеркивания, дефисы и пробелы.';
-        }
-        throw new Error(errorMessage);
-      }
-      
-      showToast(`Статус обновлён для ${json.affected || 0} записей`, 'success');
-      
-      // Обновляем статистику после успешного обновления статуса
-      logger.debug('🔄 Обновляем статистику после изменения статуса...');
-      await refreshDashboardData();
-      
-      const modalEl = getElementById('statusModal');
-      if (modalEl) {
-        const modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) modal.hide();
-      }
-      
-      await refreshDashboardData();
-      
-    } catch (e) { 
-      logger.error('Ошибка изменения статуса:', e);
-      showToast('Ошибка изменения статуса: ' + e.message, 'error'); 
-    }
-  });
-}
+// Логика массовой смены статуса вынесена в модуль `dashboard-modals.js` (initStatusModal).
 
 document.addEventListener('click', function(e) {
   const selAll = e.target && e.target.id === 'selectAllFilteredLink';
@@ -4096,17 +3979,9 @@ if (clearAllSelectedBtn) {
 }
 
 // ===== Массовый перенос аккаунтов (V3.0) =====
-const transferBtn = getElementById('transferAccountsBtn');
-if (transferBtn) {
-  transferBtn.addEventListener('click', function() {
-    // Открываем модальное окно
-    const modal = new bootstrap.Modal(getElementById('transferAccountsModal'));
-    modal.show();
-  });
-}
-
+// Логика массового переноса аккаунтов вынесена в модуль `dashboard-modals.js` (initTransferModal).
 const applyTransferBtn = getElementById('applyTransferBtn');
-if (applyTransferBtn) {
+if (false && applyTransferBtn) {
   applyTransferBtn.addEventListener('click', async function() {
     // Получаем значения из формы
     const text = (getElementById('transferText')?.value || '').trim();
@@ -4318,52 +4193,7 @@ if (applyTransferBtn) {
   });
 }
 
-// Bulk edit: apply
-if (applyBulkFieldBtn) {
-  applyBulkFieldBtn.addEventListener('click', async function() {
-    const field = (getElementById('bulkFieldSelect')?.value || '').trim();
-    const value = (getElementById('bulkFieldValue')?.value || '').trim();
-    if (!field) { showToast('Выберите поле', 'error'); return; }
-    const DS = window.DashboardSelection;
-    const scope = DS && DS.getSelectedAllFiltered() 
-      ? (ACTIVE_FILTERS_COUNT === 0 ? 'all' : 'filtered') 
-      : 'selected';
-    if (scope === 'all' && bulkGlobalConfirm && !bulkGlobalConfirm.checked) {
-      showToast('Подтвердите глобальное изменение всех записей', 'error');
-      return;
-    }
-    try {
-      let body;
-      if (DS && DS.getSelectedAllFiltered()) {
-        const params = new URLSearchParams(window.location.search);
-        body = { field, value, ids: [], select: 'all', query: params.toString(), csrf: '<?= e($csrfToken) ?>', scope };
-      } else {
-        body = { field, value, ids: DS ? Array.from(DS.getSelectedIds()) : [], csrf: '<?= e($csrfToken) ?>', scope };
-      }
-      const res = await fetch('bulk_update_field.php', { 
-        method: 'POST', 
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        }, 
-        body: JSON.stringify(body) 
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'HTTP error');
-      }
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || 'bulk update failed');
-      showToast(`Изменено записей: ${json.affected ?? 0}`, 'success');
-      const modal = bootstrap.Modal.getInstance(bulkFieldModalEl);
-      if (modal) modal.hide();
-      await refreshDashboardData();
-    } catch (e) { 
-      logger.error('Bulk edit error:', e);
-      showToast('Ошибка массового изменения: ' + (e.message || e), 'error'); 
-    }
-  });
-}
+// Логика применения массового редактирования полей вынесена в модуль `dashboard-modals.js` (initBulkEditModal).
 
 (function(){
   document.addEventListener('DOMContentLoaded', function(){

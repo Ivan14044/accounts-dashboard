@@ -277,6 +277,49 @@ function initMutationObserver() {
   return observer;
 }
 
+// Сброс названий блоков к исходным значениям
+function resetStatLabels() {
+  const statLabels = document.querySelectorAll('.stat-label.editable');
+  
+  statLabels.forEach(label => {
+    const cardType = label.getAttribute('data-card');
+    const originalText = label.getAttribute('data-original');
+    const labelText = label.querySelector('.label-text');
+    
+    if (!labelText || !cardType) return;
+    
+    // Восстанавливаем исходное название
+    labelText.textContent = originalText;
+    
+    // Удаляем из localStorage
+    const key = `stat_label_${cardType}`;
+    localStorage.removeItem(key);
+  });
+}
+
+// Предварительный просмотр названий блоков
+function previewStatLabels() {
+  const statLabels = document.querySelectorAll('.stat-label.editable');
+  let previewText = 'Текущие названия блоков:\\n\\n';
+  
+  statLabels.forEach(label => {
+    const cardType = label.getAttribute('data-card');
+    const labelText = label.querySelector('.label-text');
+    if (!labelText || !cardType) return;
+    
+    const currentText = labelText.textContent;
+    const originalText = label.getAttribute('data-original');
+    
+    previewText += `• ${cardType}: \"${currentText}\"`;
+    if (currentText !== originalText) {
+      previewText += ` (было: \"${originalText}\")`;
+    }
+    previewText += '\\n';
+  });
+  
+  alert(previewText);
+}
+
 // Инициализация модуля статистики
 function initStatsModule() {
   // Загружаем скрытые карточки из localStorage
@@ -301,6 +344,26 @@ function initStatsModule() {
       }
     }
   });
+  
+  // Reset / Preview stat labels
+  const resetStatLabelsBtn = getElementById('resetStatLabels');
+  if (resetStatLabelsBtn) {
+    resetStatLabelsBtn.addEventListener('click', function() {
+      if (confirm('Вы действительно хотите сбросить все названия блоков к исходным значениям?')) {
+        resetStatLabels();
+        if (typeof showToast === 'function') {
+          showToast('Названия блоков сброшены к исходным значениям', 'success');
+        }
+      }
+    });
+  }
+  
+  const previewStatLabelsBtn = getElementById('previewStatLabels');
+  if (previewStatLabelsBtn) {
+    previewStatLabelsBtn.addEventListener('click', function() {
+      previewStatLabels();
+    });
+  }
   
   if (typeof logger !== 'undefined') {
     logger.debug('✅ Модуль статистики инициализирован');

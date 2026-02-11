@@ -15,7 +15,7 @@ mysqli_report(MYSQLI_REPORT_OFF);
 require_once __DIR__ . '/includes/SessionManager.php';
 SessionManager::start();
 
-// Проверяем наличие параметров БД в сессии (приоритет над глобальными настройками)
+// Проверяем наличие параметров БД в сессии (приоритет над любыми глобальными настройками)
 if (isset($_SESSION['db_config']) && is_array($_SESSION['db_config'])) {
     $dbConfig = $_SESSION['db_config'];
     $DB_HOST = $dbConfig['host'] ?? 'localhost';
@@ -32,42 +32,18 @@ if (isset($_SESSION['db_config']) && is_array($_SESSION['db_config'])) {
     }
     error_log('CONFIG: Using DB config from session: ' . json_encode($logConfig));
 } else {
-    error_log('CONFIG: No session db_config found, using .env/config.local.php');
-    // Загрузка настроек из .env файла (только если нет параметров в сессии)
-    $envFile = __DIR__ . '/.env';
-    if (is_file($envFile) && is_readable($envFile)) {
-        $lines = @file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
-        foreach ($lines as $line) {
-            $line = trim($line);
-            // Пропускаем пустые строки и комментарии
-            if ($line === '' || $line[0] === '#') continue;
-            if (!strpos($line, '=')) continue;
-            
-            list($key, $value) = array_map('trim', explode('=', $line, 2));
-            // Убираем кавычки
-            if ($value !== '' && ($value[0] === '"' || $value[0] === "'")) {
-                $value = trim($value, "\"'");
-            }
-            
-            // Устанавливаем переменную окружения
-            putenv("$key=$value");
-            $_ENV[$key] = $value;
-        }
-    }
-
-    // Настройки БД с приоритетом переменных окружения
-    $DB_HOST = getenv('DB_HOST') ?: 'localhost';
-    $DB_NAME = getenv('DB_NAME') ?: '';
-    $DB_USER = getenv('DB_USER') ?: '';
-    $DB_PASS = getenv('DB_PASS') ?: '';
-    $DB_PORT = getenv('DB_PORT') ? (int)getenv('DB_PORT') : 3306;
+    // Жёсткий отказ от .env / переменных окружения для настроек БД аккаунтов.
+    // Единственный допустимый источник настроек подключения к БД — данные,
+    // которые пользователь ввёл на странице логина и которые сохранены в сессии.
+    error_log('CONFIG: No session db_config found; DB connection must be configured via login form.');
+    
+    // Инициализируем значения по умолчанию (чтобы последующая проверка сработала корректно)
+    $DB_HOST = 'localhost';
+    $DB_NAME = '';
+    $DB_USER = '';
+    $DB_PASS = '';
+    $DB_PORT = 3306;
     $DB_CHARSET = 'utf8mb4';
-
-    // Переопределение из config.local.php (если существует)
-    $localConfig = __DIR__ . '/config.local.php';
-    if (is_file($localConfig)) {
-        require $localConfig;
-    }
 }
 
 // Проверка обязательных параметров
@@ -77,7 +53,7 @@ if (empty($DB_NAME) || empty($DB_USER)) {
         $errorMsg .= 'Session db_config exists but missing required fields. ';
         $errorMsg .= 'Config: ' . json_encode($_SESSION['db_config']);
     } else {
-        $errorMsg .= 'No session db_config found. Please check .env file or config.local.php or login again.';
+        $errorMsg .= 'No session db_config found. Database connection must be provided via login form.';
     }
     // Логируем через error_log, так как Logger может быть недоступен на этой стадии
     error_log($errorMsg);
