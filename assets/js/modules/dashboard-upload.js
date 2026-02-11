@@ -471,8 +471,9 @@
       return;
     }
     
-    const { created = 0, updated = 0, skipped = 0, errors = [], total = 0 } = result;
+    const { created = 0, updated = 0, skipped = 0, skipped_details = [], errors = [], total = 0 } = result;
     const hasErrors = errors.length > 0;
+    const hasSkipped = skipped_details.length > 0;
     
     let html = '<div class="import-results-summary">';
     
@@ -496,10 +497,13 @@
     }
     
     if (skipped > 0) {
-      html += '<div class="col-md-3"><div class="card border-warning"><div class="card-body text-center">';
+      html += '<div class="col-md-3"><div class="card border-warning' + (hasSkipped ? ' cursor-pointer' : '') + '"' + (hasSkipped ? ' onclick="document.getElementById(\'skippedDetailsSection\').scrollIntoView({behavior: \'smooth\'})"' : '') + '><div class="card-body text-center">';
       html += '<i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i>';
       html += '<h3 class="mb-0">' + skipped + '</h3>';
       html += '<small class="text-muted">Пропущено</small>';
+      if (hasSkipped) {
+        html += '<div class="mt-2"><small class="text-muted"><i class="fas fa-info-circle me-1"></i>Нажмите для деталей</small></div>';
+      }
       html += '</div></div></div>';
     }
     
@@ -556,6 +560,53 @@
       }
       html += '<li>Проверьте CSV файл и исправьте ошибки</li>';
       html += '<li>Попробуйте импорт снова</li>';
+      html += '</ul></div></div>';
+    }
+    
+    // Детали пропущенных аккаунтов
+    if (hasSkipped) {
+      html += '<div id="skippedDetailsSection" class="alert alert-warning">';
+      html += '<h6 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>Детали пропущенных аккаунтов:</h6><hr>';
+      
+      // Группируем пропущенные по причине
+      const skippedGroups = {};
+      skipped_details.forEach(item => {
+        const reason = item.reason || 'Unknown';
+        if (!skippedGroups[reason]) {
+          skippedGroups[reason] = { reason, message: item.message, count: 0, items: [] };
+        }
+        skippedGroups[reason].count++;
+        if (skippedGroups[reason].items.length < 10) {
+          skippedGroups[reason].items.push({
+            row: item.row,
+            login: item.login
+          });
+        }
+      });
+      
+      // Отображаем каждую группу
+      Object.values(skippedGroups).forEach(group => {
+        html += '<div class="mb-3"><div class="fw-semibold">' + (group.message || group.reason) + ' ';
+        html += '<span class="badge bg-warning ms-2">' + group.count + '</span></div>';
+        
+        if (group.items.length > 0) {
+          html += '<small class="text-muted">Примеры: ';
+          html += group.items.map(item => `строка ${item.row} (${item.login})`).join(', ');
+          if (group.count > group.items.length) {
+            html += ' и ещё ' + (group.count - group.items.length);
+          }
+          html += '</small>';
+        }
+        html += '</div>';
+      });
+      
+      // Рекомендации для пропущенных
+      html += '<hr><div class="mt-3"><strong>💡 Рекомендации:</strong><ul class="mb-0">';
+      if (skippedGroups['Duplicate login'] || skippedGroups['Duplicate login (INSERT)']) {
+        html += '<li>Удалите дубликаты логинов из CSV файла</li>';
+        html += '<li>Или используйте режим "Обновить существующие" при импорте</li>';
+      }
+      html += '<li>Проверьте CSV файл и повторите импорт только для пропущенных строк</li>';
       html += '</ul></div></div>';
     }
     

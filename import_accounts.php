@@ -399,6 +399,7 @@ try {
             'created' => $result['created'],
             'updated' => $result['updated'] ?? 0,
             'skipped' => $result['skipped'],
+            'skipped_details' => $result['skipped_details'] ?? [], // НОВОЕ: Детали пропущенных
             'errors' => $result['errors'],
             'total' => count($filteredData)
         ]);

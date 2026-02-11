@@ -997,8 +997,15 @@ class AccountsRepository {
      * Массовое создание аккаунтов
      * 
      * @param array $accountsData Массив массивов данных аккаунтов
-     * @param string $duplicateAction Действие при дубликате: 'skip', 'error'
-     * @return array Статистика: ['created' => int, 'skipped' => int, 'errors' => array]
+     * @param string $duplicateAction Действие при дубликате: 'skip', 'error', 'update'
+     * @return array Статистика: [
+     *   'created' => int,
+     *   'updated' => int, 
+     *   'skipped' => int,
+     *   'skipped_details' => array, // Детали пропущенных: [{row, login, reason, message}]
+     *   'errors' => array,
+     *   'created_ids' => array
+     * ]
      * @throws Exception При ошибках БД
      */
     public function createAccountsBulk(array $accountsData, string $duplicateAction = 'skip'): array {
@@ -1015,6 +1022,7 @@ class AccountsRepository {
         $skipped = 0;
         $updated = 0;
         $errors = [];
+        $skippedDetails = []; // НОВОЕ: Детали пропущенных строк
         $createdIds = [];
         
         $supportsSoftDelete = $this->metadata->columnExists('deleted_at');
@@ -1200,6 +1208,12 @@ class AccountsRepository {
                             // skip mode - пропускаем дубликат
                             $conn->rollback();
                             $skipped++;
+                            $skippedDetails[] = [
+                                'row' => $rowNum + 1,
+                                'login' => $loginValue,
+                                'reason' => 'Duplicate login',
+                                'message' => "Аккаунт с логином '{$loginValue}' уже существует в базе данных"
+                            ];
                             Logger::debug('CREATE ACCOUNTS BULK: Дубликат пропущен (skip)', [
                                 'row' => $rowNum + 1,
                                 'login' => $loginValue
@@ -1278,6 +1292,12 @@ class AccountsRepository {
                             } else {
                                 // Пропускаем дубликат
                                 $skipped++;
+                                $skippedDetails[] = [
+                                    'row' => $rowNum + 1,
+                                    'login' => $loginValue,
+                                    'reason' => 'Duplicate login (INSERT)',
+                                    'message' => "Аккаунт с логином '{$loginValue}' уже существует в базе данных"
+                                ];
                                 Logger::info('CREATE ACCOUNTS BULK: Дубликат пропущен (skip mode)', [
                                     'row' => $rowNum + 1,
                                     'login' => $loginValue
@@ -1337,6 +1357,7 @@ class AccountsRepository {
                 'created' => $created,
                 'updated' => $updated,
                 'skipped' => $skipped,
+                'skipped_details_count' => count($skippedDetails),
                 'errors' => count($errors),
                 'total' => count($accountsData)
             ]);
@@ -1345,6 +1366,7 @@ class AccountsRepository {
                 'created' => $created,
                 'updated' => $updated,
                 'skipped' => $skipped,
+                'skipped_details' => $skippedDetails, // НОВОЕ: Детали пропущенных
                 'errors' => $errors,
                 'created_ids' => $createdIds
             ];
