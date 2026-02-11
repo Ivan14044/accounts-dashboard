@@ -13,127 +13,13 @@ function getElementById(id) {
 
 // Инициализация модального окна изменения статуса
 function initStatusModal() {
-  const changeStatusBtn = getElementById('changeStatusSelected');
-  const statusModalEl = getElementById('statusModal');
-  const applyStatusBtn = getElementById('applyStatusBtn');
-  
-  if (!changeStatusBtn || !statusModalEl || !applyStatusBtn) return;
-  
-  // Обработчик открытия модального окна
-  changeStatusBtn.addEventListener('click', function() {
-    // Проверяем, есть ли выбранные строки
-    let hasSelection = false;
-    if (typeof window.DashboardSelection !== 'undefined') {
-      const selectedIds = window.DashboardSelection.getSelectedIds();
-      const selectedAllFiltered = window.DashboardSelection.getSelectedAllFiltered();
-      hasSelection = selectedAllFiltered || selectedIds.size > 0;
-    } else if (typeof selectedAllFiltered !== 'undefined' && typeof selectedIds !== 'undefined') {
-      hasSelection = selectedAllFiltered || selectedIds.size > 0;
-    }
-    
-    if (!hasSelection) return;
-    
-    const modal = new bootstrap.Modal(statusModalEl);
-    modal.show();
-  });
-  
-  // Обработчик применения статуса
-  applyStatusBtn.addEventListener('click', async function() {
-    const statusSelect = getElementById('statusSelect');
-    const statusNewInput = getElementById('statusNewInput');
-    const newStatus = (statusNewInput?.value || '').trim() || statusSelect?.value;
-    
-    if (!newStatus) {
-      if (typeof showToast === 'function') {
-        showToast('Укажите статус', 'error');
-      }
-      return;
-    }
-    
-    try {
-      let body;
-      let selectedAllFiltered = false;
-      let selectedIds = [];
-      
-      if (typeof window.DashboardSelection !== 'undefined') {
-        selectedAllFiltered = window.DashboardSelection.getSelectedAllFiltered();
-        selectedIds = Array.from(window.DashboardSelection.getSelectedIds());
-      } else if (typeof window.selectedAllFiltered !== 'undefined' && typeof window.selectedIds !== 'undefined') {
-        selectedAllFiltered = window.selectedAllFiltered;
-        selectedIds = Array.from(window.selectedIds);
-      }
-      
-      if (selectedAllFiltered) {
-        const params = new URLSearchParams(window.location.search);
-        body = {
-          ids: [],
-          status: newStatus,
-          select: 'all',
-          query: params.toString(),
-          csrf: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-        };
-        if (typeof logger !== 'undefined') {
-          logger.group('📝 Изменение статуса (все по фильтру)');
-        }
-      } else {
-        body = {
-          ids: selectedIds,
-          status: newStatus,
-          csrf: document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-        };
-        if (typeof logger !== 'undefined') {
-          logger.group('📝 Изменение статуса (выбранные)');
-          logger.debug('ID для изменения:', selectedIds);
-          logger.debug('Количество:', selectedIds.length);
-        }
-      }
-      
-      if (typeof logger !== 'undefined') {
-        logger.debug('Новый статус:', newStatus);
-        logger.debug('Тело запроса:', body);
-        logger.groupEnd();
-      }
-      
-      const res = await fetch('status_update.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify(body)
-      });
-      
-      const data = await res.json();
-      
-      if (data.success) {
-        if (typeof showToast === 'function') {
-          showToast('Статус успешно обновлен', 'success');
-        }
-        
-        // Закрываем модальное окно
-        const modal = bootstrap.Modal.getInstance(statusModalEl);
-        if (modal) {
-          modal.hide();
-        }
-        
-        // Обновляем данные
-        if (typeof refreshDashboardData === 'function') {
-          refreshDashboardData();
-        }
-      } else {
-        if (typeof showToast === 'function') {
-          showToast(data.message || 'Ошибка обновления статуса', 'error');
-        }
-      }
-    } catch (error) {
-      if (typeof logger !== 'undefined') {
-        logger.error('Error updating status:', error);
-      }
-      if (typeof showToast === 'function') {
-        showToast('Ошибка обновления статуса', 'error');
-      }
-    }
-  });
+  // Логика изменения статуса (открытие модалки и отправка запроса на status_update.php)
+  // перенесена в inline-скрипт `init-script.php` (блок "Change status (bulk)").
+  //
+  // Здесь оставляем пустую реализацию, чтобы не дублировать обработчики кликов
+  // и не отправлять второй запрос с некорректным CSRF-токеном, который ранее
+  // приводил к 400 и ложному сообщению "Ошибка обновления статуса" при успешном обновлении.
+  return;
 }
 
 // Инициализация модального окна массового редактирования
