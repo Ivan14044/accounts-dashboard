@@ -168,6 +168,57 @@
   }
   
   /**
+   * Парсит строку CSV с учётом кавычек и escaped символов (RFC 4180)
+   * Обрабатывает случаи, когда внутри кавычек есть разделители
+   * 
+   * @param {string} line - Строка CSV для парсинга
+   * @param {string} delimiter - Разделитель (обычно ',' или ';')
+   * @returns {string[]} Массив значений колонок
+   */
+  function parseCsvLine(line, delimiter) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    let i = 0;
+    
+    while (i < line.length) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+      
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          // Escaped quote ("") - добавляем одну кавычку
+          current += '"';
+          i += 2;
+          continue;
+        } else {
+          // Переключаем состояние (начало/конец quoted field)
+          inQuotes = !inQuotes;
+          i++;
+          continue;
+        }
+      }
+      
+      if (char === delimiter && !inQuotes) {
+        // Разделитель вне кавычек - сохраняем текущее значение
+        result.push(current);
+        current = '';
+        i++;
+        continue;
+      }
+      
+      // Обычный символ - добавляем к текущему значению
+      current += char;
+      i++;
+    }
+    
+    // Добавляем последнее значение
+    result.push(current);
+    
+    return result;
+  }
+  
+  /**
    * Внутренняя функция для парсинга и валидации CSV текста
    * 
    * @param {string} text - Текст CSV файла
@@ -215,7 +266,7 @@
             preview: headerLine.substring(0, 200)
           });
           
-          const headers = headerLine.split(delimiter).map(h => normalizeHeader(h));
+          const headers = parseCsvLine(headerLine, delimiter).map(h => normalizeHeader(h));
           
           log.debug('[CSV VALIDATION] Заголовки после нормализации:', headers);
           log.debug('[CSV VALIDATION] Проверяем наличие обязательных полей:', {
@@ -250,7 +301,7 @@
           
           for (let i = 1; i < maxLinesToCheck; i++) {
             const line = nonEmptyLines[i];
-            const values = line.split(delimiter);
+            const values = parseCsvLine(line, delimiter);
             
             const rowNum = i + 1;
             
