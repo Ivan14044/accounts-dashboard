@@ -295,7 +295,7 @@ try {
         
         return $data;
     }
-    // Конец deprecated функции (if (false) {...})
+    } // Конец deprecated функции (if (false) {...})
     
     // Используется новый CsvParser (см. выше строка ~122)
     Logger::debug('IMPORT ACCOUNTS: CSV файл распарсен', [
