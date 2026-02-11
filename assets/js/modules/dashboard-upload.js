@@ -238,10 +238,6 @@
           
           log.debug('[CSV VALIDATION] Результат валидации:', result);
           return result;
-    } catch (parseError) {
-      log.error('[CSV VALIDATION] Ошибка парсинга в parseAndValidate:', parseError);
-      throw parseError;
-    }
   }
   
   /**
