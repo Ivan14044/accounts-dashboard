@@ -11,7 +11,12 @@
         get: (sel) => document.querySelector(sel)
       };
 
-  const log = (typeof logger !== 'undefined') ? logger : { debug: () => {}, warn: () => {}, error: () => {} };
+  const log = (typeof logger !== 'undefined' && logger) ? logger : { 
+    debug: function() { console.log('[DEBUG]', ...arguments); }, 
+    warn: function() { console.warn('[WARN]', ...arguments); }, 
+    error: function() { console.error('[ERROR]', ...arguments); },
+    info: function() { console.info('[INFO]', ...arguments); }
+  };
   
   // Конфигурация (загружается с сервера или используется fallback)
   let config = {
@@ -629,9 +634,20 @@
     }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bindForm);
-  } else {
-    bindForm();
+  // Инициализация с обработкой ошибок
+  try {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        try {
+          bindForm();
+        } catch (err) {
+          console.error('[DASHBOARD-UPLOAD] Ошибка при инициализации после DOMContentLoaded:', err);
+        }
+      });
+    } else {
+      bindForm();
+    }
+  } catch (err) {
+    console.error('[DASHBOARD-UPLOAD] Критическая ошибка при загрузке модуля:', err);
   }
 })();
