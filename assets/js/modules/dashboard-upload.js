@@ -50,16 +50,76 @@
    */
   async function validateCsvFile(file) {
     return new Promise((resolve, reject) => {
+      // Проверка размера файла перед чтением
+      const maxValidationSize = 5 * 1024 * 1024; // 5 MB для валидации
+      const fileSize = file.size;
+      
+      if (fileSize > maxValidationSize) {
+        log.warn('[CSV VALIDATION] Файл слишком большой для полной валидации, проверяем только начало');
+        // Для больших файлов читаем только первые 5 МБ
+        const blob = file.slice(0, maxValidationSize);
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+          try {
+            const text = e.target.result;
+            const result = parseAndValidate(text, true, fileSize);
+            resolve(result);
+          } catch (parseError) {
+            log.error('[CSV VALIDATION] Ошибка парсинга:', parseError);
+            reject(new Error('Ошибка чтения файла: ' + parseError.message));
+          }
+        };
+        
+        reader.onerror = () => {
+          reject(new Error('Ошибка чтения файла'));
+        };
+        
+        reader.readAsText(blob, 'UTF-8');
+        return;
+      }
+      
+      // Для обычных файлов читаем полностью
       const reader = new FileReader();
       
       reader.onload = (e) => {
         try {
           const text = e.target.result;
-          const lines = text.split('\n');
-          
-          const errors = [];
-          const warnings = [];
-          let validDataLines = [];
+          const result = parseAndValidate(text, false, fileSize);
+          resolve(result);
+        } catch (parseError) {
+          log.error('[CSV VALIDATION] Ошибка парсинга:', parseError);
+          reject(new Error('Ошибка чтения файла: ' + parseError.message));
+        }
+      };
+      
+      reader.onerror = () => {
+        reject(new Error('Ошибка чтения файла'));
+      };
+      
+      reader.readAsText(file, 'UTF-8');
+    });
+  }
+  
+  /**
+   * Внутренняя функция для парсинга и валидации CSV текста
+   * 
+   * @param {string} text - Текст CSV файла
+   * @param {boolean} isPartial - Является ли текст частью большого файла
+   * @param {number} fileSize - Размер оригинального файла
+   * @returns {{valid: boolean, errors: string[], warnings: string[], preview: object}}
+   */
+  function parseAndValidate(text, isPartial, fileSize) {
+    const errors = [];
+    const warnings = [];
+    let validDataLines = [];
+    
+    // Если файл был частично прочитан, добавляем предупреждение
+    if (isPartial) {
+      warnings.push(`Файл очень большой (${Math.round(fileSize / 1024 / 1024)} МБ). Валидация выполнена только для первых 5 МБ. Полная валидация будет выполнена на сервере.`);
+    }
+    
+    const lines = text.split('\n');
           
           // Фильтруем пустые строки и комментарии
           const nonEmptyLines = lines.filter(line => {
@@ -128,11 +188,12 @@
               rowErrors.push(`Строка ${rowNum}: отсутствует status`);
             } else {
               // Проверка допустимых статусов (используем конфигурацию)
+              // ВАЖНО: Это только ПРЕДУПРЕЖДЕНИЕ, а не ошибка - сервер может принять любой status
               const allowedStatuses = config.ALLOWED_STATUSES || ['active', 'banned', 'suspended', 'deleted', 'test'];
               if (!allowedStatuses.includes(rowData.status.toLowerCase())) {
-                rowData.valid = false;
-                rowData.errors.push(`недопустимый статус '${rowData.status}' (допустимые: ${allowedStatuses.join(', ')})`);
-                warnings.push(`Строка ${rowNum}: статус '${rowData.status}' может быть недопустимым`);
+                // НЕ блокируем загрузку - только предупреждаем
+                rowData.errors.push(`необычный статус '${rowData.status}'`);
+                warnings.push(`Строка ${rowNum}: статус '${rowData.status}' не входит в список рекомендованных (${allowedStatuses.join(', ')}). Сервер может отклонить эту строку.`);
               }
             }
             
@@ -173,26 +234,18 @@
             preview: {
               headers,
               rows: validDataLines,
-              totalRows: totalDataLines,
-              delimiter
+              totalRows: isPartial ? '~' + totalDataLines + '+' : totalDataLines,
+              delimiter,
+              isPartial
             }
           };
           
           log.debug('[CSV VALIDATION] Результат валидации:', result);
-          resolve(result);
-          
-        } catch (parseError) {
-          log.error('[CSV VALIDATION] Ошибка парсинга:', parseError);
-          reject(new Error('Ошибка чтения файла: ' + parseError.message));
-        }
-      };
-      
-      reader.onerror = () => {
-        reject(new Error('Ошибка чтения файла'));
-      };
-      
-      reader.readAsText(file, 'UTF-8');
-    });
+          return result;
+    } catch (parseError) {
+      log.error('[CSV VALIDATION] Ошибка парсинга в parseAndValidate:', parseError);
+      throw parseError;
+    }
   }
   
   /**
