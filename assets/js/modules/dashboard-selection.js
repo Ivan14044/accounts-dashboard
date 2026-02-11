@@ -146,17 +146,43 @@ function updateSelectedCount() {
   }
   
   const notice = getElementById('selectAllNotice');
-  if (!notice) return;
+  if (!notice) {
+    if (typeof logger !== 'undefined') {
+      logger.warn('[SELECT] Element #selectAllNotice not found in DOM');
+    }
+    return;
+  }
   const noticeText = notice.querySelector('.selection-notice-text');
-  if (!noticeText) return;
+  if (!noticeText) {
+    if (typeof logger !== 'undefined') {
+      logger.warn('[SELECT] Element .selection-notice-text not found in #selectAllNotice');
+    }
+    return;
+  }
   
   const totalFiltered = filteredTotalLive;
+  
+  if (typeof logger !== 'undefined') {
+    logger.debug('[SELECT] Notice logic:', {
+      selectedAllFiltered,
+      count,
+      totalFiltered,
+      shouldShowPartial: !selectedAllFiltered && count > 0 && totalFiltered > count
+    });
+  }
+  
   if (!selectedAllFiltered && count > 0 && totalFiltered > count) {
     notice.style.display = '';
     noticeText.innerHTML = `Выбраны <strong>${count}</strong> на этой странице. <a href="#" id="selectAllFilteredLink">Выделить все ${totalFiltered.toLocaleString('ru-RU')} по фильтру</a>`;
+    if (typeof logger !== 'undefined') {
+      logger.debug(`[SELECT] Showing partial notice: ${count} of ${totalFiltered}`);
+    }
   } else if (selectedAllFiltered) {
     notice.style.display = '';
     noticeText.innerHTML = `Выделены все <strong>${totalFiltered.toLocaleString('ru-RU')}</strong> по фильтру. <a href="#" id="clearSelectionLink">Очистить выбор</a>`;
+    if (typeof logger !== 'undefined') {
+      logger.debug(`[SELECT] Showing full notice: all ${totalFiltered} selected`);
+    }
   } else {
     notice.style.display = 'none';
     noticeText.innerHTML = '';
@@ -239,9 +265,13 @@ function handleSelectAllChange(isChecked) {
   // Используем батчинг для массового обновления чекбоксов
   if (typeof batchDOM !== 'undefined' && typeof batchDOM === 'function') {
     batchDOM(() => {
-      // Сначала обновляем selectedIds (без DOM операций)
+      // Сначала обновляем selectedIds БЕЗ вызова toggleRowSelection (чтобы не вызывать updateSelectedCount 50+ раз)
       allRowIds.forEach(rowId => {
-        toggleRowSelection(rowId, isChecked);
+        if (isChecked) {
+          selectedIds.add(rowId);
+        } else {
+          selectedIds.delete(rowId);
+        }
       });
       
       // Затем обновляем DOM элементы батчем
@@ -261,7 +291,11 @@ function handleSelectAllChange(isChecked) {
   } else {
     // Fallback без батчинга
     allRowIds.forEach(rowId => {
-      toggleRowSelection(rowId, isChecked);
+      if (isChecked) {
+        selectedIds.add(rowId);
+      } else {
+        selectedIds.delete(rowId);
+      }
       const checkbox = document.querySelector(`.row-checkbox[value="${rowId}"]`);
       if (checkbox) {
         checkbox.checked = isChecked;
@@ -271,6 +305,13 @@ function handleSelectAllChange(isChecked) {
         }
       }
     });
+  }
+  
+  // После батча обновляем счетчики ОДИН РАЗ и сохраняем в localStorage
+  saveSelectedIds();
+  
+  if (typeof logger !== 'undefined') {
+    logger.debug('✅ Массовое выделение завершено. Всего выбрано:', selectedIds.size);
   }
   
   // Обновляем счетчики через batchUpdater (если доступен)

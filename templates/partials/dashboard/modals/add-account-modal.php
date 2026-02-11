@@ -42,7 +42,6 @@
           ?>
           <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
           <input type="hidden" name="format" value="csv">
-          <input type="hidden" name="duplicate_action" value="skip">
           
           <div class="mb-3">
             <label for="accountsFile" class="form-label">
@@ -60,6 +59,63 @@
             <div class="form-text">
               Поддерживаются файлы CSV. Максимальный размер: 20 MB
             </div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label fw-semibold">
+              <i class="fas fa-copy me-2"></i>
+              Действие при обнаружении дубликатов логинов:
+            </label>
+            
+            <div class="form-check">
+              <input 
+                class="form-check-input" 
+                type="radio" 
+                name="duplicate_action" 
+                id="dupSkip" 
+                value="skip" 
+                checked
+              >
+              <label class="form-check-label" for="dupSkip">
+                <strong>Пропустить</strong> — не добавлять аккаунты с существующим логином (рекомендуется)
+              </label>
+            </div>
+            
+            <div class="form-check">
+              <input 
+                class="form-check-input" 
+                type="radio" 
+                name="duplicate_action" 
+                id="dupUpdate" 
+                value="update"
+              >
+              <label class="form-check-label" for="dupUpdate">
+                <strong>Обновить</strong> — заменить данные существующих аккаунтов новыми из файла
+              </label>
+            </div>
+            
+            <div class="form-check">
+              <input 
+                class="form-check-input" 
+                type="radio" 
+                name="duplicate_action" 
+                id="dupError" 
+                value="error"
+              >
+              <label class="form-check-label" for="dupError">
+                <strong>Ошибка</strong> — показать ошибку для дубликатов
+              </label>
+            </div>
+            
+            <div class="form-text mt-2">
+              <i class="fas fa-info-circle me-1"></i>
+              Дубликаты определяются по полю <code>login</code>. При выборе "Обновить" будут изменены все поля, кроме <code>login</code> и системных полей.
+            </div>
+          </div>
+          
+          <!-- Контейнер для предпросмотра CSV -->
+          <div id="csvPreviewContainer" class="d-none">
+            <!-- Здесь будет отображаться предпросмотр CSV -->
           </div>
           
         </form>

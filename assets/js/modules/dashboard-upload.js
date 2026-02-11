@@ -1,5 +1,6 @@
 /**
  * Модуль загрузки аккаунтов (импорт CSV/TXT)
+ * Включает клиентскую валидацию CSV перед отправкой на сервер
  * Экспортирует handleUploadAccountsGlobal и привязывает обработчики к форме
  */
 (function() {
@@ -11,6 +12,243 @@
       };
 
   const log = (typeof logger !== 'undefined') ? logger : { debug: () => {}, warn: () => {}, error: () => {} };
+  
+  // Конфигурация (загружается с сервера или используется fallback)
+  let config = {
+    MAX_IMPORT_FILE_SIZE: 20 * 1024 * 1024,
+    MAX_IMPORT_ROWS: 10000,
+    ALLOWED_STATUSES: ['active', 'banned', 'suspended', 'deleted', 'test']
+  };
+  
+  /**
+   * Загружает конфигурацию с сервера
+   */
+  async function loadConfig() {
+    try {
+      const response = await fetch('api/config.php');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.config) {
+          config = { ...config, ...data.config };
+          log.debug('[CONFIG] Конфигурация загружена с сервера:', config);
+        }
+      }
+    } catch (err) {
+      log.warn('[CONFIG] Не удалось загрузить конфигурацию, используется fallback:', err);
+    }
+  }
+  
+  // Загружаем конфигурацию при инициализации модуля
+  loadConfig();
+  
+  /**
+   * Валидация CSV файла на клиенте перед отправкой
+   * Проверяет заголовки, обязательные поля и первые строки
+   * 
+   * @param {File} file - CSV файл для валидации
+   * @returns {Promise<{valid: boolean, errors: string[], warnings: string[], preview: object}>}
+   */
+  async function validateCsvFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          const text = e.target.result;
+          const lines = text.split('\n');
+          
+          const errors = [];
+          const warnings = [];
+          let validDataLines = [];
+          
+          // Фильтруем пустые строки и комментарии
+          const nonEmptyLines = lines.filter(line => {
+            const trimmed = line.trim();
+            return trimmed !== '' && !trimmed.startsWith('#');
+          });
+          
+          if (nonEmptyLines.length < 2) {
+            errors.push('Файл пустой или содержит только заголовки');
+            resolve({ valid: false, errors, warnings, preview: null });
+            return;
+          }
+          
+          // Определяем разделитель
+          const delimiter = text.includes(';') ? ';' : ',';
+          
+          // Парсим заголовки
+          const headerLine = nonEmptyLines[0];
+          const headers = headerLine.split(delimiter).map(h => {
+            // Убираем звёздочки и приводим к нижнему регистру
+            return h.trim().toLowerCase().replace('*', '');
+          });
+          
+          log.debug('[CSV VALIDATION] Заголовки найдены:', headers);
+          
+          // Проверяем обязательные поля
+          const requiredFields = ['login', 'status'];
+          const missingFields = requiredFields.filter(field => !headers.includes(field));
+          
+          if (missingFields.length > 0) {
+            errors.push(`В файле отсутствуют обязательные поля: ${missingFields.join(', ')}`);
+          }
+          
+          // Находим индексы обязательных полей
+          const loginIdx = headers.indexOf('login');
+          const statusIdx = headers.indexOf('status');
+          
+          // Проверяем первые 10 строк данных (или все, если меньше)
+          const maxLinesToCheck = Math.min(11, nonEmptyLines.length);
+          const rowErrors = [];
+          
+          for (let i = 1; i < maxLinesToCheck; i++) {
+            const line = nonEmptyLines[i];
+            const values = line.split(delimiter);
+            
+            const rowNum = i + 1;
+            const rowData = {
+              rowNum,
+              login: values[loginIdx]?.trim() || '',
+              status: values[statusIdx]?.trim() || '',
+              valid: true,
+              errors: []
+            };
+            
+            // Проверка login
+            if (!rowData.login) {
+              rowData.valid = false;
+              rowData.errors.push('отсутствует login');
+              rowErrors.push(`Строка ${rowNum}: отсутствует login`);
+            }
+            
+            // Проверка status
+            if (!rowData.status) {
+              rowData.valid = false;
+              rowData.errors.push('отсутствует status');
+              rowErrors.push(`Строка ${rowNum}: отсутствует status`);
+            } else {
+              // Проверка допустимых статусов (используем конфигурацию)
+              const allowedStatuses = config.ALLOWED_STATUSES || ['active', 'banned', 'suspended', 'deleted', 'test'];
+              if (!allowedStatuses.includes(rowData.status.toLowerCase())) {
+                rowData.valid = false;
+                rowData.errors.push(`недопустимый статус '${rowData.status}' (допустимые: ${allowedStatuses.join(', ')})`);
+                warnings.push(`Строка ${rowNum}: статус '${rowData.status}' может быть недопустимым`);
+              }
+            }
+            
+            // Проверка количества колонок
+            if (values.length !== headers.length) {
+              rowData.valid = false;
+              rowData.errors.push(`неверное количество колонок (${values.length} вместо ${headers.length})`);
+              warnings.push(`Строка ${rowNum}: количество колонок не совпадает`);
+            }
+            
+            validDataLines.push(rowData);
+          }
+          
+          // Добавляем ошибки строк в общий список
+          if (rowErrors.length > 0) {
+            errors.push(...rowErrors.slice(0, 5)); // Показываем только первые 5 ошибок
+            if (rowErrors.length > 5) {
+              warnings.push(`... и ещё ${rowErrors.length - 5} ошибок в других строках`);
+            }
+          }
+          
+          // Предупреждения
+          const totalDataLines = nonEmptyLines.length - 1;
+          const maxRows = config.MAX_IMPORT_ROWS || 10000;
+          
+          if (totalDataLines > 1000) {
+            warnings.push(`Файл содержит ${totalDataLines} строк. Импорт может занять несколько минут.`);
+          }
+          
+          if (totalDataLines > maxRows) {
+            errors.push(`Файл содержит ${totalDataLines} строк, что превышает максимум (${maxRows}). Файл будет обрезан.`);
+          }
+          
+          const result = {
+            valid: errors.length === 0,
+            errors,
+            warnings,
+            preview: {
+              headers,
+              rows: validDataLines,
+              totalRows: totalDataLines,
+              delimiter
+            }
+          };
+          
+          log.debug('[CSV VALIDATION] Результат валидации:', result);
+          resolve(result);
+          
+        } catch (parseError) {
+          log.error('[CSV VALIDATION] Ошибка парсинга:', parseError);
+          reject(new Error('Ошибка чтения файла: ' + parseError.message));
+        }
+      };
+      
+      reader.onerror = () => {
+        reject(new Error('Ошибка чтения файла'));
+      };
+      
+      reader.readAsText(file, 'UTF-8');
+    });
+  }
+  
+  /**
+   * Показывает предпросмотр CSV в модальном окне
+   * 
+   * @param {object} preview - Данные предпросмотра из validateCsvFile
+   */
+  function showCsvPreview(preview) {
+    const previewContainer = cache.getById('csvPreviewContainer');
+    if (!previewContainer) {
+      log.warn('[CSV PREVIEW] Контейнер предпросмотра не найден');
+      return;
+    }
+    
+    const { headers, rows, totalRows } = preview;
+    
+    // Создаём таблицу предпросмотра
+    let html = '<div class="csv-preview">';
+    html += '<h6 class="mb-3"><i class="fas fa-eye me-2"></i>Предпросмотр (первые 10 строк из ' + totalRows + '):</h6>';
+    html += '<div class="table-responsive">';
+    html += '<table class="table table-sm table-bordered">';
+    
+    // Заголовки
+    html += '<thead class="table-light"><tr>';
+    headers.forEach(h => {
+      const isRequired = h === 'login' || h === 'status';
+      html += '<th>' + h + (isRequired ? '<span class="text-danger">*</span>' : '') + '</th>';
+    });
+    html += '</tr></thead>';
+    
+    // Данные
+    html += '<tbody>';
+    rows.forEach(row => {
+      const rowClass = row.valid ? '' : 'table-danger';
+      const title = row.errors.length > 0 ? 'title="' + row.errors.join(', ') + '"' : '';
+      html += '<tr class="' + rowClass + '" ' + title + '>';
+      html += '<td>' + (row.login || '<em class="text-muted">пусто</em>') + '</td>';
+      html += '<td>' + (row.status || '<em class="text-muted">пусто</em>') + '</td>';
+      // Остальные колонки (если есть)
+      for (let i = 2; i < headers.length; i++) {
+        html += '<td></td>'; // Упрощённо, без всех данных
+      }
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    
+    // Легенда
+    html += '<div class="mt-2 small text-muted">';
+    html += '<i class="fas fa-info-circle me-1"></i>';
+    html += 'Строки с ошибками подсвечены красным. Наведите курсор для деталей.';
+    html += '</div>';
+    html += '</div>';
+    
+    previewContainer.innerHTML = html;
+    previewContainer.classList.remove('d-none');
+  }
 
   async function handleUpload(e) {
     if (e && typeof e.preventDefault === 'function') e.preventDefault();
@@ -20,9 +258,11 @@
     const errorsDiv = cache.getById('addAccountErrors');
     const successDiv = cache.getById('addAccountSuccess');
     const fileInput = cache.getById('accountsFile');
+    const previewContainer = cache.getById('csvPreviewContainer');
 
     if (errorsDiv) errorsDiv.classList.add('d-none');
     if (successDiv) successDiv.classList.add('d-none');
+    if (previewContainer) previewContainer.classList.add('d-none');
 
     if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
       if (errorsDiv) { errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки'; errorsDiv.classList.remove('d-none'); }
@@ -30,7 +270,7 @@
     }
 
     const file = fileInput.files[0];
-    const maxSize = 20 * 1024 * 1024;
+    const maxSize = config.MAX_IMPORT_FILE_SIZE || (20 * 1024 * 1024);
     if (file.size > maxSize) {
       if (errorsDiv) { errorsDiv.textContent = `Файл слишком большой. Максимальный размер: ${Math.round(maxSize / 1024 / 1024)} MB`; errorsDiv.classList.remove('d-none'); }
       return;
@@ -40,6 +280,53 @@
     const hasValidExt = allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
     if (!hasValidExt) {
       if (errorsDiv) { errorsDiv.textContent = 'Поддерживаются только файлы CSV или TXT'; errorsDiv.classList.remove('d-none'); }
+      return;
+    }
+    
+    // НОВОЕ: Клиентская валидация CSV перед отправкой
+    log.debug('[UPLOAD] Начало валидации CSV файла...');
+    
+    try {
+      const validation = await validateCsvFile(file);
+      
+      // Показываем предпросмотр
+      if (validation.preview) {
+        showCsvPreview(validation.preview);
+      }
+      
+      // Показываем предупреждения (не блокируют загрузку)
+      if (validation.warnings.length > 0) {
+        const warningMsg = '<div class="mb-2"><strong>⚠️ Предупреждения:</strong></div>' + 
+                          validation.warnings.map(w => '• ' + w).join('<br>');
+        if (errorsDiv) {
+          errorsDiv.innerHTML = warningMsg;
+          errorsDiv.classList.remove('d-none', 'alert-danger');
+          errorsDiv.classList.add('alert-warning');
+        }
+      }
+      
+      // Показываем ошибки (блокируют загрузку)
+      if (!validation.valid) {
+        const errorMsg = '<div class="mb-2"><strong>❌ Ошибки валидации:</strong></div>' + 
+                        validation.errors.map(e => '• ' + e).join('<br>') +
+                        '<div class="mt-3"><small>Исправьте ошибки в CSV файле и попробуйте снова.</small></div>';
+        if (errorsDiv) {
+          errorsDiv.innerHTML = errorMsg;
+          errorsDiv.classList.remove('d-none', 'alert-warning');
+          errorsDiv.classList.add('alert-danger');
+        }
+        log.warn('[UPLOAD] Валидация не прошла:', validation.errors);
+        return; // Останавливаем загрузку
+      }
+      
+      log.debug('[UPLOAD] Валидация успешна');
+      
+    } catch (validationError) {
+      log.error('[UPLOAD] Ошибка валидации:', validationError);
+      if (errorsDiv) {
+        errorsDiv.textContent = 'Ошибка при проверке файла: ' + validationError.message;
+        errorsDiv.classList.remove('d-none');
+      }
       return;
     }
 
@@ -72,6 +359,7 @@
         if (!result || !result.success) throw new Error(result?.error || 'Ошибка при загрузке файла');
 
         const created = result.created || 0;
+        const updated = result.updated || 0;
         const duplicates = result.skipped || 0;
         const errorsCount = result.errors ? result.errors.length : 0;
         const errorGroups = {};
@@ -87,7 +375,8 @@
         if (typeof window.showToast === 'function') {
           let toastMsg = '';
           if (created > 0) toastMsg += `✅ Добавлено: ${created}`;
-          if (duplicates > 0) toastMsg += (toastMsg ? '\n' : '') + `⚠️ Пропущено (уже есть в панели): ${duplicates}`;
+          if (updated > 0) toastMsg += (toastMsg ? '\n' : '') + `🔄 Обновлено: ${updated}`;
+          if (duplicates > 0) toastMsg += (toastMsg ? '\n' : '') + `⚠️ Пропущено (дубликаты): ${duplicates}`;
           if (errorsCount > 0) {
             const keys = Object.keys(errorGroups);
             const hr = keys[0] === 'Status is required' ? 'отсутствует статус' : keys[0] === 'Login is required' ? 'отсутствует логин' : keys[0].toLowerCase();
@@ -152,12 +441,20 @@
   }
 
   window.handleUploadAccountsGlobal = handleUpload;
-  window.DashboardUpload = { init: () => {}, handleUpload };
+  window.DashboardUpload = { 
+    init: () => {}, 
+    handleUpload,
+    validateCsvFile,
+    showCsvPreview
+  };
 
   function bindForm() {
     const uploadForm = cache.getById('uploadAccountsForm');
     const uploadBtn = cache.getById('uploadAccountsBtn');
+    const fileInput = cache.getById('accountsFile');
+    
     if (uploadForm) uploadForm.addEventListener('submit', e => { e.preventDefault(); handleUpload(e); });
+    
     if (uploadBtn) {
       uploadBtn.addEventListener('click', function(e) {
         e.preventDefault();
@@ -169,6 +466,60 @@
         } else {
           const errorsDiv = cache.getById('addAccountErrors');
           if (errorsDiv) { errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки'; errorsDiv.classList.remove('d-none'); }
+        }
+      });
+    }
+    
+    // НОВОЕ: Автоматическая валидация при выборе файла
+    if (fileInput) {
+      fileInput.addEventListener('change', async function(e) {
+        const errorsDiv = cache.getById('addAccountErrors');
+        const previewContainer = cache.getById('csvPreviewContainer');
+        
+        if (errorsDiv) errorsDiv.classList.add('d-none');
+        if (previewContainer) previewContainer.classList.add('d-none');
+        
+        if (!e.target.files || e.target.files.length === 0) {
+          return;
+        }
+        
+        const file = e.target.files[0];
+        
+        log.debug('[FILE CHANGE] Начало автоматической валидации...');
+        
+        try {
+          const validation = await validateCsvFile(file);
+          
+          // Показываем предпросмотр
+          if (validation.preview) {
+            showCsvPreview(validation.preview);
+          }
+          
+          // Показываем предупреждения
+          if (validation.warnings.length > 0) {
+            const warningMsg = '<div class="mb-2"><strong>⚠️ Предупреждения:</strong></div>' + 
+                              validation.warnings.map(w => '• ' + w).join('<br>');
+            if (errorsDiv) {
+              errorsDiv.innerHTML = warningMsg;
+              errorsDiv.classList.remove('d-none', 'alert-danger');
+              errorsDiv.classList.add('alert-warning');
+            }
+          }
+          
+          // Показываем ошибки
+          if (!validation.valid) {
+            const errorMsg = '<div class="mb-2"><strong>❌ Ошибки валидации:</strong></div>' + 
+                            validation.errors.map(e => '• ' + e).join('<br>') +
+                            '<div class="mt-3"><small>Исправьте ошибки в CSV файле и выберите файл заново.</small></div>';
+            if (errorsDiv) {
+              errorsDiv.innerHTML = errorMsg;
+              errorsDiv.classList.remove('d-none', 'alert-warning');
+              errorsDiv.classList.add('alert-danger');
+            }
+          }
+          
+        } catch (validationError) {
+          log.error('[FILE CHANGE] Ошибка валидации:', validationError);
         }
       });
     }

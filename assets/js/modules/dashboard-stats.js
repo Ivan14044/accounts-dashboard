@@ -1,10 +1,8 @@
 /**
  * Модуль управления статистикой дашборда
  * Отвечает за обновление карточек статистики, скрытие/показ карточек, работу с MutationObserver
+ * LS_KEY_HIDDEN_CARDS определяется в init-script.php
  */
-
-// Константы
-const LS_KEY_HIDDEN_CARDS = 'dashboard_hidden_cards';
 
 // Состояние модуля
 let hiddenCards = new Set();

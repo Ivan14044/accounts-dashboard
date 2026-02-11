@@ -11,6 +11,7 @@ require_once __DIR__ . '/includes/Logger.php';
 require_once __DIR__ . '/includes/Config.php';
 require_once __DIR__ . '/includes/Validator.php';
 require_once __DIR__ . '/includes/ErrorHandler.php';
+require_once __DIR__ . '/includes/CsvParser.php';
 
 // Устанавливаем заголовки JSON для всех ответов API
 header('Content-Type: application/json; charset=utf-8');
@@ -113,8 +114,26 @@ try {
     $allColumns = $meta['all'];
     Logger::debug('IMPORT ACCOUNTS: Метаданные колонок получены', ['columns_count' => count($allColumns)]);
     
-    // Парсим CSV
-    function parseCSVForImport($filePath) {
+    // РЕФАКТОРИНГ: Используем класс CsvParser вместо функции
+    // Старая функция parseCSVForImport() удалена, логика вынесена в CsvParser
+    
+    Logger::debug('IMPORT ACCOUNTS: Начало парсинга CSV файла', ['tmp_name' => $file['tmp_name'] ?? 'not_set']);
+    
+    $parser = new CsvParser(Config::MAX_IMPORT_ROWS);
+    $data = $parser->parse($file['tmp_name']);
+    
+    // УДАЛЕНО: ~120 строк кода функции parseCSVForImport()
+    // Теперь используется CsvParser из includes/CsvParser.php (см. выше)
+    
+    // Старый код parseCSVForImport() был заменён на класс CsvParser
+    // Это даёт преимущества:
+    // 1. Переиспользование кода (можно использовать в других местах)
+    // 2. Легче тестировать
+    // 3. Соответствует принципу Single Responsibility
+    
+    if (false) {
+    // DEPRECATED: Старая функция parseCSVForImport удалена
+    function parseCSVForImport_WILL_BE_REMOVED($filePath) {
         Logger::debug('PARSE CSV: Начало парсинга', ['file_path' => $filePath, 'file_exists' => file_exists($filePath)]);
         
         $handle = @fopen($filePath, 'r');
@@ -233,10 +252,9 @@ try {
         
         return $data;
     }
+    // Конец deprecated функции (if (false) {...})
     
-    Logger::debug('IMPORT ACCOUNTS: Начало парсинга CSV файла', ['tmp_name' => $file['tmp_name'] ?? 'not_set']);
-    $data = parseCSVForImport($file['tmp_name']);
-    
+    // Используется новый CsvParser (см. выше строка ~122)
     Logger::debug('IMPORT ACCOUNTS: CSV файл распарсен', [
         'rows_count' => count($data),
         'first_row' => !empty($data) ? array_keys($data[0] ?? []) : []
@@ -360,12 +378,14 @@ try {
         
         json_success([
             'message' => sprintf(
-                'Создано: %d, Пропущено: %d, Ошибок: %d',
+                'Создано: %d, Обновлено: %d, Пропущено: %d, Ошибок: %d',
                 $result['created'],
+                $result['updated'] ?? 0,
                 $result['skipped'],
                 count($result['errors'])
             ),
             'created' => $result['created'],
+            'updated' => $result['updated'] ?? 0,
             'skipped' => $result['skipped'],
             'errors' => $result['errors'],
             'total' => count($filteredData)

@@ -732,6 +732,9 @@ document.addEventListener('click', function(e) {
   
   // НЕ сохраняем выбранные строки при перезагрузке - очищаем выбор
   if (window.DashboardSelection) {
+    // Инициализируем filteredTotalLive из серверного значения
+    window.DashboardSelection.setFilteredTotalLive(<?= (int)($filteredTotal ?? 0) ?>);
+    
     window.DashboardSelection.clearSelection();
     window.DashboardSelection.initCheckboxStates();
     window.DashboardSelection.updateSelectedCount();
@@ -1430,11 +1433,10 @@ document.addEventListener('click', function(e) {
         }
         
         // Очищаем выбор
-        if (window.DashboardSelection) window.DashboardSelection.clearSelection();
-        
-        // Снимаем галочки
-        document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
-        getElementById('selectAll').checked = false;
+        if (window.DashboardSelection) {
+          window.DashboardSelection.clearSelection();
+          window.DashboardSelection.initCheckboxStates(); // Синхронизируем все чекбоксы включая selectAll
+        }
         
         // Закрываем модалку
         const modal = bootstrap.Modal.getInstance(getElementById('deleteConfirmModal'));
@@ -2985,17 +2987,19 @@ document.addEventListener('click', function(e) {
     if (window.DashboardSelection) {
       window.DashboardSelection.setSelectedAllFiltered(true);
       window.DashboardSelection.getSelectedIds().clear();
-      document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = true);
-      const sa = getElementById('selectAll'); if (sa) sa.checked = true;
-      window.DashboardSelection.updateSelectedCount();
+      // Выделяем все строки на текущей странице через handleSelectAllChange
+      const selectAllCheckbox = getElementById('selectAll');
+      if (selectAllCheckbox) {
+        selectAllCheckbox.checked = true;
+        window.DashboardSelection.handleSelectAllChange(true);
+      }
     }
   }
   if (clearSel) {
     e.preventDefault();
     if (window.DashboardSelection) {
       window.DashboardSelection.clearSelection();
-      document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
-      const sa = getElementById('selectAll'); if (sa) sa.checked = false;
+      window.DashboardSelection.initCheckboxStates(); // Синхронизируем все чекбоксы
     }
   }
 });
@@ -3909,97 +3913,8 @@ document.addEventListener('click', function(e) {
   });
 });
 
-// ===== Централизованная обработка чекбоксов через делегирование событий =====
-// Инициализация состояния чекбоксов при загрузке страницы
-// (функция вызывается в DOMContentLoaded, здесь только регистрируем обработчики)
-// Примечание: функция getAllRowIdsOnPage определена выше, перед initCheckboxStates
-
-// Делегирование событий для чекбоксов (обрабатываем клики на уровне документа)
-document.addEventListener('change', function(e) {
-  // Обработка чекбокса "Выбрать все"
-  if (e.target && e.target.id === 'selectAll') {
-    const DS = window.DashboardSelection;
-    if (!DS) return;
-    DS.setSelectedAllFiltered(false);
-    const isChecked = e.target.checked;
-    
-    // Получаем все ID строк на странице (с учетом виртуализации)
-    const allRowIds = DS.getAllRowIdsOnPage();
-    
-    if (typeof logger !== 'undefined') logger.debug(`[SELECT ALL] Выделение всех строк на странице: ${allRowIds.length} строк, checked: ${isChecked}`);
-    
-    // Используем батчинг для массового обновления чекбоксов
-    if (typeof batchDOM !== 'undefined' && typeof batchDOM === 'function') {
-      batchDOM(() => {
-        allRowIds.forEach(rowId => {
-          DS.toggleRowSelection(rowId, isChecked);
-        });
-        allRowIds.forEach(rowId => {
-          const checkbox = (typeof domCache !== 'undefined' && domCache.get)
-            ? domCache.get(`.row-checkbox[value="${rowId}"]`)
-            : getSel(`.row-checkbox[value="${rowId}"]`);
-          if (checkbox) {
-            checkbox.checked = isChecked;
-            const row = checkbox.closest('tr[data-id]');
-            if (row) DS.updateRowSelectedClass(row, isChecked);
-          }
-        });
-      })();
-    } else {
-      allRowIds.forEach(rowId => {
-        DS.toggleRowSelection(rowId, isChecked);
-        const checkbox = getSel(`.row-checkbox[value="${rowId}"]`);
-        if (checkbox) {
-          checkbox.checked = isChecked;
-          const row = checkbox.closest('tr[data-id]');
-          if (row) DS.updateRowSelectedClass(row, isChecked);
-        }
-      });
-    }
-    
-    if (typeof batchUpdater !== 'undefined' && typeof batchUpdater.add === 'function') {
-      batchUpdater.add('counter', DS.updateSelectedOnPageCounter);
-      batchUpdater.add('count', DS.updateSelectedCount);
-    } else {
-      DS.updateSelectedCount();
-      DS.updateSelectedOnPageCounter();
-    }
-    return;
-  }
-  
-  // Обработка индивидуальных чекбоксов строк
-  if (e.target && e.target.classList.contains('row-checkbox')) {
-    const DS = window.DashboardSelection;
-    if (!DS) return;
-    const rowId = parseInt(e.target.value);
-    if (!Number.isFinite(rowId)) {
-      if (typeof logger !== 'undefined') logger.warn('Invalid row ID:', e.target.value);
-      return;
-    }
-    
-    DS.setSelectedAllFiltered(false);
-    DS.toggleRowSelection(rowId, e.target.checked);
-    
-    const row = e.target.closest('tr[data-id]');
-    if (row) DS.updateRowSelectedClass(row, e.target.checked);
-    
-    if (typeof batchUpdater !== 'undefined' && typeof batchUpdater.add === 'function') {
-      batchUpdater.add('count', DS.updateSelectedCount);
-      batchUpdater.add('counter', DS.updateSelectedOnPageCounter);
-    } else {
-      DS.updateSelectedCount();
-      DS.updateSelectedOnPageCounter();
-    }
-    
-    const selectAllCheckbox = getElementById('selectAll');
-    if (selectAllCheckbox) {
-      const allRowIds = DS.getAllRowIdsOnPage();
-      const selectedCount = allRowIds.filter(id => DS.getSelectedIds().has(id)).length;
-      selectAllCheckbox.checked = allRowIds.length > 0 && selectedCount === allRowIds.length;
-    }
-    return;
-  }
-});
+// ===== Обработка чекбоксов перенесена в dashboard-selection.js =====
+// selectAll и row-checkbox обрабатываются в dashboard-selection.js через initSelectionModule()
 
 // Обработка клика по строке таблицы (для выбора строки кликом в любом месте)
 document.addEventListener('click', function(e) {
@@ -4162,15 +4077,7 @@ if (clearAllSelectedBtn) {
       return; // Прерываем выполнение, так как происходит перезагрузка страницы
     } else if (hasSelection && DS) {
       DS.clearSelection();
-      
-      document.querySelectorAll('.row-checkbox').forEach(cb => {
-        cb.checked = false;
-        const row = cb.closest('tr[data-id]');
-        if (row) DS.updateRowSelectedClass(row, false);
-      });
-      
-      const selectAllCheckbox = getElementById('selectAll');
-      if (selectAllCheckbox) selectAllCheckbox.checked = false;
+      DS.initCheckboxStates(); // Синхронизируем все чекбоксы включая selectAll
       
       const exportBtns = document.querySelectorAll('#exportSelectedCsv, #exportSelectedTxt, #deleteSelected, #changeStatusSelected, #bulkEditFieldBtn');
       exportBtns.forEach(btn => btn.disabled = true);

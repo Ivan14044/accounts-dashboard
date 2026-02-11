@@ -22,6 +22,7 @@
   <link href="assets/css/components-unified.css?v=<?= time() ?>" rel="stylesheet">
   <link href="assets/css/filters-modern.css?v=<?= time() ?>" rel="stylesheet">
   <link href="assets/css/toast.css?v=<?= time() ?>" rel="stylesheet">
+  <link href="assets/css/csv-preview.css?v=<?= time() ?>" rel="stylesheet">
   <link href="assets/css/modern-header.css?v=<?= time() ?>" rel="stylesheet">
   <link href="assets/css/sticky-scrollbar.css?v=<?= time() ?>" rel="stylesheet">
   <!-- Единая тема для всех элементов -->
