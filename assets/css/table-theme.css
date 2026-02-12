@@ -81,9 +81,10 @@
   vertical-align: baseline;
 }
 
-/* Убираем любые transform/position offset от Bootstrap */
+/* Убираем любые transform от Bootstrap, но сохраняем relative
+   чтобы кастомная галочка (::after) центрировалась внутри чекбокса */
 #accountsTable .form-check-input {
-  position: static !important;
+  position: relative !important;
   transform: none !important;
 }
 

@@ -165,6 +165,51 @@
         window.DashboardSelection.invalidateCache();
       }
 
+      // Обновляем информацию о пагинации (номер текущей страницы, всего страниц и активный элемент пагинации)
+      if (typeof data.page === 'number') {
+        const pageNumEl = getEl('pageNum');
+        if (pageNumEl) {
+          pageNumEl.textContent = String(data.page);
+        }
+        const pageSelectEl = getEl('pageSelect');
+        if (pageSelectEl) {
+          pageSelectEl.value = String(data.page);
+        }
+      }
+      if (typeof data.pages === 'number') {
+        const pagesCountEl = getEl('pagesCount');
+        if (pagesCountEl) {
+          pagesCountEl.textContent = String(data.pages);
+        }
+      }
+
+      // Переключаем .active в пагинации в соответствии с текущей страницей
+      if (typeof data.page === 'number') {
+        document.querySelectorAll('.dashboard-table__pagination ul.pagination').forEach(ul => {
+          ul.querySelectorAll('li.page-item').forEach(li => {
+            const linkEl = li.querySelector('.page-link');
+            if (!linkEl) return;
+
+            const text = (linkEl.textContent || '').trim();
+            const pageNum = parseInt(text, 10);
+            if (!Number.isFinite(pageNum)) {
+              // Стрелки, многоточия и т.п. пропускаем
+              return;
+            }
+
+            if (pageNum === data.page) {
+              li.classList.add('active');
+              linkEl.setAttribute('aria-current', 'page');
+            } else {
+              li.classList.remove('active');
+              if (linkEl.getAttribute('aria-current') === 'page') {
+                linkEl.removeAttribute('aria-current');
+              }
+            }
+          });
+        });
+      }
+
       const showingCountTopEl = getEl('showingCountTop');
       if (showingCountTopEl && Array.isArray(data.rows)) {
         showingCountTopEl.textContent = String(data.rows.length);
