@@ -46,6 +46,9 @@ function removeFilterChip(filterName) {
         case 'full_filled':
             url.searchParams.delete('full_filled');
             break;
+        case 'favorites_only':
+            url.searchParams.delete('favorites_only');
+            break;
         case 'pharma':
             url.searchParams.delete('pharma_from');
             url.searchParams.delete('pharma_to');
@@ -79,9 +82,25 @@ function removeFilterChip(filterName) {
             return;
     }
     
-    // Сбрасываем на первую страницу
     url.searchParams.set('page', '1');
-    window.location.href = url.toString();
+    applyFiltersWithoutReload(url);
+}
+
+/**
+ * Применить фильтры без перезагрузки страницы: обновить URL и подгрузить данные через AJAX.
+ * @param {URL} url - новый URL с параметрами фильтров
+ */
+function applyFiltersWithoutReload(url) {
+    if (!url || !(url instanceof URL)) return;
+    history.replaceState(null, '', url.toString());
+    if (typeof window.DashboardSelection !== 'undefined' && window.DashboardSelection.clearSelection) {
+        window.DashboardSelection.clearSelection();
+    }
+    if (typeof refreshDashboardData === 'function') {
+        refreshDashboardData();
+    } else {
+        window.location.href = url.toString();
+    }
 }
 
 /**
@@ -122,13 +141,13 @@ function removeStatusChip(statusValue) {
         });
     }
     
-    // Сбрасываем на первую страницу
     url.searchParams.set('page', '1');
-    window.location.href = url.toString();
+    applyFiltersWithoutReload(url);
 }
 
-// Делаем функцию глобально доступной
+// Делаем функции глобально доступными
 window.removeStatusChip = removeStatusChip;
+window.applyFiltersWithoutReload = applyFiltersWithoutReload;
 
 // ========================================
 // ПОЛЕ ПОИСКА
@@ -228,10 +247,10 @@ function toggleQuickFilter(filterName, wrapper) {
         wrapper.classList.remove('active');
     }
     
-    // Автоматически отправляем форму
+    // Применяем фильтры без перезагрузки
     const form = checkbox.closest('form');
     if (form) {
-        form.submit();
+        applyFormFiltersWithoutReload(form);
     }
 }
 
@@ -240,69 +259,98 @@ function toggleQuickFilter(filterName, wrapper) {
 // АВТОМАТИЧЕСКОЕ ПРИМЕНЕНИЕ ФИЛЬТРОВ
 // ========================================
 
-// Отслеживаем изменения в полях формы для автоматического применения
-// Используем делегирование событий для работы с динамически обновляемыми элементами
+/**
+ * Собрать URL по текущему состоянию формы фильтров (без перезагрузки).
+ * @param {HTMLFormElement} form - форма #filtersForm
+ * @returns {URL}
+ */
+function getFormFiltersUrl(form) {
+    const url = new URL(window.location);
+    const fd = new FormData(form);
+    // Сначала выставляем все одиночные параметры
+    for (const [key, value] of fd) {
+        if (key === 'status[]' || key === 'empty_status') continue;
+        if (value !== '' && value != null) {
+            url.searchParams.set(key, value);
+        } else {
+            url.searchParams.delete(key);
+        }
+    }
+    // status[] и empty_status — удаляем все и выставляем заново
+    for (const key of ['status[]', 'status', 'empty_status']) {
+        while (url.searchParams.has(key)) url.searchParams.delete(key);
+    }
+    for (const [key, value] of fd) {
+        if (key === 'status[]') url.searchParams.append('status[]', value);
+        if (key === 'empty_status' && value) url.searchParams.set('empty_status', '1');
+    }
+    url.searchParams.set('page', '1');
+    return url;
+}
+
+/**
+ * Применить текущие значения формы фильтров без перезагрузки страницы.
+ * @param {HTMLFormElement} form - форма #filtersForm
+ */
+function applyFormFiltersWithoutReload(form) {
+    if (!form) return;
+    const url = getFormFiltersUrl(form);
+    applyFiltersWithoutReload(url);
+}
+
+window.applyFormFiltersWithoutReload = applyFormFiltersWithoutReload;
+
+// Отслеживаем изменения в полях формы — применяем без перезагрузки (только таблица и статистика)
 document.addEventListener('DOMContentLoaded', function() {
     const filtersForm = document.getElementById('filtersForm');
     if (!filtersForm) return;
-    
-    // Делегирование событий на форме для чекбоксов статусов
+
+    // Чекбоксы статусов: обновляем только таблицу и URL
     filtersForm.addEventListener('change', function(e) {
         if (e.target.classList.contains('status-checkbox')) {
-            // Небольшая задержка для визуальной обратной связи
             setTimeout(() => {
-                if (filtersForm.parentNode) { // Проверяем, что форма еще в DOM
-                    filtersForm.submit();
-                }
+                if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
             }, 100);
         }
     });
-    
-    // Делегирование для select (status_marketplace, currency)
+
+    // Select (status_marketplace, currency и т.п.)
     filtersForm.addEventListener('change', function(e) {
         const target = e.target;
-        if (target.tagName === 'SELECT' && 
-            (target.name === 'status_marketplace' || target.name === 'currency')) {
+        if (target.tagName === 'SELECT' && (target.name === 'status_marketplace' || target.name === 'currency' || target.name === 'geo' || target.name === 'status_rk')) {
             setTimeout(() => {
-                if (filtersForm.parentNode) {
-                    filtersForm.submit();
-                }
+                if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
             }, 100);
         }
     });
-    
-    // Делегирование для диапазонных фильтров при потере фокуса
+
+    // Диапазонные поля при потере фокуса
     filtersForm.addEventListener('blur', function(e) {
         const target = e.target;
-        if (target.classList.contains('range-input-modern')) {
-            // Проверяем что значение изменилось
-            if (target.dataset.initialValue !== target.value) {
-                setTimeout(() => {
-                    if (filtersForm.parentNode) {
-                        filtersForm.submit();
-                    }
-                }, 100);
-            }
+        if (target.classList.contains('range-input-modern') && target.dataset.initialValue !== target.value) {
+            setTimeout(() => {
+                if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
+            }, 100);
         }
-    }, true); // Используем capture phase для blur
-    
-    // Сохраняем начальное значение при фокусе
+    }, true);
+
     filtersForm.addEventListener('focus', function(e) {
         const target = e.target;
-        if (target.classList.contains('range-input-modern')) {
-            target.dataset.initialValue = target.value;
-        }
-    }, true); // Используем capture phase для focus
-    
-    // Enter тоже применяет
+        if (target.classList.contains('range-input-modern')) target.dataset.initialValue = target.value;
+    }, true);
+
     filtersForm.addEventListener('keypress', function(e) {
         const target = e.target;
         if (target.classList.contains('range-input-modern') && e.key === 'Enter') {
             e.preventDefault();
-            if (filtersForm.parentNode) {
-                filtersForm.submit();
-            }
+            if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
         }
+    });
+
+    // Кнопка «Обновить»: применить фильтры без перезагрузки
+    filtersForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        applyFormFiltersWithoutReload(filtersForm);
     });
 });
 
