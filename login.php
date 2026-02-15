@@ -144,12 +144,16 @@ function e($string) {
     }
 
     .form-signin {
-      max-width: 380px;
-      padding: 15px 35px 45px;
+      max-width: 400px;
+      width: 100%;
+      padding: 24px 28px 32px;
       margin: 0 auto;
       background-color: #fff;
-      border: 1px solid rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
       box-sizing: border-box;
+      overflow: hidden;
     }
 
     .form-signin-heading {
@@ -161,15 +165,35 @@ function e($string) {
     }
 
     .checkbox {
-      margin-bottom: 30px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
       font-weight: normal;
       font-size: 14px;
       color: #333;
+      cursor: pointer;
+      user-select: none;
     }
 
     .checkbox input[type="checkbox"] {
-      margin-right: 8px;
+      width: 18px;
+      height: 18px;
+      margin: 0;
       cursor: pointer;
+      accent-color: #337ab7;
+      border-radius: 4px;
+      border: 1px solid #cbd5e0;
+      flex-shrink: 0;
+    }
+
+    .checkbox input[type="checkbox"]:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(51, 122, 183, 0.25);
+    }
+
+    .checkbox input[type="checkbox"]:hover {
+      border-color: #337ab7;
     }
 
     .form-control {
@@ -294,29 +318,47 @@ function e($string) {
 
     .help-text {
       font-size: 12px;
-      color: #777;
-      margin-top: 5px;
+      color: #666;
+      margin-top: 8px;
+      margin-bottom: 20px;
       line-height: 1.5;
+      max-width: 100%;
+      overflow-wrap: break-word;
     }
 
     .help-text code {
-      background: #f5f5f5;
-      padding: 2px 6px;
-      border-radius: 3px;
+      display: block;
+      max-width: 100%;
+      margin-top: 4px;
+      padding: 8px 10px;
+      background: #f6f8fa;
+      border: 1px solid #e8eaed;
+      border-radius: 6px;
       font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
       font-size: 11px;
+      line-height: 1.5;
+      word-break: break-all;
+      overflow-wrap: break-word;
+      white-space: pre-wrap;
+      box-sizing: border-box;
     }
 
     @media (max-width: 480px) {
       .form-signin {
-        padding: 15px 20px 35px;
+        padding: 20px 18px 28px;
         max-width: 100%;
-        margin: 0 15px;
+        margin: 0 16px;
+        border-radius: 8px;
       }
 
       .wrapper {
         margin-top: 40px;
         margin-bottom: 40px;
+      }
+
+      .help-text code {
+        padding: 6px 8px;
+        font-size: 10px;
       }
     }
   </style>
