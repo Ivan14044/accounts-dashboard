@@ -171,9 +171,13 @@
         if (pageNumEl) {
           pageNumEl.textContent = String(data.page);
         }
-        const pageSelectEl = getEl('pageSelect');
-        if (pageSelectEl) {
-          pageSelectEl.value = String(data.page);
+        // Синхронизируем поле «Перейти на страницу»
+        const pageJumpInputEl = getEl('pageJumpInput');
+        if (pageJumpInputEl) {
+          pageJumpInputEl.value = String(data.page);
+          if (typeof data.pages === 'number') {
+            pageJumpInputEl.max = String(data.pages);
+          }
         }
       }
       if (typeof data.pages === 'number') {

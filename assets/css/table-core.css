@@ -255,9 +255,14 @@
 }
 
 .dashboard-table__footer-info {
+  flex-shrink: 0;
+}
+
+/* Правая группа: переход на страницу + кнопки пагинации — визуально и логически вместе */
+.dashboard-table__footer-nav {
   display: flex;
-  gap: 1.5rem;
   align-items: center;
+  gap: 1.25rem;
   flex-wrap: wrap;
 }
 

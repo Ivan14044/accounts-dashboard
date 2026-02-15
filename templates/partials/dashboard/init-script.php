@@ -1176,9 +1176,8 @@ document.addEventListener('click', function(e) {
     // Обновляем номер страницы в футере немедленно
     const pageNumEl = getElementById('pageNum');
     if (pageNumEl) pageNumEl.textContent = String(pageParam);
-    // Обновляем селект страниц
-    const pageSelectEl = getElementById('pageSelect');
-    if (pageSelectEl) pageSelectEl.value = String(pageParam);
+    const pageJumpInputEl = getElementById('pageJumpInput');
+    if (pageJumpInputEl) pageJumpInputEl.value = String(pageParam);
     // НЕ очищаем selectedIds при пагинации - выбранные строки должны сохраняться между страницами
     // selectedAllFiltered сбрасываем, так как это относится к текущему фильтру
     if (window.DashboardSelection) {
@@ -1450,24 +1449,39 @@ document.addEventListener('click', function(e) {
     });
   }
   
-  // Селект быстрого перехода по страницам
-  const pageSelect = getElementById('pageSelect');
-  if (pageSelect) {
-    pageSelect.addEventListener('change', () => {
-      const selectedPage = parseInt(pageSelect.value);
-      if (selectedPage && selectedPage > 0) {
-        const url = new URL(window.location);
-        url.searchParams.set('page', String(selectedPage));
-        history.replaceState(null, '', url.toString());
-        // Обновляем номер страницы в футере немедленно
-        const pageNumEl = getElementById('pageNum');
-        if (pageNumEl) pageNumEl.textContent = String(selectedPage);
-        window.DashboardSelection && window.DashboardSelection.clearSelection();
-        refreshDashboardData();
+  // Переход на страницу по вводу номера (поле + кнопка «Перейти»)
+  const pageJumpInput = getElementById('pageJumpInput');
+  const pageJumpBtn = getElementById('pageJumpBtn');
+  if (pageJumpBtn && pageJumpInput) {
+    function applyPageJump() {
+      const pagesEl = getElementById('pagesCount');
+      const totalPages = pagesEl ? parseInt(pagesEl.textContent, 10) : 1;
+      let num = parseInt(pageJumpInput.value, 10);
+      if (!Number.isFinite(num) || num < 1) num = 1;
+      if (num > totalPages) num = totalPages;
+      pageJumpInput.value = String(num);
+      goToPage(num);
+    }
+    pageJumpBtn.addEventListener('click', applyPageJump);
+    pageJumpInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        applyPageJump();
       }
     });
   }
 });
+
+function goToPage(selectedPage) {
+  if (!selectedPage || selectedPage < 1) return;
+  const url = new URL(window.location);
+  url.searchParams.set('page', String(selectedPage));
+  history.replaceState(null, '', url.toString());
+  const pageNumEl = getElementById('pageNum');
+  if (pageNumEl) pageNumEl.textContent = String(selectedPage);
+  window.DashboardSelection && window.DashboardSelection.clearSelection();
+  refreshDashboardData();
+}
 
 // ===== Адаптивность таблицы =====
 // isRefreshing, overlayShownAt — в dashboard-refresh.js

@@ -9,26 +9,22 @@ $__commonQs = $__commonQs ?: [];
 ?>
 <footer class="dashboard-table__footer">
   <div class="dashboard-table__footer-info text-muted small">
-    <div>
-      Найдено: <span id="foundTotal"><?= number_format($filteredTotal) ?></span>
-      • Стр. <span id="pageNum"><?= (int)max(1, (int)get_param('page', 1)) ?></span>
-      из <span id="pagesCount"><?= (int)$pages ?></span>
-      • Показывается: <span id="showingCount"><?= count($rows) ?></span>
-      <span id="virtualizationHint" class="ms-2" style="display: none;">
-        <i class="fas fa-info-circle text-info" title="Виртуализация активна"></i>
-        <span id="virtualizationStats">Видно <span id="visibleRowsCount">0</span> из <span id="totalRowsOnPage">0</span> строк</span>
-      </span>
-    </div>
-    <div class="dashboard-table__footer-select d-flex align-items-center gap-2">
-      <label class="form-label mb-0 small" for="pageSelect">Перейти на стр.:</label>
-      <select class="form-select form-select-sm" id="pageSelect" style="width: auto; min-width: 70px;">
-        <?php for ($i = 1; $i <= $pages; $i++): ?>
-          <option value="<?= $i ?>" <?= $page === $i ? 'selected' : '' ?>><?= $i ?></option>
-        <?php endfor; ?>
-      </select>
-    </div>
+    Найдено: <span id="foundTotal"><?= number_format($filteredTotal) ?></span>
+    • Стр. <span id="pageNum"><?= (int)max(1, (int)get_param('page', 1)) ?></span>
+    из <span id="pagesCount"><?= (int)$pages ?></span>
+    • Показывается: <span id="showingCount"><?= count($rows) ?></span>
+    <span id="virtualizationHint" class="ms-2" style="display: none;">
+      <i class="fas fa-info-circle text-info" title="Виртуализация активна"></i>
+      <span id="virtualizationStats">Видно <span id="visibleRowsCount">0</span> из <span id="totalRowsOnPage">0</span> строк</span>
+    </span>
   </div>
-  <?php if ($pages > 1): ?>
+  <div class="dashboard-table__footer-nav">
+    <div class="dashboard-table__footer-select d-flex align-items-center gap-2">
+      <label class="form-label mb-0 small" for="pageJumpInput">Перейти на стр.:</label>
+      <input type="number" class="form-control form-control-sm" id="pageJumpInput" min="1" max="<?= (int)$pages ?>" value="<?= (int)$page ?>" style="width: 70px;" placeholder="№" aria-label="Номер страницы">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="pageJumpBtn" aria-label="Перейти на введённую страницу">Перейти</button>
+    </div>
+    <?php if ($pages > 1): ?>
     <nav aria-label="Навигация по страницам" class="dashboard-table__pagination">
       <ul class="pagination m-0">
         <li class="page-item <?= $page == 1 ? 'disabled' : '' ?>">
@@ -80,5 +76,6 @@ $__commonQs = $__commonQs ?: [];
         </li>
       </ul>
     </nav>
-  <?php endif; ?>
+    <?php endif; ?>
+  </div>
 </footer>
