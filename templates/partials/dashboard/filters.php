@@ -7,9 +7,7 @@
           <i class="fas fa-filter"></i>
         </div>
         <span class="filters-modern-title">Фильтры</span>
-        <?php if ($activeFiltersCount > 0): ?>
-        <span class="filters-modern-badge"><?= (int)$activeFiltersCount ?></span>
-        <?php endif; ?>
+        <span class="filters-modern-badge" style="<?= $activeFiltersCount > 0 ? '' : 'display:none' ?>"><?= (int)$activeFiltersCount ?></span>
       </div>
       <div class="filters-modern-actions" id="filtersActionsContainer">
         <div id="savedFiltersContainer" style="display: inline-block; margin-right: 8px;"></div>

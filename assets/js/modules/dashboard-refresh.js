@@ -237,6 +237,11 @@
         window.DashboardSelection.updateSelectedOnPageCounter();
       }
 
+      // Синхронизируем блок «Активные фильтры» (chips) с текущим URL
+      if (typeof window.renderActiveFiltersFromUrl === 'function') {
+        window.renderActiveFiltersFromUrl();
+      }
+
     } catch (error) {
       if (error.name === 'AbortError' || (error.message && error.message.includes && error.message.includes('aborted'))) {
         return;

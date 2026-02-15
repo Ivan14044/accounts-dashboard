@@ -3,9 +3,135 @@
  * Обработка interactions, animations, ripple effects
  */
 
+// Экранирование для безопасного вывода в HTML
+function escapeHtml(str) {
+    if (str == null) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 // ========================================
 // УПРАВЛЕНИЕ CHIPS (Активные фильтры)
 // ========================================
+
+/**
+ * Построить HTML чипов активных фильтров по текущему URL.
+ * Вызывается после refreshDashboardData(), чтобы блок «Активные фильтры» соответствовал URL.
+ */
+function renderActiveFiltersFromUrl() {
+    const listEl = document.getElementById('activeFiltersList');
+    const sectionEl = document.getElementById('activeFiltersSection');
+    if (!listEl) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const chips = [];
+
+    // Поиск
+    const q = params.get('q');
+    if (q !== null && q !== '') {
+        const short = q.length > 20 ? q.substring(0, 20) + '...' : q;
+        chips.push('<div class="filter-chip" data-filter="q"><i class="fas fa-search filter-chip-icon"></i><span>Поиск: "' + escapeHtml(short) + '"</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+
+    // Пустой статус
+    if (params.get('empty_status') === '1') {
+        chips.push('<div class="filter-chip" data-filter="status" data-status-value="__empty__"><i class="fas fa-exclamation-triangle filter-chip-icon"></i><span>Пустой статус</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+
+    // Статусы
+    const statuses = params.getAll('status[]');
+    statuses.forEach(function (st) {
+        if (st !== '' && st !== '__empty__') {
+            chips.push('<div class="filter-chip" data-filter="status" data-status-value="' + escapeHtml(st) + '"><i class="fas fa-tag filter-chip-icon"></i><span>' + escapeHtml(st) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+        }
+    });
+
+    // Булевы и одиночные фильтры (название, иконка, подпись)
+    const simpleFilters = [
+        ['has_email', 'fa-envelope', 'Есть Email'],
+        ['has_two_fa', 'fa-shield-alt', 'Есть 2FA'],
+        ['has_token', 'fa-key', 'Есть Token'],
+        ['has_fan_page', 'fa-flag', 'Есть Fan Page'],
+        ['has_avatar', 'fa-image', 'Есть Аватар'],
+        ['has_password', 'fa-lock', 'Есть Пароль'],
+        ['has_cover', 'fa-image', 'Есть Обложка'],
+        ['full_filled', 'fa-check-circle', 'Полностью заполненные'],
+        ['favorites_only', 'fa-star', 'Только избранные']
+    ];
+    simpleFilters.forEach(function (item) {
+        const name = item[0], icon = item[1], label = item[2];
+        const val = params.get(name);
+        if (val !== null && val !== '') {
+            chips.push('<div class="filter-chip" data-filter="' + name + '"><i class="fas ' + icon + ' filter-chip-icon"></i><span>' + escapeHtml(label) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+        }
+    });
+
+    // Диапазоны
+    const pharmaFrom = params.get('pharma_from') || '';
+    const pharmaTo = params.get('pharma_to') || '';
+    if (pharmaFrom !== '' || pharmaTo !== '') {
+        chips.push('<div class="filter-chip" data-filter="pharma"><i class="fas fa-pills filter-chip-icon"></i><span>Pharma: ' + escapeHtml(pharmaFrom || '0') + '-' + escapeHtml(pharmaTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const friendsFrom = params.get('friends_from') || '';
+    const friendsTo = params.get('friends_to') || '';
+    if (friendsFrom !== '' || friendsTo !== '') {
+        chips.push('<div class="filter-chip" data-filter="friends"><i class="fas fa-users filter-chip-icon"></i><span>Друзья: ' + escapeHtml(friendsFrom || '0') + '-' + escapeHtml(friendsTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const yearFrom = params.get('year_created_from') || '';
+    const yearTo = params.get('year_created_to') || '';
+    if (yearFrom !== '' || yearTo !== '') {
+        chips.push('<div class="filter-chip" data-filter="year_created"><i class="fas fa-calendar filter-chip-icon"></i><span>Год: ' + escapeHtml(yearFrom || '∞') + '-' + escapeHtml(yearTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const limitRkFrom = params.get('limit_rk_from') || '';
+    const limitRkTo = params.get('limit_rk_to') || '';
+    if (limitRkFrom !== '' || limitRkTo !== '') {
+        chips.push('<div class="filter-chip" data-filter="limit_rk"><i class="fas fa-chart-line filter-chip-icon"></i><span>Limit RK: ' + escapeHtml(limitRkFrom || '0') + '-' + escapeHtml(limitRkTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+
+    // Одиночные с подписью из значения
+    const statusMarketplace = params.get('status_marketplace');
+    if (statusMarketplace !== null && statusMarketplace !== '') {
+        chips.push('<div class="filter-chip" data-filter="status_marketplace"><i class="fas fa-store filter-chip-icon"></i><span>Marketplace: ' + escapeHtml(statusMarketplace) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const currency = params.get('currency');
+    if (currency !== null && currency !== '') {
+        chips.push('<div class="filter-chip" data-filter="currency"><i class="fas fa-coins filter-chip-icon"></i><span>Currency: ' + escapeHtml(currency) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const geo = params.get('geo');
+    if (geo !== null && geo !== '') {
+        const geoLabel = geo === '__empty__' ? 'Не указано' : geo;
+        chips.push('<div class="filter-chip" data-filter="geo"><i class="fas fa-globe filter-chip-icon"></i><span>Geo: ' + escapeHtml(geoLabel) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const statusRk = params.get('status_rk');
+    if (statusRk !== null && statusRk !== '') {
+        const rkLabel = statusRk === '__empty__' ? 'Не указано' : statusRk;
+        chips.push('<div class="filter-chip" data-filter="status_rk"><i class="fas fa-tag filter-chip-icon"></i><span>Status RK: ' + escapeHtml(rkLabel) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+
+    listEl.innerHTML = chips.join('');
+
+    if (sectionEl) {
+        if (chips.length > 0) {
+            sectionEl.classList.add('has-filters');
+        } else {
+            sectionEl.classList.remove('has-filters');
+        }
+    }
+
+    const badgeEl = document.querySelector('.filters-modern-badge');
+    if (badgeEl) {
+        badgeEl.textContent = String(chips.length);
+        badgeEl.style.display = chips.length > 0 ? '' : 'none';
+    }
+
+    // Анимация появления (как при первой загрузке)
+    listEl.querySelectorAll('.filter-chip').forEach(function (chip, index) {
+        chip.style.animationDelay = (index * 50) + 'ms';
+    });
+}
+
+window.renderActiveFiltersFromUrl = renderActiveFiltersFromUrl;
 
 /**
  * Удаление фильтра через chip
