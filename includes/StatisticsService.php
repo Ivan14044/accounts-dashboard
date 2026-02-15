@@ -107,6 +107,22 @@ class StatisticsService {
             $recentByStatus[$status] = (int)($row['recent_count'] ?? 0);
         }
         
+        // Гарантируем предсказуемый порядок статусов:
+        // сортируем их по алфавиту (натуральная сортировка, без учёта регистра),
+        // чтобы новые статусы попадали на своё место, а не в конец списка.
+        if (!empty($byStatus)) {
+            $sortedByStatus = $byStatus;
+            uksort($sortedByStatus, 'strnatcasecmp');
+            $byStatus = $sortedByStatus;
+            
+            // Синхронизируем порядок массива "недавних" значений со списком статусов
+            $sortedRecent = [];
+            foreach (array_keys($byStatus) as $key) {
+                $sortedRecent[$key] = $recentByStatus[$key] ?? 0;
+            }
+            $recentByStatus = $sortedRecent;
+        }
+        
         // Если фильтр не применён, статистика одинаковая
         $filteredTotal = $total;
         $byStatusFiltered = $byStatus;
@@ -178,6 +194,14 @@ class StatisticsService {
                 foreach ($unfilteredStatusStats as $row) {
                     $status = $row['status'] ?? '';
                     $byStatusUnfiltered[$status] = (int)$row['count'];
+                }
+                
+                // Упорядочиваем статусы без фильтра по алфавиту,
+                // чтобы отображение в разных частях дашборда было единообразным.
+                if (!empty($byStatusUnfiltered)) {
+                    $sortedUnfiltered = $byStatusUnfiltered;
+                    uksort($sortedUnfiltered, 'strnatcasecmp');
+                    $byStatusUnfiltered = $sortedUnfiltered;
                 }
             }
             

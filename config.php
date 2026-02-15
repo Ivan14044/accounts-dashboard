@@ -55,9 +55,31 @@ if (empty($DB_NAME) || empty($DB_USER)) {
     } else {
         $errorMsg .= 'No session db_config found. Database connection must be provided via login form.';
     }
-    // Логируем через error_log, так как Logger может быть недоступен на этой стадии
     error_log($errorMsg);
-    // Выбрасываем исключение вместо exit(), чтобы можно было перехватить в try-catch
+
+    // Если пользователь не авторизован (сессия истекла или не было входа) —
+    // редирект на страницу логина вместо HTTP 500. Так пользователь увидит форму входа,
+    // а не сообщение «Сайт не может обработать этот запрос».
+    if (!function_exists('isAuthenticated')) {
+        require_once __DIR__ . '/auth.php';
+    }
+    if (!isAuthenticated()) {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+            strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error' => 'Unauthorized', 'redirect' => 'login.php']);
+            exit;
+        }
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'];
+        $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
+        $loginUrl = $protocol . '://' . $host . rtrim($scriptDir, '/') . '/login.php';
+        header('Location: ' . $loginUrl);
+        exit;
+    }
+
+    // Авторизован, но конфигурации БД нет (неконсистентная сессия) — выбрасываем исключение
     throw new Exception('Ошибка конфигурации. Проверьте настройки подключения к БД. ' . $errorMsg);
 }
 
