@@ -218,6 +218,21 @@
       if (showingOnPageTopEl && Array.isArray(data.rows)) {
         showingOnPageTopEl.textContent = String(data.rows.length);
       }
+      // Общее число записей по текущему фильтру («из N») — чтобы при смене фильтра показывалось 3271, а не 135281
+      if (typeof data.filteredTotal === 'number') {
+        const foundTotalTopEl = getEl('foundTotalTop');
+        if (foundTotalTopEl) {
+          foundTotalTopEl.textContent = String(data.filteredTotal);
+        }
+        const foundTotalEl = getS('#foundTotal');
+        if (foundTotalEl) {
+          foundTotalEl.textContent = String(data.filteredTotal);
+        }
+        const tableEl = getEl('accountsTable');
+        if (tableEl) {
+          tableEl.setAttribute('aria-rowcount', String(data.filteredTotal));
+        }
+      }
       if (window.DashboardSelection && typeof window.DashboardSelection.updateSelectedOnPageCounter === 'function') {
         window.DashboardSelection.updateSelectedOnPageCounter();
       }
