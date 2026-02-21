@@ -36,8 +36,10 @@ if (count($existingIndexes) > 0) {
 }
 echo "\n";
 
-// Список индексов для создания
+// Список индексов для создания (idx_deleted_* — под запросы с deleted_at IS NULL и ORDER BY id из slow log)
 $indexes = [
+    ['name' => 'idx_deleted_id', 'sql' => 'CREATE INDEX idx_deleted_id ON accounts(deleted_at, id)'],
+    ['name' => 'idx_deleted_status_id', 'sql' => 'CREATE INDEX idx_deleted_status_id ON accounts(deleted_at, status, id)'],
     ['name' => 'idx_login', 'sql' => 'CREATE INDEX idx_login ON accounts(login)'],
     ['name' => 'idx_ads_id', 'sql' => 'CREATE INDEX idx_ads_id ON accounts(ads_id)'],
     ['name' => 'idx_social_url', 'sql' => 'CREATE INDEX idx_social_url ON accounts(social_url(255))'],

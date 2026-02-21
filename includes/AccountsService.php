@@ -189,6 +189,12 @@ class AccountsService {
         }
         $dir = strtoupper($dir) === 'DESC' ? 'DESC' : 'ASC';
         
+        // Сортировка по id — всегда простая, чтобы использовать индекс (избегаем filesort на 90k+ строк).
+        // Сложное выражение CASE/TRIM/CAST не использует индекс и даёт 30+ сек в slow log.
+        if ($sort === 'id') {
+            return "`id` $dir";
+        }
+        
         // Список колонок, которые должны сортироваться как числа (даже если хранятся как строки)
         $numericLikeColumns = [
             'limit_rk', 'scenario_pharma', 'quantity_friends', 'quantity_fp', 

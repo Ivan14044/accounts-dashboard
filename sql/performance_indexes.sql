@@ -1,6 +1,15 @@
 -- КРИТИЧЕСКИЕ ИНДЕКСЫ ДЛЯ ОПТИМИЗАЦИИ МЕДЛЕННЫХ ЗАПРОСОВ
 -- Выполните эти команды в вашей базе данных для решения проблемы с производительностью
 
+-- ===== ИНДЕКСЫ ДЛЯ ЗАПРОСОВ С deleted_at И СОРТИРОВКОЙ ПО id (slow log 30+ сек) =====
+-- Запросы: WHERE deleted_at IS NULL [AND status IN (...)] ORDER BY id LIMIT 50 OFFSET N
+
+-- 0a. Составной индекс: фильтр deleted_at + сортировка по id (без фильтра по status)
+CREATE INDEX IF NOT EXISTS idx_deleted_id ON accounts(deleted_at, id);
+
+-- 0b. Составной индекс: deleted_at + status + id (для фильтра по статусам и сортировки по id)
+CREATE INDEX IF NOT EXISTS idx_deleted_status_id ON accounts(deleted_at, status, id);
+
 -- ===== ОСНОВНЫЕ ИНДЕКСЫ ДЛЯ МЕДЛЕННЫХ ЗАПРОСОВ =====
 
 -- 1. Индекс для поля login (используется в WHERE IN запросах)
