@@ -91,12 +91,15 @@
     }
   }
 
-  async function refreshDashboardData() {
+  async function refreshDashboardData(options) {
     if (refreshController) {
       refreshQueued = true;
       try { refreshController.abort(); } catch(_) {}
     }
     const params = new URLSearchParams(window.location.search);
+    if (options && (options.light === true || options.light === 'true')) {
+      params.set('light', '1');
+    }
     const url = 'refresh.php?' + params.toString();
     refreshController = new AbortController();
     const signal = refreshController.signal;
@@ -123,23 +126,23 @@
         window.DashboardSelection.setFilteredTotalLive(data.filteredTotal);
       }
 
-      const statusCards = document.querySelectorAll('.stat-card[data-card^="status:"]');
-      log('Обновление карточек статистики:', { cards_found: statusCards.length, byStatus_keys: data.byStatus ? Object.keys(data.byStatus) : [] });
-      statusCards.forEach(cardElement => {
-        const statusKey = cardElement.getAttribute('data-status');
-        if (!statusKey) return;
-        const cnt = data.byStatus && typeof data.byStatus[statusKey] !== 'undefined' ? data.byStatus[statusKey] : null;
-        const valEl = cardElement.querySelector('.stat-value');
-        if (valEl) {
-          if (typeof updateStatValue === 'function') {
-            updateStatValue(valEl, cnt !== null ? cnt : 0);
-          } else {
-            valEl.textContent = String(cnt !== null ? cnt : 0);
+      // В режиме light бэкенд не отдаёт byStatus — карточки статусов не обновляем
+      if (data.byStatus && Object.keys(data.byStatus).length > 0) {
+        const statusCards = document.querySelectorAll('.stat-card[data-card^="status:"]');
+        log('Обновление карточек статистики:', { cards_found: statusCards.length, byStatus_keys: Object.keys(data.byStatus) });
+        statusCards.forEach(cardElement => {
+          const statusKey = cardElement.getAttribute('data-status');
+          if (!statusKey) return;
+          const cnt = typeof data.byStatus[statusKey] !== 'undefined' ? data.byStatus[statusKey] : 0;
+          const valEl = cardElement.querySelector('.stat-value');
+          if (valEl) {
+            if (typeof updateStatValue === 'function') {
+              updateStatValue(valEl, cnt);
+            } else {
+              valEl.textContent = String(cnt);
+            }
           }
-        }
-      });
-
-      if (data.byStatus) {
+        });
         document.querySelectorAll('.status-count').forEach(el => {
           const status = el.getAttribute('data-status');
           el.textContent = data.byStatus[status] || 0;

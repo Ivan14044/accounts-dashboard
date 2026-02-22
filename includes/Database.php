@@ -241,14 +241,21 @@ class Database {
     }
     
     /**
-     * Проверка и создание индексов для производительности
-     * Автоматически создает необходимые индексы, если их нет
-     * 
+     * Проверка и создание индексов для производительности.
+     * Если флаг .optimization_applied есть (индексы уже применялись через apply_indexes_safe.php),
+     * проверка пропускается — иначе при каждом запросе выполняется 12+ запросов к INFORMATION_SCHEMA.
+     *
      * @return void
      */
     public function ensureIndexes(): void {
+        $flagFile = dirname(__DIR__) . '/.optimization_applied';
+        $fallbackFlag = sys_get_temp_dir() . '/dashboard_opt_' . md5(dirname(__DIR__)) . '.applied';
+        if (file_exists($flagFile) || file_exists($fallbackFlag)) {
+            return;
+        }
+
         require_once __DIR__ . '/Logger.php';
-        
+
         $indexes = [
             'accounts' => [
                 'idx_status' => 'status',

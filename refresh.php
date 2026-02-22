@@ -30,49 +30,59 @@ try {
     checkSessionTimeout();
     
     $service = new AccountsService();
-    
-    // Создаем фильтр из GET-параметров
     $filter = $service->createFilterFromRequest($_GET);
-    
-    // Пагинация и сортировка
     $paginationParams = RequestHandler::getPaginationParams();
     $page = $paginationParams['page'];
     $perPage = $paginationParams['perPage'];
-
     $meta = $service->getColumnMetadata();
     $sortParams = RequestHandler::getSortParams($meta['all']);
     $sort = $sortParams['sort'];
     $dir = $sortParams['dir'];
-    
-    // Получаем статистику
-    $stats = $service->getStatistics($filter);
-    
-    // Корректируем страницу
-    $filteredTotal = $stats['filteredTotal'];
+
+    $light = isset($_GET['light']) && ($_GET['light'] === '1' || $_GET['light'] === 'true');
+
+    if ($light) {
+        // Режим light: только таблица и счётчик — без тяжёлой статистики (1–2 запроса вместо getStatistics)
+        $filteredTotal = $service->getAccountsCount($filter);
+    } else {
+        $stats = $service->getStatistics($filter);
+        $filteredTotal = $stats['filteredTotal'];
+    }
+
     $pages = max(1, (int)ceil($filteredTotal / $perPage));
-    
     if ($filteredTotal > 0) {
         $page = min(max(1, $page), $pages);
     } else {
         $page = 1;
     }
-    
     $offset = ($page - 1) * $perPage;
-    
-    // Получаем данные таблицы
     $rows = $service->getAccounts($filter, $sort, $dir, $perPage, $offset);
-    
-    $response = [
-        'rows' => $rows,
-        'totals' => ['all' => $stats['total']],
-        'byStatus' => $stats['byStatus'],
-        'byStatusFiltered' => $stats['byStatusFiltered'],
-        'filteredTotal' => $filteredTotal,
-        'page' => $page,
-        'perPage' => $perPage,
-        'pages' => $pages,
-        'columns' => $meta['all']
-    ];
+
+    if ($light) {
+        $response = [
+            'rows' => $rows,
+            'totals' => ['all' => $filteredTotal],
+            'byStatus' => [],
+            'byStatusFiltered' => [],
+            'filteredTotal' => $filteredTotal,
+            'page' => $page,
+            'perPage' => $perPage,
+            'pages' => $pages,
+            'columns' => $meta['all']
+        ];
+    } else {
+        $response = [
+            'rows' => $rows,
+            'totals' => ['all' => $stats['total']],
+            'byStatus' => $stats['byStatus'],
+            'byStatusFiltered' => $stats['byStatusFiltered'],
+            'filteredTotal' => $filteredTotal,
+            'page' => $page,
+            'perPage' => $perPage,
+            'pages' => $pages,
+            'columns' => $meta['all']
+        ];
+    }
     
     // Отладка (только если включен режим debug в URL)
     if (isset($_GET['debug'])) {

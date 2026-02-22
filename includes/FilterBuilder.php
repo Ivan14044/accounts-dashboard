@@ -418,15 +418,14 @@ class FilterBuilder {
                     }
                 }
                 
-                // Если нет фильтра по deleted_at, добавляем условие для исключения удалённых
+                // Если нет фильтра по deleted_at, добавляем условие для исключения удалённых.
+                // Ставим deleted_at первым в списке условий, чтобы оптимизатор мог использовать idx_deleted_*.
                 if (!$hasDeletedFilter) {
-                    // Используем только IS NULL, так как deleted_at - это datetime колонка
-                    // и сравнение с пустой строкой вызывает ошибку MySQL
-                    $conditions[] = 'deleted_at IS NULL';
+                    array_unshift($conditions, 'deleted_at IS NULL');
                 }
             }
         }
-        
+
         if (empty($conditions)) {
             return '';
         }

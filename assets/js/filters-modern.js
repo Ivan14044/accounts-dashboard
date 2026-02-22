@@ -395,10 +395,8 @@ var QUICK_FILTER_PARAMS = ['has_email', 'has_two_fa', 'has_token', 'has_fan_page
  */
 function getFormFiltersUrl(form) {
     const url = new URL(window.location);
-    // Сначала сбрасываем быстрые фильтры: снятый чекбокс не попадает в FormData, и параметр иначе остаётся в URL
     QUICK_FILTER_PARAMS.forEach(function (key) { url.searchParams.delete(key); });
     const fd = new FormData(form);
-    // Выставляем все одиночные параметры из формы (отмеченные чекбоксы снова добавятся)
     for (const [key, value] of fd) {
         if (key === 'status[]' || key === 'empty_status') continue;
         if (value !== '' && value != null) {
@@ -407,14 +405,20 @@ function getFormFiltersUrl(form) {
             url.searchParams.delete(key);
         }
     }
-    // status[] и empty_status — удаляем все и выставляем заново
+    // Статусы и empty_status берём по текущему состоянию чекбоксов в DOM,
+    // а не из FormData — иначе при быстром снятии одного и выборе другого может применяться старый набор
     for (const key of ['status[]', 'status', 'empty_status']) {
         while (url.searchParams.has(key)) url.searchParams.delete(key);
     }
-    for (const [key, value] of fd) {
-        if (key === 'status[]') url.searchParams.append('status[]', value);
-        if (key === 'empty_status' && value) url.searchParams.set('empty_status', '1');
+    var emptyCb = form.querySelector('input.status-checkbox[name="empty_status"]');
+    if (emptyCb && emptyCb.checked) {
+        url.searchParams.set('empty_status', '1');
     }
+    form.querySelectorAll('input.status-checkbox[name="status[]"]').forEach(function (cb) {
+        if (cb.checked) {
+            url.searchParams.append('status[]', cb.value);
+        }
+    });
     url.searchParams.set('page', '1');
     return url;
 }
@@ -436,12 +440,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const filtersForm = document.getElementById('filtersForm');
     if (!filtersForm) return;
 
-    // Чекбоксы статусов: обновляем только таблицу и URL
+    // Чекбоксы статусов: применяем фильтр по текущему состоянию чекбоксов (состояние уже обновлено к моменту change)
     filtersForm.addEventListener('change', function(e) {
         if (e.target.classList.contains('status-checkbox')) {
-            setTimeout(() => {
+            setTimeout(function() {
                 if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
-            }, 100);
+            }, 0);
         }
     });
 
