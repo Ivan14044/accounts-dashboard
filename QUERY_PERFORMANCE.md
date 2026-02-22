@@ -97,6 +97,16 @@ WHERE deleted_at IS NULL AND (status IN (...)) ORDER BY id
 - Убедиться, что в плане запроса используется нужный индекс: `EXPLAIN SELECT ...`.
 - При появлении запросов с `status IN (...)` и `deleted_at IS NULL` в slow log — проверить наличие и использование `idx_deleted_status_id` (см. DEVELOPER_GUIDE.md).
 
+### 6.1 Поиск по login (slow log: WHERE login = число)
+
+Если в slow log появляются запросы вида `SELECT * FROM accounts WHERE login = 97693222055 LIMIT 1` с временем 6–25 сек:
+
+- **Причина:** колонка `login` имеет строковый тип (VARCHAR). При сравнении с **числовым** литералом MySQL не использует индекс по `login` и сканирует всю таблицу.
+- **Что сделать:**
+  1. **Индекс:** на таблице `accounts` должен быть индекс `idx_login`. Создаётся скриптом `apply_indexes_safe.php`. Проверка: `php check_login_index.php` (см. ниже).
+  2. **Тип параметра:** в коде приложения, выполняющего запрос, передавать значение login **как строку** в prepared statement: `WHERE login = ?` и `bind_param('s', $login)` (или эквивалент со строкой). Тогда MySQL использует индекс.
+- В этом проекте (дашборд) все запросы по login уже привязывают значение как строку (`'s'` в bind_param и явный `(string)`/trim при подготовке). Если slow log идёт с другого приложения (например, скрипт/сервис на том же хосте) — там нужно исправить привязку типа и при необходимости запустить `apply_indexes_safe.php` на той же БД.
+
 ---
 
 ## 7. Чек-лист «чтобы панель летала»
@@ -109,5 +119,6 @@ WHERE deleted_at IS NULL AND (status IN (...)) ORDER BY id
 3. Для обновления только таблицы без пересчёта статистики использовать **refresh с `light=1`** (уже используется в коде дашборда где возможно).
 4. После массового импорта/обновления вызывать `StatisticsService::clearDashboardFileCache()` (уже вызывается в AccountsService и import_accounts.php).
 5. При необходимости замерить шаги загрузки — открывать дашборд с `?profile=1` и смотреть логи (getStatistics, getAccounts, getUniqueFilterValues, getEmptyCounts).
+6. **Проверка индексов по slow log:** выполнить `php check_login_index.php` — скрипт проверит наличие `idx_login` и `idx_deleted_status_id`, выведет рекомендации и готовые команды CREATE INDEX. Либо выполнить SQL вручную в той БД, куда пишется slow log: **`sql/critical_indexes_slow_log.sql`** (совместим с MySQL 5.5+; при ошибке «Duplicate key name» индекс уже есть). См. п. 6.1 про тип параметра login.
 
-6. **Ссылки с фильтрами:** если открываете сохранённую ссылку с параметрами (фильтры, страница), используйте **loading.php** вместо index.php — сразу покажется экран «Загрузка дашборда», тяжёлая отрисовка пойдёт в фоне. Пример: `https://ваш-сайт/loading.php?per_page=50&page=1&has_email=1&has_two_fa=1&status[]=...`
+7. **Ссылки с фильтрами:** если открываете сохранённую ссылку с параметрами (фильтры, страница), используйте **loading.php** вместо index.php — сразу покажется экран «Загрузка дашборда», тяжёлая отрисовка пойдёт в фоне. Пример: `https://ваш-сайт/loading.php?per_page=50&page=1&has_email=1&has_two_fa=1&status[]=...`

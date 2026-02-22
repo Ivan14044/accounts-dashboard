@@ -318,6 +318,14 @@ class AccountsService {
     }
     
     /**
+     * Получение всех счётчиков пустых значений фильтров одним запросом.
+     * Ключи: status_marketplace, currency, geo, status_rk.
+     */
+    public function getEmptyFilterCounts(): array {
+        return $this->statistics->getEmptyFilterCounts();
+    }
+    
+    /**
      * Получение количества записей с пустым статусом marketplace
      * Делегирует работу в StatisticsService
      */

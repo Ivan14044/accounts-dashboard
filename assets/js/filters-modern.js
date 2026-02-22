@@ -385,6 +385,9 @@ function toggleQuickFilter(filterName, wrapper) {
 // АВТОМАТИЧЕСКОЕ ПРИМЕНЕНИЕ ФИЛЬТРОВ
 // ========================================
 
+/** Список параметров быстрых фильтров (чекбоксы). При снятии галочки поле не попадает в FormData — параметр нужно явно удалить из URL. */
+var QUICK_FILTER_PARAMS = ['has_email', 'has_two_fa', 'has_token', 'has_fan_page', 'has_avatar', 'has_password', 'has_cover', 'full_filled', 'favorites_only'];
+
 /**
  * Собрать URL по текущему состоянию формы фильтров (без перезагрузки).
  * @param {HTMLFormElement} form - форма #filtersForm
@@ -392,8 +395,10 @@ function toggleQuickFilter(filterName, wrapper) {
  */
 function getFormFiltersUrl(form) {
     const url = new URL(window.location);
+    // Сначала сбрасываем быстрые фильтры: снятый чекбокс не попадает в FormData, и параметр иначе остаётся в URL
+    QUICK_FILTER_PARAMS.forEach(function (key) { url.searchParams.delete(key); });
     const fd = new FormData(form);
-    // Сначала выставляем все одиночные параметры
+    // Выставляем все одиночные параметры из формы (отмеченные чекбоксы снова добавятся)
     for (const [key, value] of fd) {
         if (key === 'status[]' || key === 'empty_status') continue;
         if (value !== '' && value != null) {

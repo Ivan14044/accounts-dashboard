@@ -1031,13 +1031,15 @@ class Dashboard {
         const value = row[col];
         
         if (value === undefined || value === null || value === '') {
-            return '<span class="text-muted">—</span>';
+            return `<span class="text-muted">—</span>
+                <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>`;
         }
         
         // Специальная обработка для разных типов колонок
         switch (col) {
             case 'id':
-                return `<span class="fw-bold text-primary">#${this.escapeHtml(value)}</span>`;
+                return `<span class="fw-bold text-primary">#${this.escapeHtml(value)}</span>
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
                 
             case 'email':
                 return `<div class="d-flex align-items-center gap-2">
@@ -1063,10 +1065,13 @@ class Dashboard {
                     <button type="button" class="pw-toggle" title="Показать пароль">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать пароль"><i class="fas fa-copy"></i></button>
                 </div>`;
                 
             case 'status':
-                return this.renderStatusBadge(value);
+                return `<div class="d-flex align-items-center gap-2">${this.renderStatusBadge(value)}
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+                </div>`;
                 
             default:
                 // Длинные поля
@@ -1075,10 +1080,12 @@ class Dashboard {
                     return `<span class="truncate mono" title="Нажмите для просмотра" 
                         data-full="${this.escapeHtml(value)}" data-title="${this.escapeHtml(col)}">
                         ${this.escapeHtml(clipped)}
-                    </span>`;
+                    </span>
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
                 }
                 
-                return `<span>${this.escapeHtml(value)}</span>`;
+                return `<span>${this.escapeHtml(value)}</span>
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
         }
     }
     

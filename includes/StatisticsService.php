@@ -352,6 +352,50 @@ class StatisticsService {
     }
     
     /**
+     * Получение всех счётчиков пустых значений фильтров одним запросом (вместо 4 отдельных).
+     * Ключи: status_marketplace, currency, geo, status_rk.
+     *
+     * @return array<string, int>
+     */
+    public function getEmptyFilterCounts(): array {
+        $deletedCondition = '';
+        if ($this->metadata->columnExists('deleted_at')) {
+            $deletedCondition = 'WHERE deleted_at IS NULL';
+        }
+        $parts = [];
+        if ($this->metadata->columnExists('status_marketplace')) {
+            $parts[] = "SUM(CASE WHEN status_marketplace IS NULL OR status_marketplace = '' THEN 1 ELSE 0 END) as empty_status_marketplace";
+        }
+        if ($this->metadata->columnExists('currency')) {
+            $parts[] = "SUM(CASE WHEN currency IS NULL OR currency = '' THEN 1 ELSE 0 END) as empty_currency";
+        }
+        if ($this->metadata->columnExists('geo')) {
+            $parts[] = "SUM(CASE WHEN geo IS NULL OR geo = '' THEN 1 ELSE 0 END) as empty_geo";
+        }
+        if ($this->metadata->columnExists('status_rk')) {
+            $parts[] = "SUM(CASE WHEN status_rk IS NULL OR status_rk = '' THEN 1 ELSE 0 END) as empty_status_rk";
+        }
+        $default = [
+            'status_marketplace' => 0,
+            'currency' => 0,
+            'geo' => 0,
+            'status_rk' => 0
+        ];
+        if ($parts === []) {
+            return $default;
+        }
+        $sql = "SELECT " . implode(", ", $parts) . " FROM {$this->table} $deletedCondition";
+        $rows = $this->db->prepare($sql, [], 'empty_filter_counts');
+        $row = $rows[0] ?? [];
+        return [
+            'status_marketplace' => (int)($row['empty_status_marketplace'] ?? $default['status_marketplace']),
+            'currency' => (int)($row['empty_currency'] ?? $default['currency']),
+            'geo' => (int)($row['empty_geo'] ?? $default['geo']),
+            'status_rk' => (int)($row['empty_status_rk'] ?? $default['status_rk'])
+        ];
+    }
+
+    /**
      * Получение количества записей с пустым статусом marketplace
      * 
      * @return int

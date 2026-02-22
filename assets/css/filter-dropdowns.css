@@ -1,0 +1,392 @@
+/**
+ * Единые стили для dropdown-фильтров (status, currency, geo, marketplace, status_rk).
+ * Заменяют 5 дублирующихся блоков в dashboard.php (~450 строк → ~85 строк).
+ *
+ * Применяются к классам:
+ * .filter-dropdown-menu  — контейнер выпадающего списка
+ * .filter-dropdown-item  — элемент списка (чекбокс)
+ * .filter-dropdown-btn   — кнопка-триггер
+ * .filter-dropdown-label — текст кнопки
+ *
+ * Для обратной совместимости оригинальные классы (.status-checkbox-item, .currency-item и т.д.)
+ * тоже поддерживаются.
+ */
+
+/* ====== Общие стили для dropdown меню фильтров ====== */
+.filter-dropdown-menu,
+.status-dropdown-menu,
+.currency-dropdown-menu,
+.geo-dropdown-menu,
+.status-marketplace-dropdown-menu,
+.status-rk-dropdown-menu {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-medium);
+  border-radius: 8px;
+  padding: 0.75rem 0.5rem;
+}
+
+/* ====== Элементы списка ====== */
+.filter-dropdown-item,
+.status-checkbox-item,
+.currency-item,
+.geo-item,
+.status-marketplace-item,
+.status-rk-item {
+  padding: 8px 10px 8px 12px;
+  margin: 1px 0;
+  border-radius: 4px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  color: var(--text-primary, #1f2937);
+}
+
+.filter-dropdown-item:hover,
+.status-checkbox-item:hover,
+.currency-item:hover,
+.geo-item:hover,
+.status-marketplace-item:hover,
+.status-rk-item:hover {
+  background-color: var(--hover-bg, #f3f4f6);
+  color: var(--text-primary, #1f2937);
+}
+
+/* Hover для label и всех дочерних */
+.filter-dropdown-item:hover label,
+.filter-dropdown-item:hover label *,
+.filter-dropdown-item:hover *,
+.status-checkbox-item:hover .form-check-label,
+.status-checkbox-item:hover .form-check-label *,
+.currency-item:hover label,
+.currency-item:hover label *,
+.currency-item:hover *,
+.geo-item:hover label,
+.geo-item:hover label *,
+.geo-item:hover *,
+.status-marketplace-item:hover label,
+.status-marketplace-item:hover label *,
+.status-marketplace-item:hover *,
+.status-rk-item:hover label,
+.status-rk-item:hover label *,
+.status-rk-item:hover * {
+  color: var(--text-primary, #1f2937) !important;
+}
+
+/* ====== Бейджи — всегда синие с белым текстом ====== */
+.filter-dropdown-item .badge,
+.status-checkbox-item .badge,
+.status-checkbox-item .status-count,
+.currency-item .badge,
+.geo-item .badge,
+.status-marketplace-item .badge,
+.status-rk-item .badge {
+  background-color: var(--primary, #2563eb) !important;
+  color: white !important;
+}
+
+.filter-dropdown-item:hover .badge,
+.status-checkbox-item:hover .badge,
+.status-checkbox-item:hover .status-count,
+.currency-item:hover .badge,
+.geo-item:hover .badge,
+.status-marketplace-item:hover .badge,
+.status-rk-item:hover .badge {
+  background-color: var(--primary, #2563eb) !important;
+  color: white !important;
+  opacity: 1 !important;
+}
+
+/* ====== Активный элемент ====== */
+.filter-dropdown-item.active,
+.currency-item.active,
+.geo-item.active,
+.status-marketplace-item.active,
+.status-rk-item.active {
+  background-color: rgba(37, 99, 235, 0.1);
+  font-weight: 500;
+  color: var(--text-primary, #1f2937);
+}
+
+/* ====== Label внутри элемента ====== */
+.filter-dropdown-item label,
+.currency-item label,
+.geo-item label,
+.status-marketplace-item label,
+.status-rk-item label {
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.875rem;
+  padding: 0;
+  line-height: 1.2;
+  color: var(--text-primary, #1f2937) !important;
+}
+
+.filter-dropdown-item label span,
+.currency-item label span,
+.geo-item label span,
+.status-marketplace-item label span,
+.status-rk-item label span {
+  color: var(--text-primary, #1f2937) !important;
+}
+
+/* ====== Кнопка-триггер dropdown ====== */
+.filter-dropdown-btn,
+#statusDropdown,
+#currencyDropdown,
+#geoDropdown,
+#statusMarketplaceDropdown,
+#statusRkDropdown {
+  min-height: 31px;
+  border-color: var(--border-medium);
+  font-size: 0.875rem;
+  color: var(--text-primary, #1f2937) !important;
+}
+
+.filter-dropdown-btn:hover,
+#statusDropdown:hover,
+#currencyDropdown:hover,
+#geoDropdown:hover,
+#statusMarketplaceDropdown:hover,
+#statusRkDropdown:hover {
+  background-color: var(--hover-bg, #f8f9fa);
+  border-color: var(--border-dark);
+  color: var(--text-primary, #1f2937) !important;
+}
+
+.filter-dropdown-btn:active,
+.filter-dropdown-btn:focus,
+.filter-dropdown-btn.show,
+#statusDropdown:active,
+#statusDropdown:focus,
+#statusDropdown.show,
+#currencyDropdown:active,
+#currencyDropdown:focus,
+#currencyDropdown.show,
+#geoDropdown:active,
+#geoDropdown:focus,
+#geoDropdown.show,
+#statusMarketplaceDropdown:active,
+#statusMarketplaceDropdown:focus,
+#statusMarketplaceDropdown.show,
+#statusRkDropdown:active,
+#statusRkDropdown:focus,
+#statusRkDropdown.show {
+  background-color: var(--hover-bg, #f8f9fa) !important;
+  border-color: var(--border-dark) !important;
+  color: var(--text-primary, #1f2937) !important;
+  box-shadow: none;
+}
+
+/* ====== Label текст внутри кнопки ====== */
+.filter-dropdown-label,
+#statusDropdownLabel,
+#currencyDropdownLabel,
+#geoDropdownLabel,
+#statusMarketplaceDropdownLabel,
+#statusRkDropdownLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary, #1f2937) !important;
+}
+
+/* Видимость label при всех состояниях кнопки */
+.filter-dropdown-btn:hover .filter-dropdown-label,
+.filter-dropdown-btn:active .filter-dropdown-label,
+.filter-dropdown-btn:focus .filter-dropdown-label,
+.filter-dropdown-btn.show .filter-dropdown-label,
+#statusDropdown:hover #statusDropdownLabel,
+#statusDropdown:active #statusDropdownLabel,
+#statusDropdown:focus #statusDropdownLabel,
+#statusDropdown.show #statusDropdownLabel,
+#currencyDropdown:hover #currencyDropdownLabel,
+#currencyDropdown:active #currencyDropdownLabel,
+#currencyDropdown:focus #currencyDropdownLabel,
+#currencyDropdown.show #currencyDropdownLabel,
+#geoDropdown:hover #geoDropdownLabel,
+#geoDropdown:active #geoDropdownLabel,
+#geoDropdown:focus #geoDropdownLabel,
+#geoDropdown.show #geoDropdownLabel,
+#statusMarketplaceDropdown:hover #statusMarketplaceDropdownLabel,
+#statusMarketplaceDropdown:active #statusMarketplaceDropdownLabel,
+#statusMarketplaceDropdown:focus #statusMarketplaceDropdownLabel,
+#statusMarketplaceDropdown.show #statusMarketplaceDropdownLabel,
+#statusRkDropdown:hover #statusRkDropdownLabel,
+#statusRkDropdown:active #statusRkDropdownLabel,
+#statusRkDropdown:focus #statusRkDropdownLabel,
+#statusRkDropdown.show #statusRkDropdownLabel {
+  color: var(--text-primary, #1f2937) !important;
+}
+
+/* ====== Стрелка dropdown ====== */
+.filter-dropdown-btn::after,
+#statusDropdown::after,
+#currencyDropdown::after,
+#geoDropdown::after,
+#statusMarketplaceDropdown::after,
+#statusRkDropdown::after {
+  border-top-color: var(--text-primary, #1f2937) !important;
+}
+
+.filter-dropdown-btn:hover::after,
+.filter-dropdown-btn:active::after,
+.filter-dropdown-btn:focus::after,
+.filter-dropdown-btn.show::after,
+#statusDropdown:hover::after,
+#statusDropdown:active::after,
+#statusDropdown:focus::after,
+#statusDropdown.show::after,
+#currencyDropdown:hover::after,
+#currencyDropdown:active::after,
+#currencyDropdown:focus::after,
+#currencyDropdown.show::after,
+#geoDropdown:hover::after,
+#geoDropdown:active::after,
+#geoDropdown:focus::after,
+#geoDropdown.show::after,
+#statusMarketplaceDropdown:hover::after,
+#statusMarketplaceDropdown:active::after,
+#statusMarketplaceDropdown:focus::after,
+#statusMarketplaceDropdown.show::after,
+#statusRkDropdown:hover::after,
+#statusRkDropdown:active::after,
+#statusRkDropdown:focus::after,
+#statusRkDropdown.show::after {
+  border-top-color: var(--text-primary, #1f2937) !important;
+}
+
+/* ====== Чекбоксы статусов ====== */
+.status-checkbox-item .form-check-input {
+  cursor: pointer;
+  margin-top: 0;
+  margin-right: 10px;
+  margin-left: 0;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+}
+
+.status-checkbox-item .form-check-label {
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.875rem;
+  padding-left: 0;
+  margin-bottom: 0;
+  flex: 1;
+  line-height: 1.2;
+  color: var(--text-primary, #1f2937) !important;
+}
+
+.status-checkbox-item .form-check-label span {
+  color: var(--text-primary, #1f2937) !important;
+}
+
+.status-checkbox-item:hover .form-check-label span {
+  color: var(--text-primary, #1f2937) !important;
+}
+
+/* ====== Единый стиль для бейджей-счётчиков ====== */
+.status-count,
+.badge.status-count,
+.badge.bg-secondary.status-count,
+.badge.bg-primary.status-count,
+.badge.bg-warning.status-count {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 10px;
+  font-weight: 500;
+  min-width: 20px;
+  text-align: center;
+  background-color: var(--primary, #2563eb) !important;
+  color: white !important;
+  opacity: 1 !important;
+}
+
+/* Бейджи в dropdown — синий фон и белый текст */
+.status-checkbox-item .badge,
+.status-checkbox-item .badge.bg-secondary,
+.status-checkbox-item .badge.bg-primary,
+.status-checkbox-item .badge.bg-warning,
+.currency-item .badge,
+.currency-item .badge.bg-secondary,
+.currency-item .badge.bg-primary,
+.status-marketplace-item .badge,
+.status-marketplace-item .badge.bg-secondary,
+.status-marketplace-item .badge.bg-primary {
+  background-color: var(--primary, #2563eb) !important;
+  color: white !important;
+}
+
+/* При наведении бейджи остаются синими */
+.status-checkbox-item:hover .status-count,
+.status-checkbox-item:hover .badge,
+.status-checkbox-item:hover .badge.bg-secondary,
+.status-checkbox-item:hover .badge.bg-primary,
+.status-checkbox-item:hover .badge.bg-warning,
+.currency-item:hover .badge,
+.currency-item:hover .badge.bg-secondary,
+.currency-item:hover .badge.bg-primary,
+.status-marketplace-item:hover .badge,
+.status-marketplace-item:hover .badge.bg-secondary,
+.status-marketplace-item:hover .badge.bg-primary {
+  background-color: var(--primary, #2563eb) !important;
+  color: white !important;
+  opacity: 1 !important;
+}
+
+/* Исключаем бейджи из общего правила для span */
+.status-checkbox-item .form-check-label .status-count,
+.status-checkbox-item .form-check-label .badge.status-count,
+.status-checkbox-item .form-check-label .badge.bg-secondary.status-count,
+.status-checkbox-item .form-check-label .badge.bg-primary.status-count,
+.status-checkbox-item .form-check-label .badge.bg-warning.status-count,
+.status-checkbox-item:hover .form-check-label .status-count,
+.status-checkbox-item:hover .form-check-label .badge.status-count,
+.status-checkbox-item:hover .form-check-label .badge.bg-secondary.status-count,
+.status-checkbox-item:hover .form-check-label .badge.bg-primary.status-count,
+.status-checkbox-item:hover .form-check-label .badge.bg-warning.status-count {
+  color: white !important;
+}
+
+.status-checkbox-item .form-check-input:checked ~ .form-check-label {
+  font-weight: 500;
+  color: var(--primary, #2563eb) !important;
+}
+
+.status-checkbox-item .form-check-input:checked ~ .form-check-label span {
+  color: var(--primary, #2563eb) !important;
+}
+
+/* ====== Прокрутка dropdown ====== */
+.filter-dropdown-menu .btn-sm,
+.status-dropdown-menu .btn-sm {
+  font-size: 0.75rem;
+  padding: 0.375rem 0.5rem;
+  height: auto;
+  min-height: 32px;
+}
+
+.filter-dropdown-menu::-webkit-scrollbar,
+.status-dropdown-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.filter-dropdown-menu::-webkit-scrollbar-track,
+.status-dropdown-menu::-webkit-scrollbar-track {
+  background: var(--bg-light, #f1f1f1);
+  border-radius: 3px;
+}
+
+.filter-dropdown-menu::-webkit-scrollbar-thumb,
+.status-dropdown-menu::-webkit-scrollbar-thumb {
+  background: var(--border-dark, #c1c1c1);
+  border-radius: 3px;
+}
+
+.filter-dropdown-menu::-webkit-scrollbar-thumb:hover,
+.status-dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-500, #999);
+}

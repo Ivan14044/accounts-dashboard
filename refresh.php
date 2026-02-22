@@ -62,9 +62,6 @@ try {
     // Получаем данные таблицы
     $rows = $service->getAccounts($filter, $sort, $dir, $perPage, $offset);
     
-    // Метаданные колонок
-    $meta = $service->getColumnMetadata();
-    
     $response = [
         'rows' => $rows,
         'totals' => ['all' => $stats['total']],

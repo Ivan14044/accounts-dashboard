@@ -192,6 +192,7 @@
         if (col === 'id') {
           const idCell = `<td class="ac-cell ac-cell--id" data-col="id" data-column="id">
             <span class="fw-bold text-primary">#${this.escape(row[col])}</span>
+            <button type="button" class="copy-btn" data-copy-text="${this.escape(row[col])}" title="Копировать"><i class="fas fa-copy"></i></button>
           </td>`;
           const favoriteCell = `<td class="ac-cell ac-cell--favorite favorite-cell text-center" data-column="favorite" data-account-id="${row.id}">
             <button type="button" class="btn btn-sm btn-link favorite-btn p-0" data-account-id="${row.id}" title="Избранное">
@@ -224,6 +225,7 @@
         return `<div class="editable-field-wrap" data-row-id="${row.id}" data-field="${col}">
           <span class="text-muted field-value">—</span>
           <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+          <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       if (col === 'email') {
@@ -276,6 +278,7 @@
         return `<div class="editable-field-wrap" data-row-id="${row.id}" data-field="${col}">
           <span class="badge ${badgeClass} field-value">${this.escape(displayText)}</span>
           <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+          <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       if (col === 'social_url' && /^https?:\/\//i.test(String(value || ''))) {
@@ -284,6 +287,7 @@
             <i class="fas fa-external-link-alt me-2"></i>${this.escape(value)}
           </a>
           <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+          <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       if (LONG_FIELDS.includes(col) || (typeof value === 'string' && value.length > CLIP_LEN)) {
@@ -293,11 +297,13 @@
             ${this.escape(clipped)}
           </span>
           <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+          <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       return `<div class="editable-field-wrap" data-row-id="${row.id}" data-field="${col}">
         <span class="field-value">${this.escape(value)}</span>
         <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+        <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
       </div>`;
     }
 

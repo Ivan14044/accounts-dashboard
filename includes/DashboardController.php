@@ -174,11 +174,12 @@ class DashboardController {
         $geosList = $uniqueFilterValues['geo'] ?? [];
         $statusRkList = $uniqueFilterValues['status_rk'] ?? [];
         
-        // Получаем количество пустых значений
-        $emptyMarketplaceStatusCount = $this->service->getEmptyMarketplaceStatusCount();
-        $emptyCurrencyCount = $this->service->getEmptyCurrencyCount();
-        $emptyGeoCount = $this->service->getEmptyGeoCount();
-        $emptyStatusRkCount = $this->service->getEmptyStatusRkCount();
+        // Получаем количество пустых значений одним запросом вместо четырёх
+        $emptyCounts = $this->service->getEmptyFilterCounts();
+        $emptyMarketplaceStatusCount = $emptyCounts['status_marketplace'];
+        $emptyCurrencyCount = $emptyCounts['currency'];
+        $emptyGeoCount = $emptyCounts['geo'];
+        $emptyStatusRkCount = $emptyCounts['status_rk'];
         
         // Дополняем список статусов целевыми статусами из кастомных карточек
         $customStatuses = $this->getCustomStatuses();
