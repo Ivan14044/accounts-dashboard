@@ -47,7 +47,7 @@ try {
     
     // Проверяем, есть ли уже записи с таким статусом
     $meta = $service->getColumnMetadata();
-    $filter = new FilterBuilder($meta['columns'], $meta['numeric']);
+    $filter = new FilterBuilder($meta['columns'], $meta['numeric'], AccountsService::getNumericLikeColumns());
     $filter->addEqualFilter('status', $status);
     $count = $service->getAccountsCount($filter);
     

@@ -2,7 +2,16 @@
 /**
  * Безопасное применение индексов БД с проверкой существования
  * Совместимо с MySQL 5.5+
+ *
+ * Запуск: php apply_indexes_safe.php (из папки проекта)
+ * На больших таблицах создание индексов может занять несколько минут — таймаут отключён.
  */
+
+// Отключаем лимит времени выполнения (на больших таблицах каждый CREATE INDEX может занимать 1–5 мин)
+set_time_limit(0);
+if (function_exists('ignore_user_abort')) {
+    ignore_user_abort(true);
+}
 
 echo "========================================\n";
 echo "  Применение индексов БД (безопасно)\n";
@@ -15,6 +24,10 @@ require_once __DIR__ . '/config.php';
 if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
     die("❌ ОШИБКА: Не удалось подключиться к базе данных\n");
 }
+
+// Увеличиваем таймаут сессии MySQL, чтобы долгий CREATE INDEX не обрывался (по умолчанию 28800 сек)
+$mysqli->query("SET SESSION wait_timeout = 3600");
+@$mysqli->query("SET SESSION max_statement_time = 0"); // MySQL 5.7.8+: без лимита на один запрос; на старых версиях — игнор
 
 echo "✅ Подключение к БД успешно\n";
 $dbName = $mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? 'unknown';
@@ -40,6 +53,13 @@ echo "\n";
 $indexes = [
     ['name' => 'idx_deleted_id', 'sql' => 'CREATE INDEX idx_deleted_id ON accounts(deleted_at, id)'],
     ['name' => 'idx_deleted_status_id', 'sql' => 'CREATE INDEX idx_deleted_status_id ON accounts(deleted_at, status, id)'],
+    ['name' => 'idx_deleted_status_qty_friends_id', 'sql' => 'CREATE INDEX idx_deleted_status_qty_friends_id ON accounts(deleted_at, status, quantity_friends, id)'],
+    ['name' => 'idx_deleted_qty_friends_year_id', 'sql' => 'CREATE INDEX idx_deleted_qty_friends_year_id ON accounts(deleted_at, quantity_friends, year_created, id)'],
+    ['name' => 'idx_deleted_status_rk_id', 'sql' => 'CREATE INDEX idx_deleted_status_rk_id ON accounts(deleted_at, status_rk, id)'],
+    ['name' => 'idx_deleted_status_marketplace_id', 'sql' => 'CREATE INDEX idx_deleted_status_marketplace_id ON accounts(deleted_at, status_marketplace, id)'],
+    ['name' => 'idx_deleted_currency_id', 'sql' => 'CREATE INDEX idx_deleted_currency_id ON accounts(deleted_at, currency, id)'],
+    ['name' => 'idx_deleted_geo_id', 'sql' => 'CREATE INDEX idx_deleted_geo_id ON accounts(deleted_at, geo, id)'],
+    ['name' => 'idx_deleted_limit_rk_qty_year_id', 'sql' => 'CREATE INDEX idx_deleted_limit_rk_qty_year_id ON accounts(deleted_at, limit_rk, quantity_friends, year_created, id)'],
     ['name' => 'idx_login', 'sql' => 'CREATE INDEX idx_login ON accounts(login)'],
     ['name' => 'idx_ads_id', 'sql' => 'CREATE INDEX idx_ads_id ON accounts(ads_id)'],
     ['name' => 'idx_social_url', 'sql' => 'CREATE INDEX idx_social_url ON accounts(social_url(255))'],
@@ -72,7 +92,7 @@ $indexes = [
     ['name' => 'idx_quantity_friends_sort', 'sql' => 'CREATE INDEX idx_quantity_friends_sort ON accounts(quantity_friends, id)'],
 ];
 
-echo "Применение индексов...\n";
+echo "Применение индексов (на большой таблице каждый индекс может создаваться 1–5 мин)...\n";
 echo "----------------------------------------\n";
 
 $success = 0;
@@ -111,8 +131,57 @@ foreach ($indexes as $index) {
 
 echo "----------------------------------------\n\n";
 
+// Индексы для других таблиц (account_favorites, saved_filters) — только если таблица существует
+$otherTableIndexes = [
+    ['table' => 'account_favorites', 'name' => 'idx_user_created', 'sql' => 'CREATE INDEX idx_user_created ON account_favorites(user_id, created_at)'],
+    ['table' => 'saved_filters', 'name' => 'idx_user_updated', 'sql' => 'CREATE INDEX idx_user_updated ON saved_filters(user_id, updated_at)'],
+];
+
+echo "Индексы для account_favorites и saved_filters...\n";
+echo "----------------------------------------\n";
+
+foreach ($otherTableIndexes as $item) {
+    $table = $item['table'];
+    $name = $item['name'];
+    $sql = $item['sql'];
+
+    $tableExists = $mysqli->query("SHOW TABLES LIKE '" . $mysqli->real_escape_string($table) . "'");
+    if (!$tableExists || $tableExists->num_rows === 0) {
+        echo "⏭️  $name - таблица $table не существует, пропуск\n";
+        $skipped++;
+        continue;
+    }
+
+    $existingOther = [];
+    $res = $mysqli->query("SHOW INDEX FROM `" . $mysqli->real_escape_string($table) . "`");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $existingOther[] = $row['Key_name'];
+        }
+        $res->close();
+    }
+    $existingOther = array_unique($existingOther);
+
+    if (in_array($name, $existingOther)) {
+        echo "⏭️  $name ($table) - уже существует\n";
+        $skipped++;
+        continue;
+    }
+
+    $result = @$mysqli->query($sql);
+    if ($result === false) {
+        echo "❌ $name ($table) - ОШИБКА: " . $mysqli->error . "\n";
+        $errors++;
+    } else {
+        echo "✅ $name ($table) - создан\n";
+        $success++;
+    }
+}
+
+echo "----------------------------------------\n\n";
+
 // Оптимизация и анализ таблицы
-echo "Оптимизация таблицы...\n";
+echo "Оптимизация таблицы accounts...\n";
 $mysqli->query("OPTIMIZE TABLE accounts");
 echo "✅ OPTIMIZE TABLE выполнен\n";
 

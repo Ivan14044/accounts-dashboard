@@ -13,10 +13,13 @@ class FilterBuilder {
     private $params = [];
     private $columnsList = [];
     private $numericColumns = [];
+    /** @var string[] Колонки, хранящиеся как строка, но используемые как число (limit_rk, scenario_pharma и т.д.) — прямое сравнение без TRIM/CAST для индекса (slow log 19–20). */
+    private $numericLikeColumns = [];
     
-    public function __construct(array $columns, array $numericColumns = []) {
+    public function __construct(array $columns, array $numericColumns = [], array $numericLikeColumns = []) {
         $this->columnsList = $columns;
         $this->numericColumns = $numericColumns;
+        $this->numericLikeColumns = $numericLikeColumns;
     }
     
     /**
@@ -203,41 +206,62 @@ class FilterBuilder {
     }
     
     /**
-     * Добавляет фильтр "числовое поле больше нуля"
+     * Добавляет фильтр "числовое поле больше нуля".
+     * Для numericColumns и numericLikeColumns — прямое сравнение (индекс); иначе CAST.
      */
     public function addGreaterThanZeroFilter($field, $shouldFilter = false) {
         if (!$shouldFilter || !isset($this->columnsList[$field])) {
             return $this;
         }
-        
-        $this->conditions[] = "CAST(`$field` AS UNSIGNED) > 0";
+        $useDirect = in_array($field, $this->numericColumns, true) || in_array($field, $this->numericLikeColumns, true);
+        $this->conditions[] = $useDirect ? "`$field` > 0" : "CAST(`$field` AS UNSIGNED) > 0";
         return $this;
     }
     
     /**
-     * Добавляет фильтр по числовому диапазону
+     * Добавляет фильтр по числовому диапазону.
+     * Для колонок из numericColumns (INT и т.д.) используем прямое сравнение без CAST,
+     * чтобы MySQL мог использовать индекс (slow log: 30 сек при CAST).
      */
     public function addRangeFilter($field, $from = null, $to = null) {
         if (!isset($this->columnsList[$field])) {
             return $this;
         }
 
-        // ВАЖНО: перед CAST отсекаем NULL и пустые строки, чтобы избежать
-        // ошибок MySQL вида "Truncated incorrect INTEGER value: ''"
-        if (($from !== null && $from !== '') || ($to !== null && $to !== '')) {
-            $this->conditions[] = "(`$field` IS NOT NULL AND TRIM(`$field`) <> '')";
+        $hasRange = ($from !== null && $from !== '') || ($to !== null && $to !== '');
+        $isNumericColumn = in_array($field, $this->numericColumns, true);
+        $isNumericLike = in_array($field, $this->numericLikeColumns, true);
+        $useDirectComparison = $isNumericColumn || $isNumericLike;
+
+        if ($hasRange) {
+            if ($isNumericColumn) {
+                $this->conditions[] = "`$field` IS NOT NULL";
+            } elseif ($isNumericLike) {
+                // Числоподобное поле (VARCHAR с числами): без TRIM, чтобы индекс мог использоваться (slow log 19–20)
+                $this->conditions[] = "(`$field` IS NOT NULL AND `$field` <> '')";
+            } else {
+                $this->conditions[] = "(`$field` IS NOT NULL AND TRIM(`$field`) <> '')";
+            }
         }
 
         if ($from !== null && $from !== '') {
-            $this->conditions[] = "CAST(`$field` AS UNSIGNED) >= ?";
+            if ($useDirectComparison) {
+                $this->conditions[] = "`$field` >= ?";
+            } else {
+                $this->conditions[] = "CAST(`$field` AS UNSIGNED) >= ?";
+            }
             $this->params[] = (int)$from;
         }
-        
+
         if ($to !== null && $to !== '') {
-            $this->conditions[] = "CAST(`$field` AS UNSIGNED) <= ?";
+            if ($useDirectComparison) {
+                $this->conditions[] = "`$field` <= ?";
+            } else {
+                $this->conditions[] = "CAST(`$field` AS UNSIGNED) <= ?";
+            }
             $this->params[] = (int)$to;
         }
-        
+
         return $this;
     }
     
@@ -274,16 +298,14 @@ class FilterBuilder {
         $yearTo = ($to !== null && $to !== '' && is_numeric($to)) ? (int)$to : 0;
         
         if ($yearFrom > 0 || $yearTo > 0) {
-            // Исключаем пустые года
+            // Исключаем пустые года; прямое сравнение для использования индекса по year_created
             $this->conditions[] = '`year_created` IS NOT NULL AND `year_created` > 0';
-            
             if ($yearFrom > 0) {
-                $this->conditions[] = 'CAST(`year_created` AS UNSIGNED) >= ?';
+                $this->conditions[] = '`year_created` >= ?';
                 $this->params[] = $yearFrom;
             }
-            
             if ($yearTo > 0) {
-                $this->conditions[] = 'CAST(`year_created` AS UNSIGNED) <= ?';
+                $this->conditions[] = '`year_created` <= ?';
                 $this->params[] = $yearTo;
             }
         }

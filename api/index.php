@@ -299,7 +299,7 @@ $router->post('/status/register', function() {
     require_once __DIR__ . '/../includes/ColumnMetadata.php';
     require_once __DIR__ . '/../includes/Database.php';
     
-    $filter = new FilterBuilder($meta['columns'], $meta['numeric']);
+    $filter = new FilterBuilder($meta['columns'], $meta['numeric'], \AccountsService::getNumericLikeColumns());
     $filter->addEqualFilter('status', $status);
     $count = $service->getAccountsCount($filter);
     
@@ -359,7 +359,8 @@ $router->get('/favorites', function() {
             `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (`user_id`, `account_id`),
             INDEX `idx_user_id` (`user_id`),
-            INDEX `idx_account_id` (`account_id`)
+            INDEX `idx_account_id` (`account_id`),
+            INDEX `idx_user_created` (`user_id`, `created_at`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         ";
         
@@ -427,7 +428,8 @@ $router->post('/favorites', function() {
             `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (`user_id`, `account_id`),
             INDEX `idx_user_id` (`user_id`),
-            INDEX `idx_account_id` (`account_id`)
+            INDEX `idx_account_id` (`account_id`),
+            INDEX `idx_user_created` (`user_id`, `created_at`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         ";
         

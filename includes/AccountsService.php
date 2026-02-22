@@ -32,6 +32,18 @@ class AccountsService {
     }
     
     /**
+     * Список колонок, хранящихся как строка, но используемых как число (для FilterBuilder — без TRIM/CAST).
+     * Единый источник для createFilterFromRequest и для мест, где FilterBuilder создаётся вручную (api, api_register_status).
+     */
+    public static function getNumericLikeColumns(): array {
+        return [
+            'limit_rk', 'scenario_pharma', 'quantity_friends', 'quantity_fp',
+            'quantity_bm', 'quantity_photo', 'year_created',
+            'birth_day', 'birth_month', 'birth_year'
+        ];
+    }
+
+    /**
      * Получение метаданных колонок
      */
     public function getColumnMetadata(): array {
@@ -48,7 +60,7 @@ class AccountsService {
      */
     public function createFilterFromRequest(array $params): FilterBuilder {
         $meta = $this->getColumnMetadata();
-        $filter = new FilterBuilder($meta['columns'], $meta['numeric']);
+        $filter = new FilterBuilder($meta['columns'], $meta['numeric'], self::getNumericLikeColumns());
         
         // Фильтр по конкретным ID (приоритетный для экспорта выбранных записей)
         if (!empty($params['ids']) && is_array($params['ids'])) {
@@ -190,43 +202,27 @@ class AccountsService {
         $dir = strtoupper($dir) === 'DESC' ? 'DESC' : 'ASC';
         
         // Сортировка по id — всегда простая, чтобы использовать индекс (избегаем filesort на 90k+ строк).
-        // Сложное выражение CASE/TRIM/CAST не использует индекс и даёт 30+ сек в slow log.
         if ($sort === 'id') {
             return "`id` $dir";
         }
         
-        // Список колонок, которые должны сортироваться как числа (даже если хранятся как строки)
-        $numericLikeColumns = [
-            'limit_rk', 'scenario_pharma', 'quantity_friends', 'quantity_fp', 
-            'quantity_bm', 'quantity_photo', 'year_created', 
-            'birth_day', 'birth_month', 'birth_year'
-        ];
+        // Колонки с числовым типом в БД (INT и т.д.) — простая сортировка для использования индекса.
+        if (in_array($sort, $meta['numeric'], true)) {
+            return "`$sort` $dir";
+        }
         
-        $isNumeric = in_array($sort, $meta['numeric'], true) 
-            || in_array($sort, $numericLikeColumns, true);
+        // Колонки, которые хранятся как строки, но сортируются как числа (TRIM/CAST по строкам, индекс не используется)
+        $isNumericLike = in_array($sort, self::getNumericLikeColumns(), true);
         
-        if ($isNumeric) {
-            // Для числовых полей: улучшенная обработка пустых значений и нечисловых данных
-            // Используем COALESCE и NULLIF для корректной обработки пустых строк
-            // TRIM убирает пробелы, CAST конвертирует в число
+        if ($isNumericLike) {
             $numericExpr = "CAST(COALESCE(NULLIF(TRIM(`$sort`), ''), '0') AS UNSIGNED)";
-            
             if ($dir === 'ASC') {
-                // NULL и пустые значения идут в конец при ASC
-                return "CASE 
-                            WHEN `$sort` IS NULL OR TRIM(`$sort`) = '' THEN 1 
-                            ELSE 0 
-                        END,
-                        $numericExpr ASC";
-            } else {
-                // NULL и пустые значения идут в начало при DESC
-                return "CASE 
-                            WHEN `$sort` IS NULL OR TRIM(`$sort`) = '' THEN 1 
-                            ELSE 0 
-                        END DESC,
-                        $numericExpr DESC";
+                return "CASE WHEN `$sort` IS NULL OR TRIM(`$sort`) = '' THEN 1 ELSE 0 END, $numericExpr ASC";
             }
-        } else {
+            return "CASE WHEN `$sort` IS NULL OR TRIM(`$sort`) = '' THEN 1 ELSE 0 END DESC, $numericExpr DESC";
+        }
+        
+        {
             // Для текстовых полей: NULL и пустые значения идут в конец при ASC, в начало при DESC
             if ($dir === 'ASC') {
                 return "(`$sort` IS NULL OR `$sort` = ''), `$sort` ASC";

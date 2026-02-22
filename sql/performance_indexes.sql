@@ -10,6 +10,21 @@ CREATE INDEX IF NOT EXISTS idx_deleted_id ON accounts(deleted_at, id);
 -- 0b. Составной индекс: deleted_at + status + id (для фильтра по статусам и сортировки по id)
 CREATE INDEX IF NOT EXISTS idx_deleted_status_id ON accounts(deleted_at, status, id);
 
+-- 0c. Составной индекс для фильтра по status + диапазон quantity_friends + ORDER BY id (slow log ~30 сек, 90k rows)
+CREATE INDEX IF NOT EXISTS idx_deleted_status_qty_friends_id ON accounts(deleted_at, status, quantity_friends, id);
+
+-- 0d. Без status: deleted_at + quantity_friends + year_created + id (slow_log 15: token/avatar + friends/year_created, 90k rows)
+CREATE INDEX IF NOT EXISTS idx_deleted_qty_friends_year_id ON accounts(deleted_at, quantity_friends, year_created, id);
+
+-- 0e. Фильтры по статусу RK, marketplace, валюте, geo + ORDER BY id (см. docs/QUERY_INDEX_ANALYSIS.md)
+CREATE INDEX IF NOT EXISTS idx_deleted_status_rk_id ON accounts(deleted_at, status_rk, id);
+CREATE INDEX IF NOT EXISTS idx_deleted_status_marketplace_id ON accounts(deleted_at, status_marketplace, id);
+CREATE INDEX IF NOT EXISTS idx_deleted_currency_id ON accounts(deleted_at, currency, id);
+CREATE INDEX IF NOT EXISTS idx_deleted_geo_id ON accounts(deleted_at, geo, id);
+
+-- 0f. Без status: limit_rk + quantity_friends + year_created (slow log 19–20: ~30 сек, 90k rows)
+CREATE INDEX IF NOT EXISTS idx_deleted_limit_rk_qty_year_id ON accounts(deleted_at, limit_rk, quantity_friends, year_created, id);
+
 -- ===== ОСНОВНЫЕ ИНДЕКСЫ ДЛЯ МЕДЛЕННЫХ ЗАПРОСОВ =====
 
 -- 1. Индекс для поля login (используется в WHERE IN запросах)
