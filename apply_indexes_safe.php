@@ -201,6 +201,14 @@ echo "\n";
 
 if ($errors === 0 || $success > 0) {
     echo "🎉 Индексы успешно применены!\n\n";
+
+    // Создаём флаг оптимизации — иначе при каждом запросе Database::ensureIndexes() выполняет 12+ проверок INFORMATION_SCHEMA
+    $flagFile = __DIR__ . '/.optimization_applied';
+    if (@file_put_contents($flagFile, date('c') . " indexes applied\n") !== false) {
+        echo "✅ Флаг .optimization_applied создан (проверка индексов при запросах отключена).\n\n";
+    } else {
+        echo "⚠️  Не удалось создать .optimization_applied в корне проекта. Создайте вручную или выполните: php create_optimization_flag.php\n\n";
+    }
     
     // Проверяем финальное количество индексов
     $result = $mysqli->query("SHOW INDEX FROM accounts");
@@ -225,7 +233,7 @@ if ($errors === 0 || $success > 0) {
     
     echo "📝 Следующие шаги:\n";
     echo "1. Откройте дашборд и проверьте скорость\n";
-    echo "2. Используйте собранные файлы (см. README_OPTIMIZATION.md)\n";
+    echo "2. На другом ПК или с другой БД — выполните этот скрипт там один раз (см. QUERY_PERFORMANCE.md, раздел «Новое окружение»)\n";
     echo "3. Проверьте метрики в DevTools (F12 → Network)\n";
 } else {
     echo "⚠️  Не удалось создать индексы.\n";
