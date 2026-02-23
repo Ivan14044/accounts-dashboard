@@ -3539,14 +3539,10 @@ document.addEventListener('DOMContentLoaded', function() {
   // Debounced версия для применения фильтра
   const debouncedApplyStatusFilter = debounce(applyStatusFilter, 300);
   
-  // Обработчик изменения чекбоксов
+  // Обработчик изменения чекбоксов — только обновление метки dropdown, применение в filters-modern.js
   statusCheckboxes.forEach(cb => {
     cb.addEventListener('change', () => {
-      updateStatusUI(); // Обновляем UI мгновенно
-      // НЕ применяем автоматически - только показываем индикатор
-      if (typeof markFiltersAsChanged === 'function') {
-        markFiltersAsChanged();
-      }
+      updateStatusUI();
     });
   });
   
@@ -3561,12 +3557,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const selectAllStatusesBtn = document.getElementById('selectAllStatusesBtn');
   if (selectAllStatusesBtn) {
     selectAllStatusesBtn.addEventListener('click', () => {
-      statusCheckboxes.forEach(cb => cb.checked = true);
+      statusCheckboxes.forEach(cb => { cb.checked = true; });
       updateStatusUI();
-      // НЕ применяем автоматически - только показываем индикатор
-      if (typeof markFiltersAsChanged === 'function') {
-        markFiltersAsChanged();
-      }
+      var form = document.getElementById('filtersForm');
+      if (form && typeof applyFormFiltersWithoutReload === 'function') applyFormFiltersWithoutReload(form);
     });
   }
   
@@ -3574,12 +3568,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const clearAllStatusesBtn = document.getElementById('clearAllStatusesBtn');
   if (clearAllStatusesBtn) {
     clearAllStatusesBtn.addEventListener('click', () => {
-      statusCheckboxes.forEach(cb => cb.checked = false);
+      statusCheckboxes.forEach(cb => { cb.checked = false; });
       updateStatusUI();
-      // НЕ применяем автоматически - только показываем индикатор
-      if (typeof markFiltersAsChanged === 'function') {
-        markFiltersAsChanged();
-      }
+      var form = document.getElementById('filtersForm');
+      if (form && typeof applyFormFiltersWithoutReload === 'function') applyFormFiltersWithoutReload(form);
     });
   }
   
@@ -3760,33 +3752,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // Пер-страница (селект)
-  const perPageSelect = document.querySelector('select[name="per_page"]');
-  if (perPageSelect) {
-    perPageSelect.addEventListener('change', () => {
-      const url = new URL(window.location);
-      const v = parseInt(perPageSelect.value || '');
-      if (!isNaN(v)) url.searchParams.set('per_page', String(v)); else url.searchParams.delete('per_page');
-      url.searchParams.set('page', '1');
-      history.replaceState(null, '', url.toString());
-      selectedAllFiltered = false; selectedIds.clear(); updateSelectedCount();
-      debouncedRefreshDashboardData(); // Используем дебаунсированную версию для фильтров
-    });
-  }
-  // Чекбоксы доп. фильтров
-  const boolFilters = ['has_email','has_two_fa','has_token','has_avatar','has_cover','has_password','full_filled'];
-  boolFilters.forEach(name => {
-    document.querySelectorAll(`input[type="checkbox"][name="${name}"]`).forEach(cb => {
-      cb.addEventListener('change', () => {
-        const url = new URL(window.location);
-        if (cb.checked) url.searchParams.set(name, '1'); else url.searchParams.delete(name);
-        url.searchParams.set('page', '1');
-        history.replaceState(null, '', url.toString());
-        selectedAllFiltered = false; selectedIds.clear(); updateSelectedCount();
-        debouncedRefreshDashboardData(); // Используем дебаунсированную версию для фильтров
-      });
-    });
-  });
+  // per_page — обработка перенесена в filters-modern.js (единый change handler на форме).
+  // Быстрые фильтры (boolFilters) — обработка перенесена в filters-modern.js (единый change handler на форме).
+  // Дублирующий handler удалён, чтобы не было двойного refresh и конфликта URL.
   // Классическая фильтрация: для числовых диапазонов применяем при вводе (debounce)
   const pharmaFrom = document.getElementsByName('pharma_from')[0];
   const pharmaTo   = document.getElementsByName('pharma_to')[0];

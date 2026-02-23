@@ -242,9 +242,13 @@ class SavedFiltersManager {
         const newUrl = 'index.php?' + params.toString();
         window.history.pushState({}, '', newUrl);
         
+        // Синхронизируем DOM формы фильтров по новому URL
+        if (typeof window.syncFormFromUrl === 'function') {
+            window.syncFormFromUrl();
+        }
+        
         // Обновляем данные через AJAX
         if (typeof refreshDashboardData === 'function') {
-            // Сбрасываем выделение
             if (typeof selectedAllFiltered !== 'undefined') {
                 selectedAllFiltered = false;
             }
@@ -256,7 +260,6 @@ class SavedFiltersManager {
             }
             refreshDashboardData();
         } else {
-            // Fallback на перезагрузку, если функция недоступна
             window.location.href = newUrl;
         }
     }

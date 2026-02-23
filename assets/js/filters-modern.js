@@ -213,12 +213,93 @@ function removeFilterChip(filterName) {
 }
 
 /**
+ * Синхронизировать все элементы формы фильтров по текущему URL.
+ * Вызывается после любого изменения URL, чтобы DOM всегда соответствовал параметрам.
+ * Решает баги: удаление chip не снимало чекбокс; применение сохранённого фильтра не обновляло форму.
+ */
+function syncFormFromUrl() {
+    var form = document.getElementById('filtersForm');
+    if (!form) return;
+    var params = new URLSearchParams(window.location.search);
+
+    // Статусы
+    var urlStatuses = params.getAll('status[]');
+    form.querySelectorAll('input.status-checkbox[name="status[]"]').forEach(function(cb) {
+        cb.checked = urlStatuses.indexOf(cb.value) !== -1;
+    });
+    var emptyCb = form.querySelector('input.status-checkbox[name="empty_status"]');
+    if (emptyCb) {
+        emptyCb.checked = params.get('empty_status') === '1';
+    }
+    // Метка dropdown статусов
+    var statusLabel = document.getElementById('statusDropdownLabel');
+    if (statusLabel) {
+        var cnt = urlStatuses.length + (params.get('empty_status') === '1' ? 1 : 0);
+        statusLabel.textContent = cnt === 0 ? 'Все статусы' : 'Выбрано: ' + cnt;
+    }
+
+    // Быстрые фильтры (toggle-switch)
+    QUICK_FILTER_PARAMS.forEach(function(name) {
+        var cb = form.querySelector('input[type="checkbox"][name="' + name + '"]');
+        if (!cb) return;
+        var isActive = params.has(name) && params.get(name) !== '';
+        cb.checked = isActive;
+        var wrapper = cb.closest('.toggle-switch-wrapper');
+        if (wrapper) {
+            if (isActive) wrapper.classList.add('active');
+            else wrapper.classList.remove('active');
+        }
+    });
+
+    // Hidden-поля dropdown-фильтров + метки
+    var dropdowns = [
+        {name: 'status_marketplace', labelId: 'statusMarketplaceDropdownLabel', itemClass: 'status-marketplace-item', allText: 'Все статусы'},
+        {name: 'currency', labelId: 'currencyDropdownLabel', itemClass: 'currency-item', allText: 'Все валюты'},
+        {name: 'geo', labelId: 'geoDropdownLabel', itemClass: 'geo-item', allText: 'Все geo'},
+        {name: 'status_rk', labelId: 'statusRkDropdownLabel', itemClass: 'status-rk-item', allText: 'Все статусы RK'}
+    ];
+    dropdowns.forEach(function(d) {
+        var input = form.querySelector('input[name="' + d.name + '"]');
+        var val = params.get(d.name) || '';
+        if (input) input.value = val;
+        var label = document.getElementById(d.labelId);
+        if (label) {
+            if (val === '') label.textContent = d.allText;
+            else if (val === '__empty__') label.textContent = 'Не указано';
+            else label.textContent = val;
+        }
+        document.querySelectorAll('.' + d.itemClass).forEach(function(item) {
+            var itemVal = item.getAttribute('data-value');
+            if (itemVal === val) item.classList.add('active');
+            else item.classList.remove('active');
+        });
+    });
+
+    // Поиск
+    var searchInput = form.querySelector('input[name="q"]');
+    if (searchInput) searchInput.value = params.get('q') || '';
+
+    // Диапазоны
+    ['pharma_from','pharma_to','friends_from','friends_to','year_created_from','year_created_to','limit_rk_from','limit_rk_to'].forEach(function(name) {
+        var input = form.querySelector('input[name="' + name + '"]');
+        if (input) input.value = params.get(name) || '';
+    });
+
+    // Per page
+    var perPage = form.querySelector('select[name="per_page"]');
+    if (perPage && params.get('per_page')) perPage.value = params.get('per_page');
+}
+window.syncFormFromUrl = syncFormFromUrl;
+
+/**
  * Применить фильтры без перезагрузки страницы: обновить URL и подгрузить данные через AJAX.
+ * После replaceState синхронизирует DOM формы, чтобы чекбоксы/инпуты соответствовали URL.
  * @param {URL} url - новый URL с параметрами фильтров
  */
 function applyFiltersWithoutReload(url) {
     if (!url || !(url instanceof URL)) return;
     history.replaceState(null, '', url.toString());
+    syncFormFromUrl();
     if (typeof window.DashboardSelection !== 'undefined' && window.DashboardSelection.clearSelection) {
         window.DashboardSelection.clearSelection();
     }
@@ -357,27 +438,18 @@ document.addEventListener('keydown', function(e) {
 // ========================================
 
 /**
- * Toggle быстрого фильтра с автоматическим применением
+ * Обработка быстрых фильтров (toggle switches).
+ * Клик на обёртке .toggle-switch-wrapper: если кликнули вне label/checkbox — программно кликаем checkbox.
+ * Реальное применение фильтра — через единый change listener ниже (в DOMContentLoaded).
  */
-function toggleQuickFilter(filterName, wrapper) {
-    const checkbox = wrapper.querySelector('input[type="checkbox"]');
-    if (!checkbox) return;
-    
-    // Toggle checkbox
-    checkbox.checked = !checkbox.checked;
-    
-    // Toggle wrapper класс
-    if (checkbox.checked) {
-        wrapper.classList.add('active');
-    } else {
-        wrapper.classList.remove('active');
-    }
-    
-    // Применяем фильтры без перезагрузки
-    const form = checkbox.closest('form');
-    if (form) {
-        applyFormFiltersWithoutReload(form);
-    }
+function initQuickFilterWrappers() {
+    document.querySelectorAll('.toggle-switch-wrapper').forEach(function(wrapper) {
+        wrapper.addEventListener('click', function(e) {
+            if (e.target.closest('input[type="checkbox"]') || e.target.closest('label.toggle-switch')) return;
+            var cb = wrapper.querySelector('input[type="checkbox"]');
+            if (cb) cb.click();
+        });
+    });
 }
 
 
@@ -437,45 +509,54 @@ window.applyFormFiltersWithoutReload = applyFormFiltersWithoutReload;
 
 // Отслеживаем изменения в полях формы — применяем без перезагрузки (только таблица и статистика)
 document.addEventListener('DOMContentLoaded', function() {
-    const filtersForm = document.getElementById('filtersForm');
+    var filtersForm = document.getElementById('filtersForm');
     if (!filtersForm) return;
 
-    // Чекбоксы статусов: применяем фильтр по текущему состоянию чекбоксов (состояние уже обновлено к моменту change)
+    // Инициализация обёрток быстрых фильтров (клик вне label → toggle checkbox)
+    initQuickFilterWrappers();
+
+    // Единый change-обработчик: статусы, быстрые фильтры, select
     filtersForm.addEventListener('change', function(e) {
-        if (e.target.classList.contains('status-checkbox')) {
+        var target = e.target;
+
+        // Чекбоксы статусов
+        if (target.classList.contains('status-checkbox')) {
             setTimeout(function() {
                 if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
             }, 0);
+            return;
         }
-    });
 
-    // Select (status_marketplace, currency и т.п.)
-    filtersForm.addEventListener('change', function(e) {
-        const target = e.target;
-        if (target.tagName === 'SELECT' && (target.name === 'status_marketplace' || target.name === 'currency' || target.name === 'geo' || target.name === 'status_rk')) {
-            setTimeout(() => {
-                if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
-            }, 100);
+        // Быстрые фильтры (toggle switches) — единый обработчик, onclick из HTML убран
+        if (target.type === 'checkbox' && QUICK_FILTER_PARAMS.indexOf(target.name) !== -1) {
+            applyFormFiltersWithoutReload(filtersForm);
+            return;
+        }
+
+        // Select (per_page)
+        if (target.tagName === 'SELECT') {
+            applyFormFiltersWithoutReload(filtersForm);
+            return;
         }
     });
 
     // Диапазонные поля при потере фокуса
     filtersForm.addEventListener('blur', function(e) {
-        const target = e.target;
+        var target = e.target;
         if (target.classList.contains('range-input-modern') && target.dataset.initialValue !== target.value) {
-            setTimeout(() => {
+            setTimeout(function() {
                 if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
             }, 100);
         }
     }, true);
 
     filtersForm.addEventListener('focus', function(e) {
-        const target = e.target;
+        var target = e.target;
         if (target.classList.contains('range-input-modern')) target.dataset.initialValue = target.value;
     }, true);
 
     filtersForm.addEventListener('keypress', function(e) {
-        const target = e.target;
+        var target = e.target;
         if (target.classList.contains('range-input-modern') && e.key === 'Enter') {
             e.preventDefault();
             if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);

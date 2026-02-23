@@ -283,94 +283,87 @@
             </label>
             <div class="quick-filters-grid">
               <!-- Email -->
-              <div class="toggle-switch-wrapper <?= $hasEmailParam !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('has_email', this)">
+              <div class="toggle-switch-wrapper <?= $hasEmailParam !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-envelope toggle-switch-icon"></i>
                   <span class="toggle-switch-label">Email</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_email" value="1" <?= $hasEmailParam !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="has_email" value="1" <?= $hasEmailParam !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
               
               <!-- 2FA -->
-              <div class="toggle-switch-wrapper <?= $hasTwoFaParam !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('has_two_fa', this)">
+              <div class="toggle-switch-wrapper <?= $hasTwoFaParam !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-shield-alt toggle-switch-icon"></i>
                   <span class="toggle-switch-label">2FA</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_two_fa" value="1" <?= $hasTwoFaParam !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="has_two_fa" value="1" <?= $hasTwoFaParam !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
               
               <!-- Token -->
-              <div class="toggle-switch-wrapper <?= ($hasTokenParam ?? '') !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('has_token', this)">
+              <div class="toggle-switch-wrapper <?= ($hasTokenParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-key toggle-switch-icon"></i>
                   <span class="toggle-switch-label">Token</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_token" value="1" <?= ($hasTokenParam ?? '') !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="has_token" value="1" <?= ($hasTokenParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
               
               <!-- Fan Page -->
-              <div class="toggle-switch-wrapper <?= ($hasFanPageParam ?? '') !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('has_fan_page', this)">
+              <div class="toggle-switch-wrapper <?= ($hasFanPageParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-flag toggle-switch-icon"></i>
                   <span class="toggle-switch-label">Fan Page</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_fan_page" value="1" <?= ($hasFanPageParam ?? '') !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="has_fan_page" value="1" <?= ($hasFanPageParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
               
               <?php if (isset($ALL_COLUMNS['avatar'])): ?>
               <!-- Avatar -->
-              <div class="toggle-switch-wrapper <?= ($hasAvatarParam ?? '') !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('has_avatar', this)">
+              <div class="toggle-switch-wrapper <?= ($hasAvatarParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-user-circle toggle-switch-icon"></i>
                   <span class="toggle-switch-label">Avatar</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_avatar" value="1" <?= ($hasAvatarParam ?? '') !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="has_avatar" value="1" <?= ($hasAvatarParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
               <?php endif; ?>
               
               <!-- Password -->
-              <div class="toggle-switch-wrapper <?= ($hasPasswordParam ?? '') !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('has_password', this)">
+              <div class="toggle-switch-wrapper <?= ($hasPasswordParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-lock toggle-switch-icon"></i>
                   <span class="toggle-switch-label">Password</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_password" value="1" <?= ($hasPasswordParam ?? '') !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="has_password" value="1" <?= ($hasPasswordParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
               
               <!-- Избранное -->
-              <div class="toggle-switch-wrapper <?= ($favoritesOnlyParam ?? '') !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('favorites_only', this)">
+              <div class="toggle-switch-wrapper <?= ($favoritesOnlyParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-star toggle-switch-icon" style="color: var(--color-warning);"></i>
                   <span class="toggle-switch-label">Избранное</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="favorites_only" value="1" <?= ($favoritesOnlyParam ?? '') !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="favorites_only" value="1" <?= ($favoritesOnlyParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
