@@ -23,9 +23,10 @@ class FilterBuilder {
     }
     
     /**
-     * Добавляет поисковый фильтр по нескольким полям
-     * 
-     * Ищет по login, email и social_url (простое совпадение текста через LIKE).
+     * Добавляет поисковый фильтр по нескольким полям.
+     *
+     * Стратегия: для числовых запросов и URL с ID — точный/префиксный поиск (использует индексы),
+     * для текстовых — LIKE '%...%' (полный скан, но неизбежен без FULLTEXT).
      * 
      * @param string|null $query Поисковый запрос
      * @return self Возвращает $this для цепочки вызовов
@@ -36,23 +37,43 @@ class FilterBuilder {
         $query = trim((string)$query);
         if ($query === '') return $this;
         
-        // Поиск только по login, email и social_url
-        $like = '%' . $query . '%';
         $searchFields = ['login', 'email', 'social_url'];
-        
-        // Проверяем, какие поля существуют в таблице
         $availableFields = array_intersect($searchFields, array_keys($this->columnsList));
-        
-        if (empty($availableFields)) {
-            return $this; // Если ни одно поле не найдено, не добавляем условие
+        if (empty($availableFields)) return $this;
+
+        $hasLogin = in_array('login', $availableFields, true);
+        $hasSocialUrl = in_array('social_url', $availableFields, true);
+        $hasIdSoc = isset($this->columnsList['id_soc_account']);
+
+        // Извлекаем числовой ID из Facebook-URL
+        $extractedId = null;
+        if (preg_match('/(?:facebook\.com|fb\.com).*[?&]id=(\d+)/', $query, $m)) {
+            $extractedId = $m[1];
+        } elseif (preg_match('#(?:facebook\.com|fb\.com)/(\d+)(?:[/?]|$)#', $query, $m)) {
+            $extractedId = $m[1];
         }
-        
+
         $orConds = [];
-        foreach ($availableFields as $field) {
-            $orConds[] = '`' . $field . '` LIKE ?';
-            $this->params[] = $like;
+
+        if ($extractedId) {
+            // URL с Facebook ID: точный поиск по login и id_soc_account (индексы), LIKE по social_url
+            if ($hasLogin)    { $orConds[] = '`login` = ?';           $this->params[] = $extractedId; }
+            if ($hasIdSoc)    { $orConds[] = '`id_soc_account` = ?';  $this->params[] = $extractedId; }
+            if ($hasSocialUrl){ $orConds[] = '`social_url` LIKE ?';   $this->params[] = '%' . $extractedId . '%'; }
+        } elseif (ctype_digit($query)) {
+            // Чисто числовой запрос: точный поиск по login (idx_login), id_soc_account; LIKE по social_url
+            if ($hasLogin)    { $orConds[] = '`login` = ?';           $this->params[] = $query; }
+            if ($hasIdSoc)    { $orConds[] = '`id_soc_account` = ?';  $this->params[] = $query; }
+            if ($hasSocialUrl){ $orConds[] = '`social_url` LIKE ?';   $this->params[] = '%' . $query . '%'; }
+        } else {
+            // Текстовый запрос: LIKE по всем доступным полям (полный скан)
+            $like = '%' . $query . '%';
+            foreach ($availableFields as $field) {
+                $orConds[] = '`' . $field . '` LIKE ?';
+                $this->params[] = $like;
+            }
         }
-        
+
         if (!empty($orConds)) {
             $this->conditions[] = '(' . implode(' OR ', $orConds) . ')';
         }

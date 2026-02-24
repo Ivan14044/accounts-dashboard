@@ -17,7 +17,10 @@ CREATE INDEX idx_login ON accounts(login);
 --    В приложении условие deleted_at IS NULL должно быть первым в WHERE (дашборд: FilterBuilder уже так делает).
 CREATE INDEX idx_deleted_status_id ON accounts(deleted_at, status, id);
 
--- Если обе команды дали #1061 — оба индекса уже есть.
+-- 3. Поиск по id_soc_account (числовой поиск Facebook ID)
+CREATE INDEX idx_id_soc_account ON accounts(id_soc_account);
+
+-- Если все команды дали #1061 — индексы уже есть.
 
 -- Проверка после создания (на том же сервере):
 --   EXPLAIN SELECT * FROM accounts WHERE login = '97693222055' LIMIT 1;           -- key = idx_login
