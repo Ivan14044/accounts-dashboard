@@ -15,6 +15,15 @@ class FilterBuilder {
     private $numericColumns = [];
     /** @var string[] Колонки, хранящиеся как строка, но используемые как число (limit_rk, scenario_pharma и т.д.) — прямое сравнение без TRIM/CAST для индекса (slow log 19–20). */
     private $numericLikeColumns = [];
+
+    /** @var string|null Исходный поисковый запрос (для двухфазного fallback exact→LIKE) */
+    private $pendingSearchQuery = null;
+    /** @var int|null Индекс search-условия в $this->conditions */
+    private $searchConditionIndex = null;
+    /** @var int Кол-во параметров, добавленных search-фильтром */
+    private $searchParamsCount = 0;
+    /** @var int Позиция первого search-параметра в $this->params */
+    private $searchParamsOffset = 0;
     
     public function __construct(array $columns, array $numericColumns = [], array $numericLikeColumns = []) {
         $this->columnsList = $columns;
@@ -25,8 +34,11 @@ class FilterBuilder {
     /**
      * Добавляет поисковый фильтр по нескольким полям.
      *
-     * Стратегия: для числовых запросов и URL с ID — точный/префиксный поиск (использует индексы),
-     * для текстовых — LIKE '%...%' (полный скан, но неизбежен без FULLTEXT).
+     * Двухфазная стратегия для числовых запросов и URL с ID:
+     *   Фаза 1 — точный поиск по индексированным полям (login, id_soc_account) → мгновенно.
+     *   Фаза 2 (fallback) — если фаза 1 не дала результатов, вызывается fallbackToLikeSearch(),
+     *     который заменяет условие на LIKE '%...%' по всем полям (медленнее, но найдёт в social_url).
+     * Для текстовых запросов — сразу LIKE '%...%' (полный скан, без fallback).
      * 
      * @param string|null $query Поисковый запрос
      * @return self Возвращает $this для цепочки вызовов
@@ -53,20 +65,20 @@ class FilterBuilder {
         }
 
         $orConds = [];
+        $this->searchParamsOffset = count($this->params);
 
         if ($extractedId) {
-            // URL с Facebook ID: только точный поиск по индексированным полям.
-            // LIKE '%...%' на social_url убран — он заставляет MySQL делать full scan всей таблицы,
-            // даже если login = ? мог бы мгновенно найти результат через idx_login.
-            if ($hasLogin)    { $orConds[] = '`login` = ?';           $this->params[] = $extractedId; }
-            if ($hasIdSoc)    { $orConds[] = '`id_soc_account` = ?';  $this->params[] = $extractedId; }
+            // Фаза 1: точный поиск по индексированным полям (LIKE убран — убивает индексы через OR)
+            if ($hasLogin) { $orConds[] = '`login` = ?';          $this->params[] = $extractedId; }
+            if ($hasIdSoc) { $orConds[] = '`id_soc_account` = ?'; $this->params[] = $extractedId; }
+            $this->pendingSearchQuery = $extractedId;
         } elseif (ctype_digit($query)) {
-            // Числовой запрос: только точный поиск по индексированным полям (login, id_soc_account).
-            // LIKE '%...%' на social_url убран — OR с неиндексируемым условием «убивает» весь индекс.
-            if ($hasLogin)    { $orConds[] = '`login` = ?';           $this->params[] = $query; }
-            if ($hasIdSoc)    { $orConds[] = '`id_soc_account` = ?';  $this->params[] = $query; }
+            // Фаза 1: точный поиск по индексированным полям
+            if ($hasLogin) { $orConds[] = '`login` = ?';          $this->params[] = $query; }
+            if ($hasIdSoc) { $orConds[] = '`id_soc_account` = ?'; $this->params[] = $query; }
+            $this->pendingSearchQuery = $query;
         } else {
-            // Текстовый запрос: LIKE по всем доступным полям (полный скан)
+            // Текстовый запрос: LIKE сразу (fallback не нужен)
             $like = '%' . $query . '%';
             foreach ($availableFields as $field) {
                 $orConds[] = '`' . $field . '` LIKE ?';
@@ -75,9 +87,52 @@ class FilterBuilder {
         }
 
         if (!empty($orConds)) {
+            $this->searchConditionIndex = count($this->conditions);
+            $this->searchParamsCount = count($this->params) - $this->searchParamsOffset;
             $this->conditions[] = '(' . implode(' OR ', $orConds) . ')';
         }
         
+        return $this;
+    }
+
+    /**
+     * Можно ли откатить поиск на LIKE (фаза 2)?
+     * Возвращает true, если текущий поиск — точный (числовой/URL), и fallback ещё не применялся.
+     */
+    public function canFallbackToLikeSearch(): bool {
+        return $this->pendingSearchQuery !== null && $this->searchConditionIndex !== null;
+    }
+
+    /**
+     * Фаза 2: заменяет точный поиск на LIKE '%...%' по login, email, social_url.
+     * Вызывать только если canFallbackToLikeSearch() === true и фаза 1 дала 0 результатов.
+     */
+    public function fallbackToLikeSearch(): self {
+        if (!$this->canFallbackToLikeSearch()) return $this;
+
+        $searchFields = ['login', 'email', 'social_url'];
+        $availableFields = array_intersect($searchFields, array_keys($this->columnsList));
+        $like = '%' . $this->pendingSearchQuery . '%';
+
+        // Удаляем старые search-параметры
+        array_splice($this->params, $this->searchParamsOffset, $this->searchParamsCount);
+
+        // Вставляем новые LIKE-параметры на то же место
+        $likeParams = [];
+        $orConds = [];
+        foreach ($availableFields as $field) {
+            $orConds[] = '`' . $field . '` LIKE ?';
+            $likeParams[] = $like;
+        }
+        array_splice($this->params, $this->searchParamsOffset, 0, $likeParams);
+
+        // Заменяем условие
+        $this->conditions[$this->searchConditionIndex] = '(' . implode(' OR ', $orConds) . ')';
+        $this->searchParamsCount = count($likeParams);
+
+        // Сбрасываем флаг — повторный fallback невозможен
+        $this->pendingSearchQuery = null;
+
         return $this;
     }
     

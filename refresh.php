@@ -42,11 +42,21 @@ try {
     $light = isset($_GET['light']) && ($_GET['light'] === '1' || $_GET['light'] === 'true');
 
     if ($light) {
-        // Режим light: только таблица и счётчик — без тяжёлой статистики (1–2 запроса вместо getStatistics)
         $filteredTotal = $service->getAccountsCount($filter);
     } else {
         $stats = $service->getStatistics($filter);
         $filteredTotal = $stats['filteredTotal'];
+    }
+
+    // Двухфазный поиск: если точный поиск (фаза 1) не дал результатов — откат на LIKE (фаза 2)
+    if ($filteredTotal === 0 && $filter->canFallbackToLikeSearch()) {
+        $filter->fallbackToLikeSearch();
+        if ($light) {
+            $filteredTotal = $service->getAccountsCount($filter);
+        } else {
+            $stats = $service->getStatistics($filter);
+            $filteredTotal = $stats['filteredTotal'];
+        }
     }
 
     $pages = max(1, (int)ceil($filteredTotal / $perPage));

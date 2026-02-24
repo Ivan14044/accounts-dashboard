@@ -150,9 +150,14 @@ class DashboardController {
         
         // Получаем статистику
         $stats = $this->service->getStatistics($filter);
-        
-        // Корректируем страницу
         $filteredTotal = $stats['filteredTotal'];
+
+        // Двухфазный поиск: если точный поиск (фаза 1) не дал результатов — откат на LIKE (фаза 2)
+        if ($filteredTotal === 0 && $filter->canFallbackToLikeSearch()) {
+            $filter->fallbackToLikeSearch();
+            $stats = $this->service->getStatistics($filter);
+            $filteredTotal = $stats['filteredTotal'];
+        }
         $pages = max(1, (int)ceil($filteredTotal / $perPage));
         
         if ($filteredTotal > 0) {
