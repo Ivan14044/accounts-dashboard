@@ -42,7 +42,6 @@ class FilterBuilder {
         if (empty($availableFields)) return $this;
 
         $hasLogin = in_array('login', $availableFields, true);
-        $hasSocialUrl = in_array('social_url', $availableFields, true);
         $hasIdSoc = isset($this->columnsList['id_soc_account']);
 
         // Извлекаем числовой ID из Facebook-URL
@@ -56,15 +55,16 @@ class FilterBuilder {
         $orConds = [];
 
         if ($extractedId) {
-            // URL с Facebook ID: точный поиск по login и id_soc_account (индексы), LIKE по social_url
+            // URL с Facebook ID: только точный поиск по индексированным полям.
+            // LIKE '%...%' на social_url убран — он заставляет MySQL делать full scan всей таблицы,
+            // даже если login = ? мог бы мгновенно найти результат через idx_login.
             if ($hasLogin)    { $orConds[] = '`login` = ?';           $this->params[] = $extractedId; }
             if ($hasIdSoc)    { $orConds[] = '`id_soc_account` = ?';  $this->params[] = $extractedId; }
-            if ($hasSocialUrl){ $orConds[] = '`social_url` LIKE ?';   $this->params[] = '%' . $extractedId . '%'; }
         } elseif (ctype_digit($query)) {
-            // Чисто числовой запрос: точный поиск по login (idx_login), id_soc_account; LIKE по social_url
+            // Числовой запрос: только точный поиск по индексированным полям (login, id_soc_account).
+            // LIKE '%...%' на social_url убран — OR с неиндексируемым условием «убивает» весь индекс.
             if ($hasLogin)    { $orConds[] = '`login` = ?';           $this->params[] = $query; }
             if ($hasIdSoc)    { $orConds[] = '`id_soc_account` = ?';  $this->params[] = $query; }
-            if ($hasSocialUrl){ $orConds[] = '`social_url` LIKE ?';   $this->params[] = '%' . $query . '%'; }
         } else {
             // Текстовый запрос: LIKE по всем доступным полям (полный скан)
             $like = '%' . $query . '%';
