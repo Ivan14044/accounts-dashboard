@@ -38,7 +38,6 @@ class AccountsRepository {
     public function getAccounts(FilterBuilder $filter, string $orderBy, int $limit, int $offset, bool $includeDeleted = false): array {
         $meta = $this->metadata->getAllColumns();
         
-        // Формируем SQL - проверяем существование колонок перед использованием
         $validCols = [];
         foreach ($meta as $col) {
             if ($this->metadata->columnExists($col)) {
@@ -48,7 +47,6 @@ class AccountsRepository {
             }
         }
         
-        // Если нет валидных колонок, используем минимум
         if (empty($validCols)) {
             $validCols = ['`id`', '`login`', '`status`'];
             Logger::error("No valid columns found, using default columns");
@@ -58,11 +56,17 @@ class AccountsRepository {
         $where = $filter->getWhereClause($includeDeleted);
         $params = $filter->getParams();
         
-        $sql = "SELECT $selectCols FROM {$this->table} $where ORDER BY $orderBy LIMIT ? OFFSET ?";
+        // Deferred join: внутренний подзапрос выбирает только id — MySQL не читает тяжёлые
+        // TEXT/BLOB колонки (cookies, full_cookies, token и т.д.) при фильтрации и сортировке.
+        // Полные данные подтягиваются JOIN-ом только для финальных LIMIT строк.
+        $innerSql = "SELECT id FROM {$this->table} $where ORDER BY $orderBy LIMIT ? OFFSET ?";
         $params[] = (int)$limit;
         $params[] = (int)$offset;
+
+        $sql = "SELECT $selectCols FROM {$this->table} "
+             . "INNER JOIN ($innerSql) AS _page USING(id) "
+             . "ORDER BY $orderBy";
         
-        // Кэшируем запросы с фильтрами (кроме пагинации, которая меняется)
         $cacheKey = null;
         if (Config::FEATURE_STATS_CACHING && $limit <= 100) {
             $cacheKey = 'accounts_' . md5($sql . serialize($params));

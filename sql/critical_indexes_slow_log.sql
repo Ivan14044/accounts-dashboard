@@ -1,6 +1,5 @@
 -- =============================================================================
 -- Критичные индексы по slow log (slow_log.csv и подобные)
--- Примеры из лога: WHERE login = 97693222055 (6–25 сек); WHERE status IN (...) AND deleted_at IS NULL (10–30 сек).
 -- Выполните в той же БД, куда пишется slow log (например if592995_accountfactory).
 --
 -- Ошибка #1061 "Дублирующееся имя ключа" = индекс уже есть, пропустите эту строку.
@@ -8,20 +7,23 @@
 -- MySQL 5.5+: без IF NOT EXISTS (доступно только с MySQL 8.0.13+).
 -- =============================================================================
 
--- 1. Поиск по login (медленные 6–25 сек: WHERE login = число)
---    Индекс используется только если приложение передаёт login как СТРОКУ: bind_param('s', $login).
---    Если запросы идут из другого приложения (например accountfactory) — там исправить тип параметра.
+-- 1. Поиск по login
 CREATE INDEX idx_login ON accounts(login);
 
--- 2. Список по статусам (медленные 10–30 сек: WHERE status IN (...) AND deleted_at IS NULL ORDER BY id)
---    В приложении условие deleted_at IS NULL должно быть первым в WHERE (дашборд: FilterBuilder уже так делает).
+-- 2. Список по статусам (базовый)
 CREATE INDEX idx_deleted_status_id ON accounts(deleted_at, status, id);
 
--- 3. Поиск по id_soc_account (числовой поиск Facebook ID)
+-- 3. Поиск по id_soc_account (Facebook ID)
 CREATE INDEX idx_id_soc_account ON accounts(id_soc_account);
+
+-- 4. Комбинированный фильтр status + status_rk (slow log: 18+ запросов по 30 сек)
+--    Покрывает: WHERE deleted_at IS NULL AND status IN (...) AND status_rk = 'valid' ORDER BY id
+--    MySQL сужает выборку по трём колонкам из индекса, не читая полные строки.
+--    ВАЖНО: порядок (deleted_at, status, status_rk, id) — status перед status_rk!
+CREATE INDEX idx_deleted_status_statusrk_id ON accounts(deleted_at, status, status_rk, id);
 
 -- Если все команды дали #1061 — индексы уже есть.
 
--- Проверка после создания (на том же сервере):
---   EXPLAIN SELECT * FROM accounts WHERE login = '97693222055' LIMIT 1;           -- key = idx_login
---   EXPLAIN SELECT id FROM accounts WHERE deleted_at IS NULL AND status IN ('recover_account_5') ORDER BY id LIMIT 50;  -- key = idx_deleted_status_id
+-- Проверка после создания:
+--   EXPLAIN SELECT id FROM accounts WHERE deleted_at IS NULL AND status IN ('recover_account_5') AND status_rk = 'valid' ORDER BY id LIMIT 50;
+--   Ожидается: key = idx_deleted_status_statusrk_id
