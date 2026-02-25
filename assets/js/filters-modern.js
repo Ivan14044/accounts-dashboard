@@ -360,53 +360,26 @@ window.applyFiltersWithoutReload = applyFiltersWithoutReload;
 // ПОЛЕ ПОИСКА
 // ========================================
 
-let searchTimeout = null;
-
 /**
- * Очистка поля поиска
+ * Очистка поля поиска.
+ * Использует AJAX-обновление вместо form.submit() (который вызывал полную перезагрузку страницы).
  */
 function clearSearch() {
-    const input = document.getElementById('modernSearchInput');
-    if (input) {
-        input.value = '';
-        input.focus();
-        
-        // Если есть форма, отправляем
-        const form = input.closest('form');
-        if (form) {
-            form.submit();
-        }
-    }
-}
-
-/**
- * Автоматическое применение поиска с задержкой (debounce)
- */
-function handleSearchInput() {
-    const input = document.getElementById('modernSearchInput');
+    var input = document.getElementById('modernSearchInput');
     if (!input) return;
-    
-    // Очищаем предыдущий таймер
-    if (searchTimeout) {
-        clearTimeout(searchTimeout);
-    }
-    
-    // Устанавливаем новый таймер (800ms задержка)
-    searchTimeout = setTimeout(() => {
-        const form = input.closest('form');
-        if (form) {
-            form.submit();
-        }
-    }, 800);
+    input.value = '';
+    input.focus();
+
+    var url = new URL(window.location);
+    url.searchParams.delete('q');
+    url.searchParams.set('page', '1');
+    history.replaceState(null, '', url.toString());
+    if (typeof window.syncFormFromUrl === 'function') window.syncFormFromUrl();
+    if (typeof refreshDashboardData === 'function') refreshDashboardData();
 }
 
-// Инициализация автоматического поиска
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('modernSearchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', handleSearchInput);
-    }
-});
+// Обработчик input на поле поиска НЕ дублируется здесь —
+// единственный живой обработчик находится в dashboard-inline.js (applyLiveSearch, debounce 300ms).
 
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
