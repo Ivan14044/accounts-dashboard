@@ -57,6 +57,7 @@ $indexes = [
     ['name' => 'idx_deleted_qty_friends_year_id', 'sql' => 'CREATE INDEX idx_deleted_qty_friends_year_id ON accounts(deleted_at, quantity_friends, year_created, id)'],
     ['name' => 'idx_deleted_status_rk_id', 'sql' => 'CREATE INDEX idx_deleted_status_rk_id ON accounts(deleted_at, status_rk, id)'],
     ['name' => 'idx_deleted_status_statusrk_id', 'sql' => 'CREATE INDEX idx_deleted_status_statusrk_id ON accounts(deleted_at, status, status_rk, id)'],
+    ['name' => 'idx_deleted_status_currency', 'sql' => 'CREATE INDEX idx_deleted_status_currency ON accounts(deleted_at, status, currency)'],
     ['name' => 'idx_deleted_status_marketplace_id', 'sql' => 'CREATE INDEX idx_deleted_status_marketplace_id ON accounts(deleted_at, status_marketplace, id)'],
     ['name' => 'idx_deleted_currency_id', 'sql' => 'CREATE INDEX idx_deleted_currency_id ON accounts(deleted_at, currency, id)'],
     ['name' => 'idx_deleted_geo_id', 'sql' => 'CREATE INDEX idx_deleted_geo_id ON accounts(deleted_at, geo, id)'],
