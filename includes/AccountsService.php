@@ -128,8 +128,8 @@ class AccountsService {
             );
         }
         
-        // Булевы фильтры "не пустое"
-        $filter->addNotEmptyFilter('email', !empty($params['has_email']));
+        // Email: проверяет колонку email + extra_info_2 (если содержит @)
+        $filter->addEmailPresentFilter(!empty($params['has_email']));
         $filter->addNotEmptyFilter('two_fa', !empty($params['has_two_fa']));
         $filter->addNotEmptyFilter('token', !empty($params['has_token']));
         $filter->addNotEmptyFilter('avatar', !empty($params['has_avatar']));

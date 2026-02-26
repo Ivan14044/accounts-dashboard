@@ -246,7 +246,31 @@ class FilterBuilder {
         $this->conditions[] = "(`$field` IS NOT NULL AND `$field` <> '')";
         return $this;
     }
-    
+
+    /**
+     * Фильтр «есть email»: проверяет основную колонку email И запасную (extra_info_2).
+     * Если в email пусто, но в extra_info_2 содержится символ @ — аккаунт считается «с email».
+     */
+    public function addEmailPresentFilter(bool $shouldFilter = false): self {
+        if (!$shouldFilter) return $this;
+
+        $hasEmail = isset($this->columnsList['email']);
+        $hasExtra = isset($this->columnsList['extra_info_2']);
+
+        if (!$hasEmail && !$hasExtra) return $this;
+
+        $parts = [];
+        if ($hasEmail) {
+            $parts[] = "(`email` IS NOT NULL AND `email` <> '')";
+        }
+        if ($hasExtra) {
+            $parts[] = "`extra_info_2` LIKE '%@%'";
+        }
+
+        $this->conditions[] = '(' . implode(' OR ', $parts) . ')';
+        return $this;
+    }
+
     /**
      * Добавляет фильтр "поле пустое"
      */
