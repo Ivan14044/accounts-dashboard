@@ -26,10 +26,16 @@ CREATE INDEX idx_deleted_status_statusrk_id ON accounts(deleted_at, status, stat
 --    Источник: accountfactory. Без этого индекса MySQL проверяет currency для каждой строки.
 CREATE INDEX idx_deleted_status_currency ON accounts(deleted_at, status, currency);
 
+-- 6. Покрывающий индекс для GROUP BY status (статистика дашборда, 8 сек → <1 сек)
+--    MySQL читает только индекс, не обращаясь к полным строкам (140k строк с TEXT/BLOB полями).
+CREATE INDEX idx_stats_covering ON accounts(deleted_at, status, updated_at, created_at);
+
 -- Если все команды дали #1061 — индексы уже есть.
 
+-- ⚠ ПРОБЛЕМА accountfactory: WHERE login = 97698908069 (число без кавычек, 11-42 сек)
+--    login — VARCHAR, числовое сравнение отключает индекс idx_login.
+--    Исправить в коде accountfactory: передавать login как строку: WHERE login = '97698908069'
+
 -- Проверка после создания:
---   EXPLAIN SELECT id FROM accounts WHERE deleted_at IS NULL AND status IN ('recover_account_5') AND status_rk = 'valid' ORDER BY id LIMIT 50;
---   Ожидается: key = idx_deleted_status_statusrk_id
---   EXPLAIN SELECT id FROM accounts WHERE deleted_at IS NULL AND status = 'Trend_x_true' AND currency = 'USD' LIMIT 50;
---   Ожидается: key = idx_deleted_status_currency
+--   EXPLAIN SELECT COALESCE(status,'') as s, COUNT(*) FROM accounts WHERE deleted_at IS NULL GROUP BY status;
+--   Ожидается: key = idx_stats_covering, Extra = Using index
