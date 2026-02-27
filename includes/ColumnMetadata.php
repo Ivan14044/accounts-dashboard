@@ -54,18 +54,40 @@ class ColumnMetadata {
                 if ($cached && isset($cached['timestamp']) && (time() - $cached['timestamp']) < 3600) {
                     // Проверяем, что структура таблицы не изменилась (проверяем наличие колонки id)
                     if (isset($cached['data']['allCols']) && in_array('id', $cached['data']['allCols'], true)) {
-                        $this->metadata = $cached['data'];
-                        // Валидируем кэш, проверяя что колонки реально существуют
+                        // Проверяем актуальность кэша: сравниваем количество колонок с реальным в БД.
+                        // Это обнаруживает добавление/удаление колонок без ожидания истечения TTL (1 час).
+                        $cacheIsValid = false;
                         try {
-                            $testQuery = "SELECT COUNT(*) FROM `accounts` LIMIT 1";
-                            $this->mysqli->query($testQuery);
-                            return; // Кэш валиден
+                            $dbName = $this->mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? '';
+                            $countStmt = $this->mysqli->prepare(
+                                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'accounts'"
+                            );
+                            if ($countStmt) {
+                                $countStmt->bind_param('s', $dbName);
+                                $countStmt->execute();
+                                $actualCount = (int)$countStmt->get_result()->fetch_row()[0];
+                                $countStmt->close();
+                                $cachedCount = count($cached['data']['allCols']);
+                                if ($actualCount === $cachedCount) {
+                                    $cacheIsValid = true;
+                                } else {
+                                    // Число колонок изменилось — кэш устарел
+                                    require_once __DIR__ . '/Logger.php';
+                                    Logger::info('ColumnMetadata: column count changed, refreshing cache', [
+                                        'cached' => $cachedCount,
+                                        'actual' => $actualCount,
+                                    ]);
+                                }
+                            }
                         } catch (Exception $e) {
-                            // Таблица недоступна, обновляем метаданные
                             require_once __DIR__ . '/Logger.php';
-                            Logger::warning('ColumnMetadata: Cache validation failed, refreshing', [
-                                'message' => $e->getMessage()
+                            Logger::warning('ColumnMetadata: cache validation failed, refreshing', [
+                                'message' => $e->getMessage(),
                             ]);
+                        }
+                        if ($cacheIsValid) {
+                            $this->metadata = $cached['data'];
+                            return;
                         }
                     }
                 }
