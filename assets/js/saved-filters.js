@@ -144,22 +144,33 @@ class SavedFiltersManager {
             if (e.target.closest('#saveCurrentFilter')) {
                 e.preventDefault();
                 this.showSaveDialog();
+                return;
             }
-            
-            // Применение фильтра
-            const applyBtn = e.target.closest('.apply-filter-btn');
-            if (applyBtn) {
-                e.preventDefault();
-                const filterId = parseInt(applyBtn.dataset.filterId, 10);
-                this.applyFilter(filterId);
-            }
-            
-            // Удаление фильтра
+
+            // Удаление фильтра — проверяем первым, чтобы не конфликтовало с apply
             const deleteBtn = e.target.closest('.delete-filter-btn');
             if (deleteBtn) {
                 e.preventDefault();
                 const filterId = parseInt(deleteBtn.dataset.filterId, 10);
                 this.deleteFilter(filterId);
+                return;
+            }
+
+            // Применение фильтра — явная кнопка ✓
+            const applyBtn = e.target.closest('.apply-filter-btn');
+            if (applyBtn) {
+                e.preventDefault();
+                const filterId = parseInt(applyBtn.dataset.filterId, 10);
+                this.applyFilter(filterId);
+                return;
+            }
+
+            // Применение фильтра — клик по строке (имя фильтра, любое место кроме кнопок)
+            const dropdownItem = e.target.closest('.dropdown-item[data-filter-id]');
+            if (dropdownItem) {
+                e.preventDefault();
+                const filterId = parseInt(dropdownItem.dataset.filterId, 10);
+                this.applyFilter(filterId);
             }
         });
     }
