@@ -119,6 +119,12 @@ function renderActiveFiltersFromUrl() {
         }
     }
 
+    // Показываем / скрываем кнопку "Сбросить все" вместе с секцией чипов
+    var resetBtn = document.getElementById('resetAllFiltersBtn');
+    if (resetBtn) {
+        resetBtn.style.display = chips.length > 0 ? '' : 'none';
+    }
+
     const badgeEl = document.querySelector('.filters-modern-badge');
     if (badgeEl) {
         badgeEl.textContent = String(chips.length);
@@ -381,6 +387,39 @@ function clearSearch() {
 // Обработчик input на поле поиска НЕ дублируется здесь —
 // единственный живой обработчик находится в dashboard-inline.js (applyLiveSearch, debounce 300ms).
 
+// ========================================
+// СБРОС ВСЕХ ФИЛЬТРОВ
+// ========================================
+
+/**
+ * Список всех параметров фильтров, которые сбрасываются кнопкой «Сбросить все».
+ * per_page не сбрасываем — это настройка отображения, не фильтр.
+ */
+var ALL_FILTER_PARAMS = [
+    'q',
+    'status[]', 'status', 'empty_status',
+    'has_email', 'has_two_fa', 'has_token', 'has_fan_page',
+    'has_avatar', 'has_password', 'has_cover', 'full_filled', 'favorites_only',
+    'pharma_from', 'pharma_to',
+    'friends_from', 'friends_to',
+    'year_created_from', 'year_created_to',
+    'limit_rk_from', 'limit_rk_to',
+    'status_marketplace', 'currency', 'geo', 'status_rk'
+];
+
+/**
+ * Сбросить все активные фильтры и обновить таблицу через AJAX.
+ */
+function resetAllFilters() {
+    var url = new URL(window.location);
+    ALL_FILTER_PARAMS.forEach(function(key) {
+        url.searchParams.delete(key);
+    });
+    url.searchParams.set('page', '1');
+    applyFiltersWithoutReload(url);
+}
+window.resetAllFilters = resetAllFilters;
+
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
     // Ctrl+F для фокуса на поиск
@@ -555,11 +594,18 @@ function updateActiveFiltersVisibility() {
     if (!section) return;
     
     const chips = section.querySelectorAll('.filter-chip');
+    const hasChips = chips.length > 0;
     
-    if (chips.length > 0) {
+    if (hasChips) {
         section.classList.add('has-filters');
     } else {
         section.classList.remove('has-filters');
+    }
+
+    // Синхронизируем кнопку "Сбросить все" при первичной загрузке страницы
+    var resetBtn = document.getElementById('resetAllFiltersBtn');
+    if (resetBtn) {
+        resetBtn.style.display = hasChips ? '' : 'none';
     }
 }
 
@@ -568,8 +614,16 @@ function updateActiveFiltersVisibility() {
 // ========================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Проверяем видимость активных фильтров
+    // Проверяем видимость активных фильтров и кнопки "Сбросить все"
     updateActiveFiltersVisibility();
+
+    // Обработчик кнопки "Сбросить все фильтры"
+    var resetBtn = document.getElementById('resetAllFiltersBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+            resetAllFilters();
+        });
+    }
     
     // Добавляем плавные анимации для chips
     document.querySelectorAll('.filter-chip').forEach((chip, index) => {

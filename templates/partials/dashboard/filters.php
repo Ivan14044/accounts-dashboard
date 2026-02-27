@@ -20,7 +20,14 @@
 
     <!-- Активные фильтры (Chips) -->
     <div class="active-filters-section <?= $activeFiltersCount > 0 ? 'has-filters' : '' ?>" id="activeFiltersSection">
-      <div class="active-filters-label">Активные фильтры</div>
+      <div class="active-filters-header">
+        <div class="active-filters-label">Активные фильтры</div>
+        <button type="button" class="btn btn-sm btn-outline-danger active-filters-reset-btn" id="resetAllFiltersBtn"
+                style="<?= $activeFiltersCount > 0 ? '' : 'display:none' ?>"
+                title="Сбросить все фильтры">
+          <i class="fas fa-times-circle me-1"></i>Сбросить все
+        </button>
+      </div>
       <div class="active-filters-list" id="activeFiltersList">
         <?php if ($q !== ''): ?>
         <div class="filter-chip" data-filter="q">
