@@ -1040,13 +1040,27 @@ class AccountsRepository {
             'existing_logins_count' => count($existingLogins)
         ]);
         
-        // ИЗМЕНЕНИЕ: Убрали единую транзакцию для всех строк
-        // Теперь каждая строка обрабатывается в своей транзакции
-        // Это позволяет сохранять успешные строки даже если некоторые содержат ошибки
+        // Батчевые транзакции: одна транзакция на IMPORT_BATCH_TX_SIZE строк.
+        // Внутри каждой транзакции используются savepoints для изоляции ошибок отдельных строк —
+        // ошибка в одной строке не откатывает весь батч.
+        $importBatchSize = 500;
+        $batchRowIdx = 0;      // счётчик строк от начала файла
+        $batchTxOpen = false;  // открыта ли сейчас транзакция
+        $batchSpName = '';     // имя текущего savepoint
         
         foreach ($accountsData as $rowNum => $data) {
-            // КАЖДАЯ СТРОКА В СВОЕЙ ТРАНЗАКЦИИ
-            $conn->begin_transaction();
+            // Открываем новую транзакцию в начале каждого батча
+            if ($batchRowIdx % $importBatchSize === 0) {
+                if ($batchTxOpen) {
+                    $conn->commit();
+                }
+                $conn->begin_transaction();
+                $batchTxOpen = true;
+            }
+            // Savepoint для изоляции ошибок отдельной строки внутри батча
+            $batchSpName = 'sp_row_' . $batchRowIdx;
+            $conn->savepoint($batchSpName);
+            $batchRowIdx++;
                 try {
                     Logger::debug('CREATE ACCOUNTS BULK: Обработка строки', [
                         'row_num' => $rowNum + 1,
@@ -1072,6 +1086,7 @@ class AccountsRepository {
                             'row' => $rowNum + 1,
                             'message' => 'Login is required'
                         ];
+                        $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                         continue;
                     }
                     
@@ -1081,7 +1096,7 @@ class AccountsRepository {
                             'row' => $rowNum + 1,
                             'message' => 'Status is required'
                         ];
-                        $conn->rollback();
+                        $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                         continue;
                     }
                     
@@ -1169,7 +1184,7 @@ class AccountsRepository {
                             'row' => $rowNum + 1,
                             'message' => 'No valid fields to insert'
                         ];
-                        $conn->rollback();
+                        $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                         continue;
                     }
                     
@@ -1184,7 +1199,7 @@ class AccountsRepository {
                         ]);
                         
                         if ($duplicateAction === 'error') {
-                            $conn->rollback();
+                            $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                             $errors[] = [
                                 'row' => $rowNum + 1,
                                 'message' => "Account with login '{$loginValue}' already exists"
@@ -1194,14 +1209,14 @@ class AccountsRepository {
                             // Обновляем существующую запись
                             try {
                                 $this->updateAccountByLogin($loginValue, $data, $allowedFields, $fieldData);
-                                $conn->commit();
+                                $conn->release_savepoint($batchSpName);
                                 $updated++;
                                 Logger::info('CREATE ACCOUNTS BULK: Запись обновлена', [
                                     'row' => $rowNum + 1,
                                     'login' => $loginValue
                                 ]);
                             } catch (Exception $updateError) {
-                                $conn->rollback();
+                                $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                                 $errors[] = [
                                     'row' => $rowNum + 1,
                                     'message' => 'Failed to update: ' . $updateError->getMessage()
@@ -1210,7 +1225,7 @@ class AccountsRepository {
                             continue;
                         } else {
                             // skip mode - пропускаем дубликат
-                            $conn->rollback();
+                            $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                             $skipped++;
                             $skippedDetails[] = [
                                 'row' => $rowNum + 1,
@@ -1237,6 +1252,7 @@ class AccountsRepository {
                             'row' => $rowNum + 1,
                             'message' => 'Failed to prepare insert statement: ' . $conn->error
                         ];
+                        $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                         continue;
                     }
                     
@@ -1282,6 +1298,9 @@ class AccountsRepository {
                             'duplicate_action' => $duplicateAction
                         ]);
                         
+                        // откат только этой строки через savepoint
+                        $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
+                        
                         if ($isDuplicateError) {
                             // Это дубликат login - обрабатываем в зависимости от duplicateAction
                             if ($duplicateAction === 'error') {
@@ -1325,8 +1344,8 @@ class AccountsRepository {
                     $newId = (int)$conn->insert_id;
                     $stmt->close();
                     
-                    // ИЗМЕНЕНИЕ: Коммитим транзакцию для ЭТОЙ строки
-                    $conn->commit();
+                    // Фиксируем savepoint этой строки (данные войдут в батч-коммит)
+                    $conn->release_savepoint($batchSpName);
                     
                     $created++;
                     $createdIds[] = $newId;
@@ -1338,8 +1357,8 @@ class AccountsRepository {
                     ]);
                     
                 } catch (Exception $e) {
-                    // ИЗМЕНЕНИЕ: Откатываем транзакцию ТОЛЬКО для этой строки
-                    $conn->rollback();
+                    // Откатываем только эту строку, остальные в батче сохраняются
+                    $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                     
                     Logger::error('CREATE ACCOUNTS BULK: Исключение при обработке строки', [
                         'row' => $rowNum + 1,
@@ -1353,6 +1372,11 @@ class AccountsRepository {
                     // Продолжаем обработку остальных строк
                 }
             }
+        
+        // Коммитим последний открытый батч
+        if ($batchTxOpen) {
+            $conn->commit();
+        }
             
             // Очищаем кэш после создания
             $this->db->clearCache();

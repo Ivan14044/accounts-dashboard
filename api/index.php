@@ -705,7 +705,7 @@ $router->get('/filters', function() {
 
     $mysqli = Database::getInstance()->getConnection();
     
-    $stmt = $mysqli->prepare("SELECT id, name, filters, created_at, updated_at FROM saved_filters WHERE user_id = ? ORDER BY updated_at DESC");
+    $stmt = $mysqli->prepare("SELECT id, name, filters, created_at, updated_at FROM saved_filters WHERE user_id = ? ORDER BY updated_at DESC LIMIT 100");
     if (!$stmt) {
         throw new Exception('Failed to prepare statement');
     }

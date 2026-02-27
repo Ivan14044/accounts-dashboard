@@ -127,6 +127,12 @@ try {
     $format = $_POST['format'] ?? 'csv';
     $duplicateAction = $_POST['duplicate_action'] ?? 'skip';
     
+    // Проверка, что файл был загружен через HTTP POST (защита от LFI)
+    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        Logger::error('IMPORT ACCOUNTS: Файл не является загруженным через HTTP POST', ['tmp_name' => $file['tmp_name'] ?? 'n/a']);
+        throw new InvalidArgumentException('Недействительный файл загрузки');
+    }
+    
     Logger::debug('IMPORT ACCOUNTS: Информация о файле', [
         'name' => $file['name'] ?? 'unknown',
         'size' => $file['size'] ?? 0,

@@ -26,7 +26,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         require_once __DIR__ . '/includes/RateLimiter.php';
         require_once __DIR__ . '/includes/Config.php';
         
-        if (Config::FEATURE_RATE_LIMITING) {
+        // Проверка CSRF-токена
+        $csrfToken = $_POST['csrf_token'] ?? '';
+        if (!verifyCsrfToken($csrfToken)) {
+            $error = 'Недействительный токен безопасности. Обновите страницу и попробуйте снова.';
+        }
+        
+        if (empty($error) && Config::FEATURE_RATE_LIMITING) {
             $limiter = new RateLimiter();
             $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
             $key = 'login_' . $ip;
@@ -366,6 +372,7 @@ function e($string) {
 <body>
   <div class="wrapper">
     <form class="form-signin" method="post">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(getCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
       <h2 class="form-signin-heading">Вход в систему</h2>
       
       <?php if ($message): ?>

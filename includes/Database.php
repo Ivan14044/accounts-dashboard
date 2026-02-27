@@ -360,6 +360,12 @@ class Database {
             return false;
         }
         
+        // Кеш на уровне запроса — INFORMATION_SCHEMA не меняется между вызовами внутри одного PHP-скрипта
+        static $tableExistsCache = [];
+        if (isset($tableExistsCache[$tableName])) {
+            return $tableExistsCache[$tableName];
+        }
+        
         $dbName = $this->mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? '';
         $sql = "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES 
                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
@@ -371,7 +377,8 @@ class Database {
             $result = $stmt->get_result();
             $row = $result->fetch_assoc();
             $stmt->close();
-            return ($row['cnt'] ?? 0) > 0;
+            $tableExistsCache[$tableName] = ($row['cnt'] ?? 0) > 0;
+            return $tableExistsCache[$tableName];
         }
         
         // Fallback - используем prepared statement для безопасности
@@ -383,8 +390,10 @@ class Database {
             $result = $stmt->get_result();
             $exists = $result && $result->num_rows > 0;
             $stmt->close();
+            $tableExistsCache[$tableName] = $exists;
             return $exists;
         }
+        $tableExistsCache[$tableName] = false;
         return false;
     }
     

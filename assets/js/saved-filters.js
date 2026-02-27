@@ -234,8 +234,15 @@ class SavedFiltersManager {
             return;
         }
         
-        // Строим URL с параметрами фильтра
-        const params = new URLSearchParams(filter.filters);
+        // Строим URL с параметрами фильтра (поддержка массивов, например status[])
+        const params = new URLSearchParams();
+        Object.entries(filter.filters || {}).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => params.append(key, v));
+            } else if (value !== null && value !== undefined && value !== '') {
+                params.set(key, value);
+            }
+        });
         params.set('page', '1'); // Сбрасываем страницу
         
         // Обновляем URL без перезагрузки страницы
