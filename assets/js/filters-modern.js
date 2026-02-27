@@ -56,7 +56,6 @@ function renderActiveFiltersFromUrl() {
         ['has_avatar', 'fa-image', 'Есть Аватар'],
         ['has_password', 'fa-lock', 'Есть Пароль'],
         ['has_cover', 'fa-image', 'Есть Обложка'],
-        ['has_bm', 'fa-briefcase', 'Есть БМ'],
         ['full_filled', 'fa-check-circle', 'Полностью заполненные'],
         ['favorites_only', 'fa-star', 'Только избранные']
     ];
@@ -180,9 +179,6 @@ function removeFilterChip(filterName) {
             break;
         case 'has_cover':
             url.searchParams.delete('has_cover');
-            break;
-        case 'has_bm':
-            url.searchParams.delete('has_bm');
             break;
         case 'bm_range':
             url.searchParams.delete('bm_from');
@@ -412,7 +408,7 @@ var ALL_FILTER_PARAMS = [
     'q',
     'status[]', 'status', 'empty_status',
     'has_email', 'has_two_fa', 'has_token', 'has_fan_page',
-    'has_avatar', 'has_password', 'has_cover', 'has_bm', 'full_filled', 'favorites_only',
+    'has_avatar', 'has_password', 'has_cover', 'full_filled', 'favorites_only',
     'pharma_from', 'pharma_to',
     'friends_from', 'friends_to',
     'bm_from', 'bm_to',
@@ -484,7 +480,7 @@ function initQuickFilterWrappers() {
 // ========================================
 
 /** Список параметров быстрых фильтров (чекбоксы). При снятии галочки поле не попадает в FormData — параметр нужно явно удалить из URL. */
-var QUICK_FILTER_PARAMS = ['has_email', 'has_two_fa', 'has_token', 'has_fan_page', 'has_avatar', 'has_password', 'has_cover', 'has_bm', 'full_filled', 'favorites_only'];
+var QUICK_FILTER_PARAMS = ['has_email', 'has_two_fa', 'has_token', 'has_fan_page', 'has_avatar', 'has_password', 'has_cover', 'full_filled', 'favorites_only'];
 
 /**
  * Собрать URL по текущему состоянию формы фильтров (без перезагрузки).

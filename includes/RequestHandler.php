@@ -105,7 +105,7 @@ class RequestHandler {
         
         // Булевы фильтры "не пустое"
         $boolFilters = ['has_email', 'has_two_fa', 'has_token', 'has_avatar',
-                       'has_cover', 'has_password', 'has_fan_page', 'has_bm', 'full_filled'];
+                       'has_cover', 'has_password', 'has_fan_page', 'full_filled'];
         foreach ($boolFilters as $key) {
             if (!empty($filterParams[$key])) {
                 $count++;

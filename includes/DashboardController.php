@@ -268,7 +268,6 @@ class DashboardController {
         $hasCoverParam = get_param('has_cover');
         $hasPasswordParam = get_param('has_password');
         $hasFanPageParam = get_param('has_fan_page');
-        $hasBmParam = get_param('has_bm');
         $bmFrom = get_param('bm_from');
         $bmTo = get_param('bm_to');
         $fullFilledParam = get_param('full_filled');
@@ -329,7 +328,6 @@ class DashboardController {
             'hasCoverParam' => $hasCoverParam,
             'hasPasswordParam' => $hasPasswordParam,
             'hasFanPageParam' => $hasFanPageParam,
-            'hasBmParam' => $hasBmParam,
             'bmFrom' => $bmFrom,
             'bmTo' => $bmTo,
             'fullFilledParam' => $fullFilledParam,
