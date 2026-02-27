@@ -192,6 +192,16 @@ class SavedFiltersManager {
             }
         });
         
+        // Проверяем, что есть хоть один активный фильтр для сохранения
+        if (Object.keys(filters).length === 0) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('Нет активных фильтров для сохранения', 'warning');
+            } else {
+                alert('Нет активных фильтров для сохранения');
+            }
+            return;
+        }
+        
         this.saveFilter(name.trim(), filters);
     }
     
@@ -200,6 +210,8 @@ class SavedFiltersManager {
      */
     async saveFilter(name, filters) {
         try {
+            // CSRF-токен обязателен для POST/PUT/DELETE — без него API возвращает 403
+            const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
             const response = await fetch('api_saved_filters.php', {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -209,7 +221,8 @@ class SavedFiltersManager {
                 },
                 body: JSON.stringify({
                     name: name,
-                    filters: filters
+                    filters: filters,
+                    csrf: csrfToken
                 })
             });
             
@@ -255,7 +268,8 @@ class SavedFiltersManager {
         params.set('page', '1'); // Сбрасываем страницу
         
         // Обновляем URL без перезагрузки страницы
-        const newUrl = 'index.php?' + params.toString();
+        // Используем текущий pathname вместо hardcoded 'index.php?' — на случай кастомных путей
+        const newUrl = window.location.pathname + '?' + params.toString();
         window.history.pushState({}, '', newUrl);
         
         // Синхронизируем DOM формы фильтров по новому URL
@@ -289,6 +303,8 @@ class SavedFiltersManager {
         }
         
         try {
+            // CSRF-токен обязателен для DELETE — без него API возвращает 403
+            const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
             const response = await fetch('api_saved_filters.php', {
                 method: 'DELETE',
                 credentials: 'same-origin',
@@ -297,7 +313,8 @@ class SavedFiltersManager {
                     'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: JSON.stringify({
-                    id: filterId
+                    id: filterId,
+                    csrf: csrfToken
                 })
             });
             
