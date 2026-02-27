@@ -125,7 +125,8 @@ class RequestHandler {
             ['pharma_from', 'pharma_to'],
             ['friends_from', 'friends_to'],
             ['year_created_from', 'year_created_to'],
-            ['limit_rk_from', 'limit_rk_to']
+            ['limit_rk_from', 'limit_rk_to'],
+            ['bm_from', 'bm_to'],
         ];
         foreach ($rangeFilters as $range) {
             if (!empty($filterParams[$range[0]]) || !empty($filterParams[$range[1]])) {

@@ -269,6 +269,8 @@ class DashboardController {
         $hasPasswordParam = get_param('has_password');
         $hasFanPageParam = get_param('has_fan_page');
         $hasBmParam = get_param('has_bm');
+        $bmFrom = get_param('bm_from');
+        $bmTo = get_param('bm_to');
         $fullFilledParam = get_param('full_filled');
         $pharmaFrom = get_param('pharma_from');
         $pharmaTo = get_param('pharma_to');
@@ -328,6 +330,8 @@ class DashboardController {
             'hasPasswordParam' => $hasPasswordParam,
             'hasFanPageParam' => $hasFanPageParam,
             'hasBmParam' => $hasBmParam,
+            'bmFrom' => $bmFrom,
+            'bmTo' => $bmTo,
             'fullFilledParam' => $fullFilledParam,
             'pharmaFrom' => $pharmaFrom,
             'pharmaTo' => $pharmaTo,

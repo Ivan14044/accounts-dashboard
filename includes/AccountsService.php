@@ -168,6 +168,14 @@ class AccountsService {
                 $params['friends_to'] ?? null
             );
         }
+
+        // Диапазон по количеству БМ
+        if ($this->metadata->columnExists('bm')) {
+            $filter->addRangeFilter('bm',
+                $params['bm_from'] ?? null,
+                $params['bm_to'] ?? null
+            );
+        }
         
         // Год создания
         $filter->addYearCreatedFilter(

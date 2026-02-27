@@ -89,6 +89,11 @@ function renderActiveFiltersFromUrl() {
     if (limitRkFrom !== '' || limitRkTo !== '') {
         chips.push('<div class="filter-chip" data-filter="limit_rk"><i class="fas fa-chart-line filter-chip-icon"></i><span>Limit RK: ' + escapeHtml(limitRkFrom || '0') + '-' + escapeHtml(limitRkTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
     }
+    const bmFrom = params.get('bm_from') || '';
+    const bmTo = params.get('bm_to') || '';
+    if (bmFrom !== '' || bmTo !== '') {
+        chips.push('<div class="filter-chip" data-filter="bm_range"><i class="fas fa-briefcase filter-chip-icon"></i><span>БМ: ' + escapeHtml(bmFrom || '0') + '—' + escapeHtml(bmTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
 
     // Одиночные с подписью из значения
     const statusMarketplace = params.get('status_marketplace');
@@ -178,6 +183,10 @@ function removeFilterChip(filterName) {
             break;
         case 'has_bm':
             url.searchParams.delete('has_bm');
+            break;
+        case 'bm_range':
+            url.searchParams.delete('bm_from');
+            url.searchParams.delete('bm_to');
             break;
         case 'full_filled':
             url.searchParams.delete('full_filled');
@@ -290,7 +299,7 @@ function syncFormFromUrl() {
     if (searchInput) searchInput.value = params.get('q') || '';
 
     // Диапазоны
-    ['pharma_from','pharma_to','friends_from','friends_to','year_created_from','year_created_to','limit_rk_from','limit_rk_to'].forEach(function(name) {
+    ['pharma_from','pharma_to','friends_from','friends_to','bm_from','bm_to','year_created_from','year_created_to','limit_rk_from','limit_rk_to'].forEach(function(name) {
         var input = form.querySelector('input[name="' + name + '"]');
         if (input) input.value = params.get(name) || '';
     });
@@ -406,6 +415,7 @@ var ALL_FILTER_PARAMS = [
     'has_avatar', 'has_password', 'has_cover', 'has_bm', 'full_filled', 'favorites_only',
     'pharma_from', 'pharma_to',
     'friends_from', 'friends_to',
+    'bm_from', 'bm_to',
     'year_created_from', 'year_created_to',
     'limit_rk_from', 'limit_rk_to',
     'status_marketplace', 'currency', 'geo', 'status_rk'

@@ -117,6 +117,14 @@
         </div>
         <?php endif; ?>
         
+        <?php if (isset($ALL_COLUMNS['bm']) && (!empty($bmFrom) || !empty($bmTo))): ?>
+        <div class="filter-chip" data-filter="bm_range">
+          <i class="fas fa-briefcase filter-chip-icon"></i>
+          <span>БМ: <?= e($bmFrom ?: '0') ?>—<?= e($bmTo ?: '∞') ?></span>
+          <button class="filter-chip-remove" onclick="removeFilterChip('bm_range')" title="Удалить">&times;</button>
+        </div>
+        <?php endif; ?>
+        
         <?php if (($favoritesOnlyParam ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="favorites_only">
           <i class="fas fa-star filter-chip-icon" style="color: var(--color-warning);"></i>
@@ -408,7 +416,8 @@
                             isset($ALL_COLUMNS['currency']) ||
                             isset($ALL_COLUMNS['geo']) ||
                             isset($ALL_COLUMNS['status_rk']) ||
-                            isset($ALL_COLUMNS['status_marketplace']);
+                            isset($ALL_COLUMNS['status_marketplace']) ||
+                            isset($ALL_COLUMNS['bm']);
           ?>
           
           <?php if ($hasRangeFilters): ?>
@@ -441,6 +450,20 @@
                   <input type="number" class="range-input-modern" name="friends_from" placeholder="От" min="0" max="1000" step="1" value="<?= e($friendsFrom) ?>">
                   <span class="range-separator">—</span>
                   <input type="number" class="range-input-modern" name="friends_to" placeholder="До" min="0" max="1000" step="1" value="<?= e($friendsTo) ?>">
+                </div>
+              </div>
+              <?php endif; ?>
+              
+              <?php if (isset($ALL_COLUMNS['bm'])): ?>
+              <div class="range-filter-group">
+                <div class="range-filter-label">
+                  <i class="fas fa-briefcase"></i>
+                  Количество БМ
+                </div>
+                <div class="range-inputs">
+                  <input type="number" id="bm_from" class="range-input-modern" name="bm_from" placeholder="От" min="0" step="1" value="<?= e($bmFrom ?? '') ?>">
+                  <span class="range-separator">—</span>
+                  <input type="number" id="bm_to" class="range-input-modern" name="bm_to" placeholder="До" min="0" step="1" value="<?= e($bmTo ?? '') ?>">
                 </div>
               </div>
               <?php endif; ?>

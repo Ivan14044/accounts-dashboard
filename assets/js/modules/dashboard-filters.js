@@ -69,6 +69,22 @@ function updateFilterURL(filterName, value, min = null, max = null) {
         }
       }
       break;
+    case 'bm':
+      if (value !== null && value !== undefined) {
+        if (typeof value === 'object' && value.from !== undefined && value.to !== undefined) {
+          if (value.from) {
+            url.searchParams.set('bm_from', String(value.from));
+          } else {
+            url.searchParams.delete('bm_from');
+          }
+          if (value.to) {
+            url.searchParams.set('bm_to', String(value.to));
+          } else {
+            url.searchParams.delete('bm_to');
+          }
+        }
+      }
+      break;
     case 'status':
       if (Array.isArray(value) && value.length > 0) {
         url.searchParams.delete('status[]');
@@ -330,9 +346,28 @@ function setupFilterInputs() {
           const to = limitRkTo ? limitRkTo.value : null;
           updateFilterURL('limit_rk', { from, to });
         };
-    if (limitRkFrom) limitRkFrom.addEventListener('input', limitHandler);
-    if (limitRkTo) limitRkTo.addEventListener('input', limitHandler);
+  if (limitRkFrom) limitRkFrom.addEventListener('input', limitHandler);
+  if (limitRkTo) limitRkTo.addEventListener('input', limitHandler);
+
+  // Количество БМ (bm_from / bm_to)
+  const bmFromInput = getElementById('bm_from');
+  const bmToInput = getElementById('bm_to');
+  if (bmFromInput || bmToInput) {
+    const bmHandler = (typeof debounce !== 'undefined' && typeof debounce === 'function')
+      ? debounce(() => {
+          const from = bmFromInput ? bmFromInput.value : null;
+          const to = bmToInput ? bmToInput.value : null;
+          updateFilterURL('bm', { from, to });
+        }, 300)
+      : () => {
+          const from = bmFromInput ? bmFromInput.value : null;
+          const to = bmToInput ? bmToInput.value : null;
+          updateFilterURL('bm', { from, to });
+        };
+    if (bmFromInput) bmFromInput.addEventListener('input', bmHandler);
+    if (bmToInput) bmToInput.addEventListener('input', bmHandler);
   }
+}
 }
 
 // Обработка изменений select полей
