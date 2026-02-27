@@ -9,6 +9,7 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <link href="assets/css/design-system.css?v=<?= time() ?>" rel="stylesheet">
   <link href="assets/css/components-unified.css?v=<?= time() ?>" rel="stylesheet">
+  <link href="assets/css/table-core.css?v=<?= time() ?>" rel="stylesheet">
   <link href="assets/css/filters-modern.css?v=<?= time() ?>" rel="stylesheet">
   <link href="assets/css/toast.css?v=<?= time() ?>" rel="stylesheet">
   <link href="assets/css/unified-theme.css?v=<?= time() ?>" rel="stylesheet">
@@ -31,7 +32,7 @@
     }
   </style>
 </head>
-<body>
+<body class="favorites-page">
 
   <!-- Навигация -->
   <nav class="navbar">
@@ -134,10 +135,12 @@
     <div class="card">
       <div class="card-body p-0">
         <div class="table-responsive">
-          <table class="table table-hover mb-0">
+          <!-- id="accountsTable" обязателен — favorites.js ищет tbody tr[data-id] именно в этой таблице -->
+          <table class="table table-hover mb-0" id="accountsTable">
             <thead>
               <tr>
                 <th>ID</th>
+                <th class="text-center" style="width:40px;" title="Избранное"><i class="fas fa-star text-warning"></i></th>
                 <th>Логин</th>
                 <th>Email</th>
                 <th>Имя</th>
@@ -148,15 +151,27 @@
             </thead>
             <tbody>
               <?php foreach ($rows as $r): ?>
-              <tr>
-                <td><?= (int)$r['id'] ?></td>
+              <!-- data-id обязателен — favorites.js парсит id строки из этого атрибута -->
+              <tr data-id="<?= (int)$r['id'] ?>">
+                <td class="fw-bold text-primary">#<?= (int)$r['id'] ?></td>
+                <!-- Ячейка избранного с кнопкой удаления из избранного -->
+                <td class="favorite-cell text-center" data-account-id="<?= (int)$r['id'] ?>">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-link favorite-btn p-0 active"
+                    data-account-id="<?= (int)$r['id'] ?>"
+                    title="Удалить из избранного">
+                    <i class="fas fa-star"></i>
+                  </button>
+                </td>
                 <td><?= htmlspecialchars($r['login'] ?? '') ?></td>
                 <td><?= htmlspecialchars($r['email'] ?? '') ?></td>
                 <td><?= htmlspecialchars($r['first_name'] ?? '') ?></td>
                 <td><?= htmlspecialchars($r['last_name'] ?? '') ?></td>
                 <td>
-                  <span class="badge bg-secondary">
-                    <?= htmlspecialchars($r['status'] ?? '') ?>
+                  <?php $st = $r['status'] ?? ''; ?>
+                  <span class="badge <?= $st !== '' ? 'bg-secondary' : 'bg-warning text-dark' ?>">
+                    <?= $st !== '' ? htmlspecialchars($st) : 'Пустой статус' ?>
                   </span>
                 </td>
                 <td class="text-end">
@@ -217,6 +232,12 @@
   </main>
   
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/js/toast.js?v=<?= time() ?>"></script>
+  <script>
+    // Передаём CSRF-токен в JS — нужен для api_favorites.php (POST/DELETE)
+    window.DashboardConfig = window.DashboardConfig || {};
+    window.DashboardConfig.csrfToken = <?= json_encode((string)getCsrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+  </script>
   <script src="assets/js/favorites.js?v=<?= time() ?>"></script>
 </body>
 </html>

@@ -107,6 +107,8 @@ class FavoritesManager {
         
         try {
             const method = isFavorite ? 'DELETE' : 'POST';
+            // CSRF-токен обязателен для POST/DELETE — без него api_favorites.php вернёт 403
+            const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
             const response = await fetch('api_favorites.php', {
                 method: method,
                 credentials: 'same-origin',
@@ -114,7 +116,7 @@ class FavoritesManager {
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: JSON.stringify({ account_id: accountId })
+                body: JSON.stringify({ account_id: accountId, csrf: csrfToken })
             });
             
             // Проверяем статус ответа
@@ -152,12 +154,28 @@ class FavoritesManager {
             }
             
             // Состояние уже обновлено оптимистично, только показываем уведомление
-            // Показываем уведомление
             if (typeof window.showToast === 'function') {
                 window.showToast(
                     originalState ? 'Удалено из избранного' : 'Добавлено в избранное',
                     'success'
                 );
+            }
+
+            // На странице избранного: убираем строку из таблицы при снятии звёздочки
+            if (originalState && document.body.classList.contains('favorites-page')) {
+                const row = document.querySelector(`#accountsTable tbody tr[data-id="${accountId}"]`);
+                if (row) {
+                    row.style.transition = 'opacity 0.3s';
+                    row.style.opacity = '0';
+                    setTimeout(() => {
+                        row.remove();
+                        // Если таблица опустела — показываем заглушку
+                        const tbody = document.querySelector('#accountsTable tbody');
+                        if (tbody && tbody.querySelectorAll('tr').length === 0) {
+                            window.location.reload();
+                        }
+                    }, 300);
+                }
             }
         } catch (error) {
             (typeof logger !== 'undefined' ? logger.error : console.error)('Error toggling favorite:', error);

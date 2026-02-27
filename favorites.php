@@ -27,8 +27,9 @@ try {
     $service = new AccountsService();
     
     // Создаем фильтр с обязательным условием "только избранные"
+    // shouldFilter=true — обязательный второй аргумент, без него фильтр не применяется
     $filter = $service->createFilterFromRequest($_GET);
-    $filter->addFavoritesFilter($userId);
+    $filter->addFavoritesFilter($userId, true);
     
     // Получаем метаданные колонок
     $meta = $service->getColumnMetadata();
