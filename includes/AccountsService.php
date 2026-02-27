@@ -135,6 +135,9 @@ class AccountsService {
         $filter->addNotEmptyFilter('avatar', !empty($params['has_avatar']));
         $filter->addNotEmptyFilter('cover', !empty($params['has_cover']));
         $filter->addNotEmptyFilter('password', !empty($params['has_password']));
+
+        // Фильтр "Есть БМ" — колонка bm не пустая
+        $filter->addNotEmptyFilter('bm', !empty($params['has_bm']));
         
         // Фильтр "Fan Page" (quantity_fp > 0)
         $filter->addGreaterThanZeroFilter('quantity_fp', !empty($params['has_fan_page']));

@@ -109,6 +109,14 @@
         </div>
         <?php endif; ?>
         
+        <?php if (isset($ALL_COLUMNS['bm']) && ($hasBmParam ?? '') !== ''): ?>
+        <div class="filter-chip" data-filter="has_bm">
+          <i class="fas fa-briefcase filter-chip-icon"></i>
+          <span>Есть БМ</span>
+          <button class="filter-chip-remove" onclick="removeFilterChip('has_bm')" title="Удалить">&times;</button>
+        </div>
+        <?php endif; ?>
+        
         <?php if (($favoritesOnlyParam ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="favorites_only">
           <i class="fas fa-star filter-chip-icon" style="color: var(--color-warning);"></i>
@@ -362,6 +370,20 @@
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
+              
+              <?php if (isset($ALL_COLUMNS['bm'])): ?>
+              <!-- БМ (Business Manager) -->
+              <div class="toggle-switch-wrapper <?= ($hasBmParam ?? '') !== '' ? 'active' : '' ?>">
+                <div class="toggle-switch-label-group">
+                  <i class="fas fa-briefcase toggle-switch-icon"></i>
+                  <span class="toggle-switch-label">БМ</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" name="has_bm" value="1" <?= ($hasBmParam ?? '') !== '' ? 'checked' : '' ?>>
+                  <span class="toggle-switch-slider"></span>
+                </label>
+              </div>
+              <?php endif; ?>
               
               <!-- Избранное -->
               <div class="toggle-switch-wrapper <?= ($favoritesOnlyParam ?? '') !== '' ? 'active' : '' ?>">
