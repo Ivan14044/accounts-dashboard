@@ -118,6 +118,70 @@ WHERE deleted_at IS NULL AND (status IN (...)) ORDER BY id
   2. **Тип параметра:** в коде приложения, выполняющего запрос, передавать значение login **как строку** в prepared statement: `WHERE login = ?` и `bind_param('s', $login)` (или эквивалент со строкой). Тогда MySQL использует индекс.
 - В этом проекте (дашборд) все запросы по login уже привязывают значение как строку (`'s'` в bind_param и явный `(string)`/trim при подготовке). Если slow log идёт с другого приложения (например, скрипт/сервис на том же хосте) — там нужно исправить привязку типа и при необходимости запустить `apply_indexes_safe.php` на той же БД.
 
+### 6.2 Анализ slow_log (5).csv — 2026-02-26/27
+
+Краткая сводка по 14 медленным запросам:
+
+| Строки | Запрос | Время | Причина | Решение |
+|--------|--------|-------|---------|---------|
+| 5–9 | `SELECT * WHERE login = NUMBER` (без кавычек) | **9–42 сек** | `login` VARCHAR, сравнение с BIGINT → полный скан таблицы, `idx_login` не используется | MySQL 8.0+: функциональный индекс `idx_login_numeric` добавлен в `apply_indexes_safe.php`. MySQL 5.7: попросить accountfactory передавать login как строку |
+| 1–3 | `UPDATE accounts WHERE deleted_at IS NULL AND status IN (...) AND currency = 'USD' AND email...` | **7–8 сек** | `idx_deleted_status_currency` не применён на этой БД | Запустить `php apply_indexes_safe.php` |
+| 4 | `SELECT GROUP BY status` статистика | **7.8 сек** / 139k строк | `idx_stats_covering` не применён на этой БД | Запустить `php apply_indexes_safe.php` |
+| 11 | `UPDATE SET status WHERE id IN (2000+ IDs)` | **46 сек** / 139k строк | Огромный IN-список → MySQL переключается на полный скан вместо использования PRIMARY KEY | На стороне accountfactory: разбить UPDATE на батчи по 200–300 IDs |
+| 10, 12–14 | `UPDATE SET token/cover/status WHERE id = N` | **24–38 сек** (всё — lock_time!) | Строка 11 держит row-level locks ~46 сек, все остальные UPDATE ждут | Исправить строку 11 (батчи на стороне accountfactory) |
+
+#### Детальный разбор
+
+**Проблема №1 — login = NUMBER (критическая)**
+
+Запросы типа `WHERE login = 97698908069` (без кавычек) от accountfactory с IP 65.21.233.118.
+MySQL выполняет `CAST(login AS UNSIGNED) = 97698908069` для каждой строки → игнорирует `idx_login`.
+Время: 9–42 секунды на запрос (сканирует 35k–113k строк, останавливается по LIMIT 1 когда находит).
+
+Решения:
+- **MySQL 8.0+**: `apply_indexes_safe.php` теперь автоматически создаёт:
+  ```sql
+  CREATE INDEX idx_login_numeric ON accounts ((CAST(login AS UNSIGNED)));
+  ```
+  MySQL 8.0 может использовать этот функциональный индекс для запросов с числовым литералом.
+- **MySQL 5.7** (функциональные индексы не поддерживаются): решение только в accountfactory — передавать login как строку: `WHERE login = '97698908069'`.
+- **Дашборд** давно исправлен: `FilterBuilder` передаёт login через `bind_param('s', ...)`.
+
+**Проблема №2 — полный скан в GROUP BY статистика (line 4)**
+
+```sql
+SELECT COALESCE(status,''), COUNT(*), SUM(CASE WHEN updated_at >= DATE_SUB(NOW(), INTERVAL 1 DAY) ...)
+FROM accounts WHERE deleted_at IS NULL GROUP BY status ORDER BY status
+```
+Сканирует все 139k строк → 7.8 сек. Решение: `idx_stats_covering(deleted_at, status, updated_at, created_at)` уже в `apply_indexes_safe.php`. После применения запрос читает только индекс (covering index), не трогая строки данных.
+
+**Проблема №3 — UPDATE с огромным IN-списком (line 11, lock contention)**
+
+accountfactory делает `UPDATE ... WHERE id IN (1000+ IDs)` одним запросом.
+При ~1000+ значений в IN MySQL выбирает полный скан вместо index lookup по PRIMARY KEY.
+Результат: 46 секунд на UPDATE 369 строк при сканировании 139k.
+**Побочный эффект**: все строки, попавшие под UPDATE, получают row-level X-lock на 46 секунд.
+Любой другой UPDATE к этим же строкам (lines 10, 12–14) ждёт в очереди.
+
+Рекомендация accountfactory: разбить UPDATE на батчи по ≤300 IDs с небольшой паузой (50–100мс) между батчами.
+
+#### Аудит избыточных индексов
+
+После всех оптимизаций на таблице `accounts` создано **40+ индексов**.
+Каждый UPDATE (`status`, `token`, `cover`, etc.) вынужден обновлять все эти B-деревья.
+Для выявления реально неиспользуемых индексов выполните (Performance Schema должна быть включена):
+
+```sql
+SELECT INDEX_NAME, COUNT_FETCH, COUNT_INSERT, COUNT_UPDATE, COUNT_DELETE
+FROM performance_schema.TABLE_IO_WAITS_SUMMARY_BY_INDEX_USAGE
+WHERE OBJECT_SCHEMA = DATABASE() AND OBJECT_NAME = 'accounts'
+  AND INDEX_NAME NOT IN ('PRIMARY')
+  AND COUNT_FETCH + COUNT_INSERT + COUNT_UPDATE + COUNT_DELETE = 0
+ORDER BY INDEX_NAME;
+```
+
+Индексы с нулевыми счётчиками — кандидаты на удаление: `DROP INDEX index_name ON accounts;`
+
 ---
 
 ## 7. Новое окружение / другой ПК / другая БД

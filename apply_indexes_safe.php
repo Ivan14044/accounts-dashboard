@@ -33,6 +33,12 @@ echo "✅ Подключение к БД успешно\n";
 $dbName = $mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? 'unknown';
 echo "   База данных: $dbName\n\n";
 
+// Определяем версию MySQL для условного добавления функциональных индексов
+$versionRow = $mysqli->query("SELECT VERSION()")->fetch_row();
+$mysqlVersion = $versionRow[0] ?? '0';
+echo "   MySQL версия: $mysqlVersion\n\n";
+$isMysql8Plus = version_compare($mysqlVersion, '8.0.0', '>=');
+
 // Получаем список существующих индексов
 $existingIndexes = [];
 $result = $mysqli->query("SHOW INDEX FROM accounts");
@@ -94,6 +100,27 @@ $indexes = [
     ['name' => 'idx_quantity_fields', 'sql' => 'CREATE INDEX idx_quantity_fields ON accounts(quantity_friends, quantity_fp, quantity_bm)'],
     ['name' => 'idx_quantity_friends_sort', 'sql' => 'CREATE INDEX idx_quantity_friends_sort ON accounts(quantity_friends, id)'],
 ];
+
+// -----------------------------------------------------------------------
+// MySQL 8.0+: функциональный индекс для запросов WHERE login = NUMBER
+// -----------------------------------------------------------------------
+// Проблема (slow_log): accountfactory делает WHERE login = 97698908069 без кавычек.
+// login — VARCHAR, константа — BIGINT. MySQL не может использовать idx_login
+// (строковый), поэтому сканирует всю таблицу (9–42 секунды).
+// Функциональный индекс CAST(login AS UNSIGNED) позволяет MySQL использовать
+// его для числового сравнения, не затрагивая строковый idx_login.
+if ($isMysql8Plus) {
+    $indexes[] = [
+        'name' => 'idx_login_numeric',
+        'sql'  => 'CREATE INDEX idx_login_numeric ON accounts ((CAST(login AS UNSIGNED)))'
+    ];
+    echo "ℹ️  MySQL 8.0+ — будет добавлен функциональный индекс idx_login_numeric\n\n";
+} else {
+    echo "⚠️  MySQL < 8.0 — функциональные индексы недоступны.\n";
+    echo "   Запросы 'WHERE login = NUMBER' (без кавычек) от accountfactory\n";
+    echo "   будут делать полный скан таблицы. Попросите accountfactory\n";
+    echo "   использовать строковые литералы: WHERE login = '97698908069'\n\n";
+}
 
 echo "Применение индексов (на большой таблице каждый индекс может создаваться 1–5 мин)...\n";
 echo "----------------------------------------\n";
@@ -237,7 +264,36 @@ if ($errors === 0 || $success > 0) {
     echo "📝 Следующие шаги:\n";
     echo "1. Откройте дашборд и проверьте скорость\n";
     echo "2. На другом ПК или с другой БД — выполните этот скрипт там один раз (см. QUERY_PERFORMANCE.md, раздел «Новое окружение»)\n";
-    echo "3. Проверьте метрики в DevTools (F12 → Network)\n";
+    echo "3. Проверьте метрики в DevTools (F12 → Network)\n\n";
+    
+    // -----------------------------------------------------------------------
+    // Предупреждение об избыточных индексах (slow_log: медленные UPDATE)
+    // -----------------------------------------------------------------------
+    $idxResult = $mysqli->query("SHOW INDEX FROM accounts");
+    $allIdx = [];
+    if ($idxResult) {
+        while ($row = $idxResult->fetch_assoc()) {
+            $allIdx[$row['Key_name']] = true;
+        }
+    }
+    $totalIdx = count($allIdx);
+    
+    if ($totalIdx > 20) {
+        echo "⚠️  ВАЖНО: На таблице accounts найдено $totalIdx индексов.\n";
+        echo "   Каждый UPDATE (статус, token, cover и т.п.) должен обновлять ВСЕ $totalIdx индексов.\n";
+        echo "   Это напрямую замедляет массовые UPDATE из accountfactory.\n\n";
+        echo "   Анализ ИСПОЛЬЗОВАНИЯ индексов (запустите в MySQL Workbench):\n";
+        echo "   SELECT INDEX_NAME, ROWS_READ, ROWS_READ/NULLIF(ROWS_TOTAL,0)*100 as pct\n";
+        echo "   FROM performance_schema.TABLE_IO_WAITS_SUMMARY_BY_INDEX_USAGE\n";
+        echo "   WHERE OBJECT_SCHEMA = DATABASE() AND OBJECT_NAME = 'accounts'\n";
+        echo "   ORDER BY ROWS_READ ASC;\n";
+        echo "   Индексы с ROWS_READ = 0 или очень маленьким значением — кандидаты на удаление.\n\n";
+    }
+    
+    echo "⚠️  ИЗВЕСТНАЯ ПРОБЛЕМА (slow_log): Блокировки (lock contention)\n";
+    echo "   accountfactory выполняет UPDATE WHERE id IN (1000+ IDs) → полный скан.\n";
+    echo "   Это блокирует другие UPDATE на 24–46 сек. Решение на стороне accountfactory:\n";
+    echo "   разбить UPDATE на батчи по 200–300 IDs с задержкой между батчами.\n";
 } else {
     echo "⚠️  Не удалось создать индексы.\n";
     echo "   Возможные причины:\n";
