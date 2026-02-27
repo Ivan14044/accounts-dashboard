@@ -205,14 +205,24 @@ echo "----------------------------------------\n\n";
 // -----------------------------------------------------------------------
 // Каждый индекс замедляет UPDATE/INSERT/DELETE.
 // С 40+ индексами крупный UPDATE (1000+ IDs) может занимать 46 сек (см. slow_log (5).csv).
+// Анализ slow_log (6).csv: accountfactory обновляет одни и те же строки параллельно
+// из 2000+ потоков → InnoDB row lock contention до 97 сек.
+// Чем меньше индексов — тем быстрее завершается каждый UPDATE и освобождает row lock.
 //
 // Следующие индексы являются СТРОГИМИ ПОДМНОЖЕСТВАМИ более широких индексов:
 //   idx_status_created(status, created_at)
 //       ← покрыт idx_compound_main(status, created_at, updated_at)
 //   idx_email_status(email, status)
 //       ← покрыт idx_email_status_marketplace(email(255), status, status_marketplace)
+//   idx_status (status)
+//       ← покрыт idx_compound_main(status, created_at, updated_at)
+//         любой WHERE status=? может использовать idx_compound_main
+//   idx_email (email)
+//       ← покрыт idx_email_status_marketplace(email(255), status, status_marketplace)
+//         любой WHERE email=? может использовать idx_email_status_marketplace
 //
-// Удаление этих двух освобождает 2 B-дерева → каждый UPDATE status/email быстрее.
+// Удаление этих индексов освобождает 4 B-дерева → каждый UPDATE status/email быстрее,
+// row lock удерживается короче → меньше очередей при параллельных UPDATE от accountfactory.
 
 $redundantIndexes = [
     [
@@ -224,6 +234,16 @@ $redundantIndexes = [
         'name'     => 'idx_email_status',
         'coveredBy'=> 'idx_email_status_marketplace',
         'reason'   => '(email, status) — subset of (email(255), status, status_marketplace)',
+    ],
+    [
+        'name'     => 'idx_status',
+        'coveredBy'=> 'idx_compound_main',
+        'reason'   => '(status) — covered by (status, created_at, updated_at); single-column prefix is redundant',
+    ],
+    [
+        'name'     => 'idx_email',
+        'coveredBy'=> 'idx_email_status_marketplace',
+        'reason'   => '(email) — covered by (email(255), status, status_marketplace); single-column prefix is redundant',
     ],
 ];
 
@@ -396,10 +416,21 @@ if ($errors === 0 || $success > 0) {
         echo "   Индексы с ROWS_READ = 0 или очень маленьким значением — кандидаты на удаление.\n\n";
     }
     
-    echo "⚠️  ИЗВЕСТНАЯ ПРОБЛЕМА (slow_log): Блокировки (lock contention)\n";
-    echo "   accountfactory выполняет UPDATE WHERE id IN (1000+ IDs) → полный скан.\n";
-    echo "   Это блокирует другие UPDATE на 24–46 сек. Решение на стороне accountfactory:\n";
-    echo "   разбить UPDATE на батчи по 200–300 IDs с задержкой между батчами.\n";
+    echo "⚠️  ИЗВЕСТНАЯ ПРОБЛЕМА (slow_log 5 + 6): Блокировки InnoDB (row lock contention)\n";
+    echo "   Причина: accountfactory запускает 2000+ параллельных потоков и несколько\n";
+    echo "   потоков одновременно обновляют ОДИН И ТОТ ЖЕ ряд (тот же WHERE id=X).\n";
+    echo "   lock_time ≈ 0 — но query_time достигает 97 сек: всё время тратится\n";
+    echo "   на ожидание InnoDB row lock (не отражается в lock_time).\n\n";
+    echo "   Дополнительный фактор: UPDATE с 20KB полем full_cookies удерживает row lock\n";
+    echo "   дольше, чем обычный UPDATE, создавая «пробки» в очереди.\n\n";
+    echo "   Решение на стороне accountfactory:\n";
+    echo "   1. Не обновлять один и тот же id из нескольких потоков одновременно.\n";
+    echo "      Использовать очередь задач (job queue) с дедупликацией по id.\n";
+    echo "   2. Разбить большие UPDATE IN (1000+ ids) на батчи по 200–300 ids.\n";
+    echo "   3. Рассмотреть снижение числа параллельных воркеров (сейчас > 2000 thread_id).\n\n";
+    echo "   MySQL-настройка (если нельзя менять accountfactory):\n";
+    echo "   SET GLOBAL innodb_lock_wait_timeout = 30;  -- вместо 50 сек по умолчанию\n";
+    echo "   Это заставит «застрявшие» запросы фейлиться быстрее, не блокируя очередь.\n";
 } else {
     echo "⚠️  Не удалось создать индексы.\n";
     echo "   Возможные причины:\n";
