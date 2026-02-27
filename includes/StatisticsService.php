@@ -92,8 +92,8 @@ class StatisticsService {
             SUM(CASE WHEN $tsField >= DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 1 ELSE 0 END) as recent_count
         FROM {$this->table}
         $where
-        GROUP BY status
-        ORDER BY status
+        GROUP BY COALESCE(status, '')
+        ORDER BY COALESCE(status, '')
         ";
         
         $statusStats = $this->db->prepare($statusSql, $params, 'status_stats');
@@ -404,10 +404,10 @@ class StatisticsService {
         if (!$this->metadata->columnExists('status_marketplace')) {
             return 0;
         }
-        
+        $deletedFilter = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
         return (int)$this->db->getCount(
             $this->table,
-            'status_marketplace IS NULL OR status_marketplace = ""'
+            '(status_marketplace IS NULL OR status_marketplace = "")' . $deletedFilter
         );
     }
     
@@ -434,10 +434,10 @@ class StatisticsService {
         if (!$this->metadata->columnExists('currency')) {
             return 0;
         }
-        
+        $deletedFilter = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
         return (int)$this->db->getCount(
             $this->table,
-            'currency IS NULL OR currency = ""'
+            '(currency IS NULL OR currency = "")' . $deletedFilter
         );
     }
     
@@ -464,10 +464,10 @@ class StatisticsService {
         if (!$this->metadata->columnExists('geo')) {
             return 0;
         }
-        
+        $deletedFilter = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
         return (int)$this->db->getCount(
             $this->table,
-            'geo IS NULL OR geo = ""'
+            '(geo IS NULL OR geo = "")' . $deletedFilter
         );
     }
     
@@ -494,10 +494,10 @@ class StatisticsService {
         if (!$this->metadata->columnExists('status_rk')) {
             return 0;
         }
-        
+        $deletedFilter = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
         return (int)$this->db->getCount(
             $this->table,
-            'status_rk IS NULL OR status_rk = ""'
+            '(status_rk IS NULL OR status_rk = "")' . $deletedFilter
         );
     }
 }

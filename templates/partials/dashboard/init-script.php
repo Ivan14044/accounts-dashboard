@@ -732,7 +732,7 @@ document.addEventListener('click', function(e) {
   
   // Глобальная конфигурация дашборда (CSRF и прочее)
   window.DashboardConfig = window.DashboardConfig || {};
-  window.DashboardConfig.csrfToken = '<?= e($csrfToken) ?>';
+  window.DashboardConfig.csrfToken = <?= json_encode((string)($csrfToken ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
   
   // НЕ сохраняем выбранные строки при перезагрузке - очищаем выбор
   if (window.DashboardSelection) {
@@ -1200,8 +1200,8 @@ document.addEventListener('click', function(e) {
       form.action = 'export.php';
       // Не указываем target, чтобы браузер правильно обработал Content-Disposition: attachment
       
-      const currentSort = '<?= $sort ?>';
-      const currentDir = '<?= $dir ?>';
+      const currentSort = <?= json_encode((string)($sort ?? 'id'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+      const currentDir = <?= json_encode((string)($dir ?? 'ASC'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
       
       if (DS.getSelectedAllFiltered()) {
         // Добавляем все параметры из текущего URL
@@ -1252,8 +1252,8 @@ document.addEventListener('click', function(e) {
     exportSelectedTxt.addEventListener('click', function() {
       const DS = window.DashboardSelection;
       if (!DS || (!DS.getSelectedAllFiltered() && DS.getSelectedIds().size === 0)) return;
-      const currentSort = '<?= $sort ?>';
-      const currentDir = '<?= $dir ?>';
+      const currentSort = <?= json_encode((string)($sort ?? 'id'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+      const currentDir = <?= json_encode((string)($dir ?? 'ASC'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
       let visibleCols = [];
       try { const saved = localStorage.getItem('dashboard_visible_columns'); if (saved) visibleCols = JSON.parse(saved); } catch (_) {}
       if (!Array.isArray(visibleCols) || visibleCols.length === 0) {

@@ -566,7 +566,9 @@ class AccountsRepository {
         $normalizedValue = $normalized['value'];
         $valueType = $normalized['type'];
 
-        $sql = "UPDATE {$this->table} SET `$field` = ? $updateTimestamp";
+        // Исключаем удалённые аккаунты из глобального обновления
+        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' WHERE deleted_at IS NULL' : '';
+        $sql = "UPDATE {$this->table} SET `$field` = ? $updateTimestamp$softDeleteClause";
         $stmt = $this->db->getConnection()->prepare($sql);
         if (!$stmt) {
             throw new Exception('Failed to prepare global update statement');
@@ -869,7 +871,7 @@ class AccountsRepository {
         
         $checkSql = "SELECT id FROM {$this->table} WHERE login = ?";
         if ($supportsSoftDelete) {
-            $checkSql .= " AND (deleted_at IS NULL OR deleted_at = '')";
+            $checkSql .= " AND deleted_at IS NULL";
         }
         $checkSql .= " LIMIT 1";
         
@@ -1432,7 +1434,9 @@ class AccountsRepository {
         
         // Формируем SQL с IN (...)
         $placeholders = implode(',', array_fill(0, count($loginsToCheck), '?'));
-        $sql = "SELECT login FROM {$this->table} WHERE login IN ($placeholders)";
+        // Проверяем только среди активных (не удалённых) аккаунтов
+        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $sql = "SELECT login FROM {$this->table} WHERE login IN ($placeholders)$softDeleteClause";
         
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
@@ -1525,7 +1529,9 @@ class AccountsRepository {
         }
         
         $setClause = implode(', ', $setParts);
-        $sql = "UPDATE {$this->table} SET {$setClause} WHERE login = ?";
+        // Обновляем только активные (не удалённые) аккаунты
+        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $sql = "UPDATE {$this->table} SET {$setClause} WHERE login = ?$softDeleteClause";
         
         $conn = $this->db->getConnection();
         $stmt = $conn->prepare($sql);
