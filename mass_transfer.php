@@ -88,14 +88,16 @@ try {
     $text = isset($input['text']) ? trim((string)$input['text']) : '';
     $status = isset($input['status']) ? trim((string)$input['status']) : '';
     $csrf = isset($input['csrf']) ? (string)$input['csrf'] : '';
-    $options = isset($input['options']) && is_array($input['options']) ? $input['options'] : [];
+    $options = [
+        'enable_like' => !empty($input['enable_like'])
+    ];
     
     Logger::debug('MASS TRANSFER: Извлечены параметры', [
         'text_length' => strlen($text),
         'status' => $status,
         'csrf_present' => !empty($csrf),
         'csrf_length' => strlen($csrf),
-        'options' => $options
+        'enable_like' => $options['enable_like']
     ]);
     
     // Валидация обязательных полей
