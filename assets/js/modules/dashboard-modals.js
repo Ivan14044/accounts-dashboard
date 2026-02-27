@@ -448,6 +448,10 @@ function initTransferModal() {
       if (loadingInfo) loadingInfo.remove();
       clearInterval(timerInterval);
     } catch (error) {
+      // Очищаем таймер — без этого он продолжит тикать после ошибки (memory leak)
+      clearInterval(timerInterval);
+      const loadingInfo = document.getElementById('massTransferLoadingInfo');
+      if (loadingInfo) loadingInfo.remove();
       if (typeof logger !== 'undefined') {
         logger.error('Ошибка массового переноса аккаунтов:', error);
       }
@@ -457,8 +461,6 @@ function initTransferModal() {
       if (typeof hidePageLoader === 'function') {
         hidePageLoader();
       }
-      const loadingInfo = document.getElementById('massTransferLoadingInfo');
-      if (loadingInfo) loadingInfo.remove();
     }
   });
 }

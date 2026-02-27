@@ -112,10 +112,21 @@ class FilterBuilder {
 
         $searchFields = ['login', 'email', 'social_url'];
         $availableFields = array_intersect($searchFields, array_keys($this->columnsList));
-        $like = '%' . $this->pendingSearchQuery . '%';
 
-        // Удаляем старые search-параметры
+        // Удаляем старые search-параметры из массива params
         array_splice($this->params, $this->searchParamsOffset, $this->searchParamsCount);
+
+        if (empty($availableFields)) {
+            // Нет доступных полей для LIKE-поиска — убираем exact-match условие,
+            // чтобы не получить невалидный SQL-фрагмент "()"
+            array_splice($this->conditions, $this->searchConditionIndex, 1);
+            $this->searchConditionIndex = null;
+            $this->searchParamsCount = 0;
+            $this->pendingSearchQuery = null;
+            return $this;
+        }
+
+        $like = '%' . $this->pendingSearchQuery . '%';
 
         // Вставляем новые LIKE-параметры на то же место
         $likeParams = [];
@@ -126,7 +137,7 @@ class FilterBuilder {
         }
         array_splice($this->params, $this->searchParamsOffset, 0, $likeParams);
 
-        // Заменяем условие
+        // Заменяем условие на LIKE-вариант
         $this->conditions[$this->searchConditionIndex] = '(' . implode(' OR ', $orConds) . ')';
         $this->searchParamsCount = count($likeParams);
 

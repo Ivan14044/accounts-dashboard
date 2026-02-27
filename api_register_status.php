@@ -62,9 +62,12 @@ try {
     // Используем специальный префикс для идентификации таких записей
     $mysqli = Database::getInstance()->getConnection();
 
-    // Проверяем, есть ли уже служебная запись с таким статусом
-    $checkStmt = $mysqli->prepare("SELECT id FROM accounts WHERE login = ? AND status = ? LIMIT 1");
+    // Проверяем, есть ли уже активная служебная запись с таким статусом (исключаем soft-deleted)
     $serviceLogin = '__status_marker_' . md5($status);
+    $checkStmt = $mysqli->prepare("SELECT id FROM accounts WHERE login = ? AND status = ? AND deleted_at IS NULL LIMIT 1");
+    if (!$checkStmt) {
+        throw new Exception('Failed to prepare check statement: ' . $mysqli->error);
+    }
     $checkStmt->bind_param('ss', $serviceLogin, $status);
     $checkStmt->execute();
     $checkResult = $checkStmt->get_result();

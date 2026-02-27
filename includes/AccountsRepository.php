@@ -142,7 +142,9 @@ class AccountsRepository {
             ? ', updated_at = CURRENT_TIMESTAMP' 
             : '';
         
-        $sql = "UPDATE {$this->table} SET status = ? $updateTimestamp WHERE id IN ($placeholders)";
+        // Исключаем soft-deleted аккаунты из обновления статуса
+        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $sql = "UPDATE {$this->table} SET status = ? $updateTimestamp WHERE id IN ($placeholders)$softDeleteClause";
         $params = array_merge([$status], $ids);
         
         $stmt = $this->db->getConnection()->prepare($sql);
@@ -380,7 +382,9 @@ class AccountsRepository {
         $normalizedValue = $normalized['value'];
         $valueType = $normalized['type'];
         
-        $sql = "UPDATE {$this->table} SET `{$field}` = ? WHERE `id` = ?";
+        // Исключаем soft-deleted аккаунты из обновления поля
+        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $sql = "UPDATE {$this->table} SET `{$field}` = ? WHERE `id` = ?$softDeleteClause";
         $stmt = $this->db->getConnection()->prepare($sql);
         
         if (!$stmt) {
@@ -442,7 +446,9 @@ class AccountsRepository {
         $normalizedValue = $normalized['value'];
         $valueType = $normalized['type'];
         
-        $sql = "UPDATE {$this->table} SET `$field` = ? $updateTimestamp WHERE id IN ($placeholders)";
+        // Исключаем soft-deleted аккаунты из массового обновления
+        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $sql = "UPDATE {$this->table} SET `$field` = ? $updateTimestamp WHERE id IN ($placeholders)$softDeleteClause";
         
         // Обработка NULL для массового обновления
         if ($normalizedValue === null) {

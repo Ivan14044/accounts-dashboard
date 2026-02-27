@@ -183,6 +183,8 @@ function initializePharmaSlider() {
   const fromDisp = getElementById('pharmaFromDisplay');
   const toDisp = getElementById('pharmaToDisplay');
 
+  // Защита от повторной инициализации: если слайдер уже создан — пересоздаём
+  if (slider.noUiSlider) slider.noUiSlider.destroy();
   noUiSlider.create(slider, {
     start: [Math.max(min, from), Math.min(max, to)],
     connect: true,
@@ -238,6 +240,8 @@ function initializeFriendsSlider() {
   const fromDisp = getElementById('friendsFromDisplay');
   const toDisp = getElementById('friendsToDisplay');
 
+  // Защита от повторной инициализации: если слайдер уже создан — пересоздаём
+  if (slider.noUiSlider) slider.noUiSlider.destroy();
   noUiSlider.create(slider, {
     start: [Math.max(min, from), Math.min(max, to)],
     connect: true,

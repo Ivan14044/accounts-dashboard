@@ -53,7 +53,8 @@ try {
     switch ($method) {
         case 'GET':
             // Получение списка сохранённых фильтров
-            $stmt = $mysqli->prepare("SELECT id, name, filters, created_at, updated_at FROM saved_filters WHERE user_id = ? ORDER BY updated_at DESC");
+            // LIMIT 100 — защита от перегрузки при большом количестве сохранённых фильтров
+            $stmt = $mysqli->prepare("SELECT id, name, filters, created_at, updated_at FROM saved_filters WHERE user_id = ? ORDER BY updated_at DESC LIMIT 100");
             if (!$stmt) {
                 throw new Exception('Failed to prepare statement');
             }
@@ -63,10 +64,12 @@ try {
             
             $filters = [];
             while ($row = $result->fetch_assoc()) {
+                // json_decode может вернуть null при повреждённых данных — используем пустой массив как fallback
+                $decodedFilters = json_decode($row['filters'], true);
                 $filters[] = [
                     'id' => (int)$row['id'],
                     'name' => $row['name'],
-                    'filters' => json_decode($row['filters'], true),
+                    'filters' => is_array($decodedFilters) ? $decodedFilters : [],
                     'created_at' => $row['created_at'],
                     'updated_at' => $row['updated_at']
                 ];

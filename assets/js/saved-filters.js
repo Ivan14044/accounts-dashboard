@@ -174,11 +174,20 @@ class SavedFiltersManager {
         }
         
         // Получаем текущие параметры фильтров из URL
+        // Multi-value параметры (например status[]=A&status[]=B) собираем в массивы
         const params = new URLSearchParams(window.location.search);
         const filters = {};
         
         params.forEach((value, key) => {
-            if (key !== 'page') { // Исключаем параметр страницы
+            if (key === 'page') return; // страницу не сохраняем
+            if (Object.prototype.hasOwnProperty.call(filters, key)) {
+                // уже есть значение для этого ключа — конвертируем в массив
+                if (Array.isArray(filters[key])) {
+                    filters[key].push(value);
+                } else {
+                    filters[key] = [filters[key], value];
+                }
+            } else {
                 filters[key] = value;
             }
         });

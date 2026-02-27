@@ -77,7 +77,8 @@ try {
     switch ($method) {
         case 'GET':
             // Получение списка избранных
-            $stmt = $mysqli->prepare("SELECT account_id FROM account_favorites WHERE user_id = ? ORDER BY created_at DESC");
+            // LIMIT 1000 — защита от перегрузки при большом числе избранных
+            $stmt = $mysqli->prepare("SELECT account_id FROM account_favorites WHERE user_id = ? ORDER BY created_at DESC LIMIT 1000");
             if (!$stmt) {
                 throw new Exception('Failed to prepare statement: ' . $mysqli->error);
             }
