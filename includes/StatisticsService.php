@@ -83,17 +83,21 @@ class StatisticsService {
         $emailTwoFa = (int)($stats['email_two_fa'] ?? 0);
         $recentAll = (int)($stats['recent_all'] ?? 0);
         
-        // Статистика по статусам (отдельный GROUP BY для детализации)
-        // Используем то же WHERE условие, что и для основной статистики
+        // Статистика по статусам (отдельный GROUP BY для детализации).
+        // ВАЖНО: используем GROUP BY status (без COALESCE), чтобы MySQL мог применить
+        // idx_stats_covering(deleted_at, status, updated_at, created_at) как covering index
+        // с loose index scan. COALESCE в GROUP BY запрещает использование индекса для
+        // группировки и вызывает filesort на 139k строках (было 7.8 сек в slow log).
+        // Объединение NULL и '' выполняется в PHP (строчка ниже).
         $statusSql = "
         SELECT 
-            COALESCE(status, '') as status, 
+            status,
             COUNT(*) as count,
             SUM(CASE WHEN $tsField >= DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 1 ELSE 0 END) as recent_count
         FROM {$this->table}
         $where
-        GROUP BY COALESCE(status, '')
-        ORDER BY COALESCE(status, '')
+        GROUP BY status
+        ORDER BY status
         ";
         
         $statusStats = $this->db->prepare($statusSql, $params, 'status_stats');
@@ -102,9 +106,11 @@ class StatisticsService {
         $recentByStatus = [];
         
         foreach ($statusStats as $row) {
-            $status = $row['status'] ?? '';
-            $byStatus[$status] = (int)$row['count'];
-            $recentByStatus[$status] = (int)($row['recent_count'] ?? 0);
+            // NULL и '' объединяем в одну группу — оба означают «без статуса».
+            // Именно здесь происходит то, что раньше делал COALESCE в SQL.
+            $status = ($row['status'] === null || $row['status'] === '') ? '' : $row['status'];
+            $byStatus[$status]       = ($byStatus[$status]       ?? 0) + (int)$row['count'];
+            $recentByStatus[$status] = ($recentByStatus[$status] ?? 0) + (int)($row['recent_count'] ?? 0);
         }
         
         // Гарантируем предсказуемый порядок статусов:
