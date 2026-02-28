@@ -36,6 +36,9 @@
  * }
  */
 
+// Большие переносы (10k+ строк) могут занимать > 30 сек — снимаем лимит PHP
+set_time_limit(0);
+
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/includes/MassTransferService.php';

@@ -116,13 +116,50 @@ if ($colCheckResult && $colCheckResult->num_rows > 0) {
 }
 
 if ($isMysql8Plus) {
-    // MySQL 8.0+: функциональный индекс — не добавляет колонку, работает «из коробки».
-    // MySQL использует его для WHERE login = NUMBER благодаря implicit type coercion.
-    $indexes[] = [
-        'name' => 'idx_login_numeric',
-        'sql'  => 'CREATE INDEX idx_login_numeric ON accounts ((CAST(login AS UNSIGNED)))'
-    ];
-    echo "ℹ️  MySQL 8.0+ — будет добавлен функциональный индекс idx_login_numeric\n\n";
+    // MySQL 8.0+: ранее использовался функциональный индекс ((CAST(login AS UNSIGNED))).
+    // ПРОБЛЕМА: при любом UPDATE строки с нечисловым логином MySQL вычисляет CAST('text' AS UNSIGNED)
+    // в STRICT mode и бросает "Data truncated for functional index" — ломает смену статуса.
+    // РЕШЕНИЕ: используем VIRTUAL generated column с IF+REGEXP — возвращает NULL вместо ошибки.
+    // IF(login REGEXP '^[0-9]+$', ...) → NULL для текстовых логинов, число для числовых.
+
+    // Шаг 1: если существует старый функциональный индекс, но нет колонки login_numeric — мигрируем
+    if (!$hasLoginNumericCol && in_array('idx_login_numeric', $existingIndexes)) {
+        echo "⚠️  Обнаружен проблемный функциональный индекс idx_login_numeric.\n";
+        echo "   Мигрируем на безопасный generated column (это устраняет 'Data truncated' ошибку)...\n";
+        $dropResult = @$mysqli->query("DROP INDEX idx_login_numeric ON accounts");
+        if ($dropResult) {
+            echo "✅ Старый функциональный индекс idx_login_numeric удалён\n";
+            // Удаляем из списка существующих, чтобы создать заново как generated column index
+            $existingIndexes = array_filter($existingIndexes, fn($n) => $n !== 'idx_login_numeric');
+        } else {
+            echo "❌ Не удалось удалить старый idx_login_numeric: " . $mysqli->error . "\n";
+        }
+    }
+
+    // Шаг 2: создаём VIRTUAL generated column (не хранит данные, индекс обновляется автоматически)
+    if (!$hasLoginNumericCol) {
+        echo "ℹ️  MySQL 8.0+ — создаётся VIRTUAL generated column login_numeric + индекс...\n";
+        $alterSql = "ALTER TABLE accounts ADD COLUMN login_numeric BIGINT UNSIGNED"
+            . " GENERATED ALWAYS AS (IF(login REGEXP '^[0-9]+$', CAST(login AS UNSIGNED), NULL)) VIRTUAL";
+        $alterResult = @$mysqli->query($alterSql);
+        if ($alterResult === false) {
+            echo "❌ Не удалось добавить login_numeric: " . $mysqli->error . "\n";
+            echo "   Колонка может уже существовать или нет прав ALTER TABLE.\n\n";
+        } else {
+            echo "✅ Колонка login_numeric (VIRTUAL) создана\n";
+            $hasLoginNumericCol = true;
+        }
+    } else {
+        echo "ℹ️  MySQL 8.0+ — колонка login_numeric уже существует\n\n";
+    }
+
+    if ($hasLoginNumericCol) {
+        $indexes[] = [
+            'name' => 'idx_login_numeric',
+            'sql'  => 'CREATE INDEX idx_login_numeric ON accounts(login_numeric)'
+        ];
+    }
+    echo "ℹ️  MySQL 8.0+ — будет добавлен индекс idx_login_numeric на generated column\n\n";
 } else {
     // MySQL 5.7: функциональные индексы недоступны.
     // Используем STORED generated column + обычный индекс.

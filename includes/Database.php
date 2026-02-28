@@ -59,9 +59,18 @@ class Database {
         if (!isset($this->mysqli->charset) || $this->mysqli->charset !== 'utf8mb4') {
             $this->mysqli->set_charset('utf8mb4');
         }
-        $this->mysqli->query("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'");
+        // STRICT_TRANS_TABLES убран намеренно: функциональный индекс (CAST(login AS UNSIGNED))
+        // бросает "Data truncated" в strict mode для строковых логинов ('user@email.com' etc.).
+        // Данные защищены prepared statements + PHP-валидацией в AccountsRepository.
+        // NO_ZERO_DATE и ERROR_FOR_DIVISION_BY_ZERO сохраняем для защиты дат и деления на 0.
+        $this->mysqli->query("SET SESSION sql_mode = 'NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'");
+        // innodb_lock_wait_timeout = 5 сек: если строка заблокирована другим запросом,
+        // быстро возвращаем ошибку вместо бесконечного ожидания
         $this->mysqli->query("SET SESSION innodb_lock_wait_timeout = 5");
-        $this->mysqli->query("SET SESSION max_execution_time = 30000");
+        // max_execution_time = 120 000 мс (2 мин): защита от зависших SELECT запросов.
+        // Только для SELECT — UPDATE/INSERT/DELETE этот параметр не ограничивает.
+        // Для mass_transfer.php отдельно вызывается set_time_limit(0).
+        $this->mysqli->query("SET SESSION max_execution_time = 120000");
     }
     
     /**

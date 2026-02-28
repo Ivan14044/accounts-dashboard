@@ -373,6 +373,9 @@ function initTransferModal() {
       }
     }
     
+    // timerInterval объявлен вне try/catch — const внутри try недоступен в catch (block scope)
+    let timerInterval = null;
+
     try {
       if (typeof showPageLoader === 'function') {
         showPageLoader();
@@ -392,7 +395,7 @@ function initTransferModal() {
       
       let secondsPassed = 0;
       const timerEl = document.getElementById('transferTimer');
-      const timerInterval = setInterval(() => {
+      timerInterval = setInterval(() => {
         secondsPassed++;
         if (timerEl) {
           timerEl.textContent = `Прошло: ${secondsPassed} сек`;

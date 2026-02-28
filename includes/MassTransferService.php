@@ -20,9 +20,11 @@ class MassTransferService {
     
     const MAX_INPUT_SIZE = 20 * 1024 * 1024; // 20MB
     const MAX_LINES = 50000;
-    const MAX_BATCH_SIZE = 5000;
+    const MAX_BATCH_SIZE = 1000;  // SELECT IN() для поиска по id_soc_account
     const MAX_URL_BATCH_SIZE = 50;
-    const UPDATE_BATCH_SIZE = 5000;
+    // UPDATE батч уменьшен с 5000 до 200: меньше IDs в IN() → row lock удерживается
+    // меньше времени → другие запросы (accountfactory) не блокируются (slow log анализ)
+    const UPDATE_BATCH_SIZE = 200;
     
     const ID_PATTERN = '/\b(10|61)[0-9A-Za-z]{10,23}\b/';
     
