@@ -708,7 +708,7 @@ window.alert = function(message) {
 
   const CLIP_LEN = 80;
   const TOKEN_CLIP = 20;
-  const LONG_FIELDS = ['cookies', 'user_agent', 'extra_info_1', 'extra_info_2', 'extra_info_3', 'extra_info_4'];
+  const LONG_FIELDS = ['cookies', 'first_cookie', 'user_agent', 'extra_info_1', 'extra_info_2', 'extra_info_3', 'extra_info_4'];
 
   const getEl = (id) => (typeof domCache !== 'undefined' && domCache.getById ? domCache.getById(id) : document.getElementById(id));
   const getSel = (sel) => (typeof domCache !== 'undefined' && domCache.get ? domCache.get(sel) : document.querySelector(sel));
@@ -2110,7 +2110,7 @@ class SavedFiltersManager {
      */
     async loadFilters() {
         try {
-            const response = await fetch('api_saved_filters.php', {
+            const response = await fetch('/api/filters', {
                 method: 'GET',
                 credentials: 'same-origin',
                 headers: {
@@ -2304,7 +2304,7 @@ class SavedFiltersManager {
         try {
             // CSRF-токен обязателен для POST/PUT/DELETE — без него API возвращает 403
             const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
-            const response = await fetch('api_saved_filters.php', {
+            const response = await fetch('/api/filters', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -2397,7 +2397,7 @@ class SavedFiltersManager {
         try {
             // CSRF-токен обязателен для DELETE — без него API возвращает 403
             const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
-            const response = await fetch('api_saved_filters.php', {
+            const response = await fetch('/api/filters', {
                 method: 'DELETE',
                 credentials: 'same-origin',
                 headers: {
@@ -2755,7 +2755,7 @@ class QuickSearch {
                 limit: 10
             });
             
-            const response = await fetch(`api.php?${params.toString()}`, {
+            const response = await fetch(`/api/accounts/count?${params.toString()}`, {
                 credentials: 'same-origin',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'
@@ -3053,7 +3053,7 @@ class FavoritesManager {
      */
     async loadFavorites() {
         try {
-            const response = await fetch('api_favorites.php', {
+            const response = await fetch('/api/favorites', {
                 method: 'GET',
                 credentials: 'same-origin',
                 headers: {
@@ -3123,9 +3123,9 @@ class FavoritesManager {
         
         try {
             const method = isFavorite ? 'DELETE' : 'POST';
-            // CSRF-токен обязателен для POST/DELETE — без него api_favorites.php вернёт 403
+            // CSRF-токен обязателен для POST/DELETE — без него /api/favorites вернёт 403
             const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
-            const response = await fetch('api_favorites.php', {
+            const response = await fetch('/api/favorites', {
                 method: method,
                 credentials: 'same-origin',
                 headers: {

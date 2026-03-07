@@ -29,7 +29,7 @@ class SavedFiltersManager {
      */
     async loadFilters() {
         try {
-            const response = await fetch('api_saved_filters.php', {
+            const response = await fetch('/api/filters', {
                 method: 'GET',
                 credentials: 'same-origin',
                 headers: {
@@ -223,7 +223,7 @@ class SavedFiltersManager {
         try {
             // CSRF-токен обязателен для POST/PUT/DELETE — без него API возвращает 403
             const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
-            const response = await fetch('api_saved_filters.php', {
+            const response = await fetch('/api/filters', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -316,7 +316,7 @@ class SavedFiltersManager {
         try {
             // CSRF-токен обязателен для DELETE — без него API возвращает 403
             const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
-            const response = await fetch('api_saved_filters.php', {
+            const response = await fetch('/api/filters', {
                 method: 'DELETE',
                 credentials: 'same-origin',
                 headers: {

@@ -179,7 +179,7 @@ async function loadHiddenCards() {
     })();
     
     // Пытаемся загрузить из БД
-    const response = await fetch('api_user_settings.php?type=hidden_cards');
+    const response = await fetch('/api/settings?type=hidden_cards');
     if (response.ok) {
       const data = await response.json();
       if (data.success && Array.isArray(data.value)) {
@@ -192,14 +192,15 @@ async function loadHiddenCards() {
           
           // Синхронизируем БД с localStorage
           try {
-            const syncResponse = await fetch('api_user_settings.php', {
+            const syncResponse = await fetch('/api/settings', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
                 type: 'hidden_cards',
-                value: cardsToHide
+                value: cardsToHide,
+                csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || ''
               })
             });
             if (syncResponse.ok) {
@@ -292,14 +293,15 @@ async function saveHiddenCards() {
     
     // Сохраняем в БД
     try {
-      const response = await fetch('api_user_settings.php', {
+      const response = await fetch('/api/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           type: 'hidden_cards',
-          value: hiddenCards
+          value: hiddenCards,
+          csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || ''
         })
       });
       
@@ -2225,7 +2227,7 @@ function hexToRgb(hex) {
  */
 async function loadCustomCardsFromStorage() {
   try {
-    const response = await fetch('api_user_settings.php?type=custom_cards', {
+    const response = await fetch('/api/settings?type=custom_cards', {
       method: 'GET',
       credentials: 'same-origin'
     });
@@ -2285,7 +2287,7 @@ async function saveCustomCardsToStorage(cards) {
   
   // Сохраняем в БД
   try {
-    const response = await fetch('api_user_settings.php', {
+    const response = await fetch('/api/settings', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2293,7 +2295,8 @@ async function saveCustomCardsToStorage(cards) {
       credentials: 'same-origin',
       body: JSON.stringify({
         type: 'custom_cards',
-        value: cards
+        value: cards,
+        csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || ''
       })
     });
     
@@ -2507,14 +2510,17 @@ async function refreshCustomCardCounts() {
         if (c.pharmaTo) filters.pharma_to = c.pharmaTo;
       }
       
-      const response = await fetch('api_custom_card.php', {
+      const response = await fetch('/api/accounts/custom-card', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest'
         },
         credentials: 'same-origin',
-        body: JSON.stringify(filters)
+        body: JSON.stringify({
+          ...filters,
+          csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || ''
+        })
       });
       
       if (!response.ok) {
@@ -2635,10 +2641,13 @@ async function createCustomCard() {
   // Автоматически регистрируем статус в БД
   if (targetStatus && targetStatus.trim() !== '') {
     try {
-      const registerResponse = await fetch('api_register_status.php', {
+      const registerResponse = await fetch('/api/status/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: targetStatus })
+        body: JSON.stringify({
+          status: targetStatus,
+          csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || ''
+        })
       });
       
       if (registerResponse.ok) {
@@ -2710,10 +2719,13 @@ async function registerMissingStatuses() {
     
     for (const status of uniqueStatuses) {
       try {
-        const response = await fetch('api_register_status.php', {
+        const response = await fetch('/api/status/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: status })
+          body: JSON.stringify({
+            status: status,
+            csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || ''
+          })
         });
         
         if (response.ok) {
@@ -2844,10 +2856,13 @@ async function initializeCustomCards() {
       registerBtn.innerHTML = '<span class="loader loader-sm loader-white" style="display:inline-block;vertical-align:middle;width:16px;height:16px;border-top-width:2px;border-right-width:2px;margin-right:8px;"></span> Регистрация...';
       
       try {
-        const response = await fetch('api_register_status.php', {
+        const response = await fetch('/api/status/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: status })
+          body: JSON.stringify({
+            status: status,
+            csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || ''
+          })
         });
         
         if (!response.ok) {

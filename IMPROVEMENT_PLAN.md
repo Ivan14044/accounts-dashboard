@@ -4,6 +4,17 @@
 
 ---
 
+## 0. Выполнено (2026-02)
+
+| Задача | Файлы |
+|--------|-------|
+| Миграция API на `/api/*` | `favorites.js`, `saved-filters.js`, `quick-search.js`, `init-script.php`, `dashboard-stats.js` — все вызовы переведены на `/api/favorites`, `/api/filters`, `/api/accounts/count`, `/api/settings`, `/api/accounts/custom-card`, `/api/status/register` |
+| Удаление мёртвого файла | `test-csv-upload.php` (тестовый скрипт с хардкодом) |
+| Деплой: `.optimization_applied` | При деплое выполнить `php apply_indexes_safe.php` или `php create_optimization_flag.php` — см. QUERY_PERFORMANCE.md §8 |
+| Документация accountfactory | QUERY_PERFORMANCE.md §6.0–6.3 — рекомендации по `login` как строке, батчам UPDATE |
+
+---
+
 ## 1. Резюме текущего состояния
 
 | Аспект | Оценка | Ключевые проблемы |
@@ -207,7 +218,7 @@ index.php → config.php → auth.php → DashboardController::getData()
 | 1 | Подключить бандл по умолчанию | `templates/dashboard.php` | Меньше запросов, быстрее загрузка |
 | 2 | Удалить мёртвые/неиспользуемые файлы | `test-csv-upload.php`, `debug.php`, `log.php` (если не нужны) | Меньше мусора |
 | 3 | Добавить `first_cookie` в инструкцию (если ещё не везде) | add-account-modal | UX |
-| 4 | Проверить `.optimization_applied` при деплое | `apply_indexes_safe.php`, деплой-скрипт | Меньше проверок при каждом запросе |
+| 4 | Проверить `.optimization_applied` при деплое | `apply_indexes_safe.php`, `create_optimization_flag.php` | Меньше проверок при каждом запросе |
 
 ### Фаза 2: Консолидация API (3–5 дней)
 

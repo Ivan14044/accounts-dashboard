@@ -37,7 +37,7 @@ class FavoritesManager {
      */
     async loadFavorites() {
         try {
-            const response = await fetch('api_favorites.php', {
+            const response = await fetch('/api/favorites', {
                 method: 'GET',
                 credentials: 'same-origin',
                 headers: {
@@ -107,9 +107,9 @@ class FavoritesManager {
         
         try {
             const method = isFavorite ? 'DELETE' : 'POST';
-            // CSRF-токен обязателен для POST/DELETE — без него api_favorites.php вернёт 403
+            // CSRF-токен обязателен для POST/DELETE — без него /api/favorites вернёт 403
             const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
-            const response = await fetch('api_favorites.php', {
+            const response = await fetch('/api/favorites', {
                 method: method,
                 credentials: 'same-origin',
                 headers: {

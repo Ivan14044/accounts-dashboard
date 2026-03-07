@@ -234,7 +234,7 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="assets/js/toast.js?v=<?= time() ?>"></script>
   <script>
-    // Передаём CSRF-токен в JS — нужен для api_favorites.php (POST/DELETE)
+    // Передаём CSRF-токен в JS — нужен для /api/favorites (POST/DELETE)
     window.DashboardConfig = window.DashboardConfig || {};
     window.DashboardConfig.csrfToken = <?= json_encode((string)getCsrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
   </script>

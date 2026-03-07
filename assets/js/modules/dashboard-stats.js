@@ -60,7 +60,7 @@ async function saveHiddenCards() {
     localStorage.setItem(LS_KEY_HIDDEN_CARDS, JSON.stringify(hiddenArray));
     
     // Сохраняем в БД через API
-    const response = await fetch('api_user_settings.php', {
+    const response = await fetch('/api/settings', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
