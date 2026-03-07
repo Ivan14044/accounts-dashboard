@@ -478,7 +478,7 @@ window.alert = function(message) {
       // Проверка наличия элементов
       if (!this.wrapper || !this.scrollbar || !this.content || !this.tableWrap || !this.table) {
         if (this.options.debug) {
-          console.warn('StickyScrollbar: Не найдены необходимые элементы', {
+          (typeof logger !== 'undefined' ? logger.warn : console.warn)('StickyScrollbar: Не найдены необходимые элементы', {
             wrapper: !!this.wrapper,
             scrollbar: !!this.scrollbar,
             content: !!this.content,
@@ -502,7 +502,7 @@ window.alert = function(message) {
       window.updateStickyScrollbar = () => this.update();
       
       if (this.options.debug) {
-        console.log('StickyScrollbar: Инициализация завершена');
+        if (typeof logger !== 'undefined') logger.debug('StickyScrollbar: Инициализация завершена');
       }
     }
     
@@ -626,7 +626,7 @@ window.alert = function(message) {
       }
       
       if (this.options.debug) {
-        console.log('StickyScrollbar: update', {
+        if (typeof logger !== 'undefined') logger.debug('StickyScrollbar: update', {
           tableWidth,
           containerWidth,
           needsScrollbar,
@@ -710,13 +710,16 @@ window.alert = function(message) {
   const TOKEN_CLIP = 20;
   const LONG_FIELDS = ['cookies', 'user_agent', 'extra_info_1', 'extra_info_2', 'extra_info_3', 'extra_info_4'];
 
+  const getEl = (id) => (typeof domCache !== 'undefined' && domCache.getById ? domCache.getById(id) : document.getElementById(id));
+  const getSel = (sel) => (typeof domCache !== 'undefined' && domCache.get ? domCache.get(sel) : document.querySelector(sel));
+
   class TableModule {
     constructor(root, options = {}) {
       this.root = root;
-      this.table = document.getElementById('accountsTable');
+      this.table = getEl('accountsTable');
       this.tbody = this.table ? this.table.querySelector('tbody') : null;
-      this.toolbar = document.getElementById('rowsCounterBar');
-      this.scrollContainer = document.getElementById('tableWrap');
+      this.toolbar = getEl('rowsCounterBar');
+      this.scrollContainer = getEl('tableWrap');
       this.options = Object.assign({
         virtualization: {
           threshold: 80,
@@ -845,12 +848,23 @@ window.alert = function(message) {
     }
 
     refreshLayout() {
-      if (this.virtualScroller && typeof this.virtualScroller.refresh === 'function') {
-        this.virtualScroller.refresh();
-      }
-      if (typeof window.updateStickyScrollbar === 'function') {
-        window.updateStickyScrollbar();
-      }
+      // Используем requestAnimationFrame для гарантии, что DOM полностью обновлен
+      // перед обновлением виртуализации
+      requestAnimationFrame(() => {
+        if (this.virtualScroller && typeof this.virtualScroller.refresh === 'function') {
+          this.virtualScroller.refresh();
+        }
+        if (typeof window.updateStickyScrollbar === 'function') {
+          window.updateStickyScrollbar();
+        }
+        // Инвалидируем dom-cache и RowIdsCache после обновления виртуализации
+        if (typeof domCache !== 'undefined' && typeof domCache.invalidate === 'function') {
+          domCache.invalidate();
+        }
+        if (typeof RowIdsCache !== 'undefined' && typeof RowIdsCache.invalidate === 'function') {
+          RowIdsCache.invalidate();
+        }
+      });
     }
 
     getColumnKeys() {
@@ -871,6 +885,7 @@ window.alert = function(message) {
         if (col === 'id') {
           const idCell = `<td class="ac-cell ac-cell--id" data-col="id" data-column="id">
             <span class="fw-bold text-primary">#${this.escape(row[col])}</span>
+            <button type="button" class="copy-btn" data-copy-text="${this.escape(row[col])}" title="Копировать"><i class="fas fa-copy"></i></button>
           </td>`;
           const favoriteCell = `<td class="ac-cell ac-cell--favorite favorite-cell text-center" data-column="favorite" data-account-id="${row.id}">
             <button type="button" class="btn btn-sm btn-link favorite-btn p-0" data-account-id="${row.id}" title="Избранное">
@@ -903,6 +918,7 @@ window.alert = function(message) {
         return `<div class="editable-field-wrap" data-row-id="${row.id}" data-field="${col}">
           <span class="text-muted field-value">—</span>
           <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+          <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       if (col === 'email') {
@@ -955,6 +971,7 @@ window.alert = function(message) {
         return `<div class="editable-field-wrap" data-row-id="${row.id}" data-field="${col}">
           <span class="badge ${badgeClass} field-value">${this.escape(displayText)}</span>
           <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+          <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       if (col === 'social_url' && /^https?:\/\//i.test(String(value || ''))) {
@@ -963,6 +980,7 @@ window.alert = function(message) {
             <i class="fas fa-external-link-alt me-2"></i>${this.escape(value)}
           </a>
           <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+          <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       if (LONG_FIELDS.includes(col) || (typeof value === 'string' && value.length > CLIP_LEN)) {
@@ -972,11 +990,13 @@ window.alert = function(message) {
             ${this.escape(clipped)}
           </span>
           <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+          <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       return `<div class="editable-field-wrap" data-row-id="${row.id}" data-field="${col}">
         <span class="field-value">${this.escape(value)}</span>
         <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+        <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
       </div>`;
     }
 
@@ -1001,8 +1021,8 @@ window.alert = function(message) {
         table: null,
         scrollContainer: null
       }, options);
-      this.table = this.options.table || document.getElementById('accountsTable');
-      this.scrollTarget = this.options.scrollContainer || document.getElementById('tableWrap') || window;
+      this.table = this.options.table || getEl('accountsTable');
+      this.scrollTarget = this.options.scrollContainer || getEl('tableWrap') || window;
       this.tbody = this.table ? this.table.querySelector('tbody') : null;
       this.allRows = [];
       this.spacerTop = null;
@@ -1021,8 +1041,8 @@ window.alert = function(message) {
     }
 
     mount() {
-      this.table = this.options.table || document.getElementById('accountsTable');
-      this.scrollTarget = this.options.scrollContainer || document.getElementById('tableWrap') || window;
+      this.table = this.options.table || getEl('accountsTable');
+      this.scrollTarget = this.options.scrollContainer || getEl('tableWrap') || window;
       this.tbody = this.table ? this.table.querySelector('tbody') : null;
       this.useWindowScroll = this.scrollTarget === window;
       if (!this.table || !this.tbody) {
@@ -1035,22 +1055,50 @@ window.alert = function(message) {
       this.mount();
       if (!this.table || !this.tbody) return;
       const rows = Array.from(this.tbody.querySelectorAll('tr[data-id]'));
-      if (rows.length <= this.options.threshold) {
+      
+      // Проверяем значение per_page из URL
+      // Отключаем виртуализацию для малых значений per_page (<=100)
+      const urlParams = new URLSearchParams(window.location.search);
+      const perPage = parseInt(urlParams.get('per_page') || '25', 10);
+      const shouldEnableVirtualization = rows.length > this.options.threshold && perPage > 100;
+      
+      if (!shouldEnableVirtualization) {
         this.disable(true);
         return;
       }
-      this.disable(true);
-      this.enable(rows);
+      
+      // Если виртуализация уже включена, обновляем allRows без полного пересоздания
+      if (this.enabled && this.allRows.length > 0) {
+        this.allRows = rows;
+        this.updateVisibleRows();
+      } else {
+        this.disable(true);
+        this.enable(rows);
+      }
     }
 
     checkAndToggle() {
       if (!this.tbody) return;
       const dataRows = Array.from(this.tbody.querySelectorAll('tr[data-id]'));
-      if (dataRows.length > this.options.threshold) {
+      
+      // Проверяем значение per_page из URL
+      // Отключаем виртуализацию для малых значений per_page (<=100)
+      // чтобы пользователь видел все строки сразу
+      const urlParams = new URLSearchParams(window.location.search);
+      const perPage = parseInt(urlParams.get('per_page') || '25', 10);
+      const shouldEnableVirtualization = dataRows.length > this.options.threshold && perPage > 100;
+      
+      if (shouldEnableVirtualization) {
         if (!this.enabled) {
           this.enable(dataRows);
+        } else {
+          // Если виртуализация уже включена, обновляем allRows
+          this.allRows = dataRows;
+          this.updateVisibleRows();
+          this.updateVirtualizationHint();
         }
       } else if (this.enabled) {
+        // Отключаем виртуализацию для малых значений per_page
         this.disable();
       }
     }
@@ -1076,6 +1124,9 @@ window.alert = function(message) {
       window.addEventListener('resize', this.resizeHandler, { passive: true });
       this.updateTableOffset();
       this.updateVisibleRows();
+      
+      // Обновляем индикатор виртуализации после первого рендера
+      setTimeout(() => this.updateVirtualizationHint(), 0);
     }
 
     disable(preserveDom = false) {
@@ -1106,6 +1157,9 @@ window.alert = function(message) {
         this.tbody.appendChild(fragment);
       }
       this.allRows = [];
+      
+      // Скрываем индикатор виртуализации
+      this.updateVirtualizationHint();
     }
 
     createSpacers() {
@@ -1144,6 +1198,12 @@ window.alert = function(message) {
       if (!this.enabled || this.isRendering || !this.allRows.length) {
         return;
       }
+      // Проверяем, не редактируется ли какая-то строка
+      const editingRow = this.tbody ? this.tbody.querySelector('tr[data-id][data-editing="true"]') : null;
+      if (editingRow) {
+        // Не перерисовываем строки, если идет редактирование
+        return;
+      }
       this.isRendering = true;
       const totalRows = this.allRows.length;
       const scrollTop = this.getRelativeScrollTop();
@@ -1164,11 +1224,16 @@ window.alert = function(message) {
       const bottomCell = this.spacerBottom?.querySelector('td');
       if (topCell) topCell.style.height = `${topHeight}px`;
       if (bottomCell) bottomCell.style.height = `${bottomHeight}px`;
-      const renderedRows = Array.from(this.tbody.querySelectorAll('tr:not(.spacer)'));
+      // Не удаляем строки, которые редактируются
+      const renderedRows = Array.from(this.tbody.querySelectorAll('tr:not(.spacer):not([data-editing="true"])'));
       renderedRows.forEach(row => row.remove());
       const fragment = document.createDocumentFragment();
       for (let i = startIndex; i < endIndex; i += 1) {
-        fragment.appendChild(this.allRows[i]);
+        // Пропускаем строки, которые редактируются (проверяем в DOM, так как allRows может быть устаревшим)
+        const rowInDom = this.tbody.querySelector(`tr[data-id="${this.allRows[i].getAttribute('data-id')}"]`);
+        if (!rowInDom || !rowInDom.hasAttribute('data-editing')) {
+          fragment.appendChild(this.allRows[i]);
+        }
       }
       this.tbody.insertBefore(fragment, this.spacerBottom);
       if (typeof applySavedColumnVisibility === 'function') {
@@ -1180,7 +1245,31 @@ window.alert = function(message) {
       if (typeof updateAllSelectedRowsHighlight === 'function') {
         updateAllSelectedRowsHighlight();
       }
+      
+      // Обновляем индикатор виртуализации
+      this.updateVirtualizationHint();
+      
       this.isRendering = false;
+    }
+    
+    updateVirtualizationHint() {
+      const hintEl = getEl('virtualizationHint');
+      const visibleCountEl = getEl('visibleRowsCount');
+      const totalCountEl = getEl('totalRowsOnPage');
+      
+      if (!hintEl) return;
+      
+      if (this.enabled && this.allRows.length > 0) {
+        const totalRows = this.allRows.length;
+        const visibleRows = this.visibleRange.end - this.visibleRange.start;
+        
+        if (visibleCountEl) visibleCountEl.textContent = visibleRows;
+        if (totalCountEl) totalCountEl.textContent = totalRows;
+        
+        hintEl.style.display = 'inline';
+      } else {
+        hintEl.style.display = 'none';
+      }
     }
 
     recalculate() {
@@ -1226,7 +1315,7 @@ window.alert = function(message) {
   }
 
   function bootstrapTableModule() {
-    const root = document.querySelector('[data-module="accounts-table"]');
+    const root = getSel('[data-module="accounts-table"]');
     if (!root) return;
     new TableModule(root);
   }
@@ -1245,9 +1334,151 @@ window.alert = function(message) {
  * Обработка interactions, animations, ripple effects
  */
 
+// Экранирование для безопасного вывода в HTML
+function escapeHtml(str) {
+    if (str == null) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 // ========================================
 // УПРАВЛЕНИЕ CHIPS (Активные фильтры)
 // ========================================
+
+/**
+ * Построить HTML чипов активных фильтров по текущему URL.
+ * Вызывается после refreshDashboardData(), чтобы блок «Активные фильтры» соответствовал URL.
+ */
+function renderActiveFiltersFromUrl() {
+    const listEl = document.getElementById('activeFiltersList');
+    const sectionEl = document.getElementById('activeFiltersSection');
+    if (!listEl) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const chips = [];
+
+    // Поиск
+    const q = params.get('q');
+    if (q !== null && q !== '') {
+        const short = q.length > 20 ? q.substring(0, 20) + '...' : q;
+        chips.push('<div class="filter-chip" data-filter="q"><i class="fas fa-search filter-chip-icon"></i><span>Поиск: "' + escapeHtml(short) + '"</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+
+    // Пустой статус
+    if (params.get('empty_status') === '1') {
+        chips.push('<div class="filter-chip" data-filter="status" data-status-value="__empty__"><i class="fas fa-exclamation-triangle filter-chip-icon"></i><span>Пустой статус</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+
+    // Статусы
+    const statuses = params.getAll('status[]');
+    statuses.forEach(function (st) {
+        if (st !== '' && st !== '__empty__') {
+            chips.push('<div class="filter-chip" data-filter="status" data-status-value="' + escapeHtml(st) + '"><i class="fas fa-tag filter-chip-icon"></i><span>' + escapeHtml(st) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+        }
+    });
+
+    // Булевы и одиночные фильтры (название, иконка, подпись)
+    const simpleFilters = [
+        ['has_email', 'fa-envelope', 'Есть Email'],
+        ['has_two_fa', 'fa-shield-alt', 'Есть 2FA'],
+        ['has_token', 'fa-key', 'Есть Token'],
+        ['has_fan_page', 'fa-flag', 'Есть Fan Page'],
+        ['has_avatar', 'fa-image', 'Есть Аватар'],
+        ['has_password', 'fa-lock', 'Есть Пароль'],
+        ['has_cover', 'fa-image', 'Есть Обложка'],
+        ['full_filled', 'fa-check-circle', 'Полностью заполненные'],
+        ['favorites_only', 'fa-star', 'Только избранные']
+    ];
+    simpleFilters.forEach(function (item) {
+        const name = item[0], icon = item[1], label = item[2];
+        const val = params.get(name);
+        if (val !== null && val !== '') {
+            chips.push('<div class="filter-chip" data-filter="' + name + '"><i class="fas ' + icon + ' filter-chip-icon"></i><span>' + escapeHtml(label) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+        }
+    });
+
+    // Диапазоны
+    const pharmaFrom = params.get('pharma_from') || '';
+    const pharmaTo = params.get('pharma_to') || '';
+    if (pharmaFrom !== '' || pharmaTo !== '') {
+        chips.push('<div class="filter-chip" data-filter="pharma"><i class="fas fa-pills filter-chip-icon"></i><span>Pharma: ' + escapeHtml(pharmaFrom || '0') + '-' + escapeHtml(pharmaTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const friendsFrom = params.get('friends_from') || '';
+    const friendsTo = params.get('friends_to') || '';
+    if (friendsFrom !== '' || friendsTo !== '') {
+        chips.push('<div class="filter-chip" data-filter="friends"><i class="fas fa-users filter-chip-icon"></i><span>Друзья: ' + escapeHtml(friendsFrom || '0') + '-' + escapeHtml(friendsTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const yearFrom = params.get('year_created_from') || '';
+    const yearTo = params.get('year_created_to') || '';
+    if (yearFrom !== '' || yearTo !== '') {
+        chips.push('<div class="filter-chip" data-filter="year_created"><i class="fas fa-calendar filter-chip-icon"></i><span>Год: ' + escapeHtml(yearFrom || '∞') + '-' + escapeHtml(yearTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const limitRkFrom = params.get('limit_rk_from') || '';
+    const limitRkTo = params.get('limit_rk_to') || '';
+    if (limitRkFrom !== '' || limitRkTo !== '') {
+        chips.push('<div class="filter-chip" data-filter="limit_rk"><i class="fas fa-chart-line filter-chip-icon"></i><span>Limit RK: ' + escapeHtml(limitRkFrom || '0') + '-' + escapeHtml(limitRkTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const bmFrom = params.get('bm_from') || '';
+    const bmTo = params.get('bm_to') || '';
+    if (bmFrom !== '' || bmTo !== '') {
+        chips.push('<div class="filter-chip" data-filter="bm_range"><i class="fas fa-briefcase filter-chip-icon"></i><span>БМ: ' + escapeHtml(bmFrom || '0') + '—' + escapeHtml(bmTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const bmStatusVal = params.get('bm_status') || '';
+    const bmStatusLabels = { has_valid: 'БМ: есть валидный', has_ban: 'БМ: есть в бане', only_valid: 'БМ: только валидные' };
+    if (bmStatusVal !== '' && bmStatusVal !== 'any' && bmStatusLabels[bmStatusVal]) {
+        chips.push('<div class="filter-chip" data-filter="bm_status"><i class="fas fa-briefcase filter-chip-icon"></i><span>' + escapeHtml(bmStatusLabels[bmStatusVal]) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+
+    // Одиночные с подписью из значения
+    const statusMarketplace = params.get('status_marketplace');
+    if (statusMarketplace !== null && statusMarketplace !== '') {
+        chips.push('<div class="filter-chip" data-filter="status_marketplace"><i class="fas fa-store filter-chip-icon"></i><span>Marketplace: ' + escapeHtml(statusMarketplace) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const currency = params.get('currency');
+    if (currency !== null && currency !== '') {
+        chips.push('<div class="filter-chip" data-filter="currency"><i class="fas fa-coins filter-chip-icon"></i><span>Currency: ' + escapeHtml(currency) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const geo = params.get('geo');
+    if (geo !== null && geo !== '') {
+        const geoLabel = geo === '__empty__' ? 'Не указано' : geo;
+        chips.push('<div class="filter-chip" data-filter="geo"><i class="fas fa-globe filter-chip-icon"></i><span>Geo: ' + escapeHtml(geoLabel) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+    const statusRk = params.get('status_rk');
+    if (statusRk !== null && statusRk !== '') {
+        const rkLabel = statusRk === '__empty__' ? 'Не указано' : statusRk;
+        chips.push('<div class="filter-chip" data-filter="status_rk"><i class="fas fa-tag filter-chip-icon"></i><span>Status RK: ' + escapeHtml(rkLabel) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
+
+    listEl.innerHTML = chips.join('');
+
+    if (sectionEl) {
+        if (chips.length > 0) {
+            sectionEl.classList.add('has-filters');
+        } else {
+            sectionEl.classList.remove('has-filters');
+        }
+    }
+
+    // Показываем / скрываем кнопку "Сбросить все" вместе с секцией чипов
+    var resetBtn = document.getElementById('resetAllFiltersBtn');
+    if (resetBtn) {
+        resetBtn.style.display = chips.length > 0 ? '' : 'none';
+    }
+
+    const badgeEl = document.querySelector('.filters-modern-badge');
+    if (badgeEl) {
+        badgeEl.textContent = String(chips.length);
+        badgeEl.style.display = chips.length > 0 ? '' : 'none';
+    }
+
+    // Анимация появления (как при первой загрузке)
+    listEl.querySelectorAll('.filter-chip').forEach(function (chip, index) {
+        chip.style.animationDelay = (index * 50) + 'ms';
+    });
+}
+
+window.renderActiveFiltersFromUrl = renderActiveFiltersFromUrl;
 
 /**
  * Удаление фильтра через chip
@@ -1285,8 +1516,18 @@ function removeFilterChip(filterName) {
         case 'has_cover':
             url.searchParams.delete('has_cover');
             break;
+        case 'bm_range':
+            url.searchParams.delete('bm_from');
+            url.searchParams.delete('bm_to');
+            break;
+        case 'bm_status':
+            url.searchParams.delete('bm_status');
+            break;
         case 'full_filled':
             url.searchParams.delete('full_filled');
+            break;
+        case 'favorites_only':
+            url.searchParams.delete('favorites_only');
             break;
         case 'pharma':
             url.searchParams.delete('pharma_from');
@@ -1317,13 +1558,117 @@ function removeFilterChip(filterName) {
             url.searchParams.delete('status_rk');
             break;
         default:
-            console.warn('Unknown filter:', filterName);
+            (typeof logger !== 'undefined' ? logger.warn : console.warn)('Unknown filter:', filterName);
             return;
     }
     
-    // Сбрасываем на первую страницу
     url.searchParams.set('page', '1');
-    window.location.href = url.toString();
+    applyFiltersWithoutReload(url);
+}
+
+/**
+ * Синхронизировать все элементы формы фильтров по текущему URL.
+ * Вызывается после любого изменения URL, чтобы DOM всегда соответствовал параметрам.
+ * Решает баги: удаление chip не снимало чекбокс; применение сохранённого фильтра не обновляло форму.
+ */
+function syncFormFromUrl() {
+    var form = document.getElementById('filtersForm');
+    if (!form) return;
+    var params = new URLSearchParams(window.location.search);
+
+    // Статусы
+    var urlStatuses = params.getAll('status[]');
+    form.querySelectorAll('input.status-checkbox[name="status[]"]').forEach(function(cb) {
+        cb.checked = urlStatuses.indexOf(cb.value) !== -1;
+    });
+    var emptyCb = form.querySelector('input.status-checkbox[name="empty_status"]');
+    if (emptyCb) {
+        emptyCb.checked = params.get('empty_status') === '1';
+    }
+    // Метка dropdown статусов
+    var statusLabel = document.getElementById('statusDropdownLabel');
+    if (statusLabel) {
+        var cnt = urlStatuses.length + (params.get('empty_status') === '1' ? 1 : 0);
+        statusLabel.textContent = cnt === 0 ? 'Все статусы' : 'Выбрано: ' + cnt;
+    }
+
+    // Быстрые фильтры (toggle-switch)
+    QUICK_FILTER_PARAMS.forEach(function(name) {
+        var cb = form.querySelector('input[type="checkbox"][name="' + name + '"]');
+        if (!cb) return;
+        var isActive = params.has(name) && params.get(name) !== '';
+        cb.checked = isActive;
+        var wrapper = cb.closest('.toggle-switch-wrapper');
+        if (wrapper) {
+            if (isActive) wrapper.classList.add('active');
+            else wrapper.classList.remove('active');
+        }
+    });
+
+    // Hidden-поля dropdown-фильтров + метки
+    var dropdowns = [
+        {name: 'status_marketplace', labelId: 'statusMarketplaceDropdownLabel', itemClass: 'status-marketplace-item', allText: 'Все статусы'},
+        {name: 'currency', labelId: 'currencyDropdownLabel', itemClass: 'currency-item', allText: 'Все валюты'},
+        {name: 'geo', labelId: 'geoDropdownLabel', itemClass: 'geo-item', allText: 'Все geo'},
+        {name: 'status_rk', labelId: 'statusRkDropdownLabel', itemClass: 'status-rk-item', allText: 'Все статусы RK'}
+    ];
+    dropdowns.forEach(function(d) {
+        var input = form.querySelector('input[name="' + d.name + '"]');
+        var val = params.get(d.name) || '';
+        if (input) input.value = val;
+        var label = document.getElementById(d.labelId);
+        if (label) {
+            if (val === '') label.textContent = d.allText;
+            else if (val === '__empty__') label.textContent = 'Не указано';
+            else label.textContent = val;
+        }
+        document.querySelectorAll('.' + d.itemClass).forEach(function(item) {
+            var itemVal = item.getAttribute('data-value');
+            if (itemVal === val) item.classList.add('active');
+            else item.classList.remove('active');
+        });
+    });
+
+    // Поиск
+    var searchInput = form.querySelector('input[name="q"]');
+    if (searchInput) searchInput.value = params.get('q') || '';
+
+    // Диапазоны
+    ['pharma_from','pharma_to','friends_from','friends_to','bm_from','bm_to','year_created_from','year_created_to','limit_rk_from','limit_rk_to'].forEach(function(name) {
+        var input = form.querySelector('input[name="' + name + '"]');
+        if (input) input.value = params.get(name) || '';
+    });
+
+    // Статус БМ — синхронизируем select
+    var bmStatusSel = form.querySelector('select[name="bm_status"]');
+    if (bmStatusSel) {
+        var bmStatusParam = params.get('bm_status') || 'any';
+        bmStatusSel.value = bmStatusParam;
+    }
+
+    // Per page
+    var perPage = form.querySelector('select[name="per_page"]');
+    if (perPage && params.get('per_page')) perPage.value = params.get('per_page');
+}
+window.syncFormFromUrl = syncFormFromUrl;
+
+/**
+ * Применить фильтры без перезагрузки страницы: обновить URL и подгрузить данные через AJAX.
+ * После replaceState синхронизирует DOM формы, чтобы чекбоксы/инпуты соответствовали URL.
+ * @param {URL} url - новый URL с параметрами фильтров
+ */
+function applyFiltersWithoutReload(url) {
+    if (!url || !(url instanceof URL)) return;
+    history.replaceState(null, '', url.toString());
+    syncFormFromUrl();
+    if (typeof window.DashboardSelection !== 'undefined' && window.DashboardSelection.clearSelection) {
+        window.DashboardSelection.clearSelection();
+    }
+    if (typeof refreshDashboardData === 'function') {
+        refreshDashboardData();
+    } else {
+        window.location.href = url.toString();
+    }
 }
 
 /**
@@ -1331,7 +1676,7 @@ function removeFilterChip(filterName) {
  */
 function removeStatusChip(statusValue) {
     if (!statusValue) {
-        console.error('removeStatusChip: statusValue is required');
+        (typeof logger !== 'undefined' ? logger.error : console.error)('removeStatusChip: statusValue is required');
         return;
     }
     
@@ -1364,65 +1709,72 @@ function removeStatusChip(statusValue) {
         });
     }
     
-    // Сбрасываем на первую страницу
     url.searchParams.set('page', '1');
-    window.location.href = url.toString();
+    applyFiltersWithoutReload(url);
 }
 
-// Делаем функцию глобально доступной
+// Делаем функции глобально доступными
 window.removeStatusChip = removeStatusChip;
+window.applyFiltersWithoutReload = applyFiltersWithoutReload;
 
 // ========================================
 // ПОЛЕ ПОИСКА
 // ========================================
 
-let searchTimeout = null;
-
 /**
- * Очистка поля поиска
+ * Очистка поля поиска.
+ * Использует AJAX-обновление вместо form.submit() (который вызывал полную перезагрузку страницы).
  */
 function clearSearch() {
-    const input = document.getElementById('modernSearchInput');
-    if (input) {
-        input.value = '';
-        input.focus();
-        
-        // Если есть форма, отправляем
-        const form = input.closest('form');
-        if (form) {
-            form.submit();
-        }
-    }
+    var input = document.getElementById('modernSearchInput');
+    if (!input) return;
+    input.value = '';
+    input.focus();
+
+    var url = new URL(window.location);
+    url.searchParams.delete('q');
+    url.searchParams.set('page', '1');
+    history.replaceState(null, '', url.toString());
+    if (typeof window.syncFormFromUrl === 'function') window.syncFormFromUrl();
+    if (typeof refreshDashboardData === 'function') refreshDashboardData();
 }
+
+// Обработчик input на поле поиска НЕ дублируется здесь —
+// единственный живой обработчик находится в dashboard-inline.js (applyLiveSearch, debounce 300ms).
+
+// ========================================
+// СБРОС ВСЕХ ФИЛЬТРОВ
+// ========================================
 
 /**
- * Автоматическое применение поиска с задержкой (debounce)
+ * Список всех параметров фильтров, которые сбрасываются кнопкой «Сбросить все».
+ * per_page не сбрасываем — это настройка отображения, не фильтр.
  */
-function handleSearchInput() {
-    const input = document.getElementById('modernSearchInput');
-    if (!input) return;
-    
-    // Очищаем предыдущий таймер
-    if (searchTimeout) {
-        clearTimeout(searchTimeout);
-    }
-    
-    // Устанавливаем новый таймер (800ms задержка)
-    searchTimeout = setTimeout(() => {
-        const form = input.closest('form');
-        if (form) {
-            form.submit();
-        }
-    }, 800);
-}
+var ALL_FILTER_PARAMS = [
+    'q',
+    'status[]', 'status', 'empty_status',
+    'has_email', 'has_two_fa', 'has_token', 'has_fan_page',
+    'has_avatar', 'has_password', 'has_cover', 'full_filled', 'favorites_only',
+    'pharma_from', 'pharma_to',
+    'friends_from', 'friends_to',
+    'bm_from', 'bm_to', 'bm_status',
+    'year_created_from', 'year_created_to',
+    'limit_rk_from', 'limit_rk_to',
+    'status_marketplace', 'currency', 'geo', 'status_rk'
+];
 
-// Инициализация автоматического поиска
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('modernSearchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', handleSearchInput);
-    }
-});
+/**
+ * Сбросить все активные фильтры и обновить таблицу через AJAX.
+ */
+function resetAllFilters() {
+    var url = new URL(window.location);
+    ALL_FILTER_PARAMS.forEach(function(key) {
+        url.searchParams.delete(key);
+    });
+    url.searchParams.set('page', '1');
+    applyFiltersWithoutReload(url);
+}
+window.resetAllFilters = resetAllFilters;
 
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
@@ -1454,27 +1806,18 @@ document.addEventListener('keydown', function(e) {
 // ========================================
 
 /**
- * Toggle быстрого фильтра с автоматическим применением
+ * Обработка быстрых фильтров (toggle switches).
+ * Клик на обёртке .toggle-switch-wrapper: если кликнули вне label/checkbox — программно кликаем checkbox.
+ * Реальное применение фильтра — через единый change listener ниже (в DOMContentLoaded).
  */
-function toggleQuickFilter(filterName, wrapper) {
-    const checkbox = wrapper.querySelector('input[type="checkbox"]');
-    if (!checkbox) return;
-    
-    // Toggle checkbox
-    checkbox.checked = !checkbox.checked;
-    
-    // Toggle wrapper класс
-    if (checkbox.checked) {
-        wrapper.classList.add('active');
-    } else {
-        wrapper.classList.remove('active');
-    }
-    
-    // Автоматически отправляем форму
-    const form = checkbox.closest('form');
-    if (form) {
-        form.submit();
-    }
+function initQuickFilterWrappers() {
+    document.querySelectorAll('.toggle-switch-wrapper').forEach(function(wrapper) {
+        wrapper.addEventListener('click', function(e) {
+            if (e.target.closest('input[type="checkbox"]') || e.target.closest('label.toggle-switch')) return;
+            var cb = wrapper.querySelector('input[type="checkbox"]');
+            if (cb) cb.click();
+        });
+    });
 }
 
 
@@ -1482,56 +1825,116 @@ function toggleQuickFilter(filterName, wrapper) {
 // АВТОМАТИЧЕСКОЕ ПРИМЕНЕНИЕ ФИЛЬТРОВ
 // ========================================
 
-// Отслеживаем изменения в полях формы для автоматического применения
+/** Список параметров быстрых фильтров (чекбоксы). При снятии галочки поле не попадает в FormData — параметр нужно явно удалить из URL. */
+var QUICK_FILTER_PARAMS = ['has_email', 'has_two_fa', 'has_token', 'has_fan_page', 'has_avatar', 'has_password', 'has_cover', 'full_filled', 'favorites_only'];
+
+/**
+ * Собрать URL по текущему состоянию формы фильтров (без перезагрузки).
+ * @param {HTMLFormElement} form - форма #filtersForm
+ * @returns {URL}
+ */
+function getFormFiltersUrl(form) {
+    const url = new URL(window.location);
+    QUICK_FILTER_PARAMS.forEach(function (key) { url.searchParams.delete(key); });
+    const fd = new FormData(form);
+    for (const [key, value] of fd) {
+        if (key === 'status[]' || key === 'empty_status') continue;
+        if (value !== '' && value != null) {
+            url.searchParams.set(key, value);
+        } else {
+            url.searchParams.delete(key);
+        }
+    }
+    // Статусы и empty_status берём по текущему состоянию чекбоксов в DOM,
+    // а не из FormData — иначе при быстром снятии одного и выборе другого может применяться старый набор
+    for (const key of ['status[]', 'status', 'empty_status']) {
+        while (url.searchParams.has(key)) url.searchParams.delete(key);
+    }
+    var emptyCb = form.querySelector('input.status-checkbox[name="empty_status"]');
+    if (emptyCb && emptyCb.checked) {
+        url.searchParams.set('empty_status', '1');
+    }
+    form.querySelectorAll('input.status-checkbox[name="status[]"]').forEach(function (cb) {
+        if (cb.checked) {
+            url.searchParams.append('status[]', cb.value);
+        }
+    });
+    url.searchParams.set('page', '1');
+    return url;
+}
+
+/**
+ * Применить текущие значения формы фильтров без перезагрузки страницы.
+ * @param {HTMLFormElement} form - форма #filtersForm
+ */
+function applyFormFiltersWithoutReload(form) {
+    if (!form) return;
+    const url = getFormFiltersUrl(form);
+    applyFiltersWithoutReload(url);
+}
+
+window.applyFormFiltersWithoutReload = applyFormFiltersWithoutReload;
+
+// Отслеживаем изменения в полях формы — применяем без перезагрузки (только таблица и статистика)
 document.addEventListener('DOMContentLoaded', function() {
-    const filtersForm = document.getElementById('filtersForm');
+    var filtersForm = document.getElementById('filtersForm');
     if (!filtersForm) return;
-    
-    // Автоматическое применение для чекбоксов статусов
-    const statusCheckboxes = filtersForm.querySelectorAll('.status-checkbox');
-    statusCheckboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            // Небольшая задержка для визуальной обратной связи
-            setTimeout(() => {
-                filtersForm.submit();
-            }, 100);
-        });
+
+    // Инициализация обёрток быстрых фильтров (клик вне label → toggle checkbox)
+    initQuickFilterWrappers();
+
+    // Единый change-обработчик: статусы, быстрые фильтры, select
+    filtersForm.addEventListener('change', function(e) {
+        var target = e.target;
+
+        // Чекбоксы статусов
+        if (target.classList.contains('status-checkbox')) {
+            setTimeout(function() {
+                if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
+            }, 0);
+            return;
+        }
+
+        // Быстрые фильтры (toggle switches) — единый обработчик, onclick из HTML убран
+        if (target.type === 'checkbox' && QUICK_FILTER_PARAMS.indexOf(target.name) !== -1) {
+            applyFormFiltersWithoutReload(filtersForm);
+            return;
+        }
+
+        // Select (per_page)
+        if (target.tagName === 'SELECT') {
+            applyFormFiltersWithoutReload(filtersForm);
+            return;
+        }
     });
-    
-    // Автоматическое применение для select (status_marketplace, currency)
-    const selectFilters = filtersForm.querySelectorAll('select[name="status_marketplace"], select[name="currency"]');
-    selectFilters.forEach(select => {
-        select.addEventListener('change', function() {
-            setTimeout(() => {
-                filtersForm.submit();
+
+    // Диапазонные поля при потере фокуса
+    filtersForm.addEventListener('blur', function(e) {
+        var target = e.target;
+        if (target.classList.contains('range-input-modern') && target.dataset.initialValue !== target.value) {
+            setTimeout(function() {
+                if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
             }, 100);
-        });
+        }
+    }, true);
+
+    filtersForm.addEventListener('focus', function(e) {
+        var target = e.target;
+        if (target.classList.contains('range-input-modern')) target.dataset.initialValue = target.value;
+    }, true);
+
+    filtersForm.addEventListener('keypress', function(e) {
+        var target = e.target;
+        if (target.classList.contains('range-input-modern') && e.key === 'Enter') {
+            e.preventDefault();
+            if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
+        }
     });
-    
-    // Автоматическое применение для диапазонных фильтров при потере фокуса
-    const rangeInputs = filtersForm.querySelectorAll('.range-input-modern');
-    rangeInputs.forEach(input => {
-        input.addEventListener('blur', function() {
-            // Проверяем что значение изменилось
-            if (this.dataset.initialValue !== this.value) {
-                setTimeout(() => {
-                    filtersForm.submit();
-                }, 100);
-            }
-        });
-        
-        // Сохраняем начальное значение
-        input.addEventListener('focus', function() {
-            this.dataset.initialValue = this.value;
-        });
-        
-        // Enter тоже применяет
-        input.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                filtersForm.submit();
-            }
-        });
+
+    // Кнопка «Обновить»: применить фильтры без перезагрузки
+    filtersForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        applyFormFiltersWithoutReload(filtersForm);
     });
 });
 
@@ -1547,11 +1950,18 @@ function updateActiveFiltersVisibility() {
     if (!section) return;
     
     const chips = section.querySelectorAll('.filter-chip');
+    const hasChips = chips.length > 0;
     
-    if (chips.length > 0) {
+    if (hasChips) {
         section.classList.add('has-filters');
     } else {
         section.classList.remove('has-filters');
+    }
+
+    // Синхронизируем кнопку "Сбросить все" при первичной загрузке страницы
+    var resetBtn = document.getElementById('resetAllFiltersBtn');
+    if (resetBtn) {
+        resetBtn.style.display = hasChips ? '' : 'none';
     }
 }
 
@@ -1560,8 +1970,16 @@ function updateActiveFiltersVisibility() {
 // ========================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Проверяем видимость активных фильтров
+    // Проверяем видимость активных фильтров и кнопки "Сбросить все"
     updateActiveFiltersVisibility();
+
+    // Обработчик кнопки "Сбросить все фильтры"
+    var resetBtn = document.getElementById('resetAllFiltersBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+            resetAllFilters();
+        });
+    }
     
     // Добавляем плавные анимации для chips
     document.querySelectorAll('.filter-chip').forEach((chip, index) => {
@@ -1590,10 +2008,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (typeof removeStatusChip === 'function') {
                     removeStatusChip(statusValue);
                 } else {
-                    console.error('removeStatusChip function not found');
+                    (typeof logger !== 'undefined' ? logger.error : console.error)('removeStatusChip function not found');
                 }
             } else {
-                console.warn('Status chip missing data-status-value attribute');
+                (typeof logger !== 'undefined' ? logger.warn : console.warn)('Status chip missing data-status-value attribute');
             }
             return;
         }
@@ -1603,7 +2021,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (typeof removeFilterChip === 'function') {
                 removeFilterChip(filterType);
             } else {
-                console.error('removeFilterChip function not found');
+                (typeof logger !== 'undefined' ? logger.error : console.error)('removeFilterChip function not found');
             }
         }
     });
@@ -1621,7 +2039,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    console.log('✓ Modern Filters initialized (auto-apply mode)');
+    if (typeof logger !== 'undefined') logger.debug('✓ Modern Filters initialized (auto-apply mode)');
 });
 
 // ========================================
@@ -1711,7 +2129,7 @@ class SavedFiltersManager {
                 this.renderFiltersDropdown();
             }
         } catch (error) {
-            console.error('Error loading saved filters:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error loading saved filters:', error);
         }
     }
     
@@ -1732,7 +2150,7 @@ class SavedFiltersManager {
                 filtersSection = document.querySelector('.filters-modern-header-actions');
             }
             if (!filtersSection) {
-                console.warn('SavedFilters: Cannot find container for dropdown');
+                (typeof logger !== 'undefined' ? logger.warn : console.warn)('SavedFilters: Cannot find container for dropdown');
                 // Пробуем создать контейнер, если его нет
                 const header = document.querySelector('.filters-modern-header');
                 if (header) {
@@ -1807,22 +2225,33 @@ class SavedFiltersManager {
             if (e.target.closest('#saveCurrentFilter')) {
                 e.preventDefault();
                 this.showSaveDialog();
+                return;
             }
-            
-            // Применение фильтра
-            const applyBtn = e.target.closest('.apply-filter-btn');
-            if (applyBtn) {
-                e.preventDefault();
-                const filterId = parseInt(applyBtn.dataset.filterId, 10);
-                this.applyFilter(filterId);
-            }
-            
-            // Удаление фильтра
+
+            // Удаление фильтра — проверяем первым, чтобы не конфликтовало с apply
             const deleteBtn = e.target.closest('.delete-filter-btn');
             if (deleteBtn) {
                 e.preventDefault();
                 const filterId = parseInt(deleteBtn.dataset.filterId, 10);
                 this.deleteFilter(filterId);
+                return;
+            }
+
+            // Применение фильтра — явная кнопка ✓
+            const applyBtn = e.target.closest('.apply-filter-btn');
+            if (applyBtn) {
+                e.preventDefault();
+                const filterId = parseInt(applyBtn.dataset.filterId, 10);
+                this.applyFilter(filterId);
+                return;
+            }
+
+            // Применение фильтра — клик по строке (имя фильтра, любое место кроме кнопок)
+            const dropdownItem = e.target.closest('.dropdown-item[data-filter-id]');
+            if (dropdownItem) {
+                e.preventDefault();
+                const filterId = parseInt(dropdownItem.dataset.filterId, 10);
+                this.applyFilter(filterId);
             }
         });
     }
@@ -1837,14 +2266,33 @@ class SavedFiltersManager {
         }
         
         // Получаем текущие параметры фильтров из URL
+        // Multi-value параметры (например status[]=A&status[]=B) собираем в массивы
         const params = new URLSearchParams(window.location.search);
         const filters = {};
         
         params.forEach((value, key) => {
-            if (key !== 'page') { // Исключаем параметр страницы
+            if (key === 'page') return; // страницу не сохраняем
+            if (Object.prototype.hasOwnProperty.call(filters, key)) {
+                // уже есть значение для этого ключа — конвертируем в массив
+                if (Array.isArray(filters[key])) {
+                    filters[key].push(value);
+                } else {
+                    filters[key] = [filters[key], value];
+                }
+            } else {
                 filters[key] = value;
             }
         });
+        
+        // Проверяем, что есть хоть один активный фильтр для сохранения
+        if (Object.keys(filters).length === 0) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('Нет активных фильтров для сохранения', 'warning');
+            } else {
+                alert('Нет активных фильтров для сохранения');
+            }
+            return;
+        }
         
         this.saveFilter(name.trim(), filters);
     }
@@ -1854,6 +2302,8 @@ class SavedFiltersManager {
      */
     async saveFilter(name, filters) {
         try {
+            // CSRF-токен обязателен для POST/PUT/DELETE — без него API возвращает 403
+            const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
             const response = await fetch('api_saved_filters.php', {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -1863,7 +2313,8 @@ class SavedFiltersManager {
                 },
                 body: JSON.stringify({
                     name: name,
-                    filters: filters
+                    filters: filters,
+                    csrf: csrfToken
                 })
             });
             
@@ -1881,7 +2332,7 @@ class SavedFiltersManager {
                 throw new Error(data.error || 'Ошибка сохранения');
             }
         } catch (error) {
-            console.error('Error saving filter:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error saving filter:', error);
             if (typeof window.showToast === 'function') {
                 window.showToast('Ошибка при сохранении фильтра: ' + error.message, 'error');
             }
@@ -1897,17 +2348,29 @@ class SavedFiltersManager {
             return;
         }
         
-        // Строим URL с параметрами фильтра
-        const params = new URLSearchParams(filter.filters);
+        // Строим URL с параметрами фильтра (поддержка массивов, например status[])
+        const params = new URLSearchParams();
+        Object.entries(filter.filters || {}).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => params.append(key, v));
+            } else if (value !== null && value !== undefined && value !== '') {
+                params.set(key, value);
+            }
+        });
         params.set('page', '1'); // Сбрасываем страницу
         
         // Обновляем URL без перезагрузки страницы
-        const newUrl = 'index.php?' + params.toString();
+        // Используем текущий pathname вместо hardcoded 'index.php?' — на случай кастомных путей
+        const newUrl = window.location.pathname + '?' + params.toString();
         window.history.pushState({}, '', newUrl);
+        
+        // Синхронизируем DOM формы фильтров по новому URL
+        if (typeof window.syncFormFromUrl === 'function') {
+            window.syncFormFromUrl();
+        }
         
         // Обновляем данные через AJAX
         if (typeof refreshDashboardData === 'function') {
-            // Сбрасываем выделение
             if (typeof selectedAllFiltered !== 'undefined') {
                 selectedAllFiltered = false;
             }
@@ -1919,7 +2382,6 @@ class SavedFiltersManager {
             }
             refreshDashboardData();
         } else {
-            // Fallback на перезагрузку, если функция недоступна
             window.location.href = newUrl;
         }
     }
@@ -1933,6 +2395,8 @@ class SavedFiltersManager {
         }
         
         try {
+            // CSRF-токен обязателен для DELETE — без него API возвращает 403
+            const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
             const response = await fetch('api_saved_filters.php', {
                 method: 'DELETE',
                 credentials: 'same-origin',
@@ -1941,7 +2405,8 @@ class SavedFiltersManager {
                     'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: JSON.stringify({
-                    id: filterId
+                    id: filterId,
+                    csrf: csrfToken
                 })
             });
             
@@ -1959,7 +2424,7 @@ class SavedFiltersManager {
                 throw new Error(data.error || 'Ошибка удаления');
             }
         } catch (error) {
-            console.error('Error deleting filter:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error deleting filter:', error);
             if (typeof window.showToast === 'function') {
                 window.showToast('Ошибка при удалении фильтра: ' + error.message, 'error');
             }
@@ -1995,6 +2460,7 @@ class QuickSearch {
         this.results = [];
         this.selectedIndex = -1;
         this.isOpen = false;
+        this.keydownHandler = null; // Сохраняем ссылку на обработчик для удаления
         
         this.init();
     }
@@ -2003,8 +2469,8 @@ class QuickSearch {
         // Создаем модальное окно для быстрого поиска
         this.createModal();
         
-        // Обработчики горячих клавиш
-        document.addEventListener('keydown', (e) => {
+        // Обработчики горячих клавиш (сохраняем ссылку для удаления)
+        this.keydownHandler = (e) => {
             // Ctrl+K или / для открытия поиска
             if ((e.ctrlKey && e.key === 'k') || (e.key === '/' && !this.isInputFocused(e.target))) {
                 e.preventDefault();
@@ -2029,7 +2495,9 @@ class QuickSearch {
                     this.selectResult();
                 }
             }
-        });
+        };
+        
+        document.addEventListener('keydown', this.keydownHandler);
         
         // Дебаунс для поиска
         this.debouncedSearch = this.debounce(this.performSearch.bind(this), 300);
@@ -2328,9 +2796,32 @@ class QuickSearch {
             
             this.showEmpty();
         } catch (error) {
-            console.error('Quick search error:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Quick search error:', error);
             this.showError('Ошибка при выполнении поиска');
         }
+    }
+    
+    /**
+     * Экранирование HTML для защиты от XSS
+     */
+    escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+    
+    /**
+     * Безопасная подсветка найденного текста
+     */
+    highlight(text, search) {
+        if (!text) return '';
+        const escapedText = this.escapeHtml(text);
+        const escapedSearch = this.escapeHtml(search);
+        // Экранируем специальные символы regex
+        const safeSearch = escapedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(${safeSearch})`, 'gi');
+        return escapedText.replace(regex, '<mark>$1</mark>');
     }
     
     /**
@@ -2347,27 +2838,20 @@ class QuickSearch {
         
         let html = '';
         rows.forEach((row, index) => {
-            const id = row.id || '';
+            const id = this.escapeHtml(String(row.id || ''));
             const login = row.login || '';
             const email = row.email || '';
             const status = row.status || '';
-            
-            // Подсветка найденного текста
-            const highlight = (text, search) => {
-                if (!text) return '';
-                const regex = new RegExp(`(${search})`, 'gi');
-                return text.replace(regex, '<mark>$1</mark>');
-            };
             
             html += `
                 <div class="quick-search-result" data-index="${index}" data-id="${id}">
                     <div class="quick-search-result-icon">#${id}</div>
                     <div class="quick-search-result-content">
                         <div class="quick-search-result-title">
-                            ${highlight(login || 'Без логина', query)}
+                            ${this.highlight(login || 'Без логина', query)}
                         </div>
                         <div class="quick-search-result-subtitle">
-                            ${email ? highlight(email, query) : 'Email не указан'} ${status ? `• ${status}` : ''}
+                            ${email ? this.highlight(email, query) : 'Email не указан'} ${status ? `• ${this.escapeHtml(status)}` : ''}
                         </div>
                     </div>
                     <div class="quick-search-result-type">Аккаунт</div>
@@ -2414,10 +2898,11 @@ class QuickSearch {
      * Отображение ошибки
      */
     showError(message) {
+        const escapedMessage = this.escapeHtml(message);
         this.resultsContainer.innerHTML = `
             <div class="quick-search-empty" style="color: #dc2626;">
                 <i class="fas fa-exclamation-triangle me-2"></i>
-                ${message}
+                ${escapedMessage}
             </div>
         `;
     }
@@ -2489,11 +2974,40 @@ class QuickSearch {
             timeout = setTimeout(later, wait);
         };
     }
+    
+    /**
+     * Очистка ресурсов и удаление обработчиков
+     */
+    cleanup() {
+        // Удаляем обработчик keydown
+        if (this.keydownHandler) {
+            document.removeEventListener('keydown', this.keydownHandler);
+            this.keydownHandler = null;
+        }
+        
+        // Удаляем модальное окно
+        if (this.modal && this.modal.parentNode) {
+            this.modal.parentNode.removeChild(this.modal);
+            this.modal = null;
+        }
+        
+        // Очищаем результаты
+        this.results = [];
+        this.selectedIndex = -1;
+        this.isOpen = false;
+    }
 }
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
     window.quickSearch = new QuickSearch();
+});
+
+// Очистка при закрытии страницы
+window.addEventListener('beforeunload', () => {
+    if (window.quickSearch && typeof window.quickSearch.cleanup === 'function') {
+        window.quickSearch.cleanup();
+    }
 });
 
 
@@ -2511,6 +3025,8 @@ class FavoritesManager {
         this.loaded = false;
         this.processingIds = new Set(); // Защита от множественных кликов
         this.updateDebounceTimer = null; // Debounce для обновления UI
+        this.tableObserver = null; // MutationObserver для отслеживания изменений таблицы
+        this.observerDebounceTimer = null; // Debounce для observer
         
         this.init();
     }
@@ -2561,7 +3077,7 @@ class FavoritesManager {
                 const text = await response.text();
                 data = JSON.parse(text);
             } catch (e) {
-                console.error('JSON parse error when loading favorites:', e);
+                (typeof logger !== 'undefined' ? logger.error : console.error)('JSON parse error when loading favorites:', e);
                 throw new Error('Некорректный ответ сервера');
             }
             
@@ -2570,13 +3086,13 @@ class FavoritesManager {
                 this.updateFavoritesUI();
                 this.loaded = true;
             } else {
-                console.warn('Invalid favorites response:', data);
+                (typeof logger !== 'undefined' ? logger.warn : console.warn)('Invalid favorites response:', data);
                 // Устанавливаем пустой список, чтобы не блокировать работу
                 this.favorites = new Set();
                 this.loaded = true;
             }
         } catch (error) {
-            console.error('Error loading favorites:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error loading favorites:', error);
             // Устанавливаем пустой список, чтобы не блокировать работу
             this.favorites = new Set();
             this.loaded = true;
@@ -2589,7 +3105,7 @@ class FavoritesManager {
     async toggleFavorite(accountId) {
         // Защита от множественных кликов
         if (this.processingIds.has(accountId)) {
-            console.log('Favorite toggle already in progress for account:', accountId);
+            if (typeof logger !== 'undefined') logger.debug('Favorite toggle already in progress for account:', accountId);
             return;
         }
         
@@ -2607,6 +3123,8 @@ class FavoritesManager {
         
         try {
             const method = isFavorite ? 'DELETE' : 'POST';
+            // CSRF-токен обязателен для POST/DELETE — без него api_favorites.php вернёт 403
+            const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
             const response = await fetch('api_favorites.php', {
                 method: method,
                 credentials: 'same-origin',
@@ -2614,7 +3132,7 @@ class FavoritesManager {
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: JSON.stringify({ account_id: accountId })
+                body: JSON.stringify({ account_id: accountId, csrf: csrfToken })
             });
             
             // Проверяем статус ответа
@@ -2635,7 +3153,7 @@ class FavoritesManager {
                 const text = await response.text();
                 data = JSON.parse(text);
             } catch (e) {
-                console.error('JSON parse error:', e, 'Response:', text);
+                (typeof logger !== 'undefined' ? logger.error : console.error)('JSON parse error:', e, 'Response:', text);
                 throw new Error('Некорректный ответ сервера');
             }
             
@@ -2652,15 +3170,31 @@ class FavoritesManager {
             }
             
             // Состояние уже обновлено оптимистично, только показываем уведомление
-            // Показываем уведомление
             if (typeof window.showToast === 'function') {
                 window.showToast(
                     originalState ? 'Удалено из избранного' : 'Добавлено в избранное',
                     'success'
                 );
             }
+
+            // На странице избранного: убираем строку из таблицы при снятии звёздочки
+            if (originalState && document.body.classList.contains('favorites-page')) {
+                const row = document.querySelector(`#accountsTable tbody tr[data-id="${accountId}"]`);
+                if (row) {
+                    row.style.transition = 'opacity 0.3s';
+                    row.style.opacity = '0';
+                    setTimeout(() => {
+                        row.remove();
+                        // Если таблица опустела — показываем заглушку
+                        const tbody = document.querySelector('#accountsTable tbody');
+                        if (tbody && tbody.querySelectorAll('tr').length === 0) {
+                            window.location.reload();
+                        }
+                    }, 300);
+                }
+            }
         } catch (error) {
-            console.error('Error toggling favorite:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error toggling favorite:', error);
             
             // Откатываем оптимистичное обновление при ошибке
             if (originalState) {
@@ -2727,7 +3261,11 @@ class FavoritesManager {
                 if (icon) {
                     icon.className = 'fas fa-star';
                 } else {
-                    btn.innerHTML = '<i class="fas fa-star"></i>';
+                    // Создаём иконку безопасным методом
+                    const newIcon = document.createElement('i');
+                    newIcon.className = 'fas fa-star';
+                    btn.innerHTML = '';
+                    btn.appendChild(newIcon);
                 }
                 // Убеждаемся, что цвет правильный
                 if (!btn.style.color) {
@@ -2741,7 +3279,11 @@ class FavoritesManager {
                 if (icon) {
                     icon.className = 'far fa-star';
                 } else {
-                    btn.innerHTML = '<i class="far fa-star"></i>';
+                    // Создаём иконку безопасным методом
+                    const newIcon = document.createElement('i');
+                    newIcon.className = 'far fa-star';
+                    btn.innerHTML = '';
+                    btn.appendChild(newIcon);
                 }
                 // Убеждаемся, что цвет правильный
                 if (!btn.style.color) {
@@ -2826,8 +3368,11 @@ class FavoritesManager {
                     favoriteBtn.classList.remove('active');
                 }
             } else {
-                // Создаём иконку, если её нет
-                favoriteBtn.innerHTML = `<i class="${isFavorite ? 'fas' : 'far'} fa-star"></i>`;
+                // Создаём иконку, если её нет (безопасный метод)
+                const icon = document.createElement('i');
+                icon.className = isFavorite ? 'fas fa-star' : 'far fa-star';
+                favoriteBtn.innerHTML = '';
+                favoriteBtn.appendChild(icon);
                 if (isFavorite) {
                     favoriteBtn.classList.add('active');
                 } else {
@@ -2846,6 +3391,32 @@ class FavoritesManager {
      */
     getFavoritesList() {
         return Array.from(this.favorites);
+    }
+    
+    /**
+     * Очистка ресурсов и отключение observers
+     */
+    cleanup() {
+        // Отключаем MutationObserver
+        if (this.tableObserver) {
+            this.tableObserver.disconnect();
+            this.tableObserver = null;
+        }
+        
+        // Очищаем таймеры
+        if (this.updateDebounceTimer) {
+            clearTimeout(this.updateDebounceTimer);
+            this.updateDebounceTimer = null;
+        }
+        
+        if (this.observerDebounceTimer) {
+            clearTimeout(this.observerDebounceTimer);
+            this.observerDebounceTimer = null;
+        }
+        
+        // Очищаем множества
+        this.favorites.clear();
+        this.processingIds.clear();
     }
 }
 
@@ -2869,37 +3440,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // (только если мы на странице view.php, где нет таблицы #accountsTable)
     if (!document.querySelector('#accountsTable') && window.favoritesManager) {
         // Ждём загрузки избранного и обновляем кнопку на view.php
-        const checkLoaded = setInterval(() => {
-            if (window.favoritesManager.loaded) {
+        let checkLoaded = null;
+        const maxWait = setTimeout(() => {
+            if (checkLoaded) {
                 clearInterval(checkLoaded);
+                checkLoaded = null;
+            }
+        }, 5000);
+        
+        checkLoaded = setInterval(() => {
+            if (window.favoritesManager && window.favoritesManager.loaded) {
+                clearInterval(checkLoaded);
+                clearTimeout(maxWait);
+                checkLoaded = null;
                 // Небольшая задержка для гарантии, что DOM готов
                 setTimeout(() => {
-                    window.favoritesManager._updateFavoritesUIInternal();
+                    if (window.favoritesManager) {
+                        window.favoritesManager._updateFavoritesUIInternal();
+                    }
                 }, 200);
             }
         }, 100);
-        
-        // Останавливаем проверку через 5 секунд
-        setTimeout(() => {
-            clearInterval(checkLoaded);
-        }, 5000);
     }
     
     // Наблюдаем за изменениями в таблице (с debounce)
-    let observerDebounceTimer = null;
-    const tableObserver = new MutationObserver(() => {
-        // Debounce для предотвращения множественных обновлений
-        if (observerDebounceTimer) {
-            clearTimeout(observerDebounceTimer);
-        }
-        observerDebounceTimer = setTimeout(() => {
-            updateFavoritesAfterTableUpdate();
-        }, 200);
-    });
-    
     const accountsTable = document.querySelector('#accountsTable tbody');
-    if (accountsTable) {
-        tableObserver.observe(accountsTable, {
+    if (accountsTable && window.favoritesManager) {
+        window.favoritesManager.tableObserver = new MutationObserver(() => {
+            // Debounce для предотвращения множественных обновлений
+            if (window.favoritesManager.observerDebounceTimer) {
+                clearTimeout(window.favoritesManager.observerDebounceTimer);
+            }
+            window.favoritesManager.observerDebounceTimer = setTimeout(() => {
+                updateFavoritesAfterTableUpdate();
+            }, 200);
+        });
+        
+        window.favoritesManager.tableObserver.observe(accountsTable, {
             childList: true,
             subtree: false // Отключаем subtree для оптимизации
         });
@@ -2909,9 +3486,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof refreshDashboardData !== 'undefined') {
         const originalRefresh = window.refreshDashboardData;
         window.refreshDashboardData = async function(...args) {
-            const result = await originalRefresh.apply(this, args);
-            updateFavoritesAfterTableUpdate();
-            return result;
+            try {
+                const result = await originalRefresh.apply(this, args);
+                updateFavoritesAfterTableUpdate();
+                return result;
+            } catch (error) {
+                // Игнорируем AbortError - это нормальная отмена запроса
+                if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+                    return;
+                }
+                // Пробрасываем другие ошибки
+                throw error;
+            }
         };
     }
     
@@ -2919,6 +3505,13 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         updateFavoritesAfterTableUpdate();
     }, 500);
+    
+    // Очистка при закрытии страницы
+    window.addEventListener('beforeunload', () => {
+        if (window.favoritesManager && typeof window.favoritesManager.cleanup === 'function') {
+            window.favoritesManager.cleanup();
+        }
+    });
 });
 
 
@@ -3116,7 +3709,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(data.error || 'Ошибка восстановления');
             }
         } catch (error) {
-            console.error('Restore error:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Restore error:', error);
             if (typeof showToast === 'function') {
                 showToast('Ошибка при восстановлении аккаунтов: ' + error.message, 'error');
             } else {
@@ -3189,7 +3782,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(data.error || 'Ошибка удаления');
             }
         } catch (error) {
-            console.error('Delete permanent error:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Delete permanent error:', error);
             if (typeof showToast === 'function') {
                 showToast('Ошибка при удалении аккаунтов: ' + error.message, 'error');
             } else {
@@ -3205,7 +3798,16 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     async function emptyTrash() {
         try {
+            if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] Начало очистки корзины...');
             emptyTrashBtn.disabled = true;
+            
+            const csrfToken = getCsrfToken();
+            if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] CSRF токен получен:', csrfToken ? (csrfToken.substring(0, 20) + '...') : 'НЕ НАЙДЕН');
+            
+            const requestBody = {
+                csrf: csrfToken
+            };
+            if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] Отправка запроса с телом:', requestBody);
             
             const response = await fetch('empty_trash.php', {
                 method: 'POST',
@@ -3214,35 +3816,76 @@ document.addEventListener('DOMContentLoaded', function() {
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: JSON.stringify({
-                    csrf: getCsrfToken()
-                })
+                body: JSON.stringify(requestBody)
             });
             
+            if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] Ответ получен:', {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok,
+                contentType: response.headers.get('content-type')
+            });
+            
+            const contentType = response.headers.get('content-type') || '';
+            const isJson = contentType.includes('application/json');
+            
             if (!response.ok) {
-                throw new Error('Ошибка очистки корзины');
-            }
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                if (typeof showToast === 'function') {
-                    showToast(`Корзина очищена. Удалено ${data.deleted_count || 0} аккаунт(ов)`, 'success');
+                let errorMessage = `Ошибка ${response.status}: ${response.statusText}`;
+                
+                if (isJson) {
+                    try {
+                        const errorData = await response.json();
+                        (typeof logger !== 'undefined' ? logger.error : console.error)('🗑️ [EMPTY TRASH] Ошибка (JSON):', errorData);
+                        errorMessage = errorData.error || errorMessage;
+                    } catch (e) {
+                        (typeof logger !== 'undefined' ? logger.error : console.error)('🗑️ [EMPTY TRASH] Ошибка парсинга JSON ошибки:', e);
+                    }
+                } else {
+                    const textResponse = await response.text().catch(() => '');
+                    (typeof logger !== 'undefined' ? logger.error : console.error)('🗑️ [EMPTY TRASH] Ошибка (текст):', textResponse.substring(0, 500));
+                    errorMessage = textResponse || errorMessage;
                 }
                 
-                // Перезагружаем страницу
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
+                throw new Error(errorMessage);
+            }
+            
+            if (isJson) {
+                const data = await response.json();
+                if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] Данные ответа:', data);
+                
+                if (data.success) {
+                    if (typeof logger !== 'undefined') logger.debug('✅ [EMPTY TRASH] Корзина успешно очищена!', {
+                        deleted_count: data.deleted_count || 0
+                    });
+                    
+                    if (typeof showToast === 'function') {
+                        showToast(`Корзина очищена. Удалено ${data.deleted_count || 0} аккаунт(ов)`, 'success');
+                    }
+                    
+                    // Перезагружаем страницу
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    throw new Error(data.error || 'Ошибка очистки корзины');
+                }
             } else {
-                throw new Error(data.error || 'Ошибка очистки корзины');
+                const textResponse = await response.text().catch(() => '');
+                (typeof logger !== 'undefined' ? logger.error : console.error)('🗑️ [EMPTY TRASH] Ответ не JSON:', textResponse.substring(0, 500));
+                throw new Error('Сервер вернул некорректный ответ');
             }
         } catch (error) {
-            console.error('Empty trash error:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('❌ [EMPTY TRASH] Критическая ошибка:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('❌ [EMPTY TRASH] Детали ошибки:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            });
+            
             if (typeof showToast === 'function') {
-                showToast('Ошибка при очистке корзины: ' + error.message, 'error');
+                showToast('Ошибка при очистке корзины: ' + (error.message || 'Неизвестная ошибка'), 'error');
             } else {
-                alert('Ошибка при очистке корзины: ' + error.message);
+                alert('Ошибка при очистке корзины: ' + (error.message || 'Неизвестная ошибка'));
             }
         } finally {
             emptyTrashBtn.disabled = false;
@@ -3278,27 +3921,525 @@ document.addEventListener('DOMContentLoaded', function() {
 /**
  * Оптимизированный JavaScript для дашборда
  * Исправляет утечки памяти, улучшает производительность
+ * 
+ * VERSION: 2024-01-XX-DEBUG-WITH-LOGS
  */
 
+// ОЧЕНЬ ЗАМЕТНЫЙ ЛОГ для проверки, что файл загружается
+logger.debug('%c📜📜📜 DASHBOARD.JS ЗАГРУЖЕН (версия с логами) 📜📜📜', 'color: red; font-size: 20px; font-weight: bold; background: yellow; padding: 10px;');
+logger.debug('📜 [DASHBOARD.JS] Файл dashboard.js загружается...');
+logger.debug('📜 [DASHBOARD.JS] Текущее время:', new Date().toISOString());
+logger.debug('📜 [DASHBOARD.JS] URL файла:', document.currentScript ? document.currentScript.src : 'unknown');
+
+// Используем DOMCache для оптимизации DOM запросов (загружается через dom-cache.js)
+// Fallback на прямые вызовы, если глобальный window.domCache еще не загружен.
+// ВАЖНО: используем отдельное имя `dashboardDomCache`, чтобы не конфликтовать
+// с глобальной константой `domCache`, создаваемой в `core/dom-cache.js`.
+const dashboardDomCache = (function() {
+  if (window.domCache) {
+    return window.domCache;
+  }
+  // Fallback для случаев, когда domCache еще не инициализирован
+  return {
+    get: (selector) => {
+      if (selector.startsWith('#')) {
+        return document.getElementById(selector.slice(1));
+      }
+      return document.querySelector(selector);
+    },
+    getById: (id) => document.getElementById(id),
+    getAll: (selector) => document.querySelectorAll(selector)
+  };
+})();
+
 (function() {
+    logger.debug('📜 [DASHBOARD.JS] Проверка inline dashboard:', {
+        hasWindow: typeof window !== 'undefined',
+        inlineActive: typeof window !== 'undefined' ? window.__INLINE_DASHBOARD_ACTIVE__ : 'no window'
+    });
+
+    // Загрузка аккаунтов вынесена в assets/js/modules/dashboard-upload.js
+    // Fallback: определяем handleUploadAccountsGlobal только если модуль не загружен
+    if (typeof window.handleUploadAccountsGlobal !== 'function') {
+    window.handleUploadAccountsGlobal = async function(e) {
+        logger.debug('🚨🚨🚨 === ГЛОБАЛЬНАЯ ФУНКЦИЯ ЗАГРУЗКИ АККАУНТОВ === 🚨🚨🚨');
+        logger.debug('🚨 [GLOBAL UPLOAD] Функция handleUploadAccountsGlobal вызвана!');
+        logger.debug('🚨 [GLOBAL UPLOAD] Событие:', e);
+        
+        if (e && typeof e.preventDefault === 'function') {
+            e.preventDefault();
+            logger.debug('🚨 [GLOBAL UPLOAD] preventDefault() вызван');
+        }
+        
+        const form = dashboardDomCache.getById('uploadAccountsForm');
+        const submitBtn = dashboardDomCache.getById('uploadAccountsBtn');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
+        const fileInput = dashboardDomCache.getById('accountsFile');
+        
+        logger.debug('🚨 [GLOBAL UPLOAD] Элементы формы:', {
+            form: form ? 'найден' : 'не найден',
+            submitBtn: submitBtn ? 'найден' : 'не найден',
+            errorsDiv: errorsDiv ? 'найден' : 'не найден',
+            successDiv: successDiv ? 'найден' : 'не найден',
+            fileInput: fileInput ? 'найден' : 'не найден'
+        });
+        
+        if (errorsDiv) errorsDiv.classList.add('d-none');
+        if (successDiv) successDiv.classList.add('d-none');
+        
+        // Проверка выбранного файла
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            logger.warn('⚠️ [GLOBAL UPLOAD] Файл не выбран');
+            if (errorsDiv) {
+                errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки';
+                errorsDiv.classList.remove('d-none');
+            }
+            return;
+        }
+        
+        const file = fileInput.files[0];
+        logger.debug('📁 [GLOBAL UPLOAD] Информация о файле:', {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            lastModified: new Date(file.lastModified).toISOString()
+        });
+        
+        // Проверка размера файла (20MB)
+        const maxSize = 20 * 1024 * 1024;
+        if (file.size > maxSize) {
+            logger.error('❌ [GLOBAL UPLOAD] Файл слишком большой:', file.size, 'байт (максимум:', maxSize, 'байт)');
+            if (errorsDiv) {
+                errorsDiv.textContent = `Файл слишком большой. Максимальный размер: ${Math.round(maxSize / 1024 / 1024)} MB`;
+                errorsDiv.classList.remove('d-none');
+            }
+            return;
+        }
+        
+        // Проверка расширения файла
+        const allowedExtensions = ['.csv', '.txt'];
+        const fileName = file.name.toLowerCase();
+        const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+        logger.debug('🔍 [GLOBAL UPLOAD] Проверка расширения файла:', {
+            fileName: fileName,
+            hasValidExtension: hasValidExtension,
+            allowedExtensions: allowedExtensions
+        });
+        
+        if (!hasValidExtension) {
+            logger.error('❌ [GLOBAL UPLOAD] Неподдерживаемое расширение файла:', fileName);
+            if (errorsDiv) {
+                errorsDiv.textContent = 'Поддерживаются только файлы CSV или TXT';
+                errorsDiv.classList.remove('d-none');
+            }
+            return;
+        }
+        
+        const formData = new FormData(form);
+        logger.debug('📦 [GLOBAL UPLOAD] Данные формы FormData:');
+        for (let [key, value] of formData.entries()) {
+            if (key === 'import_file') {
+                logger.debug(`  ${key}:`, '[File object]', value.name, value.size + ' bytes');
+            } else {
+                logger.debug(`  ${key}:`, value);
+            }
+        }
+        
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Загрузка...';
+            
+            try {
+                logger.debug('🚀 [GLOBAL UPLOAD] Отправка запроса на import_accounts.php...');
+                const response = await fetch('import_accounts.php', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                
+                logger.debug('📥 [GLOBAL UPLOAD] Ответ получен:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    ok: response.ok,
+                    url: response.url
+                });
+                
+                // Проверяем Content-Type ответа
+                const contentType = response.headers.get('content-type') || '';
+                const isJson = contentType.includes('application/json');
+                logger.debug('📋 [GLOBAL UPLOAD] Заголовки ответа:', {
+                    'content-type': contentType,
+                    isJson: isJson,
+                    allHeaders: Object.fromEntries(response.headers.entries())
+                });
+                
+                let result;
+                
+                if (!response.ok) {
+                    logger.error('❌ [GLOBAL UPLOAD] Ответ с ошибкой:', response.status, response.statusText);
+                    // Пытаемся прочитать ошибку как JSON, если это возможно
+                    if (isJson) {
+                        try {
+                            const errorData = await response.json();
+                            logger.error('📄 [GLOBAL UPLOAD] Ошибка (JSON):', errorData);
+                            throw new Error(errorData.error || `Ошибка ${response.status}: ${response.statusText}`);
+                        } catch (parseError) {
+                            logger.error('❌ [GLOBAL UPLOAD] Ошибка парсинга JSON ошибки:', parseError);
+                            if (parseError instanceof Error && parseError.message.includes('Ошибка')) {
+                                throw parseError;
+                            }
+                            throw new Error(`Ошибка ${response.status}: ${response.statusText}`);
+                        }
+                    } else {
+                        // Если ответ не JSON, читаем как текст
+                        const errorText = await response.text().catch(() => '');
+                        logger.error('📄 [GLOBAL UPLOAD] Ошибка (текст):', errorText.substring(0, 500));
+                        throw new Error(errorText || `Ошибка ${response.status}: ${response.statusText}`);
+                    }
+                }
+                
+                // Парсим успешный ответ
+                if (isJson) {
+                    try {
+                        logger.debug('🔄 [GLOBAL UPLOAD] Парсинг JSON ответа...');
+                        result = await response.json();
+                        logger.debug('✅ [GLOBAL UPLOAD] JSON успешно распарсен:', result);
+                    } catch (parseError) {
+                        logger.error('❌ [GLOBAL UPLOAD] Ошибка парсинга JSON ответа:', parseError);
+                        logger.error('📄 [GLOBAL UPLOAD] Сырой ответ (первые 500 символов):', await response.clone().text().then(t => t.substring(0, 500)).catch(() => 'Не удалось прочитать'));
+                        throw new Error('Ошибка при обработке ответа от сервера. Проверьте формат файла и попробуйте снова.');
+                    }
+                } else {
+                    // Если ответ не JSON, это ошибка
+                    logger.warn('⚠️ [GLOBAL UPLOAD] Ответ не является JSON, пытаемся прочитать как текст...');
+                    const textResponse = await response.text().catch(() => '');
+                    logger.error('📄 [GLOBAL UPLOAD] Текстовый ответ (первые 500 символов):', textResponse.substring(0, 500));
+                    throw new Error(textResponse || 'Сервер вернул некорректный ответ. Попробуйте снова.');
+                }
+                
+                logger.debug('🔍 [GLOBAL UPLOAD] Результат импорта:', {
+                    success: result.success,
+                    created: result.created,
+                    skipped: result.skipped,
+                    total: result.total,
+                    errorsCount: result.errors ? result.errors.length : 0,
+                    message: result.message
+                });
+                
+                if (result.success) {
+                    logger.debug('✅ [GLOBAL UPLOAD] Импорт успешен!', {
+                        created: result.created || 0,
+                        skipped: result.skipped || 0,
+                        errors: result.errors ? result.errors.length : 0
+                    });
+                    
+                    // Группируем ошибки по типам для более понятного отображения
+                    const errorGroups = {};
+                    if (result.errors && result.errors.length > 0) {
+                        result.errors.forEach(err => {
+                            const msg = err.message || 'Неизвестная ошибка';
+                            if (!errorGroups[msg]) {
+                                errorGroups[msg] = {
+                                    message: msg,
+                                    count: 0,
+                                    examples: [] // Примеры строк с этой ошибкой (максимум 5)
+                                };
+                            }
+                            errorGroups[msg].count++;
+                            if (errorGroups[msg].examples.length < 5) {
+                                errorGroups[msg].examples.push(err.row);
+                            }
+                        });
+                        
+                        logger.warn('⚠️ [GLOBAL UPLOAD] Обнаружены ошибки при импорте!');
+                        logger.warn('⚠️ [GLOBAL UPLOAD] Группировка ошибок:', errorGroups);
+                        result.errors.forEach((err, index) => {
+                            logger.error(`❌ [GLOBAL UPLOAD] Ошибка ${index + 1}:`, {
+                                row: err.row,
+                                message: err.message,
+                                fullError: err
+                            });
+                        });
+                    }
+                    
+                    const created = result.created || 0;
+                    const duplicates = result.skipped || 0;
+                    const errorsCount = result.errors ? result.errors.length : 0;
+                    
+                    // 1. Показываем улучшенное toast‑уведомление
+                    if (typeof window.showToast === 'function') {
+                        // Формируем более понятное сообщение
+                        let toastMsg = '';
+                        
+                        if (created > 0) {
+                            toastMsg += `✅ Добавлено: ${created}`;
+                        }
+                        
+                        if (duplicates > 0) {
+                            if (toastMsg) toastMsg += '\n';
+                            toastMsg += `⚠️ Пропущено (уже есть в панели): ${duplicates}`;
+                        }
+                        
+                        if (errorsCount > 0) {
+                            if (toastMsg) toastMsg += '\n';
+                            // Показываем краткую информацию об ошибках
+                            const errorTypes = Object.keys(errorGroups);
+                            if (errorTypes.length === 1) {
+                                // Если все ошибки одного типа, показываем это явно
+                                const errorType = errorTypes[0];
+                                const humanReadable = errorType === 'Status is required' 
+                                    ? 'отсутствует статус' 
+                                    : errorType === 'Login is required'
+                                    ? 'отсутствует логин'
+                                    : errorType.toLowerCase();
+                                toastMsg += `❌ Не добавлено (${humanReadable}): ${errorsCount}`;
+                            } else {
+                                toastMsg += `❌ Не добавлено из-за ошибок: ${errorsCount}`;
+                            }
+                        }
+                        
+                        if (!toastMsg) {
+                            toastMsg = 'Импорт завершён';
+                        }
+
+                        logger.debug('🔔 [GLOBAL UPLOAD] Показ toast уведомления:', {
+                            message: toastMsg,
+                            created,
+                            duplicates,
+                            errorsCount
+                        });
+
+                        // Если есть ошибки или дубликаты, показываем предупреждение, иначе — успех
+                        const toastType = (errorsCount > 0 || duplicates > 0) ? 'warning' : 'success';
+                        window.showToast(toastMsg, toastType);
+                    } else {
+                        logger.warn('⚠️ [GLOBAL UPLOAD] Функция window.showToast не найдена');
+                    }
+                    
+                    // 2. Показываем детальную информацию об ошибках в errorsDiv
+                    if (errorsDiv) {
+                        if (errorsCount > 0) {
+                            let detailsHtml = '<div class="import-result-details">';
+                            
+                            // Заголовок
+                            detailsHtml += `<h6 class="mb-3"><i class="fas fa-exclamation-triangle text-warning me-2"></i>Детали ошибок импорта:</h6>`;
+                            
+                            // Группированные ошибки
+                            Object.values(errorGroups).forEach(group => {
+                                detailsHtml += '<div class="mb-3">';
+                                
+                                // Название типа ошибки (человекочитаемое)
+                                let errorTitle = group.message;
+                                if (group.message === 'Status is required') {
+                                    errorTitle = 'Отсутствует статус';
+                                } else if (group.message === 'Login is required') {
+                                    errorTitle = 'Отсутствует логин';
+                                } else if (group.message.includes('already exists')) {
+                                    errorTitle = 'Дубликат логина';
+                                }
+                                
+                                detailsHtml += `<div class="fw-semibold mb-1">${errorTitle} <span class="badge bg-danger">${group.count}</span></div>`;
+                                
+                                // Примеры строк
+                                if (group.examples.length > 0) {
+                                    const examplesText = group.examples.length === group.count
+                                        ? `Строки: ${group.examples.join(', ')}`
+                                        : `Примеры строк: ${group.examples.join(', ')}${group.count > group.examples.length ? ` и ещё ${group.count - group.examples.length}` : ''}`;
+                                    detailsHtml += `<div class="text-muted small">${examplesText}</div>`;
+                                }
+                                
+                                detailsHtml += '</div>';
+                            });
+                            
+                            // Рекомендации
+                            detailsHtml += '<div class="mt-3 p-2 bg-light rounded">';
+                            detailsHtml += '<small class="text-muted">';
+                            detailsHtml += '<strong>Рекомендации:</strong><br>';
+                            if (errorGroups['Status is required']) {
+                                detailsHtml += '• Заполните поле "status" для всех строк<br>';
+                            }
+                            if (errorGroups['Login is required']) {
+                                detailsHtml += '• Заполните поле "login" для всех строк<br>';
+                            }
+                            if (duplicates > 0) {
+                                detailsHtml += '• Проверьте, не дублируются ли логины в файле<br>';
+                            }
+                            detailsHtml += '• Исправьте ошибки в файле и попробуйте импортировать снова';
+                            detailsHtml += '</small>';
+                            detailsHtml += '</div>';
+                            
+                            detailsHtml += '</div>';
+                            
+                            errorsDiv.innerHTML = detailsHtml;
+                            errorsDiv.classList.remove('d-none');
+                        } else {
+                            errorsDiv.classList.add('d-none');
+                            errorsDiv.innerHTML = '';
+                        }
+                    }
+                    
+                    // 3. Очищаем форму
+                    if (form) {
+                        form.reset();
+                        logger.debug('🧹 [GLOBAL UPLOAD] Форма очищена');
+                    }
+                    if (successDiv) {
+                        successDiv.classList.add('d-none');
+                        successDiv.innerHTML = '';
+                    }
+                    
+                    // 4. Закрываем модальное окно только если нет ошибок
+                    // Если есть ошибки, оставляем модальное окно открытым, чтобы пользователь видел детали
+                    if (errorsCount === 0) {
+                        const addAccountModal = dashboardDomCache.getById('addAccountModal');
+                        if (addAccountModal) {
+                            try {
+                                // Пробуем получить существующий инстанс
+                                let modalInstance = typeof bootstrap !== 'undefined' && bootstrap.Modal
+                                    ? bootstrap.Modal.getInstance(addAccountModal)
+                                    : null;
+                                
+                                // Если инстанса нет, создаем новый
+                                if (!modalInstance && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                                    modalInstance = bootstrap.Modal.getOrCreateInstance(addAccountModal);
+                                }
+                                
+                                // Закрываем модальное окно
+                                if (modalInstance) {
+                                    logger.debug('🔒 [GLOBAL UPLOAD] Закрытие модального окна через Bootstrap API...');
+                                    modalInstance.hide();
+                                } else {
+                                    // Fallback: используем data-атрибут
+                                    logger.debug('🔒 [GLOBAL UPLOAD] Fallback: закрытие через data-атрибут...');
+                                    const closeBtn = addAccountModal.querySelector('[data-bs-dismiss="modal"]');
+                                    if (closeBtn) {
+                                        closeBtn.click();
+                                    }
+                                }
+                            } catch (error) {
+                                logger.error('❌ [GLOBAL UPLOAD] Ошибка при закрытии модального окна:', error);
+                                // Fallback: используем data-атрибут
+                                const closeBtn = addAccountModal.querySelector('[data-bs-dismiss="modal"]');
+                                if (closeBtn) {
+                                    closeBtn.click();
+                                }
+                            }
+                        }
+                    } else {
+                        logger.debug('ℹ️ [GLOBAL UPLOAD] Модальное окно остаётся открытым для просмотра ошибок');
+                        // Прокручиваем к блоку с ошибками, чтобы пользователь сразу увидел детали
+                        if (errorsDiv) {
+                            setTimeout(() => {
+                                errorsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                            }, 100);
+                        }
+                    }
+                    
+                    // 4. Обновляем таблицу после закрытия модального окна
+                    setTimeout(() => {
+                        logger.debug('🔄 [GLOBAL UPLOAD] Обновление данных дашборда...');
+                        if (typeof window.refreshDashboardData === 'function') {
+                            window.refreshDashboardData().catch(error => {
+                                logger.error('❌ [GLOBAL UPLOAD] Ошибка при обновлении дашборда:', error);
+                                // Если обновление не сработало, перезагружаем страницу
+                                if (error.name !== 'AbortError') {
+                                    logger.warn('⚠️ [GLOBAL UPLOAD] Перезагрузка страницы из-за ошибки обновления...');
+                                    window.location.reload();
+                                }
+                            });
+                        } else {
+                            logger.warn('⚠️ [GLOBAL UPLOAD] Функция window.refreshDashboardData не найдена, перезагрузка страницы...');
+                            window.location.reload();
+                        }
+                    }, 400); // Оптимальная задержка для закрытия модального окна
+                    
+                } else {
+                    logger.error('❌ [GLOBAL UPLOAD] Импорт не успешен, result.success = false:', result);
+                    throw new Error(result.error || 'Ошибка при загрузке файла');
+                }
+            } catch (error) {
+                logger.error('❌ [GLOBAL UPLOAD] КРИТИЧЕСКАЯ ОШИБКА при загрузке аккаунтов:', error);
+                logger.error('📊 [GLOBAL UPLOAD] Детали ошибки:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
+                
+                let errorMessage = 'Ошибка при загрузке файла. Проверьте формат файла и попробуйте снова.';
+                
+                if (error instanceof Error) {
+                    errorMessage = error.message || errorMessage;
+                    // Очищаем HTML теги из сообщения об ошибке для безопасности
+                    const tempDiv = document.createElement('div');
+                    tempDiv.textContent = errorMessage;
+                    errorMessage = tempDiv.textContent || errorMessage;
+                }
+                
+                logger.debug('📝 [GLOBAL UPLOAD] Отображение ошибки пользователю:', errorMessage);
+                
+                if (errorsDiv) {
+                    errorsDiv.textContent = errorMessage;
+                    errorsDiv.classList.remove('d-none');
+                } else {
+                    logger.error('❌ [GLOBAL UPLOAD] errorsDiv не найден, не удалось отобразить ошибку!');
+                }
+                
+                if (typeof window.showToast === 'function') {
+                    logger.debug('🔔 [GLOBAL UPLOAD] Показ toast уведомления об ошибке');
+                    window.showToast(errorMessage, 'error');
+                } else {
+                    logger.warn('⚠️ [GLOBAL UPLOAD] Функция window.showToast не найдена');
+                }
+            } finally {
+                logger.debug('🏁 [GLOBAL UPLOAD] Завершение обработки запроса, восстановление кнопки');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+                logger.debug('=== КОНЕЦ ГЛОБАЛЬНОЙ ЗАГРУЗКИ АККАУНТОВ ===');
+            }
+        } else {
+            logger.error('❌ [GLOBAL UPLOAD] submitBtn не найден!');
+        }
+    };
+    } // конец fallback handleUploadAccountsGlobal
+
     if (typeof window !== 'undefined' && window.__INLINE_DASHBOARD_ACTIVE__) {
-        console.info('[dashboard.js] Inline dashboard скрипт активен — пропускаем инициализацию класса Dashboard');
+        // Inline dashboard скрипт активен — модуль dashboard-upload уже привязал форму
+        logger.debug('✅ [DASHBOARD.JS] Inline dashboard активен, модуль upload подключен');
+        // Модуль dashboard-upload уже привязал форму при DOMContentLoaded
         return;
     }
 
 class Dashboard {
     constructor() {
+        logger.debug('🏗️ [CONSTRUCTOR] Создание экземпляра Dashboard...');
+        logger.debug('🏗️ [CONSTRUCTOR] Время:', new Date().toISOString());
+        
         this.selectedIds = new Set();
         this.selectedAllFiltered = false;
         this.filteredTotalLive = 0;
         this.isRefreshing = false;
         this.refreshController = null;
-        this.refreshQueued = false;
+        this.refreshQueueCount = 0;
         this.overlayShownAt = 0;
+        this.cleanupInterval = null; // Для очистки setInterval
         
         // Дебаунс функции для оптимизации
         this.debouncedSearch = this.debounce(this.applyLiveSearch.bind(this), 300);
         this.debouncedRefresh = this.debounce(this.refreshDashboardData.bind(this), 100);
+        
+        // Сохранение ссылок на обработчики для последующего удаления
+        this.boundHandlers = {
+            click: this.handleDocumentClick.bind(this),
+            change: this.handleDocumentChange.bind(this),
+            submit: this.handleFormSubmit.bind(this),
+            beforeunload: this.cleanup.bind(this)
+        };
         
         // Константы
         this.LS_KEYS = {
@@ -3309,18 +4450,27 @@ class Dashboard {
             CUSTOM_CARDS: 'dashboard_custom_cards_v1'
         };
         
+        logger.debug('🏗️ [CONSTRUCTOR] Вызов метода init()...');
         this.init();
+        logger.debug('✅ [CONSTRUCTOR] Dashboard успешно создан и инициализирован');
     }
     
     init() {
+        logger.debug('🔧 [INIT] Метод init() вызван');
+        logger.debug('🔧 [INIT] Загрузка выбранных ID...');
         this.loadSelectedIds();
+        logger.debug('🔧 [INIT] Обновление счетчика выбранных...');
         this.updateSelectedCount();
+        logger.debug('🔧 [INIT] Загрузка настроек...');
         this.loadSettings();
+        logger.debug('🔧 [INIT] Привязка событий...');
         this.bindEvents();
+        logger.debug('🔧 [INIT] Инициализация компонентов...');
         this.initializeComponents();
         
-        // Автоочистка кэша каждые 5 минут
-        setInterval(() => this.cleanupMemory(), 5 * 60 * 1000);
+        // Автоочистка кэша каждые 5 минут (сохраняем ссылку для очистки)
+        this.cleanupInterval = setInterval(() => this.cleanupMemory(), 5 * 60 * 1000);
+        logger.debug('✅ [INIT] Инициализация завершена');
     }
     
     loadSelectedIds() {
@@ -3330,7 +4480,7 @@ class Dashboard {
                 this.selectedIds = new Set(JSON.parse(saved));
             }
         } catch (e) {
-            console.error('Error loading selected IDs:', e);
+            logger.error('Error loading selected IDs:', e);
         }
     }
     
@@ -3347,11 +4497,11 @@ class Dashboard {
                 if (k) knownCols = JSON.parse(k) || [];
             } catch (_) {}
             
-            const allColKeys = Array.from(document.querySelectorAll('.column-toggle'))
+            const allColKeys = Array.from(dashboardDomCache.getAll('.column-toggle'))
                 .map(cb => cb.getAttribute('data-col'));
             const newCols = allColKeys.filter(c => !knownCols.includes(c));
             
-            document.querySelectorAll('.column-toggle').forEach(cb => {
+            dashboardDomCache.getAll('.column-toggle').forEach(cb => {
                 const colName = cb.getAttribute('data-col');
                 let isChecked = cb.checked;
                 if (visibleColumns) {
@@ -3370,28 +4520,30 @@ class Dashboard {
             const savedCards = localStorage.getItem(this.LS_KEYS.CARDS);
             if (savedCards) {
                 const visibleCards = JSON.parse(savedCards);
-                document.querySelectorAll('.card-toggle').forEach(cb => {
+                dashboardDomCache.getAll('.card-toggle').forEach(cb => {
                     const cardId = cb.getAttribute('data-card');
                     cb.checked = visibleCards.includes(cardId);
                 });
             }
         } catch (e) {
-            console.error('Error loading settings:', e);
+            logger.error('Error loading settings:', e);
         }
     }
     
     bindEvents() {
         // Используем делегирование событий для лучшей производительности
-        document.addEventListener('click', this.handleDocumentClick.bind(this));
-        document.addEventListener('change', this.handleDocumentChange.bind(this));
-        document.addEventListener('submit', this.handleFormSubmit.bind(this));
+        // Используем сохраненные ссылки для возможности удаления
+        document.addEventListener('click', this.boundHandlers.click);
+        document.addEventListener('change', this.boundHandlers.change);
+        document.addEventListener('submit', this.boundHandlers.submit);
         
         // Оптимизированные обработчики для частых событий
         const searchInput = document.querySelector('input[name="q"]');
         if (searchInput) {
             // ОТКЛЮЧЕНО автоприменение - только по кнопке "Применить"
             // searchInput.addEventListener('input', this.debouncedSearch);
-            searchInput.addEventListener('keydown', this.handleSearchKeydown.bind(this));
+            this.boundHandlers.searchKeydown = this.handleSearchKeydown.bind(this);
+            searchInput.addEventListener('keydown', this.boundHandlers.searchKeydown);
         }
         
         // Обработчики для селектов
@@ -3401,7 +4553,7 @@ class Dashboard {
         this.bindPaginationEvents();
         
         // Предотвращение утечек памяти при закрытии страницы
-        window.addEventListener('beforeunload', this.cleanup.bind(this));
+        window.addEventListener('beforeunload', this.boundHandlers.beforeunload);
     }
     
     handleDocumentClick(e) {
@@ -3468,6 +4620,13 @@ class Dashboard {
             return;
         }
         
+        // Форма добавления аккаунта обрабатывается отдельно
+        if (e.target.id === 'addAccountForm') {
+            // Предотвращаем дефолтное поведение, обработка в handleAddAccountSubmit
+            e.preventDefault();
+            return;
+        }
+        
         // Синхронизируем ползунки перед отправкой
         this.syncSliderValues();
     }
@@ -3487,7 +4646,7 @@ class Dashboard {
         }
         
         // Селект страниц (пагинация) - оставляем автоприменение
-        const pageSelect = document.getElementById('pageSelect');
+        const pageSelect = dashboardDomCache.getById('pageSelect');
         if (pageSelect) {
             pageSelect.addEventListener('change', this.handlePageSelectChange.bind(this));
         }
@@ -3555,7 +4714,7 @@ class Dashboard {
     }
     
     handlePageSelectChange() {
-        const pageSelect = document.getElementById('pageSelect');
+        const pageSelect = dashboardDomCache.getById('pageSelect');
         const selectedPage = parseInt(pageSelect.value);
         
         if (selectedPage && selectedPage > 0) {
@@ -3564,11 +4723,12 @@ class Dashboard {
             history.replaceState(null, '', url.toString());
             
             // Обновляем номер страницы немедленно
-            const pageNumEl = document.getElementById('pageNum');
+            const pageNumEl = dashboardDomCache.getById('pageNum');
             if (pageNumEl) pageNumEl.textContent = String(selectedPage);
             
+            // НЕ очищаем selectedIds при пагинации - выбранные строки должны сохраняться между страницами
+            // selectedAllFiltered сбрасываем, так как это относится к текущему фильтру
             this.selectedAllFiltered = false;
-            this.selectedIds.clear();
             this.updateSelectedCount();
             this.debouncedRefresh();
         }
@@ -3609,30 +4769,31 @@ class Dashboard {
             // Обновляем UI немедленно
             this.updatePageUI(pageParam);
             
+            // НЕ сбрасываем выбор при смене страницы - сохраняем выбранные ID
+            // selectedAllFiltered сбрасываем, так как это относится к фильтру, а не к конкретным ID
             this.selectedAllFiltered = false;
-            this.selectedIds.clear();
-            this.updateSelectedCount();
             this.debouncedRefresh();
         } catch (error) {
-            console.error('Pagination error:', error);
+            logger.error('Pagination error:', error);
         }
     }
     
     updatePageUI(pageNum) {
-        const pageNumEl = document.getElementById('pageNum');
+        const pageNumEl = dashboardDomCache.getById('pageNum');
         if (pageNumEl) pageNumEl.textContent = String(pageNum);
         
-        const pageSelectEl = document.getElementById('pageSelect');
+        const pageSelectEl = dashboardDomCache.getById('pageSelect');
         if (pageSelectEl) pageSelectEl.value = String(pageNum);
     }
     
     // Оптимизированное обновление данных
     async refreshDashboardData() {
         // Предотвращаем множественные запросы
-        if (this.refreshController) {
-            this.refreshQueued = true;
+        const currentController = this.refreshController;
+        if (currentController) {
+            this.refreshQueueCount++;
             try {
-                this.refreshController.abort();
+                currentController.abort();
             } catch (e) {
                 // Игнорируем ошибки отмены
             }
@@ -3670,7 +4831,7 @@ class Dashboard {
             
         } catch (error) {
             if (error.name !== 'AbortError') {
-                console.error('Refresh error:', error);
+                logger.error('Refresh error:', error);
                 this.showToast('Ошибка обновления данных', 'error');
             }
         } finally {
@@ -3679,8 +4840,8 @@ class Dashboard {
             this.refreshController = null;
             
             // Если был запрос на повторное обновление
-            if (this.refreshQueued) {
-                this.refreshQueued = false;
+            if (this.refreshQueueCount > 0) {
+                this.refreshQueueCount--;
                 setTimeout(() => this.refreshDashboardData(), 100);
             }
         }
@@ -3727,7 +4888,7 @@ class Dashboard {
     }
     
     updateTable(data) {
-        const tbody = document.querySelector('#accountsTable tbody');
+        const tbody = dashboardDomCache.get('#accountsTable tbody');
         if (!tbody || !Array.isArray(data.rows)) return;
         
         // Сохраняем позицию скролла
@@ -3753,13 +4914,13 @@ class Dashboard {
     
     generateTableRows(rows) {
         if (!rows.length) {
-            const colCount = document.querySelectorAll('#accountsTable thead th').length;
+            const colCount = dashboardDomCache.getAll('#accountsTable thead th').length;
             return `<tr><td colspan="${colCount}" class="text-center text-muted py-5">
                 <i class="fas fa-search fa-2x mb-3"></i><div>Ничего не найдено</div>
             </td></tr>`;
         }
         
-        const headKeys = Array.from(document.querySelectorAll('#accountsTable thead th[data-col]'))
+        const headKeys = Array.from(dashboardDomCache.getAll('#accountsTable thead th[data-col]'))
             .map(th => th.getAttribute('data-col'));
         
         return rows.map(row => this.generateTableRow(row, headKeys)).join('');
@@ -3790,13 +4951,15 @@ class Dashboard {
         const value = row[col];
         
         if (value === undefined || value === null || value === '') {
-            return '<span class="text-muted">—</span>';
+            return `<span class="text-muted">—</span>
+                <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>`;
         }
         
         // Специальная обработка для разных типов колонок
         switch (col) {
             case 'id':
-                return `<span class="fw-bold text-primary">#${this.escapeHtml(value)}</span>`;
+                return `<span class="fw-bold text-primary">#${this.escapeHtml(value)}</span>
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
                 
             case 'email':
                 return `<div class="d-flex align-items-center gap-2">
@@ -3822,10 +4985,13 @@ class Dashboard {
                     <button type="button" class="pw-toggle" title="Показать пароль">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать пароль"><i class="fas fa-copy"></i></button>
                 </div>`;
                 
             case 'status':
-                return this.renderStatusBadge(value);
+                return `<div class="d-flex align-items-center gap-2">${this.renderStatusBadge(value)}
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+                </div>`;
                 
             default:
                 // Длинные поля
@@ -3834,10 +5000,12 @@ class Dashboard {
                     return `<span class="truncate mono" title="Нажмите для просмотра" 
                         data-full="${this.escapeHtml(value)}" data-title="${this.escapeHtml(col)}">
                         ${this.escapeHtml(clipped)}
-                    </span>`;
+                    </span>
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
                 }
                 
-                return `<span>${this.escapeHtml(value)}</span>`;
+                return `<span>${this.escapeHtml(value)}</span>
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
         }
     }
     
@@ -3861,7 +5029,7 @@ class Dashboard {
     // Очистка памяти и предотвращение утечек
     cleanupMemory() {
         // Очищаем старые обработчики событий
-        const oldElements = document.querySelectorAll('[data-cleanup]');
+        const oldElements = dashboardDomCache.getAll('[data-cleanup]');
         oldElements.forEach(el => {
             el.removeEventListener('click', el._clickHandler);
             el.removeEventListener('change', el._changeHandler);
@@ -3876,8 +5044,33 @@ class Dashboard {
     
     cleanup() {
         // Отменяем все активные запросы
-        if (this.refreshController) {
-            this.refreshController.abort();
+        const currentController = this.refreshController;
+        if (currentController) {
+            try {
+                currentController.abort();
+            } catch (e) {
+                // Игнорируем ошибки отмены
+            }
+        }
+        
+        // Очищаем интервал автоочистки
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+            this.cleanupInterval = null;
+        }
+        
+        // Удаляем обработчики событий
+        if (this.boundHandlers) {
+            document.removeEventListener('click', this.boundHandlers.click);
+            document.removeEventListener('change', this.boundHandlers.change);
+            document.removeEventListener('submit', this.boundHandlers.submit);
+            window.removeEventListener('beforeunload', this.boundHandlers.beforeunload);
+            
+            // Удаляем обработчик поиска, если был добавлен
+            const searchInput = document.querySelector('input[name="q"]');
+            if (searchInput && this.boundHandlers.searchKeydown) {
+                searchInput.removeEventListener('keydown', this.boundHandlers.searchKeydown);
+            }
         }
         
         // Очищаем таймеры
@@ -3892,11 +5085,11 @@ class Dashboard {
     // Вспомогательные методы...
     showToast(message, type = 'info') {
         // Реализация уведомлений
-        console.log(`Toast [${type}]: ${message}`);
+        logger.debug(`Toast [${type}]: ${message}`);
     }
     
     showLoadingOverlay() {
-        const overlay = document.getElementById('tableLoading');
+        const overlay = dashboardDomCache.getById('tableLoading');
         if (overlay) {
             overlay.classList.add('show');
             this.overlayShownAt = Date.now();
@@ -3904,7 +5097,7 @@ class Dashboard {
     }
     
     hideLoadingOverlay() {
-        const overlay = document.getElementById('tableLoading');
+        const overlay = dashboardDomCache.getById('tableLoading');
         if (overlay) {
             const elapsed = Date.now() - (this.overlayShownAt || 0);
             const minMs = 300;
@@ -3965,7 +5158,7 @@ class Dashboard {
         const title = target.getAttribute('data-title') || 'Данные';
         if (!full) return;
         
-        let modal = document.getElementById('fullDataModal');
+        let modal = dashboardDomCache.getById('fullDataModal');
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'fullDataModal';
@@ -4005,7 +5198,7 @@ class Dashboard {
     
     // Обновление счётчиков выбранных записей и кнопок
     updateSelectedCount() {
-        const selectedCountEl = document.getElementById('selectedCount');
+        const selectedCountEl = dashboardDomCache.getById('selectedCount');
         if (selectedCountEl) {
             selectedCountEl.textContent = this.selectedAllFiltered ? 'Все по фильтру' : String(this.selectedIds.size);
         }
@@ -4024,7 +5217,7 @@ class Dashboard {
     
     // Обработка главного чекбокса
     handleSelectAllChange(master) {
-        const rows = document.querySelectorAll('#accountsTable tbody .row-checkbox');
+        const rows = dashboardDomCache.getAll('#accountsTable tbody .row-checkbox');
         rows.forEach(cb => {
             cb.checked = master.checked;
             const id = parseInt(cb.value, 10);
@@ -4047,13 +5240,975 @@ class Dashboard {
     // Редактирование ячейки (делегируем шаблону; заглушка)
     handleCellEdit() {}
     
+    // Инициализация компонентов (заглушка для совместимости)
+    initializeComponents() {
+        // Метод оставлен для совместимости, может быть переопределен в шаблоне
+        this.initAddAccountForm();
+    }
+    
+    // Инициализация формы добавления аккаунта
+    initAddAccountForm() {
+        logger.debug('🔧 [INIT] Инициализация формы добавления аккаунта...');
+        const addAccountModal = dashboardDomCache.getById('addAccountModal');
+        const uploadForm = dashboardDomCache.getById('uploadAccountsForm');
+        const uploadBtn = dashboardDomCache.getById('uploadAccountsBtn');
+        
+        logger.debug('🔧 [INIT] Элементы формы:', {
+            addAccountModal: addAccountModal ? 'найден' : 'НЕ НАЙДЕН',
+            uploadForm: uploadForm ? 'найден' : 'НЕ НАЙДЕН',
+            uploadBtn: uploadBtn ? 'найден' : 'НЕ НАЙДЕН'
+        });
+        
+        if (!addAccountModal || !uploadForm) {
+            logger.warn('⚠️ [INIT] Форма не найдена, возможно не на странице dashboard');
+            return; // Форма не найдена, возможно не на странице dashboard
+        }
+        
+        // Обработка открытия модального окна
+        addAccountModal.addEventListener('show.bs.modal', () => {
+            logger.debug('📂 [MODAL] Модальное окно открывается');
+            this.clearAddAccountForm();
+        });
+        
+        // Обработка отправки формы загрузки
+        logger.debug('🔧 [INIT] Привязка обработчика submit к форме...');
+        uploadForm.addEventListener('submit', (e) => {
+            logger.debug('🚨 [FORM] Событие submit формы перехвачено!');
+            e.preventDefault();
+            logger.debug('🚨 [FORM] Вызов handleUploadAccounts...');
+            this.handleUploadAccounts(e);
+        });
+        
+        // Дополнительно привязываем обработчик к кнопке (на случай если форма не работает)
+        if (uploadBtn) {
+            logger.debug('🔧 [INIT] Привязка дополнительного обработчика к кнопке...');
+            uploadBtn.addEventListener('click', (e) => {
+                e.preventDefault(); // Предотвращаем стандартную отправку формы
+                e.stopPropagation(); // Останавливаем всплытие события
+                logger.debug('🚨 [BUTTON] Клик по кнопке загрузки, проверяем форму...');
+                const form = dashboardDomCache.getById('uploadAccountsForm');
+                if (form) {
+                    const fileInput = dashboardDomCache.getById('accountsFile');
+                    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                        logger.debug('🚨 [BUTTON] Файл выбран, инициируем submit формы...');
+                        // Создаем событие submit и вызываем обработчик напрямую
+                        const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
+                        submitEvent.preventDefault = () => {}; // Добавляем метод preventDefault
+                        this.handleUploadAccounts(submitEvent);
+                    } else {
+                        logger.warn('⚠️ [BUTTON] Файл не выбран');
+                        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+                        if (errorsDiv) {
+                            errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки';
+                            errorsDiv.classList.remove('d-none');
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Сброс при закрытии модального окна (работает для ручного и программного закрытия)
+        addAccountModal.addEventListener('hidden.bs.modal', () => {
+            logger.debug('📂 [MODAL] Модальное окно закрыто, полная очистка формы');
+            this.clearAddAccountForm();
+            
+            // Дополнительная очистка элементов (на случай если clearAddAccountForm не отработал)
+            const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+            const successDiv = dashboardDomCache.getById('addAccountSuccess');
+            const form = dashboardDomCache.getById('uploadAccountsForm');
+            const fileInput = dashboardDomCache.getById('accountsFile');
+            const submitBtn = dashboardDomCache.getById('uploadAccountsBtn');
+            
+            if (errorsDiv) {
+                errorsDiv.classList.add('d-none');
+                errorsDiv.textContent = '';
+            }
+            if (successDiv) {
+                successDiv.classList.add('d-none');
+                successDiv.innerHTML = '';
+            }
+            if (form) {
+                form.reset();
+            }
+            if (fileInput) {
+                fileInput.value = '';
+            }
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                // Восстанавливаем оригинальный текст кнопки, если он был изменен
+                if (submitBtn.querySelector('.spinner-border')) {
+                    submitBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Загрузить аккаунты';
+                }
+            }
+        });
+        
+        logger.debug('✅ [INIT] Форма добавления аккаунта инициализирована');
+    }
+    
+    // Загрузка статусов для формы
+    async loadStatusesForForm() {
+        // Статусы должны быть доступны через window.accountStatuses
+        // Это устанавливается в PHP шаблоне
+        return;
+    }
+    
+    // Получение HTML опций для select статусов
+    getStatusOptionsHtml() {
+        const statuses = window.accountStatuses || [];
+        let html = '<option value="">-- Выберите --</option>';
+        statuses.forEach(status => {
+            if (status) {
+                html += `<option value="${this.escapeHtml(status)}">${this.escapeHtml(status)}</option>`;
+            }
+        });
+        return html;
+    }
+    
+    // Очистка формы добавления аккаунта
+    clearAddAccountForm() {
+        const form = dashboardDomCache.getById('uploadAccountsForm');
+        if (form) {
+            form.reset();
+        }
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
+        if (errorsDiv) {
+            errorsDiv.classList.add('d-none');
+            errorsDiv.textContent = '';
+        }
+        if (successDiv) {
+            successDiv.classList.add('d-none');
+            successDiv.textContent = '';
+        }
+    }
+    
+    // Обработка загрузки аккаунтов из CSV файла
+    async handleUploadAccounts(e) {
+        logger.debug('🚨🚨🚨 === НАЧАЛО ЗАГРУЗКИ АККАУНТОВ === 🚨🚨🚨');
+        logger.debug('🚨 [UPLOAD] Функция handleUploadAccounts вызвана!');
+        logger.debug('🚨 [UPLOAD] Событие:', e);
+        
+        if (e && typeof e.preventDefault === 'function') {
+            e.preventDefault();
+            logger.debug('🚨 [UPLOAD] preventDefault() вызван');
+        }
+        
+        // Получаем форму из события или находим по ID
+        const form = (e && e.target && e.target.tagName === 'FORM') ? e.target : dashboardDomCache.getById('uploadAccountsForm');
+        const submitBtn = dashboardDomCache.getById('uploadAccountsBtn');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
+        const fileInput = dashboardDomCache.getById('accountsFile');
+        
+        logger.debug('Элементы формы:', {
+            form: form ? 'найден' : 'не найден',
+            submitBtn: submitBtn ? 'найден' : 'не найден',
+            errorsDiv: errorsDiv ? 'найден' : 'не найден',
+            successDiv: successDiv ? 'найден' : 'не найден',
+            fileInput: fileInput ? 'найден' : 'не найден'
+        });
+        
+        if (errorsDiv) errorsDiv.classList.add('d-none');
+        if (successDiv) successDiv.classList.add('d-none');
+        
+        // Проверка выбранного файла
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            logger.warn('⚠️ Файл не выбран');
+            if (errorsDiv) {
+                errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки';
+                errorsDiv.classList.remove('d-none');
+            }
+            return;
+        }
+        
+        const file = fileInput.files[0];
+        logger.debug('📁 Информация о файле:', {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            lastModified: new Date(file.lastModified).toISOString()
+        });
+        
+        // Проверка размера файла (20MB)
+        const maxSize = 20 * 1024 * 1024;
+        if (file.size > maxSize) {
+            logger.error('❌ Файл слишком большой:', file.size, 'байт (максимум:', maxSize, 'байт)');
+            if (errorsDiv) {
+                errorsDiv.textContent = `Файл слишком большой. Максимальный размер: ${Math.round(maxSize / 1024 / 1024)} MB`;
+                errorsDiv.classList.remove('d-none');
+            }
+            return;
+        }
+        
+        // Проверка расширения файла
+        const allowedExtensions = ['.csv', '.txt'];
+        const fileName = file.name.toLowerCase();
+        const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+        logger.debug('🔍 Проверка расширения файла:', {
+            fileName: fileName,
+            hasValidExtension: hasValidExtension,
+            allowedExtensions: allowedExtensions
+        });
+        
+        if (!hasValidExtension) {
+            logger.error('❌ Неподдерживаемое расширение файла:', fileName);
+            if (errorsDiv) {
+                errorsDiv.textContent = 'Поддерживаются только файлы CSV или TXT';
+                errorsDiv.classList.remove('d-none');
+            }
+            return;
+        }
+        
+        const formData = new FormData(form);
+        logger.debug('📦 Данные формы FormData:');
+        for (let [key, value] of formData.entries()) {
+            if (key === 'import_file') {
+                logger.debug(`  ${key}:`, '[File object]', value.name, value.size + ' bytes');
+            } else {
+                logger.debug(`  ${key}:`, value);
+            }
+        }
+        
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Загрузка...';
+            
+            try {
+                logger.debug('🚀 Отправка запроса на import_accounts.php...');
+                const response = await fetch('import_accounts.php', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                
+                logger.debug('📥 Ответ получен:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    ok: response.ok,
+                    url: response.url
+                });
+                
+                // Проверяем Content-Type ответа
+                const contentType = response.headers.get('content-type') || '';
+                const isJson = contentType.includes('application/json');
+                logger.debug('📋 Заголовки ответа:', {
+                    'content-type': contentType,
+                    isJson: isJson,
+                    allHeaders: Object.fromEntries(response.headers.entries())
+                });
+                
+                let result;
+                
+                if (!response.ok) {
+                    logger.error('❌ Ответ с ошибкой:', response.status, response.statusText);
+                    // Пытаемся прочитать ошибку как JSON, если это возможно
+                    if (isJson) {
+                        try {
+                            const errorData = await response.json();
+                            logger.error('📄 Ошибка (JSON):', errorData);
+                            throw new Error(errorData.error || `Ошибка ${response.status}: ${response.statusText}`);
+                        } catch (parseError) {
+                            logger.error('❌ Ошибка парсинга JSON ошибки:', parseError);
+                            if (parseError instanceof Error && parseError.message.includes('Ошибка')) {
+                                throw parseError;
+                            }
+                            throw new Error(`Ошибка ${response.status}: ${response.statusText}`);
+                        }
+                    } else {
+                        // Если ответ не JSON, читаем как текст
+                        const errorText = await response.text().catch(() => '');
+                        logger.error('📄 Ошибка (текст):', errorText.substring(0, 500));
+                        throw new Error(errorText || `Ошибка ${response.status}: ${response.statusText}`);
+                    }
+                }
+                
+                // Парсим успешный ответ
+                if (isJson) {
+                    try {
+                        logger.debug('🔄 Парсинг JSON ответа...');
+                        result = await response.json();
+                        logger.debug('✅ JSON успешно распарсен:', result);
+                    } catch (parseError) {
+                        logger.error('❌ Ошибка парсинга JSON ответа:', parseError);
+                        logger.error('📄 Сырой ответ (первые 500 символов):', await response.clone().text().then(t => t.substring(0, 500)).catch(() => 'Не удалось прочитать'));
+                        throw new Error('Ошибка при обработке ответа от сервера. Проверьте формат файла и попробуйте снова.');
+                    }
+                } else {
+                    // Если ответ не JSON, это ошибка
+                    logger.warn('⚠️ Ответ не является JSON, пытаемся прочитать как текст...');
+                    const textResponse = await response.text().catch(() => '');
+                    logger.error('📄 Текстовый ответ (первые 500 символов):', textResponse.substring(0, 500));
+                    throw new Error(textResponse || 'Сервер вернул некорректный ответ. Попробуйте снова.');
+                }
+                
+                logger.debug('🔍 Результат импорта:', {
+                    success: result.success,
+                    created: result.created,
+                    skipped: result.skipped,
+                    total: result.total,
+                    errorsCount: result.errors ? result.errors.length : 0,
+                    message: result.message
+                });
+                
+                if (result.success) {
+                    logger.debug('✅ Импорт успешен!', {
+                        created: result.created || 0,
+                        skipped: result.skipped || 0,
+                        errors: result.errors ? result.errors.length : 0
+                    });
+                    
+                    // Успешная загрузка
+                    let message = result.message || `Успешно обработано ${result.total || 0} строк(и)`;
+                    
+                    if (result.errors && result.errors.length > 0) {
+                        logger.warn('⚠️ Обнаружены ошибки при импорте:', result.errors.slice(0, 10));
+                        message += `<br><strong>Ошибки (${result.errors.length}):</strong><ul class="mb-0 mt-2 small">`;
+                        result.errors.slice(0, 10).forEach(err => { // Показываем только первые 10 ошибок
+                            message += `<li>Строка ${err.row}: ${err.message}</li>`;
+                        });
+                        if (result.errors.length > 10) {
+                            message += `<li><em>... и еще ${result.errors.length - 10} ошибок</em></li>`;
+                        }
+                        message += '</ul>';
+                    }
+                    
+                    if (successDiv) {
+                        logger.debug('📝 Отображение сообщения об успехе в successDiv');
+                        successDiv.innerHTML = message;
+                        successDiv.classList.remove('d-none');
+                    } else {
+                        logger.warn('⚠️ successDiv не найден, не удалось отобразить сообщение');
+                    }
+                    
+                    if (typeof window.showToast === 'function') {
+                        const toastMsg = `Создано: ${result.created || 0}, Пропущено: ${result.skipped || 0}`;
+                        logger.debug('🔔 Показ toast уведомления:', toastMsg);
+                        window.showToast(toastMsg, 'success');
+                    } else {
+                        logger.warn('⚠️ Функция window.showToast не найдена');
+                    }
+                    
+                    // Обновляем таблицу на дашборде
+                    if (this.refreshDashboardData) {
+                        logger.debug('🔄 Обновление данных дашборда через 1 секунду...');
+                        setTimeout(() => {
+                            logger.debug('🔄 Выполняем refreshDashboardData...');
+                            this.refreshDashboardData();
+                        }, 1000);
+                    } else {
+                        logger.warn('⚠️ Метод refreshDashboardData не найден');
+                    }
+                    
+                    // Очищаем форму через 3 секунды
+                    setTimeout(() => {
+                        logger.debug('🧹 Очистка формы...');
+                        form.reset();
+                        if (successDiv) {
+                            successDiv.classList.add('d-none');
+                        }
+                    }, 3000);
+                    
+                } else {
+                    logger.error('❌ Импорт не успешен, result.success = false:', result);
+                    throw new Error(result.error || 'Ошибка при загрузке файла');
+                }
+            } catch (error) {
+                logger.error('❌ КРИТИЧЕСКАЯ ОШИБКА при загрузке аккаунтов:', error);
+                logger.error('📊 Детали ошибки:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
+                
+                let errorMessage = 'Ошибка при загрузке файла. Проверьте формат файла и попробуйте снова.';
+                
+                if (error instanceof Error) {
+                    errorMessage = error.message || errorMessage;
+                    // Очищаем HTML теги из сообщения об ошибке для безопасности
+                    const tempDiv = document.createElement('div');
+                    tempDiv.textContent = errorMessage;
+                    errorMessage = tempDiv.textContent || errorMessage;
+                }
+                
+                logger.debug('📝 Отображение ошибки пользователю:', errorMessage);
+                
+                if (errorsDiv) {
+                    errorsDiv.textContent = errorMessage;
+                    errorsDiv.classList.remove('d-none');
+                } else {
+                    logger.error('❌ errorsDiv не найден, не удалось отобразить ошибку!');
+                }
+                
+                if (typeof window.showToast === 'function') {
+                    logger.debug('🔔 Показ toast уведомления об ошибке');
+                    window.showToast(errorMessage, 'error');
+                } else {
+                    logger.warn('⚠️ Функция window.showToast не найдена');
+                }
+            } finally {
+                logger.debug('🏁 Завершение обработки запроса, восстановление кнопки');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+                logger.debug('=== КОНЕЦ ЗАГРУЗКИ АККАУНТОВ ===');
+            }
+        } else {
+            logger.error('❌ submitBtn не найден!');
+        }
+    }
+    
+    // Добавление новой строки в таблицу
+    addAccountRow() {
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
+        if (!tbody) return;
+        
+        const rowCount = tbody.children.length;
+        const row = document.createElement('tr');
+        row.dataset.rowIndex = rowCount;
+        
+        // Получаем список статусов
+        const statusOptions = this.getStatusOptionsHtml();
+        
+        row.innerHTML = `
+            <td class="text-center">${rowCount + 1}</td>
+            <td>
+                <input type="text" class="form-control form-control-sm" name="login" maxlength="255" required>
+                <div class="invalid-feedback small">Обязательно</div>
+            </td>
+            <td>
+                <select class="form-select form-select-sm" name="status" required>
+                    ${statusOptions}
+                </select>
+                <div class="invalid-feedback small">Обязательно</div>
+            </td>
+            <td>
+                <input type="email" class="form-control form-control-sm" name="email" maxlength="255">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm" name="password" maxlength="255">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm" name="first_name" maxlength="255">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm" name="last_name" maxlength="255">
+            </td>
+            <td>
+                <input type="text" class="form-control form-control-sm" name="two_fa" maxlength="255">
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove(); dashboard.updateRowCount();">
+                    <i class="fas fa-times"></i>
+                </button>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+        this.updateRowCount();
+        
+        // Фокус на первое поле новой строки
+        const firstInput = row.querySelector('input[name="login"]');
+        if (firstInput) {
+            setTimeout(() => firstInput.focus(), 100);
+        }
+    }
+    
+    // Очистка таблицы
+    clearAddAccountTable() {
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
+        if (tbody) {
+            tbody.innerHTML = '';
+            this.addAccountRow(); // Добавляем одну пустую строку
+        }
+        this.updateRowCount();
+    }
+    
+    // Обновление счетчика строк
+    updateRowCount() {
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
+        const countEl = dashboardDomCache.getById('accountsTableRowCount');
+        if (tbody && countEl) {
+            const count = tbody.children.length;
+            countEl.textContent = count;
+            
+            // Обновляем номера строк
+            Array.from(tbody.children).forEach((row, index) => {
+                const numCell = row.querySelector('td:first-child');
+                if (numCell) {
+                    numCell.textContent = index + 1;
+                }
+                row.dataset.rowIndex = index;
+            });
+        }
+    }
+    
+    // Обработка вставки данных (paste) в таблицу
+    handleTablePaste(e) {
+        e.preventDefault();
+        const pastedData = (e.clipboardData || window.clipboardData).getData('text');
+        if (!pastedData) return;
+        
+        // Определяем разделитель (табуляция, точка с запятой, запятая)
+        let delimiter = '\t'; // По умолчанию табуляция (Excel/Sheets)
+        if (pastedData.includes(';') && !pastedData.includes('\t')) {
+            delimiter = ';';
+        } else if (pastedData.includes(',') && !pastedData.includes('\t') && !pastedData.includes(';')) {
+            delimiter = ',';
+        }
+        
+        // Парсим строки
+        const lines = pastedData.split(/\r?\n/).filter(line => line.trim() !== '');
+        if (lines.length === 0) return;
+        
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
+        if (!tbody) return;
+        
+        // Находим активную строку (где был клик) или последнюю
+        const activeRow = e.target.closest('tr') || tbody.lastElementChild;
+        if (!activeRow) {
+            this.addAccountRow();
+            return this.handleTablePaste(e);
+        }
+        
+        let currentRow = activeRow;
+        let rowIndex = Array.from(tbody.children).indexOf(activeRow);
+        
+        // Получаем список статусов
+        const statusOptionsHtml = this.getStatusOptionsHtml();
+        
+        // Вставляем данные построчно
+        lines.forEach((line, lineIndex) => {
+            const values = line.split(delimiter).map(v => v.trim());
+            if (values.length === 0 || values.every(v => !v)) return; // Пропускаем пустые строки
+            
+            // Если текущей строки нет, создаем новую
+            if (!currentRow || !tbody.contains(currentRow)) {
+                this.addAccountRow();
+                currentRow = tbody.lastElementChild;
+            }
+            
+            // Заполняем ячейки: login, status, email, password, first_name, last_name, two_fa
+            const cells = [
+                currentRow.querySelector('input[name="login"]'),
+                currentRow.querySelector('select[name="status"]'),
+                currentRow.querySelector('input[name="email"]'),
+                currentRow.querySelector('input[name="password"]'),
+                currentRow.querySelector('input[name="first_name"]'),
+                currentRow.querySelector('input[name="last_name"]'),
+                currentRow.querySelector('input[name="two_fa"]')
+            ];
+            
+            values.forEach((value, colIndex) => {
+                if (colIndex < cells.length && cells[colIndex]) {
+                    if (cells[colIndex].tagName === 'SELECT') {
+                        // Для select ищем опцию по значению или тексту
+                        const option = Array.from(cells[colIndex].options).find(opt => 
+                            opt.value === value || opt.text === value
+                        );
+                        if (option) {
+                            cells[colIndex].value = option.value;
+                        } else if (value) {
+                            // Если точного совпадения нет, устанавливаем значение напрямую
+                            cells[colIndex].value = value;
+                        }
+                    } else {
+                        cells[colIndex].value = value;
+                    }
+                }
+            });
+            
+            // Переходим к следующей строке
+            if (lineIndex < lines.length - 1) {
+                const nextRow = currentRow.nextElementSibling;
+                if (nextRow) {
+                    currentRow = nextRow;
+                } else {
+                    this.addAccountRow();
+                    currentRow = tbody.lastElementChild;
+                }
+            }
+        });
+        
+        this.updateRowCount();
+        
+        // Показываем уведомление
+        if (typeof window.showToast === 'function') {
+            window.showToast(`Вставлено ${lines.length} строк(и)`, 'success');
+        }
+    }
+    
+    // Заполнение статуса для всех строк
+    fillStatusForAllRows() {
+        const statuses = window.accountStatuses || [];
+        if (statuses.length === 0) {
+            alert('Список статусов не загружен. Попробуйте обновить страницу.');
+            return;
+        }
+        
+        // Создаем список статусов для выбора
+        let statusList = statuses.map((s, i) => `${i + 1}. ${s}`).join('\n');
+        const statusNum = prompt(`Выберите номер статуса:\n\n${statusList}\n\nВведите номер:`);
+        if (!statusNum || statusNum.trim() === '') return;
+        
+        const index = parseInt(statusNum.trim()) - 1;
+        if (isNaN(index) || index < 0 || index >= statuses.length) {
+            alert('Неверный номер статуса');
+            return;
+        }
+        
+        const selectedStatus = statuses[index];
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
+        if (!tbody) return;
+        
+        const selects = tbody.querySelectorAll('select[name="status"]');
+        let filled = 0;
+        selects.forEach(select => {
+            // Пытаемся найти опцию по значению
+            const option = Array.from(select.options).find(opt => 
+                opt.value === selectedStatus
+            );
+            if (option) {
+                select.value = option.value;
+                filled++;
+            }
+        });
+        
+        if (filled > 0 && typeof window.showToast === 'function') {
+            window.showToast(`Заполнено ${filled} строк(и) статусом "${selectedStatus}"`, 'success');
+        }
+    }
+    
+    // Валидация всех строк таблицы
+    validateAccountsTable() {
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
+        if (!tbody) return { valid: false, errors: [] };
+        
+        const rows = Array.from(tbody.children);
+        const errors = [];
+        let validCount = 0;
+        
+        rows.forEach((row, index) => {
+            const loginInput = row.querySelector('input[name="login"]');
+            const statusSelect = row.querySelector('select[name="status"]');
+            const emailInput = row.querySelector('input[name="email"]');
+            
+            let rowValid = true;
+            const rowErrors = [];
+            
+            // Проверка логина
+            if (!loginInput || !loginInput.value.trim()) {
+                rowValid = false;
+                rowErrors.push('Логин обязателен');
+                if (loginInput) loginInput.classList.add('is-invalid');
+            } else {
+                if (loginInput) loginInput.classList.remove('is-invalid');
+            }
+            
+            // Проверка статуса
+            if (!statusSelect || !statusSelect.value) {
+                rowValid = false;
+                rowErrors.push('Статус обязателен');
+                if (statusSelect) statusSelect.classList.add('is-invalid');
+            } else {
+                if (statusSelect) statusSelect.classList.remove('is-invalid');
+            }
+            
+            // Проверка email (если заполнен)
+            if (emailInput && emailInput.value.trim()) {
+                const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailPattern.test(emailInput.value.trim())) {
+                    rowValid = false;
+                    rowErrors.push('Неверный формат email');
+                    emailInput.classList.add('is-invalid');
+                } else {
+                    emailInput.classList.remove('is-invalid');
+                }
+            }
+            
+            if (!rowValid) {
+                row.classList.add('table-danger');
+                errors.push({
+                    row: index + 1,
+                    errors: rowErrors
+                });
+            } else {
+                row.classList.remove('table-danger');
+                validCount++;
+            }
+        });
+        
+        return {
+            valid: errors.length === 0 && validCount > 0,
+            validCount: validCount,
+            errors: errors
+        };
+    }
+    
+    // Сбор данных из таблицы
+    collectAccountsData() {
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
+        if (!tbody) return [];
+        
+        const accounts = [];
+        const rows = Array.from(tbody.children);
+        
+        rows.forEach(row => {
+            const loginInput = row.querySelector('input[name="login"]');
+            const statusSelect = row.querySelector('select[name="status"]');
+            
+            // Пропускаем пустые строки (без логина)
+            if (!loginInput || !loginInput.value.trim()) return;
+            if (!statusSelect || !statusSelect.value) return;
+            
+            const account = {
+                login: loginInput.value.trim(),
+                status: statusSelect.value
+            };
+            
+            // Добавляем опциональные поля если они заполнены
+            const fields = ['email', 'password', 'first_name', 'last_name', 'two_fa'];
+            fields.forEach(field => {
+                const input = row.querySelector(`input[name="${field}"]`);
+                if (input && input.value.trim()) {
+                    account[field] = input.value.trim();
+                }
+            });
+            
+            accounts.push(account);
+        });
+        
+        return accounts;
+    }
+    
+    // Обработка массового создания аккаунтов
+    async handleAddAccountsBulkSubmit(e) {
+        e.preventDefault();
+        
+        const submitBtn = dashboardDomCache.getById('submitAddAccount');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
+        
+        // Валидация таблицы
+        const validation = this.validateAccountsTable();
+        if (!validation.valid) {
+            let errorMsg = `Найдены ошибки валидации в ${validation.errors.length} строке(ах). `;
+            errorMsg += validation.errors.map(e => `Строка ${e.row}: ${e.errors.join(', ')}`).join('; ');
+            
+            if (errorsDiv) {
+                errorsDiv.innerHTML = errorMsg;
+                errorsDiv.classList.remove('d-none');
+            }
+            if (typeof window.showToast === 'function') {
+                window.showToast('Исправьте ошибки перед отправкой', 'error');
+            }
+            return;
+        }
+        
+        // Собираем данные
+        const accounts = this.collectAccountsData();
+        if (accounts.length === 0) {
+            if (errorsDiv) {
+                errorsDiv.textContent = 'Нет данных для создания. Заполните хотя бы одну строку с логином и статусом.';
+                errorsDiv.classList.remove('d-none');
+            }
+            return;
+        }
+        
+        // Отключаем кнопку
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Создание...';
+            
+            try {
+                const csrfInput = dashboardDomCache.getById('addAccountCsrf');
+                const csrfToken = csrfInput ? csrfInput.value : '';
+                
+                // Отправляем bulk запрос
+                const response = await fetch('/api/accounts/bulk', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        accounts: accounts,
+                        csrf: csrfToken,
+                        duplicate_action: 'skip'
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Ошибка ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Успешное создание
+                    this.showAddAccountsBulkSuccess(result);
+                } else {
+                    throw new Error(result.error || 'Ошибка при создании аккаунтов');
+                }
+            } catch (error) {
+                logger.error('Error creating accounts:', error);
+                const errorMessage = error.message || 'Ошибка при создании аккаунтов';
+                
+                if (errorsDiv) {
+                    errorsDiv.textContent = errorMessage;
+                    errorsDiv.classList.remove('d-none');
+                }
+                if (typeof window.showToast === 'function') {
+                    window.showToast(errorMessage, 'error');
+                }
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            }
+        }
+    }
+    
+    // Показ результата массового создания
+    showAddAccountsBulkSuccess(result) {
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        
+        if (errorsDiv) errorsDiv.classList.add('d-none');
+        
+        let message = result.message || `Создано: ${result.created || 0}, Пропущено: ${result.skipped || 0}`;
+        
+        if (result.errors && result.errors.length > 0) {
+            message += `<br><strong>Ошибки (${result.errors.length}):</strong><ul class="mb-0 mt-2">`;
+            result.errors.forEach(err => {
+                message += `<li>Строка ${err.row}: ${err.message}</li>`;
+            });
+            message += '</ul>';
+        }
+        
+        if (successDiv) {
+            successDiv.innerHTML = message;
+            successDiv.classList.remove('d-none');
+        }
+        
+        if (typeof window.showToast === 'function') {
+            window.showToast(`Успешно создано ${result.created || 0} аккаунт(ов)`, 'success');
+        }
+        
+        // Обновляем таблицу на дашборде если есть метод
+        if (this.refreshDashboardData) {
+            setTimeout(() => {
+                this.refreshDashboardData();
+            }, 1000);
+        }
+        
+        // Очищаем таблицу через 2 секунды
+        setTimeout(() => {
+            this.clearAddAccountTable();
+        }, 2000);
+    }
+    
+    // Вспомогательная функция для экранирования HTML
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Обработка успешного создания аккаунта (для совместимости со старым API)
+    showAddAccountSuccess(result) {
+        // Используем новый метод для массового создания
+        this.showAddAccountsBulkSuccess({
+            success: true,
+            created: 1,
+            skipped: 0,
+            errors: [],
+            message: 'Аккаунт успешно создан'
+        });
+    }
+    
     // Остальные методы из оригинального кода...
     // (сокращено для экономии места, но все методы должны быть перенесены)
 }
 
 // Инициализация при загрузке DOM
+logger.debug('📜 [DASHBOARD.JS] Регистрация обработчика DOMContentLoaded...');
+
+// Проверяем состояние DOM
+logger.debug('📜 [DASHBOARD.JS] Состояние документа:', document.readyState);
+
+if (document.readyState === 'loading') {
+    logger.debug('📜 [DASHBOARD.JS] Документ еще загружается, ждем DOMContentLoaded...');
+} else {
+    logger.debug('📜 [DASHBOARD.JS] Документ уже загружен, инициализируем немедленно...');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    window.dashboard = new Dashboard();
+    logger.debug('%c🚀 [DOMContentLoaded] Событие DOMContentLoaded сработало!', 'color: green; font-size: 16px; font-weight: bold;');
+    logger.debug('🚀 [DOMContentLoaded] Создаем экземпляр Dashboard...');
+    
+    try {
+        window.dashboard = new Dashboard();
+        logger.debug('%c✅ [DOMContentLoaded] Dashboard успешно создан!', 'color: green; font-size: 14px;');
+        logger.debug('✅ [DOMContentLoaded] Dashboard сохранен в window.dashboard:', window.dashboard);
+    } catch (error) {
+        logger.error('%c❌ [DOMContentLoaded] КРИТИЧЕСКАЯ ОШИБКА при создании Dashboard!', 'color: red; font-size: 18px; font-weight: bold;');
+        logger.error('❌ [DOMContentLoaded] Ошибка:', error);
+        logger.error('❌ [DOMContentLoaded] Сообщение:', error.message);
+        logger.error('❌ [DOMContentLoaded] Стек ошибки:', error.stack);
+        alert('Ошибка инициализации Dashboard! Проверьте консоль для деталей.');
+    }
+    
+    // Дополнительная проверка элементов формы через некоторое время
+    setTimeout(() => {
+        logger.debug('🔍 [DELAYED CHECK] Проверка элементов формы через 500ms...');
+        const uploadBtn = dashboardDomCache.getById('uploadAccountsBtn');
+        const uploadForm = dashboardDomCache.getById('uploadAccountsForm');
+        const addAccountModal = dashboardDomCache.getById('addAccountModal');
+        
+        logger.debug('🔍 [DELAYED CHECK] Элементы:', {
+            uploadBtn: uploadBtn ? 'найден' : 'НЕ НАЙДЕН',
+            uploadForm: uploadForm ? 'найден' : 'НЕ НАЙДЕН',
+            addAccountModal: addAccountModal ? 'найден' : 'НЕ НАЙДЕН',
+            dashboardInstance: window.dashboard ? 'создан' : 'НЕ СОЗДАН'
+        });
+        
+        // Добавляем глобальный обработчик как резервный
+        if (uploadBtn && !uploadBtn.hasAttribute('data-global-handler-attached')) {
+            logger.debug('🔧 [GLOBAL FALLBACK] Добавление глобального обработчика к кнопке...');
+            uploadBtn.setAttribute('data-global-handler-attached', 'true');
+            uploadBtn.addEventListener('click', function(e) {
+                logger.debug('🚨🚨🚨 [GLOBAL FALLBACK CLICK] Клик по кнопке загрузки (глобальный обработчик)!');
+                
+                if (!uploadForm) {
+                    logger.error('❌ [GLOBAL FALLBACK] Форма не найдена!');
+                    return;
+                }
+                
+                const fileInput = dashboardDomCache.getById('accountsFile');
+                if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                    logger.warn('⚠️ [GLOBAL FALLBACK] Файл не выбран');
+                    alert('Пожалуйста, выберите файл для загрузки');
+                    return;
+                }
+                
+                logger.debug('🚨 [GLOBAL FALLBACK] Вызываем handleUploadAccounts через window.dashboard...');
+                if (window.dashboard && typeof window.dashboard.handleUploadAccounts === 'function') {
+                    const fakeEvent = { preventDefault: () => {}, target: uploadForm };
+                    window.dashboard.handleUploadAccounts(fakeEvent);
+                } else {
+                    logger.error('❌ [GLOBAL FALLBACK] window.dashboard.handleUploadAccounts не найден!');
+                    alert('Ошибка: функция загрузки не инициализирована. Проверьте консоль.');
+                }
+            });
+        }
+    }, 500);
 });
 
 // Предотвращение утечек памяти при закрытии страницы

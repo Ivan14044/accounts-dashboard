@@ -56,6 +56,10 @@ class FilterBuilder {
         $hasLogin = in_array('login', $availableFields, true);
         $hasIdSoc = isset($this->columnsList['id_soc_account']);
 
+        // Колонки id_fan_page_1/2/3 — для поиска по числовым ID (page ID и т.п.)
+        $fanPageFields = ['id_fan_page_1', 'id_fan_page_2', 'id_fan_page_3'];
+        $availableFanPage = array_filter($fanPageFields, function($f) { return isset($this->columnsList[$f]); });
+
         // Извлекаем числовой ID из Facebook-URL
         $extractedId = null;
         if (preg_match('/(?:facebook\.com|fb\.com).*[?&]id=(\d+)/', $query, $m)) {
@@ -68,14 +72,16 @@ class FilterBuilder {
         $this->searchParamsOffset = count($this->params);
 
         if ($extractedId) {
-            // Фаза 1: точный поиск по индексированным полям (LIKE убран — убивает индексы через OR)
+            // Фаза 1: точный поиск по индексированным полям + id_fan_page (LIKE убран — убивает индексы через OR)
             if ($hasLogin) { $orConds[] = '`login` = ?';          $this->params[] = $extractedId; }
             if ($hasIdSoc) { $orConds[] = '`id_soc_account` = ?'; $this->params[] = $extractedId; }
+            foreach ($availableFanPage as $f) { $orConds[] = '`' . $f . '` = ?'; $this->params[] = $extractedId; }
             $this->pendingSearchQuery = $extractedId;
         } elseif (ctype_digit($query)) {
-            // Фаза 1: точный поиск по индексированным полям
+            // Фаза 1: точный поиск по login, id_soc_account, id_fan_page_1/2/3
             if ($hasLogin) { $orConds[] = '`login` = ?';          $this->params[] = $query; }
             if ($hasIdSoc) { $orConds[] = '`id_soc_account` = ?'; $this->params[] = $query; }
+            foreach ($availableFanPage as $f) { $orConds[] = '`' . $f . '` = ?'; $this->params[] = $query; }
             $this->pendingSearchQuery = $query;
         } else {
             // Текстовый запрос: LIKE сразу (fallback не нужен)
@@ -104,13 +110,13 @@ class FilterBuilder {
     }
 
     /**
-     * Фаза 2: заменяет точный поиск на LIKE '%...%' по login, email, social_url.
+     * Фаза 2: заменяет точный поиск на LIKE '%...%' по login, email, social_url, id_fan_page_1/2/3.
      * Вызывать только если canFallbackToLikeSearch() === true и фаза 1 дала 0 результатов.
      */
     public function fallbackToLikeSearch(): self {
         if (!$this->canFallbackToLikeSearch()) return $this;
 
-        $searchFields = ['login', 'email', 'social_url'];
+        $searchFields = ['login', 'email', 'social_url', 'id_fan_page_1', 'id_fan_page_2', 'id_fan_page_3'];
         $availableFields = array_intersect($searchFields, array_keys($this->columnsList));
 
         // Удаляем старые search-параметры из массива params
@@ -246,6 +252,55 @@ class FilterBuilder {
         return $this;
     }
     
+    /**
+     * Фильтр по статусам Business Manager (status_bm_1…status_bm_4).
+     *
+     * Варианты ($mode):
+     *   'has_valid'  — хотя бы один из слотов = 'valid'
+     *   'has_ban'    — хотя бы один из слотов = 'ban'
+     *   'only_valid' — ни один из присутствующих слотов не является 'ban'
+     *                  (NULL-слоты не считаются баном)
+     *
+     * Слоты status_bm_1…status_bm_4. Если ни одна из этих колонок не существует
+     * в таблице — условие не добавляется.
+     */
+    public function addBmStatusFilter(?string $mode): self {
+        if ($mode === null || $mode === '' || $mode === 'any') {
+            return $this;
+        }
+
+        // Определяем, какие слоты реально есть в таблице (обычно 1–4)
+        $slots = [];
+        for ($i = 1; $i <= 4; $i++) {
+            $col = 'status_bm_' . $i;
+            if (isset($this->columnsList[$col])) {
+                $slots[] = $col;
+            }
+        }
+
+        if (empty($slots)) {
+            return $this;
+        }
+
+        if ($mode === 'has_valid') {
+            // Хотя бы один слот = 'valid'
+            $orParts = array_map(function($col) { return "`$col` = 'valid'"; }, $slots);
+            $this->conditions[] = '(' . implode(' OR ', $orParts) . ')';
+        } elseif ($mode === 'has_ban') {
+            // Хотя бы один слот = 'ban'
+            $orParts = array_map(function($col) { return "`$col` = 'ban'"; }, $slots);
+            $this->conditions[] = '(' . implode(' OR ', $orParts) . ')';
+        } elseif ($mode === 'only_valid') {
+            // Ни один непустой слот не является 'ban' (NULL — слот не занят, не считается)
+            $andParts = array_map(function($col) { return "(`$col` IS NULL OR `$col` <> 'ban')"; }, $slots);
+            // Дополнительно: хотя бы один слот не NULL (у аккаунта вообще есть хотя бы один БМ)
+            $hasBmParts = array_map(function($col) { return "`$col` IS NOT NULL"; }, $slots);
+            $this->conditions[] = '(' . implode(' AND ', $andParts) . ' AND (' . implode(' OR ', $hasBmParts) . '))';
+        }
+
+        return $this;
+    }
+
     /**
      * Добавляет фильтр "поле не пустое"
      */

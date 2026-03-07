@@ -26,7 +26,7 @@ sort($rest, SORT_NATURAL|SORT_FLAG_CASE);
 $ordered = array_values(array_unique(array_merge($priority, $rest)));
 
 // Грубая попытка распознать "длинные" поля
-$longLike = ['token','cookies','user_agent','extra_info_1','extra_info_2','extra_info_3','extra_info_4','social_url'];
+$longLike = ['token','cookies','first_cookie','user_agent','extra_info_1','extra_info_2','extra_info_3','extra_info_4','social_url'];
 
 // Определяем класс статуса для бейджа
 function getStatusClass($status) {

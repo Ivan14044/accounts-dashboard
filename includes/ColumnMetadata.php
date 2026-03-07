@@ -297,6 +297,7 @@ class ColumnMetadata {
             'ads_id' => 'Ads ID',
             'id_soc_account' => 'ID соц. аккаунта',
             'cookies' => 'Cookies',
+            'first_cookie' => 'Первые куки',
             'user_agent' => 'User-Agent',
             'two_fa' => '2FA',
             'extra_info_1' => 'Extra 1',
@@ -314,6 +315,9 @@ class ColumnMetadata {
             'quantity_fp' => 'Количество FP',
             'quantity_bm' => 'Количество BM',
             'quantity_photo' => 'Количество фото',
+            'id_fan_page_1' => 'ID Fan Page 1',
+            'id_fan_page_2' => 'ID Fan Page 2',
+            'id_fan_page_3' => 'ID Fan Page 3',
             'selectedFolderPath' => 'Путь к папке',
             'currency' => 'Валюта',
             'limit_rk' => 'Limit RK'

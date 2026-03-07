@@ -3998,7 +3998,7 @@ document.addEventListener('click', function(e) {
   }
   
   // Определяем, нужен ли textarea для длинных полей
-  const longFields = ['token', 'cookies', 'user_agent', 'extra_info_1', 'extra_info_2', 'extra_info_3', 'extra_info_4'];
+  const longFields = ['token', 'cookies', 'first_cookie', 'user_agent', 'extra_info_1', 'extra_info_2', 'extra_info_3', 'extra_info_4'];
   const isLongField = longFields.includes(field);
   
   // Создаём элемент ввода

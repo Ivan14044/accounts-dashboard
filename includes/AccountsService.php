@@ -174,6 +174,12 @@ class AccountsService {
                 $params['bm_to'] ?? null
             );
         }
+
+        // Фильтр по статусу БМ (has_valid / has_ban / only_valid)
+        $bmStatus = $params['bm_status'] ?? '';
+        if ($bmStatus !== '' && $bmStatus !== 'any') {
+            $filter->addBmStatusFilter($bmStatus);
+        }
         
         // Год создания
         $filter->addYearCreatedFilter(

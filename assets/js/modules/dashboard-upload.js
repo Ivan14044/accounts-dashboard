@@ -320,11 +320,11 @@
               errors: []
             };
             
-            // Проверка login
+            // Проверка login (обязательное поле — уникальный идентификатор аккаунта)
             if (!rowData.login) {
               rowData.valid = false;
               rowData.errors.push('отсутствует login');
-              rowErrors.push(`Строка ${rowNum}: отсутствует login`);
+              rowErrors.push(`Строка ${rowNum}: отсутствует login (заполните 1-ю колонку)`);
             }
             
             // Проверка status
@@ -701,9 +701,14 @@
       
       // Показываем ошибки (блокируют загрузку)
       if (!validation.valid) {
+        const hasLoginErrors = validation.errors.some(e => e.toLowerCase().includes('login'));
+        const hint = hasLoginErrors
+          ? '<div class="mt-3"><small class="text-muted"><strong>Подсказка:</strong> Колонка <code>login</code> (первая колонка) — обязательна. Каждый аккаунт должен иметь уникальный логин. Заполните её в Excel/Sheets и сохраните файл.</small></div>'
+          : '';
         const errorMsg = '<div class="mb-2"><strong>❌ Ошибки валидации:</strong></div>' + 
                         validation.errors.map(e => '• ' + e).join('<br>') +
-                        '<div class="mt-3"><small>Исправьте ошибки в CSV файле и попробуйте снова.</small></div>';
+                        '<div class="mt-3"><small>Исправьте ошибки в CSV файле и попробуйте снова.</small></div>' +
+                        hint;
         if (errorsDiv) {
           errorsDiv.innerHTML = errorMsg;
           errorsDiv.classList.remove('d-none', 'alert-warning');
@@ -955,13 +960,17 @@
           
           // Показываем ошибки
           if (!validation.valid) {
+            const hasLoginErrors = validation.errors.some(err => err.toLowerCase().includes('login'));
+            const loginHint = hasLoginErrors
+              ? '<div class="mt-2"><small class="text-muted"><strong>Подсказка:</strong> Колонка <code>login</code> (1-я колонка) обязательна. Укажите уникальный логин для каждого аккаунта.</small></div>'
+              : '';
             const errorMsg = '<div class="mb-2"><strong>❌ Ошибки валидации:</strong></div>' + 
                             validation.errors.map(e => '• ' + e).join('<br>') +
                             '<div class="mt-3"><small>' + 
                             (validation.preview && validation.preview.isPartial 
                               ? '⚠️ Файл большой, проверена только часть. Полная валидация будет на сервере. Вы можете продолжить загрузку.' 
                               : 'Исправьте ошибки в CSV файле и выберите файл заново.') +
-                            '</small></div>';
+                            '</small></div>' + loginHint;
             if (errorsDiv) {
               errorsDiv.innerHTML = errorMsg;
               errorsDiv.classList.remove('d-none', 'alert-warning');
@@ -973,7 +982,8 @@
               const isPartialValidation = validation.preview && validation.preview.isPartial;
               const hasCriticalError = validation.errors.some(err => 
                 err.includes('отсутствуют обязательные поля') || 
-                err.includes('Файл пустой')
+                err.includes('Файл пустой') ||
+                (err.toLowerCase().includes('login') && err.includes('отсутствует'))
               );
               
               if (isPartialValidation) {

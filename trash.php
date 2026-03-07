@@ -30,7 +30,7 @@ $sort = 'deleted_at';
 $dir = 'DESC';
 $ALL_COLUMNS = [];
 $NUMERIC_COLS = [];
-$LONG_FIELDS = ['cookies', 'token', 'user_agent', 'social_url'];
+$LONG_FIELDS = ['cookies', 'first_cookie', 'token', 'user_agent', 'social_url'];
 $meta = ['all' => [], 'columns' => [], 'numeric' => []];
 
 try {

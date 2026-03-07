@@ -319,6 +319,13 @@ class Config {
             'label' => 'Cookies',
             'sensitive' => true
         ],
+        'first_cookie' => [
+            'required' => false,
+            'type' => 'text',
+            'label' => 'Первые куки',
+            'description' => 'Первые куки аккаунта (альтернатива полным cookies)',
+            'sensitive' => true
+        ],
         'token' => [
             'required' => false,
             'type' => 'string',

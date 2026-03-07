@@ -95,6 +95,14 @@ function updateFilterURL(filterName, value, min = null, max = null) {
         url.searchParams.delete('status[]');
       }
       break;
+    case 'bm_status':
+      // 'any' или пустая строка = нет фильтра
+      if (value && value !== 'any') {
+        url.searchParams.set('bm_status', value);
+      } else {
+        url.searchParams.delete('bm_status');
+      }
+      break;
     case 'status_marketplace':
       if (value) {
         url.searchParams.set('status_marketplace', value);
@@ -372,6 +380,14 @@ function setupFilterInputs() {
 
 // Обработка изменений select полей
 function setupFilterSelects() {
+  // Статус БМ (has_valid / has_ban / only_valid)
+  const bmStatusSelect = getElementById('bm_status');
+  if (bmStatusSelect) {
+    bmStatusSelect.addEventListener('change', (e) => {
+      updateFilterURL('bm_status', e.target.value);
+    });
+  }
+
   // status_marketplace
   const statusMarketplace = getElementById('status_marketplace');
   if (statusMarketplace) {

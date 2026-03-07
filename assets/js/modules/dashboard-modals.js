@@ -126,6 +126,12 @@ function initStatusModal() {
       if (typeof refreshDashboardData === 'function') {
         await refreshDashboardData();
       }
+
+      // После смены статуса сбрасываем выбор: аккаунт мог уйти из текущего фильтра,
+      // показ «Выбраны 1» при отсутствии выбранных на странице вводит в заблуждение
+      if (window.DashboardSelection && typeof window.DashboardSelection.clearSelection === 'function') {
+        window.DashboardSelection.clearSelection();
+      }
       
       const modalInstance = bootstrap.Modal.getInstance(statusModalEl);
       if (modalInstance) {
@@ -279,6 +285,11 @@ function initBulkEditModal() {
         
         if (typeof refreshDashboardData === 'function') {
           await refreshDashboardData();
+        }
+
+        // После массового редактирования сбрасываем выбор по той же логике, что и при смене статуса
+        if (window.DashboardSelection && typeof window.DashboardSelection.clearSelection === 'function') {
+          window.DashboardSelection.clearSelection();
         }
         
         const modalInstance = bootstrap.Modal.getInstance(bulkEditModalEl);

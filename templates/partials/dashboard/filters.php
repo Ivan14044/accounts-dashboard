@@ -116,6 +116,18 @@
           <button class="filter-chip-remove" onclick="removeFilterChip('bm_range')" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
+
+        <?php
+        // Chip для статуса БМ — показываем если выбран конкретный режим (не any и не пусто)
+        $bmStatusLabels = ['has_valid' => 'БМ: есть валидный', 'has_ban' => 'БМ: есть в бане', 'only_valid' => 'БМ: только валидные'];
+        if (isset($bmStatus) && $bmStatus !== '' && $bmStatus !== 'any' && isset($bmStatusLabels[$bmStatus])):
+        ?>
+        <div class="filter-chip" data-filter="bm_status">
+          <i class="fas fa-briefcase filter-chip-icon"></i>
+          <span><?= e($bmStatusLabels[$bmStatus]) ?></span>
+          <button class="filter-chip-remove" onclick="removeFilterChip('bm_status')" title="Удалить">&times;</button>
+        </div>
+        <?php endif; ?>
         
         <?php if (($favoritesOnlyParam ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="favorites_only">
@@ -433,15 +445,33 @@
               <?php endif; ?>
               
               <?php if (isset($ALL_COLUMNS['bm'])): ?>
-              <div class="range-filter-group">
+              <?php
+              $hasBmStatusCols = isset($ALL_COLUMNS['status_bm_1']) || isset($ALL_COLUMNS['status_bm_2'])
+                              || isset($ALL_COLUMNS['status_bm_3']) || isset($ALL_COLUMNS['status_bm_4']);
+              $currentBmStatus = $bmStatus ?? '';
+              ?>
+              <div class="range-filter-group range-filter-group--bm">
                 <div class="range-filter-label">
                   <i class="fas fa-briefcase"></i>
                   Количество БМ
                 </div>
-                <div class="range-inputs">
-                  <input type="number" id="bm_from" class="range-input-modern" name="bm_from" placeholder="От" min="0" step="1" value="<?= e($bmFrom ?? '') ?>">
-                  <span class="range-separator">—</span>
-                  <input type="number" id="bm_to" class="range-input-modern" name="bm_to" placeholder="До" min="0" step="1" value="<?= e($bmTo ?? '') ?>">
+                <div class="bm-filter-row">
+                  <div class="range-inputs">
+                    <input type="number" id="bm_from" class="range-input-modern" name="bm_from" placeholder="От" min="0" step="1" value="<?= e($bmFrom ?? '') ?>">
+                    <span class="range-separator">—</span>
+                    <input type="number" id="bm_to" class="range-input-modern" name="bm_to" placeholder="До" min="0" step="1" value="<?= e($bmTo ?? '') ?>">
+                  </div>
+                  <?php if ($hasBmStatusCols): ?>
+                  <div class="bm-status-inline">
+                    <label class="bm-status-label"><i class="fas fa-shield-alt"></i> Статус</label>
+                    <select id="bm_status" name="bm_status" class="form-select form-select-sm bm-status-select">
+                      <option value="any"<?= $currentBmStatus === '' || $currentBmStatus === 'any' ? ' selected' : '' ?>>Любые</option>
+                      <option value="has_valid"<?= $currentBmStatus === 'has_valid'  ? ' selected' : '' ?>>Есть валидный</option>
+                      <option value="has_ban"<?=   $currentBmStatus === 'has_ban'    ? ' selected' : '' ?>>Есть в бане</option>
+                      <option value="only_valid"<?= $currentBmStatus === 'only_valid' ? ' selected' : '' ?>>Только валидные</option>
+                    </select>
+                  </div>
+                  <?php endif; ?>
                 </div>
               </div>
               <?php endif; ?>

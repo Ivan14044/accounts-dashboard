@@ -159,6 +159,7 @@ if (!$tableExists) {
         `token` TEXT,
         `ads_id` VARCHAR(255),
         `cookies` TEXT,
+        `first_cookie` TEXT,
         `user_agent` TEXT,
         `two_fa` VARCHAR(255),
         `extra_info_1` TEXT,

@@ -19,7 +19,7 @@
           <ol class="mb-0 mt-2">
             <li>Нажмите кнопку <strong>"Скачать шаблон CSV"</strong> ниже</li>
             <li>Откройте скачанный файл в Excel или Google Sheets</li>
-            <li>Заполните данные аккаунтов (обязательные поля: <strong>login</strong> и <strong>status</strong>)</li>
+            <li>Заполните данные аккаунтов (обязательные: <strong>login</strong>, <strong>status</strong>; первые куки — в колонку <strong>first_cookie</strong>)</li>
             <li>Сохраните файл и загрузите его через форму ниже</li>
           </ol>
         </div>

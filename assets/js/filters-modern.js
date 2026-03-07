@@ -93,6 +93,11 @@ function renderActiveFiltersFromUrl() {
     if (bmFrom !== '' || bmTo !== '') {
         chips.push('<div class="filter-chip" data-filter="bm_range"><i class="fas fa-briefcase filter-chip-icon"></i><span>БМ: ' + escapeHtml(bmFrom || '0') + '—' + escapeHtml(bmTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
     }
+    const bmStatusVal = params.get('bm_status') || '';
+    const bmStatusLabels = { has_valid: 'БМ: есть валидный', has_ban: 'БМ: есть в бане', only_valid: 'БМ: только валидные' };
+    if (bmStatusVal !== '' && bmStatusVal !== 'any' && bmStatusLabels[bmStatusVal]) {
+        chips.push('<div class="filter-chip" data-filter="bm_status"><i class="fas fa-briefcase filter-chip-icon"></i><span>' + escapeHtml(bmStatusLabels[bmStatusVal]) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
 
     // Одиночные с подписью из значения
     const statusMarketplace = params.get('status_marketplace');
@@ -183,6 +188,9 @@ function removeFilterChip(filterName) {
         case 'bm_range':
             url.searchParams.delete('bm_from');
             url.searchParams.delete('bm_to');
+            break;
+        case 'bm_status':
+            url.searchParams.delete('bm_status');
             break;
         case 'full_filled':
             url.searchParams.delete('full_filled');
@@ -300,6 +308,13 @@ function syncFormFromUrl() {
         if (input) input.value = params.get(name) || '';
     });
 
+    // Статус БМ — синхронизируем select
+    var bmStatusSel = form.querySelector('select[name="bm_status"]');
+    if (bmStatusSel) {
+        var bmStatusParam = params.get('bm_status') || 'any';
+        bmStatusSel.value = bmStatusParam;
+    }
+
     // Per page
     var perPage = form.querySelector('select[name="per_page"]');
     if (perPage && params.get('per_page')) perPage.value = params.get('per_page');
@@ -411,7 +426,7 @@ var ALL_FILTER_PARAMS = [
     'has_avatar', 'has_password', 'has_cover', 'full_filled', 'favorites_only',
     'pharma_from', 'pharma_to',
     'friends_from', 'friends_to',
-    'bm_from', 'bm_to',
+    'bm_from', 'bm_to', 'bm_status',
     'year_created_from', 'year_created_to',
     'limit_rk_from', 'limit_rk_to',
     'status_marketplace', 'currency', 'geo', 'status_rk'

@@ -457,6 +457,8 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 16px;
+    /* Каждая карточка — своей высоты, без растягивания по высоте самого высокого соседа */
+    align-items: start;
 }
 
 .range-filter-group {
@@ -522,6 +524,39 @@
     color: var(--text-muted);
     font-weight: var(--font-semibold);
     font-size: var(--text-sm);
+}
+
+/* Блок «Количество БМ» — горизонтальная компоновка: диапазон и статус в одну строку */
+.range-filter-group--bm .bm-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.range-filter-group--bm .bm-filter-row .range-inputs {
+    flex: 1;
+    min-width: 140px;
+}
+
+.range-filter-group--bm .bm-status-inline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.range-filter-group--bm .bm-status-label {
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.range-filter-group--bm .bm-status-select {
+    width: auto;
+    min-width: 110px;
+    font-size: 0.8125rem;
+    padding: 6px 8px;
 }
 
 /* ========================================

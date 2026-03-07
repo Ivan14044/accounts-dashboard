@@ -3236,13 +3236,34 @@ i.clickable:hover {
     display: block;
 }
 
+/* Строка заголовка секции: "Активные фильтры" слева + кнопка "Сбросить все" справа */
+.active-filters-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+}
+
 .active-filters-label {
     font-size: var(--text-xs);
     font-weight: var(--font-semibold);
     text-transform: uppercase;
     color: var(--text-muted);
     letter-spacing: 0.05em;
-    margin-bottom: var(--space-2);
+    margin-bottom: 0;
+}
+
+/* Кнопка "Сбросить все" — компактная, рядом с лейблом */
+.active-filters-reset-btn {
+    font-size: var(--text-xs);
+    padding: 2px 8px;
+    line-height: 1.4;
+    border-radius: var(--radius-full);
+    opacity: 0.8;
+    transition: opacity 0.15s;
+}
+.active-filters-reset-btn:hover {
+    opacity: 1;
 }
 
 .active-filters-list {
@@ -3552,6 +3573,8 @@ i.clickable:hover {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 16px;
+    /* Каждая карточка — своей высоты, без растягивания по высоте самого высокого соседа */
+    align-items: start;
 }
 
 .range-filter-group {
@@ -3617,6 +3640,39 @@ i.clickable:hover {
     color: var(--text-muted);
     font-weight: var(--font-semibold);
     font-size: var(--text-sm);
+}
+
+/* Блок «Количество БМ» — горизонтальная компоновка: диапазон и статус в одну строку */
+.range-filter-group--bm .bm-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.range-filter-group--bm .bm-filter-row .range-inputs {
+    flex: 1;
+    min-width: 140px;
+}
+
+.range-filter-group--bm .bm-status-inline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.range-filter-group--bm .bm-status-label {
+    font-size: var(--text-xs);
+    font-weight: var(--font-medium);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.range-filter-group--bm .bm-status-select {
+    width: auto;
+    min-width: 110px;
+    font-size: 0.8125rem;
+    padding: 6px 8px;
 }
 
 /* ========================================
@@ -4310,7 +4366,40 @@ i.clickable:hover {
   }
 }
 
-
+@media (max-width: 480px) {
+  .modern-header {
+    margin: 8px;
+    padding: 8px 12px;
+    min-height: 56px;
+  }
+  
+  .header-action-btn {
+    width: 36px;
+    height: 36px;
+    padding: 8px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+  
+  .header-action-btn i {
+    font-size: 16px;
+  }
+  
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+  
+  .db-status-indicator {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  
+  .user-profile {
+    padding: 4px 8px;
+  }
+}
 
 /* === assets/css/sticky-scrollbar.css === */
 /**
@@ -5351,9 +5440,14 @@ button.favorite-btn,
 }
 
 .dashboard-table__footer-info {
+  flex-shrink: 0;
+}
+
+/* Правая группа: переход на страницу + кнопки пагинации — визуально и логически вместе */
+.dashboard-table__footer-nav {
   display: flex;
-  gap: 1.5rem;
   align-items: center;
+  gap: 1.25rem;
   flex-wrap: wrap;
 }
 
@@ -5468,6 +5562,15 @@ button.favorite-btn,
   box-sizing: border-box;
 }
 
+/* Ячейки в режиме редактирования - убираем ограничения */
+#accountsTable.ac-table tbody td[data-editing="true"] {
+  overflow: visible !important;
+  white-space: normal !important;
+  text-overflow: clip !important;
+  position: relative;
+  z-index: 5;
+}
+
 /* Чекбокс-ячейка: текст по центру, без лишних стилей */
 #accountsTable tbody td.ac-cell--checkbox,
 #accountsTable thead th.ac-cell--checkbox {
@@ -5495,9 +5598,10 @@ button.favorite-btn,
   vertical-align: baseline;
 }
 
-/* Убираем любые transform/position offset от Bootstrap */
+/* Убираем любые transform от Bootstrap, но сохраняем relative
+   чтобы кастомная галочка (::after) центрировалась внутри чекбокса */
 #accountsTable .form-check-input {
-  position: static !important;
+  position: relative !important;
   transform: none !important;
 }
 
@@ -5507,6 +5611,47 @@ button.favorite-btn,
   gap: 0.35rem;
   width: 100%;
   min-width: 0;
+}
+
+/* Когда поле редактируется, убираем ограничения */
+.editable-field-wrap[data-editing="true"] {
+  overflow: visible !important;
+  white-space: normal !important;
+  min-width: auto !important;
+}
+
+/* Input и textarea внутри редактируемого поля */
+.editable-field-wrap[data-editing="true"] input,
+.editable-field-wrap[data-editing="true"] textarea {
+  flex: 1;
+  min-width: 120px;
+  max-width: 100%;
+  width: auto;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: #212529 !important;
+  background: #fff !important;
+  border: 1px solid #ced4da !important;
+  padding: 0.375rem 0.75rem !important;
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+  z-index: 10;
+  position: relative;
+}
+
+.editable-field-wrap[data-editing="true"] input:focus,
+.editable-field-wrap[data-editing="true"] textarea:focus {
+  border-color: #80bdff !important;
+  outline: 0 !important;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+}
+
+/* Кнопки внутри редактируемого поля */
+.editable-field-wrap[data-editing="true"] .btn {
+  flex-shrink: 0;
+  z-index: 10;
+  position: relative;
 }
 
 .editable-field-wrap .field-value {

@@ -30,6 +30,7 @@ class AuditLogger {
             'email_password',
             'token',
             'cookies',
+            'first_cookie',
             'two_fa'
         ];
     }

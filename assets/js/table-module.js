@@ -15,7 +15,7 @@
 
   const CLIP_LEN = 80;
   const TOKEN_CLIP = 20;
-  const LONG_FIELDS = ['cookies', 'user_agent', 'extra_info_1', 'extra_info_2', 'extra_info_3', 'extra_info_4'];
+  const LONG_FIELDS = ['cookies', 'first_cookie', 'user_agent', 'extra_info_1', 'extra_info_2', 'extra_info_3', 'extra_info_4'];
 
   const getEl = (id) => (typeof domCache !== 'undefined' && domCache.getById ? domCache.getById(id) : document.getElementById(id));
   const getSel = (sel) => (typeof domCache !== 'undefined' && domCache.get ? domCache.get(sel) : document.querySelector(sel));

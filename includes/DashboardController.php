@@ -270,6 +270,7 @@ class DashboardController {
         $hasFanPageParam = get_param('has_fan_page');
         $bmFrom = get_param('bm_from');
         $bmTo = get_param('bm_to');
+        $bmStatus = get_param('bm_status'); // has_valid / has_ban / only_valid / any / ''
         $fullFilledParam = get_param('full_filled');
         $pharmaFrom = get_param('pharma_from');
         $pharmaTo = get_param('pharma_to');
@@ -284,7 +285,7 @@ class DashboardController {
             'meta' => $meta,
             'ALL_COLUMNS' => $meta['columns'],
             'NUMERIC_COLS' => $meta['numeric'],
-            'LONG_FIELDS' => ['cookies', 'token', 'user_agent', 'social_url'],
+            'LONG_FIELDS' => ['cookies', 'first_cookie', 'token', 'user_agent', 'social_url'],
             'statuses' => $statuses,
             'statusesMarketplace' => $statusesMarketplace,
             'currenciesList' => $currenciesList,
@@ -330,6 +331,7 @@ class DashboardController {
             'hasFanPageParam' => $hasFanPageParam,
             'bmFrom' => $bmFrom,
             'bmTo' => $bmTo,
+            'bmStatus' => $bmStatus,
             'fullFilledParam' => $fullFilledParam,
             'pharmaFrom' => $pharmaFrom,
             'pharmaTo' => $pharmaTo,
