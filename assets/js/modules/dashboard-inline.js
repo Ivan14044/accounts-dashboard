@@ -1313,29 +1313,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // Пагинация без прокрутки вверх (AJAX)
-  document.addEventListener('click', function(e){
-    const a = e.target.closest('ul.pagination a.page-link');
-    if (!a) return;
-    const li = a.closest('li');
-    if (li && li.classList.contains('disabled')) { e.preventDefault(); return; }
-    e.preventDefault();
-    const href = a.getAttribute('href') || '';
-    if (!href) return;
-    const url = new URL(href, window.location.origin);
-    const pageParam = parseInt(url.searchParams.get('page') || '1');
-    const current = new URL(window.location);
-    current.searchParams.set('page', String(pageParam));
-    history.replaceState(null, '', current.toString());
-    // Обновляем номер страницы в футере немедленно
-    const pageNumEl = document.getElementById('pageNum');
-    if (pageNumEl) pageNumEl.textContent = String(pageParam);
-    // Обновляем селект страниц
-    const pageSelectEl = document.getElementById('pageSelect');
-    if (pageSelectEl) pageSelectEl.value = String(pageParam);
-    refreshDashboardData();
-  });
-  
+  // Пагинация: при использовании на странице с таблицей подключите dashboard-pagination.js и вызовите DashboardPagination.initPagination
+
   // Export selected CSV
   const exportSelectedCsv = document.getElementById('exportSelectedCsv');
   if (exportSelectedCsv) {
@@ -1513,25 +1492,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // Селект быстрого перехода по страницам
-  const pageSelect = document.getElementById('pageSelect');
-  if (pageSelect) {
-    pageSelect.addEventListener('change', () => {
-      const selectedPage = parseInt(pageSelect.value);
-      if (selectedPage && selectedPage > 0) {
-        const url = new URL(window.location);
-        url.searchParams.set('page', String(selectedPage));
-        history.replaceState(null, '', url.toString());
-        // Обновляем номер страницы в футере немедленно
-        const pageNumEl = document.getElementById('pageNum');
-        if (pageNumEl) pageNumEl.textContent = String(selectedPage);
-        // НЕ сбрасываем выбор при смене страницы - сохраняем выбранные ID
-        // selectedAllFiltered сбрасываем, так как это относится к фильтру, а не к конкретным ID
-        selectedAllFiltered = false;
-        refreshDashboardData();
-      }
-    });
-  }
 });
 
 // ===== Адаптивность таблицы =====

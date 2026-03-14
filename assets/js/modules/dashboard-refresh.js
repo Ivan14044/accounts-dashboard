@@ -133,21 +133,9 @@
         if (foundTotalEl) foundTotalEl.textContent = String(filteredTotalNum);
       }
 
-      // Обновляем пагинацию синхронно
-      if (typeof data.page === 'number') {
-        const pageNumEl = getEl('pageNum');
-        if (pageNumEl) pageNumEl.textContent = String(data.page);
-        const pageJumpInputEl = getEl('pageJumpInput');
-        if (pageJumpInputEl) {
-          pageJumpInputEl.value = String(data.page);
-          if (typeof data.pages === 'number') {
-            pageJumpInputEl.max = String(data.pages);
-          }
-        }
-      }
-      if (typeof data.pages === 'number') {
-        const pagesCountEl = getEl('pagesCount');
-        if (pagesCountEl) pagesCountEl.textContent = String(data.pages);
+      // Обновляем пагинацию через модуль DashboardPagination
+      if (window.DashboardPagination && typeof window.DashboardPagination.updatePaginationUI === 'function') {
+        window.DashboardPagination.updatePaginationUI({ page: data.page, pages: data.pages });
       }
 
       if (typeof data.filteredTotal === 'number') {
@@ -213,28 +201,6 @@
         }
         if (window.DashboardSelection && typeof window.DashboardSelection.invalidateCache === 'function') {
           window.DashboardSelection.invalidateCache();
-        }
-
-        // Пагинация: переключаем .active
-        if (typeof data.page === 'number') {
-          document.querySelectorAll('.dashboard-table__pagination ul.pagination').forEach(ul => {
-            ul.querySelectorAll('li.page-item').forEach(li => {
-              const linkEl = li.querySelector('.page-link');
-              if (!linkEl) return;
-              const text = (linkEl.textContent || '').trim();
-              const pageNum = parseInt(text, 10);
-              if (!Number.isFinite(pageNum)) return;
-              if (pageNum === data.page) {
-                li.classList.add('active');
-                linkEl.setAttribute('aria-current', 'page');
-              } else {
-                li.classList.remove('active');
-                if (linkEl.getAttribute('aria-current') === 'page') {
-                  linkEl.removeAttribute('aria-current');
-                }
-              }
-            });
-          });
         }
 
         if (window.DashboardSelection && typeof window.DashboardSelection.updateSelectedOnPageCounter === 'function') {

@@ -1161,34 +1161,13 @@ document.addEventListener('click', function(e) {
     }
   });
 
-  // Пагинация без прокрутки вверх (AJAX)
-  document.addEventListener('click', function(e){
-    const a = e.target.closest('ul.pagination a.page-link');
-    if (!a) return;
-    const li = a.closest('li');
-    if (li && li.classList.contains('disabled')) { e.preventDefault(); return; }
-    e.preventDefault();
-    const href = a.getAttribute('href') || '';
-    if (!href) return;
-    const url = new URL(href, window.location.origin);
-    const pageParam = parseInt(url.searchParams.get('page') || '1');
-    const current = new URL(window.location);
-    current.searchParams.set('page', String(pageParam));
-    history.replaceState(null, '', current.toString());
-    // Обновляем номер страницы в футере немедленно
-    const pageNumEl = getElementById('pageNum');
-    if (pageNumEl) pageNumEl.textContent = String(pageParam);
-    const pageJumpInputEl = getElementById('pageJumpInput');
-    if (pageJumpInputEl) pageJumpInputEl.value = String(pageParam);
-    // НЕ очищаем selectedIds при пагинации - выбранные строки должны сохраняться между страницами
-    // selectedAllFiltered сбрасываем, так как это относится к текущему фильтру
-    if (window.DashboardSelection) {
-      window.DashboardSelection.setSelectedAllFiltered(false);
-      window.DashboardSelection.updateSelectedCount();
-    }
-    refreshDashboardData();
-  });
-  
+  // Пагинация: инициализация модуля DashboardPagination (клики, поле «Перейти», Enter)
+  if (window.DashboardPagination && typeof window.DashboardPagination.initPagination === 'function') {
+    window.DashboardPagination.initPagination({
+      onPageChange: function() { refreshDashboardData({ light: true }); }
+    });
+  }
+
   // Export selected CSV
   const exportSelectedCsv = getElementById('exportSelectedCsv');
   if (exportSelectedCsv) {
@@ -1451,39 +1430,7 @@ document.addEventListener('click', function(e) {
     });
   }
   
-  // Переход на страницу по вводу номера (поле + кнопка «Перейти»)
-  const pageJumpInput = getElementById('pageJumpInput');
-  const pageJumpBtn = getElementById('pageJumpBtn');
-  if (pageJumpBtn && pageJumpInput) {
-    function applyPageJump() {
-      const pagesEl = getElementById('pagesCount');
-      const totalPages = pagesEl ? parseInt(pagesEl.textContent, 10) : 1;
-      let num = parseInt(pageJumpInput.value, 10);
-      if (!Number.isFinite(num) || num < 1) num = 1;
-      if (num > totalPages) num = totalPages;
-      pageJumpInput.value = String(num);
-      goToPage(num);
-    }
-    pageJumpBtn.addEventListener('click', applyPageJump);
-    pageJumpInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        applyPageJump();
-      }
-    });
-  }
 });
-
-function goToPage(selectedPage) {
-  if (!selectedPage || selectedPage < 1) return;
-  const url = new URL(window.location);
-  url.searchParams.set('page', String(selectedPage));
-  history.replaceState(null, '', url.toString());
-  const pageNumEl = getElementById('pageNum');
-  if (pageNumEl) pageNumEl.textContent = String(selectedPage);
-  window.DashboardSelection && window.DashboardSelection.clearSelection();
-  refreshDashboardData();
-}
 
 // ===== Адаптивность таблицы =====
 // isRefreshing, overlayShownAt — в dashboard-refresh.js
