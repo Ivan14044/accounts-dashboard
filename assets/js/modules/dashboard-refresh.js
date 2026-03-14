@@ -203,6 +203,10 @@
           window.DashboardSelection.invalidateCache();
         }
 
+        // Восстанавливаем состояние чекбоксов из selectedIds после замены строк таблицы
+        if (window.DashboardSelection && typeof window.DashboardSelection.initCheckboxStates === 'function') {
+          window.DashboardSelection.initCheckboxStates();
+        }
         if (window.DashboardSelection && typeof window.DashboardSelection.updateSelectedOnPageCounter === 'function') {
           window.DashboardSelection.updateSelectedOnPageCounter();
         }

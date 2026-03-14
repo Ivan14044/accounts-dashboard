@@ -108,7 +108,18 @@
   }
 
   /**
+   * Строит href для перехода на страницу pageNum (текущий path + query с page=pageNum).
+   */
+  function buildPageHref(pageNum) {
+    const url = new URL(window.location);
+    url.searchParams.set('page', String(pageNum));
+    return url.pathname + '?' + url.searchParams.toString();
+  }
+
+  /**
    * Обновление UI пагинации после ответа refresh (вызывается из dashboard-refresh.js).
+   * Делает текущую страницу некликабельной (span), остальные — кликабельными (a).
+   * Обновляет disabled у кнопок «Первая», «Предыдущая», «Следующая», «Последняя».
    * @param {{ page: number, pages?: number }} data
    */
   function updatePaginationUI(data) {
@@ -142,22 +153,76 @@
 
     const nav = document.querySelector(opts.paginationNavSelector);
     if (nav) {
-      nav.querySelectorAll('li.page-item').forEach(li => {
+      const allItems = Array.from(nav.querySelectorAll('li.page-item'));
+      const totalPages = typeof data.pages === 'number' ? data.pages : 1;
+
+      // Числовые ссылки: текущая страница — span (некликабельна), остальные — a с href
+      allItems.forEach(li => {
         const linkEl = li.querySelector('.page-link');
         if (!linkEl) return;
         const text = (linkEl.textContent || '').trim();
         const pageNum = parseInt(text, 10);
         if (!Number.isFinite(pageNum)) return;
+
         if (pageNum === data.page) {
           li.classList.add('active');
-          linkEl.setAttribute('aria-current', 'page');
+          if (linkEl.tagName !== 'SPAN') {
+            const span = document.createElement('span');
+            span.className = 'page-link';
+            span.setAttribute('aria-current', 'page');
+            span.textContent = String(pageNum);
+            li.replaceChild(span, linkEl);
+          } else {
+            linkEl.setAttribute('aria-current', 'page');
+          }
         } else {
           li.classList.remove('active');
           if (linkEl.getAttribute('aria-current') === 'page') {
             linkEl.removeAttribute('aria-current');
           }
+          if (linkEl.tagName !== 'A') {
+            const a = document.createElement('a');
+            a.className = 'page-link';
+            a.href = buildPageHref(pageNum);
+            a.textContent = String(pageNum);
+            li.replaceChild(a, linkEl);
+          } else {
+            linkEl.href = buildPageHref(pageNum);
+          }
         }
       });
+
+      // Кнопки «Первая», «Предыдущая», «Следующая», «Последняя»: порядок в footer — первые два и последние два li
+      if (allItems.length >= 4) {
+        const firstLi = allItems[0];
+        const prevLi = allItems[1];
+        const nextLi = allItems[allItems.length - 2];
+        const lastLi = allItems[allItems.length - 1];
+
+        if (data.page <= 1) {
+          firstLi.classList.add('disabled');
+          prevLi.classList.add('disabled');
+        } else {
+          firstLi.classList.remove('disabled');
+          prevLi.classList.remove('disabled');
+          const firstA = firstLi.querySelector('a.page-link');
+          const prevA = prevLi.querySelector('a.page-link');
+          if (firstA) firstA.href = buildPageHref(1);
+          if (prevA) prevA.href = buildPageHref(Math.max(1, data.page - 1));
+        }
+
+        if (data.page >= totalPages) {
+          nextLi.classList.add('disabled');
+          lastLi.classList.add('disabled');
+        } else {
+          nextLi.classList.remove('disabled');
+          lastLi.classList.remove('disabled');
+          const nextA = nextLi.querySelector('a.page-link');
+          const lastA = lastLi.querySelector('a.page-link');
+          if (nextA) nextA.href = buildPageHref(Math.min(totalPages, data.page + 1));
+          if (lastA) lastA.href = buildPageHref(totalPages);
+        }
+      }
     }
   }
 
