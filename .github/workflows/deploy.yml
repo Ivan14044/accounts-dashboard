@@ -1,0 +1,40 @@
+# Автодеплой на хостинг по FTP при пуше в main или feature/dashboard-load-optimization.
+# Секреты: Settings → Secrets and variables → Actions → FTP_SERVER, FTP_USERNAME, FTP_PASSWORD.
+
+name: Deploy to FTP
+
+on:
+  push:
+    branches:
+      - main
+      - feature/dashboard-load-optimization
+  workflow_dispatch:
+
+env:
+  FTP_SERVER_DIR: /home/if592995/panel.account-factory.site/www/
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ env.FTP_SERVER_DIR }}
+          local-dir: ./
+          exclude: |
+            - **/.git*
+            - **/.github
+            - **/node_modules
+            - **/.env
+            - **/.cursor
+            - **/*.log
+            - **/Thumbs.db
+            - **/.DS_Store
+            - **/.optimization_applied
