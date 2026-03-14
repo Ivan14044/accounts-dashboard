@@ -658,58 +658,12 @@ document.addEventListener('DOMContentLoaded', function () {
   const exportSelectedCsv = getElementById('exportSelectedCsv');
   if (exportSelectedCsv) {
     exportSelectedCsv.addEventListener('click', function () {
-      const DS = window.DashboardSelection;
-      if (!DS || (!DS.getSelectedAllFiltered() && DS.getSelectedIds().size === 0)) return;
-
-      // Создаем скрытую форму для корректной обработки заголовков скачивания
-      const form = document.createElement('form');
-      form.method = 'GET';
-      form.action = 'export.php';
-      // Не указываем target, чтобы браузер правильно обработал Content-Disposition: attachment
-
-      const currentSort = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.sort) || '';
-      const currentDir = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.dir) || '';
-
-      if (DS.getSelectedAllFiltered()) {
-        // Добавляем все параметры из текущего URL
-        const params = new URLSearchParams(window.location.search);
-        params.set('select', 'all');
-        params.set('format', 'csv');
-        params.set('sort', currentSort);
-        params.set('dir', currentDir);
-
-        // Добавляем все параметры как скрытые поля формы
-        params.forEach((value, key) => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = value;
-          form.appendChild(input);
-        });
+      if (window.DashboardExport) {
+        window.DashboardExport.openModal('csv');
       } else {
-        // Экспорт выбранных ID
-        const ids = Array.from(DS.getSelectedIds()).join(',');
-
-        const fields = {
-          'ids': ids,
-          'format': 'csv',
-          'sort': currentSort,
-          'dir': currentDir
-        };
-
-        Object.keys(fields).forEach(key => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = fields[key];
-          form.appendChild(input);
-        });
+        // Fallback or warning
+        console.error('DashboardExport module not found');
       }
-
-      // Добавляем форму в DOM, отправляем и удаляем
-      document.body.appendChild(form);
-      form.submit();
-      document.body.removeChild(form);
     });
   }
 
@@ -717,69 +671,11 @@ document.addEventListener('DOMContentLoaded', function () {
   const exportSelectedTxt = getElementById('exportSelectedTxt');
   if (exportSelectedTxt) {
     exportSelectedTxt.addEventListener('click', function () {
-      const DS = window.DashboardSelection;
-      if (!DS || (!DS.getSelectedAllFiltered() && DS.getSelectedIds().size === 0)) return;
-      const currentSort = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.sort) || '';
-      const currentDir = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.dir) || '';
-      let visibleCols = [];
-      try { const saved = localStorage.getItem('dashboard_visible_columns'); if (saved) visibleCols = JSON.parse(saved); } catch (_) { }
-      if (!Array.isArray(visibleCols) || visibleCols.length === 0) {
-        visibleCols = Array.from(document.querySelectorAll('#accountsTable thead th[data-col]')).map(th => th.getAttribute('data-col'));
-      }
-      const ALL_COL_KEYS = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.allColumnKeys) || [];
-      visibleCols = (visibleCols || []).filter(c => ALL_COL_KEYS.includes(c));
-      // Убираем ID из экспорта, если он есть
-      visibleCols = visibleCols.filter(c => c !== 'id');
-
-      // Создаем скрытую форму для корректной обработки заголовков скачивания
-      const form = document.createElement('form');
-      form.method = 'GET';
-      form.action = 'export.php';
-      // Не указываем target, чтобы браузер правильно обработал Content-Disposition: attachment
-
-      if (DS.getSelectedAllFiltered()) {
-        // Добавляем все параметры из текущего URL
-        const params = new URLSearchParams(window.location.search);
-        params.set('select', 'all');
-        params.set('format', 'txt');
-        params.set('sort', currentSort);
-        params.set('dir', currentDir);
-        params.set('cols', visibleCols.join(','));
-
-        // Добавляем все параметры как скрытые поля формы
-        params.forEach((value, key) => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = value;
-          form.appendChild(input);
-        });
+      if (window.DashboardExport) {
+        window.DashboardExport.openModal('txt');
       } else {
-        // Экспорт выбранных ID
-        const ids = Array.from(DS.getSelectedIds()).join(',');
-        const cols = visibleCols.join(',');
-
-        const fields = {
-          'ids': ids,
-          'format': 'txt',
-          'sort': currentSort,
-          'dir': currentDir,
-          'cols': cols
-        };
-
-        Object.keys(fields).forEach(key => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = fields[key];
-          form.appendChild(input);
-        });
+        console.error('DashboardExport module not found');
       }
-
-      // Добавляем форму в DOM, отправляем и удаляем
-      document.body.appendChild(form);
-      form.submit();
-      document.body.removeChild(form);
     });
   }
 
@@ -2689,23 +2585,12 @@ if (bulkFieldSelect) {
   });
 }
 
-// Универсальная кнопка "Сбросить все" - очищает выбранные строки и/или фильтры
+// Кнопка "Сбросить выбор" - очищает выбранные строки
 const clearAllSelectedBtn = getElementById('clearAllSelectedBtn');
 if (clearAllSelectedBtn) {
   clearAllSelectedBtn.addEventListener('click', function () {
     const DS = window.DashboardSelection;
-    const hasSelection = DS && (DS.getSelectedAllFiltered() || DS.getSelectedIds().size > 0);
-    const hasActiveFilters = document.querySelectorAll('.filter-chip').length > 0;
-
-    if (hasActiveFilters) {
-      if (hasSelection && DS) {
-        DS.clearSelection();
-      }
-      // Перенаправляем на страницу без параметров фильтров
-      const baseUrl = window.location.pathname;
-      window.location.href = baseUrl;
-      return; // Прерываем выполнение, так как происходит перезагрузка страницы
-    } else if (hasSelection && DS) {
+    if (DS) {
       DS.clearSelection();
       DS.initCheckboxStates(); // Синхронизируем все чекбоксы включая selectAll
 

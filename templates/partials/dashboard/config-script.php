@@ -9,6 +9,7 @@ $cfg = [
   'sort' => $sort ?? '',
   'dir' => $dir ?? '',
   'allColumnKeys' => isset($ALL_COLUMNS) && is_array($ALL_COLUMNS) ? array_keys($ALL_COLUMNS) : [],
+  'filteredTotal' => (int)($filteredTotal ?? 0),
 ];
 ?>
 <script>

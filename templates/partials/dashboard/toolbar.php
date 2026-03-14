@@ -8,11 +8,11 @@
         <span class="badge bg-primary" id="selectedCount">0</span>
       </div>
       <div class="d-flex gap-2 flex-wrap align-items-center">
-        <button class="btn btn-outline-success" id="exportSelectedCsv" disabled>
+        <button class="btn btn-outline-success" id="exportSelectedCsv">
           <i class="fas fa-file-csv"></i>
           CSV
         </button>
-        <button class="btn btn-outline-info" id="exportSelectedTxt" disabled>
+        <button class="btn btn-outline-info" id="exportSelectedTxt">
           <i class="fas fa-file-alt"></i>
           TXT
         </button>
@@ -38,7 +38,7 @@
         </button>
         <button class="btn btn-outline-dark" id="clearAllSelectedBtn" style="display: none;">
           <i class="fas fa-times-circle"></i>
-          Сбросить все
+          Сбросить выбор
         </button>
       </div>
     </div>

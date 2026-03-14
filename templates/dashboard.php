@@ -2160,7 +2160,7 @@
             </button>
             <button class="btn btn-outline-dark" id="clearAllSelectedBtn" style="display: none;">
               <i class="fas fa-times-circle"></i>
-              Сбросить все
+              Сбросить выбор
             </button>
           </div>
         </div>
@@ -2410,6 +2410,7 @@
 </div>
 
 <?php require_once __DIR__ . '/partials/dashboard/modals/import-results-modal.php'; ?>
+<?php require_once __DIR__ . '/partials/dashboard/modals/export-settings-modal.php'; ?>
 
 <!-- Модалка предварительного просмотра отключена -->
 
@@ -2852,6 +2853,7 @@
 <script src="assets/js/modules/dashboard-refresh.js?v=<?= time() ?>"></script>
 <!-- Модули дашборда -->
 <script src="assets/js/modules/dashboard-selection.js?v=<?= time() ?>"></script>
+<script src="assets/js/modules/dashboard-export.js?v=<?= time() ?>"></script>
 <script src="assets/js/modules/dashboard-filters.js?v=<?= time() ?>"></script>
 <script src="assets/js/modules/dashboard-stats.js?v=<?= time() ?>"></script>
 <script src="assets/js/modules/dashboard-modals.js?v=<?= time() ?>"></script>

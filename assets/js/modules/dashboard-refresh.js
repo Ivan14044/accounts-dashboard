@@ -15,6 +15,8 @@
   let refreshQueued = false;
   let isRefreshing = false;
   let overlayShownAt = 0;
+  /** Номер «поколения» refresh — защита от устаревшего setTimeout при быстрой смене фильтров */
+  let refreshGeneration = 0;
 
   function collectRefreshParams() {
     const params = new URLSearchParams(window.location.search);
@@ -52,6 +54,7 @@
     }
   }
 
+  /** Показать/скрыть прелоадер таблицы и карточек. Скрытие при полном refresh делается после обновления DOM (счётчики + таблица). */
   function setTableLoadingState(isLoading) {
     log('setTableLoadingState called with:', isLoading);
     const tableOverlay = getEl('tableLoading');
@@ -73,22 +76,12 @@
       }
       return;
     }
-    if (tableOverlay) {
-      const elapsed = Date.now() - (overlayShownAt || 0);
-      const minMs = 300;
-      const hide = () => tableOverlay.classList.remove('show');
-      if (elapsed < minMs) {
-        setTimeout(hide, Math.max(minMs - elapsed, 0));
-      } else {
-        hide();
-      }
-    }
+    if (tableOverlay) tableOverlay.classList.remove('show');
     if (statsOverlay) {
       statsOverlay.classList.remove('show');
+      statsOverlay.style.display = 'none';
     }
-    if (tableResponsive) {
-      tableResponsive.classList.remove('loading');
-    }
+    if (tableResponsive) tableResponsive.classList.remove('loading');
   }
 
   async function refreshDashboardData(options) {
@@ -103,6 +96,12 @@
     const url = 'refresh.php?' + params.toString();
     refreshController = new AbortController();
     const signal = refreshController.signal;
+
+    const isLight = options && (options.light === true || options.light === 'true');
+    if (!isLight) {
+      setTableLoadingState(true);
+    }
+
     try {
       const res = await fetch(url, {
         credentials: 'same-origin',
@@ -114,67 +113,30 @@
       const data = await res.json();
       if (!data.success) return;
 
-      const totalEl = getS('[data-card="total"] .stat-value');
-      if (totalEl && data.totals && typeof data.totals.all === 'number') {
-        if (typeof updateStatValue === 'function') {
-          updateStatValue(totalEl, data.totals.all);
-        } else {
-          totalEl.textContent = String(data.totals.all);
-        }
-      }
-      if (typeof data.filteredTotal === 'number' && window.DashboardSelection) {
-        window.DashboardSelection.setFilteredTotalLive(data.filteredTotal);
+      const myGeneration = ++refreshGeneration;
+      if (myGeneration !== refreshGeneration) return;
+
+      const rowsLen = Array.isArray(data.rows) ? data.rows.length : 0;
+      const filteredTotalNum = typeof data.filteredTotal === 'number' ? data.filteredTotal : null;
+
+      // ── Фаза 1: Обновляем счётчики СИНХРОННО (мгновенно, до тяжёлых операций) ──
+      const byId = (id) => document.getElementById(id);
+
+      const showingCountTopEl = byId('showingCountTop');
+      if (showingCountTopEl) showingCountTopEl.textContent = String(rowsLen);
+      const showingOnPageTopEl = byId('showingOnPageTop');
+      if (showingOnPageTopEl) showingOnPageTopEl.textContent = String(rowsLen);
+      if (filteredTotalNum !== null) {
+        const foundTotalTopEl = byId('foundTotalTop');
+        if (foundTotalTopEl) foundTotalTopEl.textContent = String(filteredTotalNum);
+        const foundTotalEl = document.querySelector('#foundTotal');
+        if (foundTotalEl) foundTotalEl.textContent = String(filteredTotalNum);
       }
 
-      // В режиме light бэкенд не отдаёт byStatus — карточки статусов не обновляем
-      if (data.byStatus && Object.keys(data.byStatus).length > 0) {
-        const statusCards = document.querySelectorAll('.stat-card[data-card^="status:"]');
-        log('Обновление карточек статистики:', { cards_found: statusCards.length, byStatus_keys: Object.keys(data.byStatus) });
-        statusCards.forEach(cardElement => {
-          const statusKey = cardElement.getAttribute('data-status');
-          if (!statusKey) return;
-          const cnt = typeof data.byStatus[statusKey] !== 'undefined' ? data.byStatus[statusKey] : 0;
-          const valEl = cardElement.querySelector('.stat-value');
-          if (valEl) {
-            if (typeof updateStatValue === 'function') {
-              updateStatValue(valEl, cnt);
-            } else {
-              valEl.textContent = String(cnt);
-            }
-          }
-        });
-        document.querySelectorAll('.status-count').forEach(el => {
-          const status = el.getAttribute('data-status');
-          el.textContent = data.byStatus[status] || 0;
-        });
-      }
-
-      if (window.tableModule && typeof window.tableModule.updateRows === 'function') {
-        window.tableModule.updateRows(data);
-      } else {
-        const fallbackBody = getS('#accountsTable tbody');
-        if (fallbackBody && Array.isArray(data.rows)) {
-          const columnsCount = document.querySelectorAll('#accountsTable thead th').length || 1;
-          fallbackBody.innerHTML = !data.rows.length
-            ? `<tr><td colspan="${columnsCount}" class="text-center text-muted py-5">Ничего не найдено</td></tr>`
-            : data.rows.map(row => `<tr><td colspan="${columnsCount}" class="text-muted">#${row.id}</td></tr>`).join('');
-        }
-      }
-
-      if (typeof domCache !== 'undefined' && typeof domCache.invalidate === 'function') {
-        domCache.invalidate();
-      }
-      if (window.DashboardSelection && typeof window.DashboardSelection.invalidateCache === 'function') {
-        window.DashboardSelection.invalidateCache();
-      }
-
-      // Обновляем информацию о пагинации (номер текущей страницы, всего страниц и активный элемент пагинации)
+      // Обновляем пагинацию синхронно
       if (typeof data.page === 'number') {
         const pageNumEl = getEl('pageNum');
-        if (pageNumEl) {
-          pageNumEl.textContent = String(data.page);
-        }
-        // Синхронизируем поле «Перейти на страницу»
+        if (pageNumEl) pageNumEl.textContent = String(data.page);
         const pageJumpInputEl = getEl('pageJumpInput');
         if (pageJumpInputEl) {
           pageJumpInputEl.value = String(data.page);
@@ -185,69 +147,125 @@
       }
       if (typeof data.pages === 'number') {
         const pagesCountEl = getEl('pagesCount');
-        if (pagesCountEl) {
-          pagesCountEl.textContent = String(data.pages);
+        if (pagesCountEl) pagesCountEl.textContent = String(data.pages);
+      }
+
+      if (typeof data.filteredTotal === 'number') {
+        const tableEl = getEl('accountsTable');
+        if (tableEl) tableEl.setAttribute('aria-rowcount', String(data.filteredTotal));
+        if (window.DashboardSelection) {
+          window.DashboardSelection.setFilteredTotalLive(data.filteredTotal);
         }
       }
 
-      // Переключаем .active в пагинации в соответствии с текущей страницей
-      if (typeof data.page === 'number') {
-        document.querySelectorAll('.dashboard-table__pagination ul.pagination').forEach(ul => {
-          ul.querySelectorAll('li.page-item').forEach(li => {
-            const linkEl = li.querySelector('.page-link');
-            if (!linkEl) return;
+      // ── Фаза 2: Тяжёлые DOM-операции в requestAnimationFrame (один reflow) ──
+      requestAnimationFrame(() => {
+        if (myGeneration !== refreshGeneration) return;
 
-            const text = (linkEl.textContent || '').trim();
-            const pageNum = parseInt(text, 10);
-            if (!Number.isFinite(pageNum)) {
-              // Стрелки, многоточия и т.п. пропускаем
-              return;
-            }
+        // Карточка «Всего»
+        const totalEl = getS('[data-card="total"] .stat-value');
+        if (totalEl && data.totals && typeof data.totals.all === 'number') {
+          if (typeof updateStatValue === 'function') {
+            updateStatValue(totalEl, data.totals.all);
+          } else {
+            totalEl.textContent = String(data.totals.all);
+          }
+        }
 
-            if (pageNum === data.page) {
-              li.classList.add('active');
-              linkEl.setAttribute('aria-current', 'page');
-            } else {
-              li.classList.remove('active');
-              if (linkEl.getAttribute('aria-current') === 'page') {
-                linkEl.removeAttribute('aria-current');
+        // Карточки статусов
+        if (data.byStatus && Object.keys(data.byStatus).length > 0) {
+          const statusCards = document.querySelectorAll('.stat-card[data-card^="status:"]');
+          log('Обновление карточек статистики:', { cards_found: statusCards.length, byStatus_keys: Object.keys(data.byStatus) });
+          statusCards.forEach(cardElement => {
+            const statusKey = cardElement.getAttribute('data-status');
+            if (!statusKey) return;
+            const cnt = typeof data.byStatus[statusKey] !== 'undefined' ? data.byStatus[statusKey] : 0;
+            const valEl = cardElement.querySelector('.stat-value');
+            if (valEl) {
+              if (typeof updateStatValue === 'function') {
+                updateStatValue(valEl, cnt);
+              } else {
+                valEl.textContent = String(cnt);
               }
             }
           });
+          document.querySelectorAll('.status-count').forEach(el => {
+            const status = el.getAttribute('data-status');
+            el.textContent = data.byStatus[status] || 0;
+          });
+        }
+
+        // Таблица (основная тяжёлая операция)
+        if (window.tableModule && typeof window.tableModule.updateRows === 'function') {
+          window.tableModule.updateRows(data);
+        } else {
+          const fallbackBody = getS('#accountsTable tbody');
+          if (fallbackBody && Array.isArray(data.rows)) {
+            const columnsCount = document.querySelectorAll('#accountsTable thead th').length || 1;
+            fallbackBody.innerHTML = !data.rows.length
+              ? `<tr><td colspan="${columnsCount}" class="text-center text-muted py-5">Ничего не найдено</td></tr>`
+              : data.rows.map(row => `<tr><td colspan="${columnsCount}" class="text-muted">#${row.id}</td></tr>`).join('');
+          }
+        }
+
+        if (typeof domCache !== 'undefined' && typeof domCache.invalidate === 'function') {
+          domCache.invalidate();
+        }
+        if (window.DashboardSelection && typeof window.DashboardSelection.invalidateCache === 'function') {
+          window.DashboardSelection.invalidateCache();
+        }
+
+        // Пагинация: переключаем .active
+        if (typeof data.page === 'number') {
+          document.querySelectorAll('.dashboard-table__pagination ul.pagination').forEach(ul => {
+            ul.querySelectorAll('li.page-item').forEach(li => {
+              const linkEl = li.querySelector('.page-link');
+              if (!linkEl) return;
+              const text = (linkEl.textContent || '').trim();
+              const pageNum = parseInt(text, 10);
+              if (!Number.isFinite(pageNum)) return;
+              if (pageNum === data.page) {
+                li.classList.add('active');
+                linkEl.setAttribute('aria-current', 'page');
+              } else {
+                li.classList.remove('active');
+                if (linkEl.getAttribute('aria-current') === 'page') {
+                  linkEl.removeAttribute('aria-current');
+                }
+              }
+            });
+          });
+        }
+
+        if (window.DashboardSelection && typeof window.DashboardSelection.updateSelectedOnPageCounter === 'function') {
+          window.DashboardSelection.updateSelectedOnPageCounter();
+        }
+
+        if (typeof window.renderActiveFiltersFromUrl === 'function') {
+          window.renderActiveFiltersFromUrl();
+        }
+
+        // Скрываем прелоадер после полного обновления DOM
+        if (!isLight) setTableLoadingState(false);
+
+        // Layout-обновления в следующем кадре (после reflow от таблицы)
+        requestAnimationFrame(() => {
+          const table = getEl('accountsTable');
+          if (!table) return;
+          if (window.tableLayoutManager && typeof window.tableLayoutManager.refresh === 'function') {
+            window.tableLayoutManager.refresh();
+          } else if (typeof adjustTableDensity === 'function' && typeof syncHeaderWidths === 'function') {
+            adjustTableDensity();
+            syncHeaderWidths();
+          }
+          if (window.tableVirtualization && typeof window.tableVirtualization.refresh === 'function') {
+            window.tableVirtualization.refresh();
+          }
+          if (typeof window.updateStickyScrollbar === 'function') {
+            window.updateStickyScrollbar();
+          }
         });
-      }
-
-      const showingCountTopEl = getEl('showingCountTop');
-      if (showingCountTopEl && Array.isArray(data.rows)) {
-        showingCountTopEl.textContent = String(data.rows.length);
-      }
-      const showingOnPageTopEl = getEl('showingOnPageTop');
-      if (showingOnPageTopEl && Array.isArray(data.rows)) {
-        showingOnPageTopEl.textContent = String(data.rows.length);
-      }
-      // Общее число записей по текущему фильтру («из N») — чтобы при смене фильтра показывалось 3271, а не 135281
-      if (typeof data.filteredTotal === 'number') {
-        const foundTotalTopEl = getEl('foundTotalTop');
-        if (foundTotalTopEl) {
-          foundTotalTopEl.textContent = String(data.filteredTotal);
-        }
-        const foundTotalEl = getS('#foundTotal');
-        if (foundTotalEl) {
-          foundTotalEl.textContent = String(data.filteredTotal);
-        }
-        const tableEl = getEl('accountsTable');
-        if (tableEl) {
-          tableEl.setAttribute('aria-rowcount', String(data.filteredTotal));
-        }
-      }
-      if (window.DashboardSelection && typeof window.DashboardSelection.updateSelectedOnPageCounter === 'function') {
-        window.DashboardSelection.updateSelectedOnPageCounter();
-      }
-
-      // Синхронизируем блок «Активные фильтры» (chips) с текущим URL
-      if (typeof window.renderActiveFiltersFromUrl === 'function') {
-        window.renderActiveFiltersFromUrl();
-      }
+      });
 
     } catch (error) {
       if (error.name === 'AbortError' || (error.message && error.message.includes && error.message.includes('aborted'))) {
@@ -258,13 +276,7 @@
       if (typeof showToast === 'function') {
         showToast(`Ошибка обновления: ${errorMessage}`, 'error');
       }
-      const tableOverlay = getEl('tableLoading');
-      const statsOverlay = getEl('statsLoading');
-      if (tableOverlay) tableOverlay.classList.remove('show');
-      if (statsOverlay) {
-        statsOverlay.classList.remove('show');
-        statsOverlay.style.display = 'none';
-      }
+      if (!isLight) setTableLoadingState(false);
       const retryButton = document.createElement('button');
       retryButton.textContent = 'Повторить попытку';
       retryButton.className = 'btn btn-sm btn-primary mt-2';
@@ -289,45 +301,6 @@
         window.updateStickyScrollbar();
       }
       isRefreshing = false;
-      setTimeout(() => {
-        const table = getEl('accountsTable');
-        if (!table) return;
-        void table.offsetHeight;
-        if (window.tableLayoutManager && typeof window.tableLayoutManager.refresh === 'function') {
-          window.tableLayoutManager.refresh();
-        } else if (typeof adjustTableDensity === 'function' && typeof syncHeaderWidths === 'function') {
-          requestAnimationFrame(() => {
-            adjustTableDensity();
-            syncHeaderWidths();
-          });
-        }
-        if (window.tableVirtualization && typeof window.tableVirtualization.refresh === 'function') {
-          window.tableVirtualization.refresh();
-        }
-        if (typeof window.updateStickyScrollbar === 'function') {
-          window.updateStickyScrollbar();
-        }
-      }, 200);
-
-      const tableOverlay = getEl('tableLoading');
-      const statsOverlay = getEl('statsLoading');
-      const tableResponsive = getS('.table-responsive');
-      if (tableOverlay) {
-        const elapsed = Date.now() - (overlayShownAt || 0);
-        const minMs = 300;
-        if (elapsed < minMs) {
-          setTimeout(() => tableOverlay.classList.remove('show'), minMs - elapsed);
-        } else {
-          tableOverlay.classList.remove('show');
-        }
-      }
-      if (statsOverlay) {
-        statsOverlay.classList.remove('show');
-        statsOverlay.style.display = 'none';
-      }
-      if (tableResponsive) {
-        tableResponsive.classList.remove('loading');
-      }
     }
   }
 

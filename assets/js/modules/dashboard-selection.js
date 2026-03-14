@@ -9,7 +9,7 @@ const LS_KEY_SELECTED = 'dashboard_selected_ids';
 // Состояние модуля
 let selectedIds = new Set();
 let selectedAllFiltered = false;
-let filteredTotalLive = 0;
+let filteredTotalLive = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.filteredTotal) || 0;
 
 // Кеш для getAllRowIdsOnPage с TTL
 const RowIdsCache = {
@@ -137,12 +137,11 @@ function updateSelectedCount() {
   const exportBtns = document.querySelectorAll('#exportSelectedCsv, #exportSelectedTxt, #deleteSelected, #changeStatusSelected, #bulkEditFieldBtn');
   exportBtns.forEach(btn => btn.disabled = (!selectedAllFiltered && count === 0));
   
-  // Показываем/скрываем универсальную кнопку "Сбросить все"
+  // Показываем/скрываем кнопку "Сбросить выбор"
   const clearAllBtn = getElementById('clearAllSelectedBtn');
   if (clearAllBtn) {
     const hasSelection = selectedAllFiltered || count > 0;
-    const hasActiveFilters = document.querySelectorAll('.filter-chip').length > 0;
-    clearAllBtn.style.display = (hasSelection || hasActiveFilters) ? '' : 'none';
+    clearAllBtn.style.display = hasSelection ? '' : 'none';
   }
   
   const notice = getElementById('selectAllNotice');

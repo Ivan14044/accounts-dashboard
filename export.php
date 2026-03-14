@@ -262,6 +262,17 @@ try {
     
     // Ограничиваем максимальное количество записей для экспорта
     $maxRecords = Config::MAX_EXPORT_RECORDS;
+    
+    // ПРОВЕРКА: Кастомный лимит от пользователя
+    $userLimit = filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT);
+    if ($userLimit !== null && $userLimit !== false && $userLimit > 0) {
+        $totalRows = min($totalRows, $userLimit);
+        Logger::info('EXPORT: Applying user-specified limit', [
+            'total' => $totalRows,
+            'limit' => $userLimit
+        ]);
+    }
+    
     if ($totalRows > $maxRecords) {
         Logger::warning('EXPORT: Too many records, limiting', [
             'total' => $totalRows,

@@ -177,14 +177,12 @@ function updateSelectedCount() {
   const exportBtns = document.querySelectorAll('#exportSelectedCsv, #exportSelectedTxt, #deleteSelected, #changeStatusSelected, #bulkEditFieldBtn');
   exportBtns.forEach(btn => btn.disabled = (!selectedAllFiltered && count === 0));
   
-  // Показываем/скрываем универсальную кнопку "Сбросить все"
-  // Кнопка показывается, если есть выбранные строки ИЛИ активные фильтры
+  // Показываем/скрываем кнопку "Сбросить выбор"
+  // Кнопка показывается, если есть выбранные строки
   const clearAllBtn = document.getElementById('clearAllSelectedBtn');
   if (clearAllBtn) {
     const hasSelection = selectedAllFiltered || count > 0;
-    // Проверяем наличие активных фильтров через активные чипсы
-    const hasActiveFilters = document.querySelectorAll('.filter-chip').length > 0;
-    clearAllBtn.style.display = (hasSelection || hasActiveFilters) ? '' : 'none';
+    clearAllBtn.style.display = hasSelection ? '' : 'none';
   }
   
   const notice = document.getElementById('selectAllNotice');
@@ -1342,57 +1340,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const exportSelectedCsv = document.getElementById('exportSelectedCsv');
   if (exportSelectedCsv) {
     exportSelectedCsv.addEventListener('click', function() {
-      if (!selectedAllFiltered && selectedIds.size === 0) return;
-      
-      // Создаем скрытую форму для корректной обработки заголовков скачивания
-      const form = document.createElement('form');
-      form.method = 'GET';
-      form.action = 'export.php';
-      // Не указываем target, чтобы браузер правильно обработал Content-Disposition: attachment
-      
-      const currentSort = '<?= $sort ?>';
-      const currentDir = '<?= $dir ?>';
-      
-      if (selectedAllFiltered) {
-        // Добавляем все параметры из текущего URL
-        const params = new URLSearchParams(window.location.search);
-        params.set('select', 'all');
-        params.set('format', 'csv');
-        params.set('sort', currentSort);
-        params.set('dir', currentDir);
-        
-        // Добавляем все параметры как скрытые поля формы
-        params.forEach((value, key) => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = value;
-          form.appendChild(input);
-        });
+      if (window.DashboardExport) {
+        window.DashboardExport.openModal('csv');
       } else {
-        // Экспорт выбранных ID
-        const ids = Array.from(selectedIds).join(',');
-        
-        const fields = {
-          'ids': ids,
-          'format': 'csv',
-          'sort': currentSort,
-          'dir': currentDir
-        };
-        
-        Object.keys(fields).forEach(key => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = fields[key];
-          form.appendChild(input);
-        });
+        console.error('DashboardExport module not found');
       }
-
-      // Добавляем форму в DOM, отправляем и удаляем
-      document.body.appendChild(form);
-      form.submit();
-      document.body.removeChild(form);
     });
   }
    
@@ -1400,68 +1352,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const exportSelectedTxt = document.getElementById('exportSelectedTxt');
   if (exportSelectedTxt) {
     exportSelectedTxt.addEventListener('click', function() {
-      if (!selectedAllFiltered && selectedIds.size === 0) return;
-      const currentSort = '<?= $sort ?>';
-      const currentDir = '<?= $dir ?>';
-      let visibleCols = [];
-      try { const saved = localStorage.getItem('dashboard_visible_columns'); if (saved) visibleCols = JSON.parse(saved); } catch (_) {}
-      if (!Array.isArray(visibleCols) || visibleCols.length === 0) {
-        visibleCols = Array.from(document.querySelectorAll('#accountsTable thead th[data-col]')).map(th => th.getAttribute('data-col'));
-      }
-      const ALL_COL_KEYS = <?= json_encode(array_keys($ALL_COLUMNS)) ?>;
-      visibleCols = (visibleCols || []).filter(c => ALL_COL_KEYS.includes(c));
-      // Убираем ID из экспорта, если он есть
-      visibleCols = visibleCols.filter(c => c !== 'id');
-
-      // Создаем скрытую форму для корректной обработки заголовков скачивания
-      const form = document.createElement('form');
-      form.method = 'GET';
-      form.action = 'export.php';
-      // Не указываем target, чтобы браузер правильно обработал Content-Disposition: attachment
-
-      if (selectedAllFiltered) {
-        // Добавляем все параметры из текущего URL
-        const params = new URLSearchParams(window.location.search);
-        params.set('select', 'all');
-        params.set('format', 'txt');
-        params.set('sort', currentSort);
-        params.set('dir', currentDir);
-        params.set('cols', visibleCols.join(','));
-        
-        // Добавляем все параметры как скрытые поля формы
-        params.forEach((value, key) => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = value;
-          form.appendChild(input);
-        });
+      if (window.DashboardExport) {
+        window.DashboardExport.openModal('txt');
       } else {
-        // Экспорт выбранных ID
-        const ids = Array.from(selectedIds).join(',');
-        const cols = visibleCols.join(',');
-        
-        const fields = {
-          'ids': ids,
-          'format': 'txt',
-          'sort': currentSort,
-          'dir': currentDir,
-          'cols': cols
-        };
-        
-        Object.keys(fields).forEach(key => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = fields[key];
-          form.appendChild(input);
-        });
+        console.error('DashboardExport module not found');
       }
-
-      // Добавляем форму в DOM, отправляем и удаляем
-      document.body.appendChild(form);
-      form.submit();
-      document.body.removeChild(form);
     });
   }
   
@@ -4547,31 +4442,13 @@ if (bulkFieldSelect) {
   });
 }
 
-// Универсальная кнопка "Сбросить все" - очищает выбранные строки и/или фильтры
+// Кнопка "Сбросить выбор" - очищает выбранные строки
 const clearAllSelectedBtn = document.getElementById('clearAllSelectedBtn');
 if (clearAllSelectedBtn) {
   clearAllSelectedBtn.addEventListener('click', function() {
     const hasSelection = selectedAllFiltered || selectedIds.size > 0;
-    const hasActiveFilters = document.querySelectorAll('.filter-chip').length > 0;
     
-    // Если есть и выбранные строки, и фильтры - сбрасываем оба
-    // Если есть только фильтры - сбрасываем фильтры (перезагрузка страницы)
-    // Если есть только строки - сбрасываем строки (без перезагрузки)
-    
-    if (hasActiveFilters) {
-      // Если есть фильтры, всегда сбрасываем их (это требует перезагрузки страницы)
-      // Также сбрасываем строки перед перезагрузкой, если они были выбраны
-      if (hasSelection) {
-        selectedIds.clear();
-        selectedAllFiltered = false;
-        saveSelectedIds();
-      }
-      // Перенаправляем на страницу без параметров фильтров
-      const baseUrl = window.location.pathname;
-      window.location.href = baseUrl;
-      return; // Прерываем выполнение, так как происходит перезагрузка страницы
-    } else if (hasSelection) {
-      // Если есть только выбранные строки - сбрасываем их без перезагрузки
+    if (hasSelection) {
       // Очищаем все выбранные ID
       selectedIds.clear();
       selectedAllFiltered = false;
@@ -4592,9 +4469,6 @@ if (clearAllSelectedBtn) {
       if (selectAllCheckbox) {
         selectAllCheckbox.checked = false;
       }
-      
-      // Сохраняем изменения
-      saveSelectedIds();
       
       // Обновляем состояние всех кнопок
       const exportBtns = document.querySelectorAll('#exportSelectedCsv, #exportSelectedTxt, #deleteSelected, #changeStatusSelected, #bulkEditFieldBtn');

@@ -445,6 +445,62 @@ button:hover {
   font-size: var(--font-size-sm) !important;
   color: var(--text-primary) !important;
   margin-left: 8px !important;
+  display: inline !important;
+  margin-bottom: 0 !important;
+}
+
+/* ========================================
+   МОДАЛКА НАСТРОЕК — ЧЕКБОКСЫ
+   ======================================== */
+
+/* Контейнеры списков с прокруткой */
+.column-settings,
+.card-settings {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Каждый .form-check — как строка с чекбоксом и лейблом */
+.column-settings .form-check,
+.card-settings .form-check,
+#settingsModal .form-check {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px;
+  padding: 6px 4px;
+  margin-bottom: 2px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.column-settings .form-check:hover,
+.card-settings .form-check:hover,
+#settingsModal .form-check:hover {
+  background: var(--bg-secondary, #fafafa);
+}
+
+/* Чекбоксы в модалке — фиксированный размер, без деформации */
+.column-settings .form-check-input,
+.card-settings .form-check-input,
+#settingsModal .form-check-input {
+  flex-shrink: 0 !important;
+  width: 18px !important;
+  height: 18px !important;
+  margin: 0 !important;
+  position: relative !important;
+}
+
+/* Лейблы — inline, без переноса на новую строку */
+.column-settings .form-check-label,
+.card-settings .form-check-label,
+#settingsModal .form-check-label {
+  display: inline !important;
+  margin-left: 0 !important;
+  margin-bottom: 0 !important;
+  cursor: pointer !important;
+  user-select: none;
+  line-height: 1.4;
 }
 
 /* ========================================

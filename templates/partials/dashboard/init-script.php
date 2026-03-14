@@ -3981,23 +3981,12 @@ if (bulkFieldSelect) {
   });
 }
 
-// Универсальная кнопка "Сбросить все" - очищает выбранные строки и/или фильтры
+// Кнопка "Сбросить выбор" - очищает выбранные строки
 const clearAllSelectedBtn = getElementById('clearAllSelectedBtn');
 if (clearAllSelectedBtn) {
   clearAllSelectedBtn.addEventListener('click', function() {
     const DS = window.DashboardSelection;
-    const hasSelection = DS && (DS.getSelectedAllFiltered() || DS.getSelectedIds().size > 0);
-    const hasActiveFilters = document.querySelectorAll('.filter-chip').length > 0;
-    
-    if (hasActiveFilters) {
-      if (hasSelection && DS) {
-        DS.clearSelection();
-      }
-      // Перенаправляем на страницу без параметров фильтров
-      const baseUrl = window.location.pathname;
-      window.location.href = baseUrl;
-      return; // Прерываем выполнение, так как происходит перезагрузка страницы
-    } else if (hasSelection && DS) {
+    if (DS) {
       DS.clearSelection();
       DS.initCheckboxStates(); // Синхронизируем все чекбоксы включая selectAll
       
