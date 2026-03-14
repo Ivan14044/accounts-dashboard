@@ -1,5 +1,6 @@
 # Автодеплой на хостинг по FTP при пуше в main или feature/dashboard-load-optimization.
-# Секреты: Settings → Secrets and variables → Actions → FTP_SERVER, FTP_USERNAME, FTP_PASSWORD.
+# Секреты: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD.
+# При ошибке ECONNRESET (data socket): хостинг может требовать FTPS — добавьте protocol: ftps.
 
 name: Deploy to FTP
 
@@ -12,6 +13,8 @@ on:
 
 env:
   FTP_SERVER_DIR: /home/if592995/panel.account-factory.site/www/
+  # Убирает предупреждение о Node.js 20 (actions переходят на Node 24)
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   deploy:
@@ -28,6 +31,10 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: ${{ env.FTP_SERVER_DIR }}
           local-dir: ./
+          # Устойчивость при нестабильном FTP (ECONNRESET на data socket)
+          security: loose
+          timeout: 120000
+          log-level: verbose
           exclude: |
             - **/.git*
             - **/.github
