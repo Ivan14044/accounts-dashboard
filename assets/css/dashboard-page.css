@@ -530,23 +530,23 @@ main {
     justify-content: flex-end;
 }
 
-/* Уведомление о выборе строк */
+/* Уведомление о выборе строк (цвета из переменных темы) */
 .dashboard-table__selection-notice {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     padding: 0.625rem 0.75rem;
     margin-top: 0.5rem;
-    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-    border-left: 3px solid #2196f3;
+    background: var(--info-light, #f0f9ff);
+    border-left: 3px solid var(--info, #0284c7);
     border-radius: var(--radius-md);
     font-size: 0.875rem;
-    color: #1565c0;
+    color: var(--info, #0284c7);
     animation: slideDown 0.2s ease-out;
 }
 
 .dashboard-table__selection-notice i {
-    color: #2196f3;
+    color: var(--info, #0284c7);
     font-size: 1rem;
     flex-shrink: 0;
 }
@@ -557,7 +557,7 @@ main {
 }
 
 .dashboard-table__selection-text a {
-    color: #1976d2;
+    color: var(--info, #0284c7);
     font-weight: 600;
     text-decoration: none;
     margin-left: 0.25rem;
@@ -566,13 +566,14 @@ main {
 }
 
 .dashboard-table__selection-text a:hover {
-    color: #0d47a1;
+    color: var(--info, #0284c7);
     text-decoration: underline;
+    opacity: 0.85;
 }
 
 .dashboard-table__selection-text strong {
     font-weight: 700;
-    color: #0d47a1;
+    color: var(--info, #0284c7);
 }
 
 @keyframes slideDown {

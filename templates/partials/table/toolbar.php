@@ -22,7 +22,7 @@
   </div>
   
   <!-- Уведомление о выборе всех строк (интегрировано в toolbar) -->
-  <div class="dashboard-table__selection-notice" id="selectAllNotice" style="display: none;">
+  <div class="dashboard-table__selection-notice d-none" id="selectAllNotice">
     <i class="fas fa-info-circle"></i>
     <span class="dashboard-table__selection-text"></span>
   </div>

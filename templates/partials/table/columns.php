@@ -10,7 +10,8 @@ $activeDir = $dir ?? 'asc';
   <?php foreach ($ALL_COLUMNS as $key => $label): ?>
     <col class="ac-col ac-col--<?= e($key) ?>" data-column="<?= e($key) ?>">
     <?php if ($key === 'id'): ?>
-      <col class="ac-col ac-col--favorite" data-column="favorite">
+      <!-- Колонка «Избранное» идёт сразу после ID, порядок совпадает с thead -->
+      <col class="ac-col ac-col--favorite" style="width: var(--col-favorite);" data-column="favorite">
     <?php endif; ?>
   <?php endforeach; ?>
   <col class="ac-col ac-col--actions" style="width: var(--col-actions);">

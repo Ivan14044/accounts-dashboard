@@ -33,6 +33,7 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  padding: 0;
 }
 
 .dashboard-table__toolbar {
@@ -93,13 +94,8 @@
   position: relative;
 }
 
+/* Единый контейнер скролла таблицы (id tableWrap используется в JS) */
 .dashboard-table__scroll {
-  width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-#tableWrap {
   width: 100%;
   overflow: auto;
   max-height: clamp(400px, 65vh, 720px);
@@ -266,6 +262,10 @@
   flex-wrap: wrap;
 }
 
+.dashboard-table__footer-page-input {
+  width: 70px;
+}
+
 .dashboard-table__pagination .page-link {
   border-radius: 999px;
 }
@@ -306,7 +306,7 @@
     padding: 0.5rem 0.75rem;
     font-size: 0.8125rem;
   }
-  #tableWrap {
+  .dashboard-table__scroll {
     max-height: none;
   }
   .ac-cell--checkbox,

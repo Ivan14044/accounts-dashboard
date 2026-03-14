@@ -193,17 +193,17 @@ function updateSelectedCount() {
   
   const totalFiltered = filteredTotalLive;
   if (!selectedAllFiltered && count > 0 && totalFiltered > count) {
-    notice.style.display = '';
+    notice.classList.remove('d-none');
     noticeText.innerHTML = `Выбраны <strong>${count}</strong> на этой странице. <a href="#" id="selectAllFilteredLink">Выделить все ${totalFiltered.toLocaleString('ru-RU')} по фильтру</a>`;
     // Добавляем класс для применения стилей
     if (rowsCounterBar) rowsCounterBar.classList.add('selection-notice-present');
   } else if (selectedAllFiltered) {
-    notice.style.display = '';
+    notice.classList.remove('d-none');
     noticeText.innerHTML = `Выделены все <strong>${totalFiltered.toLocaleString('ru-RU')}</strong> по фильтру. <a href="#" id="clearSelectionLink">Очистить выбор</a>`;
     // Добавляем класс для применения стилей
     if (rowsCounterBar) rowsCounterBar.classList.add('selection-notice-present');
   } else {
-    notice.style.display = 'none';
+    notice.classList.add('d-none');
     noticeText.innerHTML = '';
     // Убираем класс когда уведомление скрыто
     if (rowsCounterBar) rowsCounterBar.classList.remove('selection-notice-present');

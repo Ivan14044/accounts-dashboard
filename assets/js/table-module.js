@@ -573,9 +573,9 @@
         if (visibleCountEl) visibleCountEl.textContent = visibleRows;
         if (totalCountEl) totalCountEl.textContent = totalRows;
         
-        hintEl.style.display = 'inline';
+        hintEl.classList.remove('d-none');
       } else {
-        hintEl.style.display = 'none';
+        hintEl.classList.add('d-none');
       }
     }
 

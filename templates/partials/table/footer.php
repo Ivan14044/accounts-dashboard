@@ -13,7 +13,7 @@ $__commonQs = $__commonQs ?: [];
     • Стр. <span id="pageNum"><?= (int)max(1, (int)get_param('page', 1)) ?></span>
     из <span id="pagesCount"><?= (int)$pages ?></span>
     • Показывается: <span id="showingCount"><?= count($rows) ?></span>
-    <span id="virtualizationHint" class="ms-2" style="display: none;">
+    <span id="virtualizationHint" class="ms-2 d-none">
       <i class="fas fa-info-circle text-info" title="Виртуализация активна"></i>
       <span id="virtualizationStats">Видно <span id="visibleRowsCount">0</span> из <span id="totalRowsOnPage">0</span> строк</span>
     </span>
@@ -21,7 +21,7 @@ $__commonQs = $__commonQs ?: [];
   <div class="dashboard-table__footer-nav">
     <div class="dashboard-table__footer-select d-flex align-items-center gap-2">
       <label class="form-label mb-0 small" for="pageJumpInput">Перейти на стр.:</label>
-      <input type="number" class="form-control form-control-sm" id="pageJumpInput" min="1" max="<?= (int)$pages ?>" value="<?= (int)$page ?>" style="width: 70px;" placeholder="№" aria-label="Номер страницы">
+      <input type="number" class="form-control form-control-sm dashboard-table__footer-page-input" id="pageJumpInput" min="1" max="<?= (int)$pages ?>" value="<?= (int)$page ?>" placeholder="№" aria-label="Номер страницы">
       <button type="button" class="btn btn-sm btn-outline-secondary" id="pageJumpBtn" aria-label="Перейти на введённую страницу">Перейти</button>
     </div>
     <?php if ($pages > 1): ?>

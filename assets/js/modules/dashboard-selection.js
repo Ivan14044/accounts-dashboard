@@ -171,19 +171,19 @@ function updateSelectedCount() {
   }
   
   if (!selectedAllFiltered && count > 0 && totalFiltered > count) {
-    notice.style.display = '';
+    notice.classList.remove('d-none');
     noticeText.innerHTML = `Выбраны <strong>${count}</strong> на этой странице. <a href="#" id="selectAllFilteredLink">Выделить все ${totalFiltered.toLocaleString('ru-RU')} по фильтру</a>`;
     if (typeof logger !== 'undefined') {
       logger.debug(`[SELECT] Showing partial notice: ${count} of ${totalFiltered}`);
     }
   } else if (selectedAllFiltered) {
-    notice.style.display = '';
+    notice.classList.remove('d-none');
     noticeText.innerHTML = `Выделены все <strong>${totalFiltered.toLocaleString('ru-RU')}</strong> по фильтру. <a href="#" id="clearSelectionLink">Очистить выбор</a>`;
     if (typeof logger !== 'undefined') {
       logger.debug(`[SELECT] Showing full notice: all ${totalFiltered} selected`);
     }
   } else {
-    notice.style.display = 'none';
+    notice.classList.add('d-none');
     noticeText.innerHTML = '';
   }
   
