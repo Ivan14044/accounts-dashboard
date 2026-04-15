@@ -6,6 +6,8 @@
 
 // Загружаем конфигурацию
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
+requireAuth();
 
 echo "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Настройка корзины</title>";
 echo "<style>body{font-family:Arial;max-width:800px;margin:50px auto;padding:20px;}";

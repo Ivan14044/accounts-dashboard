@@ -29,7 +29,7 @@
       this.scrollContainer = getEl('tableWrap');
       this.options = Object.assign({
         virtualization: {
-          threshold: 80,
+          threshold: 45,
           bufferSize: 15,
           rowHeight: 48,
           debug: false
@@ -119,20 +119,56 @@
     }
 
     updateRows(data) {
-      if (!this.table) return;
+      if (typeof performance !== 'undefined' && performance.mark) {
+        performance.mark('updateRows-start');
+      }
+      if (!this.table) {
+        if (typeof performance !== 'undefined' && performance.mark) {
+          performance.mark('updateRows-end');
+          performance.measure('updateRows', 'updateRows-start', 'updateRows-end');
+        }
+        return;
+      }
       const rows = Array.isArray(data?.rows) ? data.rows : [];
       const columns = Array.isArray(data?.columns) && data.columns.length
         ? data.columns
         : this.getColumnKeys();
       const tbody = this.table.querySelector('tbody');
-      if (!tbody) return;
+      if (!tbody) {
+        if (typeof performance !== 'undefined' && performance.mark) {
+          performance.mark('updateRows-end');
+          performance.measure('updateRows', 'updateRows-start', 'updateRows-end');
+        }
+        return;
+      }
       if (!rows.length) {
         tbody.innerHTML = this.emptyStateHtml(columns.length);
+        this.tbody = tbody;
+        this.afterRender();
+        if (typeof performance !== 'undefined' && performance.mark) {
+          performance.mark('updateRows-end');
+          performance.measure('updateRows', 'updateRows-start', 'updateRows-end');
+        }
+        return;
+      }
+      const urlParams = new URLSearchParams(window.location.search);
+      const perPage = parseInt(urlParams.get('per_page') || '25', 10);
+      const threshold = this.options.virtualization.threshold;
+      const useVirtualFromStart = rows.length > threshold && perPage > 50;
+      if (useVirtualFromStart && this.virtualScroller) {
+        tbody.innerHTML = '';
+        this.tbody = tbody;
+        this.virtualScroller.enableFromData(rows, columns, (row, cols) => this.renderRow(row, cols));
+        this.afterRender();
       } else {
         tbody.innerHTML = rows.map(row => this.renderRow(row, columns)).join('');
+        this.tbody = tbody;
+        this.afterRender();
       }
-      this.tbody = tbody;
-      this.afterRender();
+      if (typeof performance !== 'undefined' && performance.mark) {
+        performance.mark('updateRows-end');
+        performance.measure('updateRows', 'updateRows-start', 'updateRows-end');
+      }
     }
 
     afterRender() {
@@ -321,7 +357,7 @@
   class TableVirtualization {
     constructor(options = {}) {
       this.options = Object.assign({
-        threshold: 80,
+        threshold: 45,
         bufferSize: 15,
         rowHeight: 48,
         debug: false,
@@ -332,6 +368,9 @@
       this.scrollTarget = this.options.scrollContainer || getEl('tableWrap') || window;
       this.tbody = this.table ? this.table.querySelector('tbody') : null;
       this.allRows = [];
+      this.rowsData = [];
+      this.columnKeys = [];
+      this.renderRowFn = null;
       this.spacerTop = null;
       this.spacerBottom = null;
       this.scrollHandler = null;
@@ -359,22 +398,21 @@
     }
 
     refresh() {
+      if (this.enabled && this.rowsData.length > 0) {
+        this.updateTableOffset();
+        this.updateVisibleRows();
+        return;
+      }
       this.mount();
       if (!this.table || !this.tbody) return;
       const rows = Array.from(this.tbody.querySelectorAll('tr[data-id]'));
-      
-      // Проверяем значение per_page из URL
-      // Отключаем виртуализацию для малых значений per_page (<=100)
       const urlParams = new URLSearchParams(window.location.search);
       const perPage = parseInt(urlParams.get('per_page') || '25', 10);
-      const shouldEnableVirtualization = rows.length > this.options.threshold && perPage > 100;
-      
+      const shouldEnableVirtualization = rows.length > this.options.threshold && perPage > 50;
       if (!shouldEnableVirtualization) {
         this.disable(true);
         return;
       }
-      
-      // Если виртуализация уже включена, обновляем allRows без полного пересоздания
       if (this.enabled && this.allRows.length > 0) {
         this.allRows = rows;
         this.updateVisibleRows();
@@ -393,16 +431,15 @@
       // чтобы пользователь видел все строки сразу
       const urlParams = new URLSearchParams(window.location.search);
       const perPage = parseInt(urlParams.get('per_page') || '25', 10);
-      const shouldEnableVirtualization = dataRows.length > this.options.threshold && perPage > 100;
+      const shouldEnableVirtualization = dataRows.length > this.options.threshold && perPage > 50;
       
       if (shouldEnableVirtualization) {
         if (!this.enabled) {
           this.enable(dataRows);
         } else {
-          // Если виртуализация уже включена, обновляем allRows
           this.allRows = dataRows;
           this.updateVisibleRows();
-          this.updateVirtualizationHint();
+          (window.scheduleIdle || function(fn) { setTimeout(fn, 0); })(() => this.updateVirtualizationHint());
         }
       } else if (this.enabled) {
         // Отключаем виртуализацию для малых значений per_page
@@ -411,6 +448,9 @@
     }
 
     enable(currentRows) {
+      this.rowsData = [];
+      this.renderRowFn = null;
+      this.columnKeys = [];
       this.enabled = true;
       this.allRows = currentRows || Array.from(this.tbody.querySelectorAll('tr[data-id]'));
       if (!this.allRows.length) {
@@ -431,15 +471,41 @@
       window.addEventListener('resize', this.resizeHandler, { passive: true });
       this.updateTableOffset();
       this.updateVisibleRows();
-      
-      // Обновляем индикатор виртуализации после первого рендера
-      setTimeout(() => this.updateVirtualizationHint(), 0);
+      (window.scheduleIdle || function(fn) { setTimeout(fn, 0); })(() => this.updateVirtualizationHint());
+    }
+
+    enableFromData(rowsData, columnKeys, renderRowFn) {
+      if (!rowsData.length || !renderRowFn || !this.tbody) return;
+      this.rowsData = rowsData;
+      this.columnKeys = columnKeys;
+      this.renderRowFn = renderRowFn;
+      this.allRows = [];
+      this.enabled = true;
+      this.createSpacers();
+      this.scrollHandler = this.throttle(() => this.updateVisibleRows(), 16);
+      const target = this.useWindowScroll ? window : this.scrollTarget;
+      target.addEventListener('scroll', this.scrollHandler, { passive: true });
+      this.resizeHandler = this.debounce(() => {
+        this.updateTableOffset();
+        this.recalculate();
+      }, 150);
+      window.addEventListener('resize', this.resizeHandler, { passive: true });
+      this.updateTableOffset();
+      this.updateVisibleRows();
+      (window.scheduleIdle || function(fn) { setTimeout(fn, 0); })(() => this.updateVirtualizationHint());
     }
 
     disable(preserveDom = false) {
       if (!this.enabled && !preserveDom) return;
+      const hadRowsData = this.rowsData.length > 0;
+      const rd = this.rowsData.slice();
+      const rfn = this.renderRowFn;
+      const ck = this.columnKeys.slice();
       this.enabled = false;
       this.visibleRange = { start: 0, end: 0 };
+      this.rowsData = [];
+      this.renderRowFn = null;
+      this.columnKeys = [];
       if (this.scrollHandler) {
         const target = this.useWindowScroll ? window : this.scrollTarget;
         target.removeEventListener('scroll', this.scrollHandler);
@@ -457,16 +523,18 @@
         this.spacerBottom.remove();
         this.spacerBottom = null;
       }
-      if (!preserveDom && this.allRows.length && this.tbody) {
-        const fragment = document.createDocumentFragment();
-        this.allRows.forEach(row => fragment.appendChild(row));
-        this.tbody.innerHTML = '';
-        this.tbody.appendChild(fragment);
+      if (!preserveDom && this.tbody) {
+        if (hadRowsData && rd.length && rfn) {
+          this.tbody.innerHTML = rd.map(row => rfn(row, ck)).join('');
+        } else if (this.allRows.length) {
+          const fragment = document.createDocumentFragment();
+          this.allRows.forEach(row => fragment.appendChild(row));
+          this.tbody.innerHTML = '';
+          this.tbody.appendChild(fragment);
+        }
       }
       this.allRows = [];
-      
-      // Скрываем индикатор виртуализации
-      this.updateVirtualizationHint();
+      (window.scheduleIdle || function(fn) { setTimeout(fn, 0); })(() => this.updateVirtualizationHint());
     }
 
     createSpacers() {
@@ -502,17 +570,13 @@
     }
 
     updateVisibleRows() {
-      if (!this.enabled || this.isRendering || !this.allRows.length) {
+      const totalRows = this.rowsData.length > 0 ? this.rowsData.length : this.allRows.length;
+      if (!this.enabled || this.isRendering || !totalRows) {
         return;
       }
-      // Проверяем, не редактируется ли какая-то строка
       const editingRow = this.tbody ? this.tbody.querySelector('tr[data-id][data-editing="true"]') : null;
-      if (editingRow) {
-        // Не перерисовываем строки, если идет редактирование
-        return;
-      }
+      if (editingRow) return;
       this.isRendering = true;
-      const totalRows = this.allRows.length;
       const scrollTop = this.getRelativeScrollTop();
       const viewport = this.getViewportHeight();
       const totalHeight = totalRows * this.options.rowHeight;
@@ -531,15 +595,23 @@
       const bottomCell = this.spacerBottom?.querySelector('td');
       if (topCell) topCell.style.height = `${topHeight}px`;
       if (bottomCell) bottomCell.style.height = `${bottomHeight}px`;
-      // Не удаляем строки, которые редактируются
       const renderedRows = Array.from(this.tbody.querySelectorAll('tr:not(.spacer):not([data-editing="true"])'));
       renderedRows.forEach(row => row.remove());
       const fragment = document.createDocumentFragment();
-      for (let i = startIndex; i < endIndex; i += 1) {
-        // Пропускаем строки, которые редактируются (проверяем в DOM, так как allRows может быть устаревшим)
-        const rowInDom = this.tbody.querySelector(`tr[data-id="${this.allRows[i].getAttribute('data-id')}"]`);
-        if (!rowInDom || !rowInDom.hasAttribute('data-editing')) {
-          fragment.appendChild(this.allRows[i]);
+      if (this.rowsData.length > 0 && this.renderRowFn) {
+        for (let i = startIndex; i < endIndex; i += 1) {
+          const html = this.renderRowFn(this.rowsData[i], this.columnKeys);
+          const wrap = document.createElement('table');
+          wrap.innerHTML = '<tbody>' + html + '</tbody>';
+          const tr = wrap.querySelector('tbody').firstChild;
+          if (tr) fragment.appendChild(tr);
+        }
+      } else {
+        for (let i = startIndex; i < endIndex; i += 1) {
+          const rowInDom = this.tbody.querySelector('tr[data-id="' + (this.allRows[i].getAttribute('data-id') || '') + '"]');
+          if (!rowInDom || !rowInDom.hasAttribute('data-editing')) {
+            fragment.appendChild(this.allRows[i]);
+          }
         }
       }
       this.tbody.insertBefore(fragment, this.spacerBottom);
@@ -553,8 +625,8 @@
         updateAllSelectedRowsHighlight();
       }
       
-      // Обновляем индикатор виртуализации
-      this.updateVirtualizationHint();
+      // Обновляем индикатор виртуализации в idle
+      (window.scheduleIdle || function(fn) { setTimeout(fn, 0); })(() => this.updateVirtualizationHint());
       
       this.isRendering = false;
     }
@@ -566,8 +638,8 @@
       
       if (!hintEl) return;
       
-      if (this.enabled && this.allRows.length > 0) {
-        const totalRows = this.allRows.length;
+      if (this.enabled && (this.allRows.length > 0 || this.rowsData.length > 0)) {
+        const totalRows = this.rowsData.length > 0 ? this.rowsData.length : this.allRows.length;
         const visibleRows = this.visibleRange.end - this.visibleRange.start;
         
         if (visibleCountEl) visibleCountEl.textContent = visibleRows;
@@ -580,7 +652,13 @@
     }
 
     recalculate() {
-      if (!this.enabled || !this.allRows.length) return;
+      if (!this.enabled) return;
+      if (this.rowsData.length > 0) {
+        this.updateTableOffset();
+        this.updateVisibleRows();
+        return;
+      }
+      if (!this.allRows.length) return;
       const sampleRow = this.allRows[this.visibleRange.start] || this.allRows[0];
       if (sampleRow) {
         this.options.rowHeight = sampleRow.offsetHeight || this.options.rowHeight;

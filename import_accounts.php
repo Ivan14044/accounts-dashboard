@@ -30,48 +30,21 @@ try {
     checkSessionTimeout();
     Logger::debug('IMPORT ACCOUNTS: Авторизация успешна');
     
-    // Rate limiting для предотвращения злоупотреблений
-    $userId = $_SESSION['user_id'] ?? 0;
-    
-    // Проверка минутного лимита
-    $minuteKey = "import_rate_limit_minute_{$userId}";
-    $minuteCount = function_exists('apcu_exists') && apcu_exists($minuteKey) ? apcu_fetch($minuteKey) : 0;
-    
-    if ($minuteCount >= Config::IMPORT_RATE_LIMIT_PER_MINUTE) {
-        Logger::warning('IMPORT ACCOUNTS: Превышен минутный лимит', [
-            'user_id' => $userId,
-            'count' => $minuteCount,
-            'limit' => Config::IMPORT_RATE_LIMIT_PER_MINUTE
-        ]);
-        throw new InvalidArgumentException('Превышен лимит импортов (5 в минуту). Пожалуйста, подождите и попробуйте снова.');
+    // Rate limiting через файловый RateLimiter (работает без APCu)
+    $userId = $_SESSION['username'] ?? 'anonymous';
+    $limiter = new RateLimiter();
+    $importKeyMinute = 'import_minute_' . md5($userId);
+    $importKeyHour = 'import_hour_' . md5($userId);
+
+    if (!$limiter->checkLimit($importKeyMinute, Config::IMPORT_RATE_LIMIT_PER_MINUTE, 60)) {
+        Logger::warning('IMPORT ACCOUNTS: Превышен минутный лимит', ['user' => $userId]);
+        throw new InvalidArgumentException('Превышен лимит импортов (' . Config::IMPORT_RATE_LIMIT_PER_MINUTE . ' в минуту). Подождите и попробуйте снова.');
     }
-    
-    if (function_exists('apcu_store')) {
-        apcu_store($minuteKey, $minuteCount + 1, 60); // TTL = 60 секунд
+    if (!$limiter->checkLimit($importKeyHour, Config::IMPORT_RATE_LIMIT_PER_HOUR, 3600)) {
+        Logger::warning('IMPORT ACCOUNTS: Превышен часовой лимит', ['user' => $userId]);
+        throw new InvalidArgumentException('Превышен лимит импортов (' . Config::IMPORT_RATE_LIMIT_PER_HOUR . ' в час). Попробуйте через час.');
     }
-    
-    // Проверка часового лимита
-    $hourKey = "import_rate_limit_hour_{$userId}";
-    $hourCount = function_exists('apcu_exists') && apcu_exists($hourKey) ? apcu_fetch($hourKey) : 0;
-    
-    if ($hourCount >= Config::IMPORT_RATE_LIMIT_PER_HOUR) {
-        Logger::warning('IMPORT ACCOUNTS: Превышен часовой лимит', [
-            'user_id' => $userId,
-            'count' => $hourCount,
-            'limit' => Config::IMPORT_RATE_LIMIT_PER_HOUR
-        ]);
-        throw new InvalidArgumentException('Превышен лимит импортов (20 в час). Попробуйте через час.');
-    }
-    
-    if (function_exists('apcu_store')) {
-        apcu_store($hourKey, $hourCount + 1, 3600); // TTL = 3600 секунд (1 час)
-    }
-    
-    Logger::debug('IMPORT ACCOUNTS: Rate limit проверен', [
-        'user_id' => $userId,
-        'minute_count' => $minuteCount + 1,
-        'hour_count' => $hourCount + 1
-    ]);
+    Logger::debug('IMPORT ACCOUNTS: Rate limit проверен', ['user' => $userId]);
     
     // Проверка метода запроса
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -158,7 +131,7 @@ try {
     }
     
     Logger::debug('IMPORT ACCOUNTS: Инициализация сервиса...');
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     $meta = $service->getColumnMetadata();
     $allColumns = $meta['all'];
     Logger::debug('IMPORT ACCOUNTS: Метаданные колонок получены', ['columns_count' => count($allColumns)]);
@@ -166,8 +139,13 @@ try {
     // РЕФАКТОРИНГ: Используем класс CsvParser вместо функции
     // Старая функция parseCSVForImport() удалена, логика вынесена в CsvParser
     
-    Logger::debug('IMPORT ACCOUNTS: Начало парсинга CSV файла', ['tmp_name' => $file['tmp_name'] ?? 'not_set']);
-    
+    Logger::debug('IMPORT ACCOUNTS: Начало парсинга CSV файла', [
+        'tmp_name' => $file['tmp_name'] ?? 'not_set',
+        'file_exists' => file_exists($file['tmp_name'] ?? ''),
+        'file_size' => filesize($file['tmp_name'] ?? '') ?: 0,
+        'php_version' => PHP_VERSION
+    ]);
+
     $parser = new CsvParser(Config::MAX_IMPORT_ROWS);
     $data = $parser->parse($file['tmp_name']);
     
@@ -180,138 +158,22 @@ try {
     // 2. Легче тестировать
     // 3. Соответствует принципу Single Responsibility
     
-    if (false) {
-    // DEPRECATED: Старая функция parseCSVForImport удалена
-    function parseCSVForImport_WILL_BE_REMOVED($filePath) {
-        Logger::debug('PARSE CSV: Начало парсинга', ['file_path' => $filePath, 'file_exists' => file_exists($filePath)]);
-        
-        $handle = @fopen($filePath, 'r');
-        if ($handle === false) {
-            Logger::error('PARSE CSV: Не удалось открыть файл', ['file_path' => $filePath]);
-            throw new Exception('Не удалось открыть файл для чтения');
-        }
-        
-        // Определяем разделитель
-        $firstLine = fgets($handle);
-        if ($firstLine === false) {
-            Logger::warning('PARSE CSV: Не удалось прочитать первую строку');
-            fclose($handle);
-            return [];
-        }
-        
-        $delimiter = strpos($firstLine, ';') !== false ? ';' : ',';
-        Logger::debug('PARSE CSV: Определен разделитель', ['delimiter' => $delimiter, 'first_line_preview' => substr($firstLine, 0, 100)]);
-        rewind($handle);
-        
-        // Читаем заголовки
-        $headers = fgetcsv($handle, 0, $delimiter);
-        if ($headers === false || empty($headers)) {
-            Logger::warning('PARSE CSV: Не удалось прочитать заголовки', ['headers' => $headers]);
-            fclose($handle);
-            return [];
-        }
-        
-        $headers = array_map('trim', $headers);
-        Logger::debug('PARSE CSV: Заголовки прочитаны', ['headers_count' => count($headers), 'headers' => $headers]);
-        
-        // Нормализуем заголовки (убираем пробелы, приводим к нижнему регистру)
-        $normalizedHeaders = [];
-        foreach ($headers as $index => $header) {
-            $original = $header;
-            $normalized = mb_strtolower(trim($header), 'UTF-8');
-            
-            // Удаляем BOM (\xEF\xBB\xBF) и непечатаемые ASCII символы
-            $normalized = preg_replace('/^\xEF\xBB\xBF/', '', $normalized);
-            $normalized = preg_replace('/[\x00-\x1F\x7F]/', '', $normalized);
-            
-            // Заменяем пробелы и различные типы тире на подчеркивания
-            $normalized = str_replace([' ', '-', '—', '–'], '_', $normalized);
-            // Убираем множественные подчеркивания
-            $normalized = preg_replace('/_+/', '_', $normalized);
-            // Убираем подчеркивания в начале и конце
-            $normalized = trim($normalized, '_');
-            
-            Logger::debug("PARSE CSV: Нормализация заголовка #{$index}", [
-                'original' => $original,
-                'normalized' => $normalized
-            ]);
-            
-            $normalizedHeaders[] = $normalized;
-        }
-        
-        Logger::debug('PARSE CSV: Заголовки нормализованы', [
-            'normalized_headers' => $normalizedHeaders,
-            'original_headers' => $headers
-        ]);
-        
-        $data = [];
-        $lineNum = 0;
-        $maxRows = 10000; // Защита от слишком больших файлов
-        $skippedEmpty = 0;
-        $skippedMismatch = 0;
-        
-        // Читаем данные построчно
-        while (($values = fgetcsv($handle, 0, $delimiter)) !== false && $lineNum < $maxRows) {
-            $lineNum++;
-            
-            // Пропускаем пустые строки
-            if (empty(array_filter($values, function($v) { return trim($v) !== ''; }))) {
-                $skippedEmpty++;
-                continue;
-            }
-            
-            // Если количество колонок не совпадает, пропускаем строку
-            if (count($values) !== count($headers)) {
-                $skippedMismatch++;
-                if ($lineNum <= 3) { // Логируем только первые 3 несоответствия
-                    Logger::debug('PARSE CSV: Пропуск строки из-за несоответствия колонок', [
-                        'line' => $lineNum,
-                        'values_count' => count($values),
-                        'headers_count' => count($headers)
-                    ]);
-                }
-                continue;
-            }
-            
-            $row = [];
-            foreach ($normalizedHeaders as $index => $header) {
-                $row[$header] = isset($values[$index]) ? trim($values[$index]) : '';
-            }
-            
-            $data[] = $row;
-            
-            // Логируем первые 2 строки для отладки
-            if (count($data) <= 2) {
-                Logger::debug('PARSE CSV: Пример распарсенной строки', [
-                    'row_number' => count($data),
-                    'row_data' => $row
-                ]);
-            }
-        }
-        
-        fclose($handle);
-        
-        Logger::info('PARSE CSV: Парсинг завершен', [
-            'total_lines_read' => $lineNum,
-            'rows_parsed' => count($data),
-            'skipped_empty' => $skippedEmpty,
-            'skipped_mismatch' => $skippedMismatch,
-            'sample_keys' => !empty($data) ? array_keys($data[0] ?? []) : []
-        ]);
-        
-        return $data;
-    }
-    } // Конец deprecated функции (if (false) {...})
-    
-    // Используется новый CsvParser (см. выше строка ~122)
+    // CSV-парсинг выполнен через CsvParser (строка ~172)
     Logger::debug('IMPORT ACCOUNTS: CSV файл распарсен', [
         'rows_count' => count($data),
         'first_row' => !empty($data) ? array_keys($data[0] ?? []) : []
     ]);
     
     if (empty($data)) {
-        Logger::warning('IMPORT ACCOUNTS: Файл не содержит данных после парсинга');
-        throw new InvalidArgumentException('Файл не содержит данных или имеет неверный формат');
+        Logger::warning('IMPORT ACCOUNTS: Файл не содержит данных после парсинга', [
+            'php_version' => PHP_VERSION,
+            'file_size' => $file['size'] ?? 0,
+            'tmp_exists' => file_exists($file['tmp_name'] ?? ''),
+            'tmp_size' => @filesize($file['tmp_name'] ?? '') ?: 0
+        ]);
+        throw new InvalidArgumentException(
+            'Файл не содержит данных или имеет неверный формат (PHP ' . PHP_VERSION . ', size=' . ($file['size'] ?? 0) . ')'
+        );
     }
     
     // Фильтруем данные - оставляем только существующие колонки

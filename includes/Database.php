@@ -16,6 +16,9 @@ class Database {
     private $cacheTimeout = 300; // 5 минут
     private $maxCacheSize = 100; // Максимальное количество записей в кэше
     
+    /** @var bool Если true — подключение было создано нами, можно закрыть в __destruct */
+    private $ownsConnection = false;
+
     private function __construct() {
         // Используем уже созданное глобальное подключение из config.php, чтобы избежать дублирования соединений
         // и обеспечить единые настройки для всего приложения.
@@ -24,6 +27,7 @@ class Database {
 
         if (isset($mysqli) && $mysqli instanceof mysqli) {
             $this->mysqli = $mysqli;
+            // НЕ закрываем чужое подключение в __destruct
         } else {
             // Если глобальное подключение не установлено, проверяем параметры в сессии
             if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['db_config']) && is_array($_SESSION['db_config'])) {
@@ -42,6 +46,7 @@ class Database {
                     throw new Exception('Database connection failed');
                 }
                 $this->mysqli->set_charset($charset);
+                $this->ownsConnection = true;
             } else {
                 // Используем глобальные переменные (fallback)
                 $this->mysqli = new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME, $DB_PORT);
@@ -50,6 +55,7 @@ class Database {
                     Logger::error('DB connect failed', ['error' => $this->mysqli->connect_error]);
                     throw new Exception('Database connection failed');
                 }
+                $this->ownsConnection = true;
                 $this->mysqli->set_charset('utf8mb4');
             }
         }
@@ -207,16 +213,20 @@ class Database {
     }
     
     private function setCache($key, $data, $ttl = null) {
-        // Ограничиваем размер кэша - удаляем самые старые записи
+        // Ограничиваем размер кэша - удаляем самые старые 10% записей
         if (count($this->queryCache) >= $this->maxCacheSize) {
-            // Сортируем по времени и удаляем самые старые
-            uasort($this->queryCache, function($a, $b) {
-                return $a['time'] <=> $b['time'];
+            // Удаляем самые старые 10% записей (более эффективно чем array_slice)
+            $keysToDelete = (int)ceil($this->maxCacheSize * 0.1);
+            $sortedKeys = array_keys($this->queryCache);
+            usort($sortedKeys, function($a, $b) {
+                return $this->queryCache[$a]['time'] <=> $this->queryCache[$b]['time'];
             });
-            // Оставляем только половину самых свежих
-            $this->queryCache = array_slice($this->queryCache, -($this->maxCacheSize / 2), null, true);
+            $keysToRemove = array_slice($sortedKeys, 0, $keysToDelete);
+            foreach ($keysToRemove as $k) {
+                unset($this->queryCache[$k]);
+            }
         }
-        
+
         $this->queryCache[$key] = [
             'data' => $data,
             'time' => time(),
@@ -474,7 +484,8 @@ class Database {
     }
     
     public function __destruct() {
-        if ($this->mysqli) {
+        // Закрываем только собственное подключение; глобальный $mysqli не трогаем
+        if ($this->ownsConnection && $this->mysqli) {
             $this->mysqli->close();
         }
     }

@@ -28,7 +28,7 @@ function checkRateLimit($endpoint = 'api', $customKey = null) {
     }
     
     $limiter = new RateLimiter();
-    
+
     // Определяем лимиты в зависимости от endpoint
     $limits = [
         'api' => [
@@ -44,11 +44,26 @@ function checkRateLimit($endpoint = 'api', $customKey = null) {
             'window' => Config::RATE_LIMIT_WINDOW
         ]
     ];
-    
+
     $config = $limits[$endpoint] ?? $limits['api'];
-    
+
     // Формируем ключ (IP + endpoint)
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    // X-Forwarded-For принимаем только от доверенных прокси (localhost, private networks)
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $remoteIp = $_SERVER['REMOTE_ADDR'] ?? '';
+        $isTrusted = (
+            strpos($remoteIp, '127.') === 0 ||
+            strpos($remoteIp, '10.') === 0 ||
+            strpos($remoteIp, '192.168.') === 0 ||
+            preg_match('/^172\.(1[6-9]|2[0-9]|3[01])\./', $remoteIp) ||
+            $remoteIp === '::1'
+        );
+        if ($isTrusted) {
+            $forwardedIps = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
+            $ip = $forwardedIps[0];
+        }
+    }
     $key = $customKey ?? ($endpoint . '_' . $ip);
     
     // Проверяем лимит

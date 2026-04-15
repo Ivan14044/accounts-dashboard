@@ -4,6 +4,8 @@
  * Автоматически создаёт таблицу, если её нет
  */
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
+requireAuth();
 require_once __DIR__ . '/includes/Logger.php';
 
 header('Content-Type: text/html; charset=utf-8');

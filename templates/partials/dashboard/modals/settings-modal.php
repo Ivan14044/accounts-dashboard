@@ -14,11 +14,26 @@
             <h6 class="mb-3">
               <i class="fas fa-columns me-2"></i>Видимые колонки
             </h6>
-            <div class="column-settings">
+            <div class="mb-2">
+              <input type="text" class="form-control form-control-sm settings-search"
+                     id="columnSearch" placeholder="Поиск колонок..." data-target=".column-settings">
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <small class="text-muted settings-counter" data-target=".column-toggle" id="columnCounter"></small>
+              <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-secondary btn-select-all" data-target=".column-toggle" title="Выбрать все">
+                  <i class="fas fa-check-double"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-deselect-all" data-target=".column-toggle" title="Снять все">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            <div class="column-settings" style="max-height: 350px; overflow-y: auto;">
               <?php foreach ($ALL_COLUMNS as $k => $title): ?>
               <div class="form-check">
-                <input class="form-check-input column-toggle" type="checkbox" 
-                       value="<?= e($k) ?>" id="col_<?= e($k) ?>" 
+                <input class="form-check-input column-toggle" type="checkbox"
+                       value="<?= e($k) ?>" id="col_<?= e($k) ?>"
                        data-col="<?= e($k) ?>" checked>
                 <label class="form-check-label" for="col_<?= e($k) ?>">
                   <?= e($title) ?>
@@ -31,9 +46,24 @@
             <h6 class="mb-3">
               <i class="fas fa-eye me-2"></i>Видимые карточки статистики
             </h6>
-            <div class="card-settings">
+            <div class="mb-2">
+              <input type="text" class="form-control form-control-sm settings-search"
+                     id="cardSearch" placeholder="Поиск карточек..." data-target=".card-settings">
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <small class="text-muted settings-counter" data-target=".card-toggle" id="cardCounter"></small>
+              <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-secondary btn-select-all" data-target=".card-toggle" title="Выбрать все">
+                  <i class="fas fa-check-double"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-deselect-all" data-target=".card-toggle" title="Снять все">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            <div class="card-settings" style="max-height: 350px; overflow-y: auto;">
               <div class="form-check">
-                <input class="form-check-input card-toggle" type="checkbox" 
+                <input class="form-check-input card-toggle" type="checkbox"
                        value="total" id="card_total" data-card="total" checked>
                 <label class="form-check-label" for="card_total">
                   Общее количество
@@ -48,8 +78,8 @@
               </div>
               <?php foreach ($byStatus as $stName => $cnt): $safeKey = preg_replace('~[^a-z0-9_]+~i','_', $stName); ?>
               <div class="form-check">
-                <input class="form-check-input card-toggle" type="checkbox" 
-                       value="status:<?= e($safeKey) ?>" id="card_<?= e($safeKey) ?>" 
+                <input class="form-check-input card-toggle" type="checkbox"
+                       value="status:<?= e($safeKey) ?>" id="card_<?= e($safeKey) ?>"
                        data-card="status:<?= e($safeKey) ?>" checked>
                 <label class="form-check-label" for="card_<?= e($safeKey) ?>">
                   <?= e($stName) ?> <span class="badge bg-secondary ms-2"><?= number_format((int)$cnt) ?></span>

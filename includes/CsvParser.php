@@ -9,6 +9,9 @@ class CsvParser {
     private $delimiter = ';';
     private $maxRows = 10000;
     private $encoding = 'UTF-8';
+
+    /** @var bool PHP 7.4+ supports empty escape in fgetcsv/fputcsv */
+    private $supportsEmptyEscape;
     
     /**
      * Конструктор
@@ -19,11 +22,163 @@ class CsvParser {
     public function __construct(int $maxRows = 10000, string $delimiter = ';') {
         $this->maxRows = $maxRows;
         $this->delimiter = $delimiter;
+        $this->supportsEmptyEscape = PHP_VERSION_ID >= 70400;
     }
     
     /**
+     * Wrapper around fgetcsv that disables backslash escape on PHP 7.4+
+     * to correctly handle fields containing literal backslashes (e.g. JSON cookies).
+     *
+     * On PHP < 7.4 where escape='' is not supported, uses a custom RFC 4180
+     * parser via fgets() to avoid fgetcsv treating \ as an escape character.
+     */
+    private function readCsvRow($handle, string $delimiter) {
+        if ($this->supportsEmptyEscape) {
+            return fgetcsv($handle, 0, $delimiter, '"', '');
+        }
+        return $this->readCsvRowManual($handle, $delimiter);
+    }
+
+    /**
+     * Manual RFC 4180 CSV row reader for PHP < 7.4.
+     * Reads raw lines with fgets() and parses fields manually.
+     * Treats backslash as a literal character (no escape semantics).
+     * Only "" (doubled quote) is recognized as an escaped quote inside quoted fields.
+     * Handles multi-line quoted fields (fields containing newlines).
+     *
+     * @param resource $handle File handle
+     * @param string $delimiter Field delimiter
+     * @return array|false Array of fields, or false on EOF
+     */
+    private function readCsvRowManual($handle, string $delimiter) {
+        if (feof($handle)) {
+            return false;
+        }
+
+        // Accumulate raw line(s) — quoted fields may span multiple lines
+        $raw = '';
+        $inQuotes = false;
+
+        while (($chunk = fgets($handle)) !== false) {
+            $raw .= $chunk;
+
+            // Count unescaped quotes to determine if we're inside a quoted field
+            $quoteCount = 0;
+            $len = strlen($raw);
+            $i = 0;
+            $inQ = false;
+            while ($i < $len) {
+                $ch = $raw[$i];
+                if ($inQ) {
+                    if ($ch === '"') {
+                        // Look ahead: "" means escaped quote, otherwise end of field
+                        if ($i + 1 < $len && $raw[$i + 1] === '"') {
+                            $i += 2; // skip ""
+                            continue;
+                        }
+                        $inQ = false;
+                    }
+                } else {
+                    if ($ch === '"') {
+                        $inQ = true;
+                    }
+                }
+                $i++;
+            }
+
+            if (!$inQ) {
+                break; // complete row
+            }
+            // Still inside a quoted field — read next line
+        }
+
+        if ($raw === '' || $raw === false) {
+            return false;
+        }
+
+        // Remove trailing newline(s)
+        $raw = rtrim($raw, "\r\n");
+
+        if ($raw === '') {
+            return [''];
+        }
+
+        // Parse fields from the raw line
+        return $this->parseCsvLine($raw, $delimiter);
+    }
+
+    /**
+     * Parse a single CSV line (possibly multi-line) into an array of fields.
+     * RFC 4180 rules: "" for escaped quotes, no backslash escape.
+     *
+     * @param string $line Raw CSV line
+     * @param string $delimiter Field delimiter
+     * @return array Array of field values
+     */
+    private function parseCsvLine(string $line, string $delimiter): array {
+        $fields = [];
+        $len = strlen($line);
+        $i = 0;
+
+        while ($i <= $len) {
+            if ($i === $len) {
+                // Trailing delimiter produced an empty final field
+                $fields[] = '';
+                break;
+            }
+
+            if ($line[$i] === '"') {
+                // Quoted field
+                $i++; // skip opening quote
+                $field = '';
+                while ($i < $len) {
+                    if ($line[$i] === '"') {
+                        if ($i + 1 < $len && $line[$i + 1] === '"') {
+                            // Escaped quote ""
+                            $field .= '"';
+                            $i += 2;
+                        } else {
+                            // Closing quote
+                            $i++; // skip closing quote
+                            break;
+                        }
+                    } else {
+                        $field .= $line[$i];
+                        $i++;
+                    }
+                }
+                $fields[] = $field;
+                // Skip delimiter after quoted field
+                if ($i < $len && $line[$i] === $delimiter) {
+                    $i++;
+                    // If delimiter is at end of line, there's one more empty field
+                    if ($i === $len) {
+                        $fields[] = '';
+                    }
+                }
+            } else {
+                // Unquoted field — read until delimiter or end
+                $end = strpos($line, $delimiter, $i);
+                if ($end === false) {
+                    $fields[] = substr($line, $i);
+                    break;
+                } else {
+                    $fields[] = substr($line, $i, $end - $i);
+                    $i = $end + 1;
+                    // If delimiter is at end of line, there's one more empty field
+                    if ($i === $len) {
+                        $fields[] = '';
+                    }
+                }
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
      * Парсит CSV файл
-     * 
+     *
      * @param string $filePath Путь к файлу
      * @return array Массив распарсенных строк
      * @throws Exception При ошибках чтения файла
@@ -32,31 +187,60 @@ class CsvParser {
         if (!file_exists($filePath)) {
             throw new Exception('Файл не найден: ' . $filePath);
         }
-        
+
+        $fileSize = filesize($filePath);
+        if (class_exists('Logger')) {
+            Logger::debug('CsvParser::parse', [
+                'file' => basename($filePath),
+                'size' => $fileSize,
+                'php_version' => PHP_VERSION,
+                'empty_escape' => $this->supportsEmptyEscape
+            ]);
+        }
+
         $handle = @fopen($filePath, 'r');
         if ($handle === false) {
             throw new Exception('Не удалось открыть файл для чтения');
         }
-        
+
         try {
             // Определяем разделитель автоматически
             $delimiter = $this->detectDelimiter($handle);
-            
+
             // Читаем заголовки
-            $headers = fgetcsv($handle, 0, $delimiter);
+            $headers = $this->readCsvRow($handle, $delimiter);
             if ($headers === false || empty($headers)) {
+                if (class_exists('Logger')) {
+                    Logger::warning('CsvParser: headers read failed', [
+                        'headers_result' => $headers === false ? 'FALSE' : 'EMPTY',
+                        'delimiter' => $delimiter,
+                        'file_size' => $fileSize
+                    ]);
+                }
                 fclose($handle);
                 return [];
             }
             
             // Нормализуем заголовки
             $normalizedHeaders = $this->normalizeHeaders($headers);
-            
+
+            if (class_exists('Logger')) {
+                Logger::debug('CsvParser: headers parsed', [
+                    'count' => count($normalizedHeaders),
+                    'first_5' => array_slice($normalizedHeaders, 0, 5),
+                    'delimiter' => $delimiter
+                ]);
+            }
+
             // Читаем данные
             $data = $this->readData($handle, $delimiter, $normalizedHeaders);
-            
+
+            if (class_exists('Logger')) {
+                Logger::debug('CsvParser: data parsed', ['rows' => count($data)]);
+            }
+
             fclose($handle);
-            
+
             return $data;
             
         } catch (Exception $e) {
@@ -127,8 +311,7 @@ class CsvParser {
         $clean = mb_strtolower($clean, 'UTF-8');
         
         // 3. Удалить BOM (везде, не только в начале)
-        $clean = str_replace("\xEF\xBB\xBF", '', $clean);
-        $clean = str_replace("\u{FEFF}", '', $clean); // Unicode BOM
+        $clean = str_replace("\xEF\xBB\xBF", '', $clean); // Byte-level UTF-8 BOM
         
         // 4. Удалить все звёздочки
         $clean = str_replace('*', '', $clean);
@@ -157,16 +340,8 @@ class CsvParser {
         $skippedMismatch = 0;
         $skippedComments = 0;
         
-        // Пропускаем строки-комментарии в заголовках
-        while (($rawLine = fgets($handle)) !== false) {
-            if (!$this->isCommentOrEmpty($rawLine)) {
-                // Это строка с заголовками, пропускаем её (уже прочитали)
-                break;
-            }
-        }
-        
         // Читаем данные построчно
-        while (($values = fgetcsv($handle, 0, $delimiter)) !== false && $lineNum < $this->maxRows) {
+        while (($values = $this->readCsvRow($handle, $delimiter)) !== false && $lineNum < $this->maxRows) {
             $lineNum++;
             
             // Пропускаем пустые строки
@@ -181,10 +356,18 @@ class CsvParser {
                 continue;
             }
             
-            // Если количество колонок не совпадает, пропускаем строку
-            if (count($values) !== count($headers)) {
-                $skippedMismatch++;
-                continue;
+            // Если количество колонок не совпадает, подгоняем длину
+            $headerCount = count($headers);
+            $valueCount = count($values);
+            if ($valueCount !== $headerCount) {
+                if ($valueCount < $headerCount) {
+                    // Дополняем пустыми значениями
+                    $values = array_pad($values, $headerCount, '');
+                } else {
+                    // Обрезаем лишние колонки
+                    $values = array_slice($values, 0, $headerCount);
+                }
+                $skippedMismatch++; // Считаем как "скорректированные"
             }
             
             // Формируем ассоциативный массив

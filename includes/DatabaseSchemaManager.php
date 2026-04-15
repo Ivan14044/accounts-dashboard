@@ -290,8 +290,14 @@ class DatabaseSchemaManager {
         
         if (empty($this->dbName)) {
             // Fallback
-            $result = $this->mysqli->query("SHOW TABLES LIKE '$tableName'");
-            return $result && $result->num_rows > 0;
+            $stmt = $this->mysqli->prepare("SHOW TABLES LIKE ?");
+            if (!$stmt) return false;
+            $stmt->bind_param('s', $tableName);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $exists = $result && $result->num_rows > 0;
+            $stmt->close();
+            return $exists;
         }
         
         $sql = "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES 
@@ -308,10 +314,16 @@ class DatabaseSchemaManager {
         }
         
         // Fallback
-        $result = $this->mysqli->query("SHOW TABLES LIKE '$tableName'");
-        return $result && $result->num_rows > 0;
+        $stmt = $this->mysqli->prepare("SHOW TABLES LIKE ?");
+        if (!$stmt) return false;
+        $stmt->bind_param('s', $tableName);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $exists = $result && $result->num_rows > 0;
+        $stmt->close();
+        return $exists;
     }
-    
+
     /**
      * Проверка существования колонки
      * 

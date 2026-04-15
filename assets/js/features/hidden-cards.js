@@ -30,14 +30,18 @@
       var hiddenCards = Array.from(allHidden)
         .map(function (card) { return card.getAttribute('data-card'); })
         .filter(function (id) { return id; });
+      // Синхронизируем _hiddenCardsToHide (если observer ещё активен)
+      if (window._hiddenCardsToHide) {
+        window._hiddenCardsToHide = new Set(hiddenCards);
+      }
       try {
         localStorage.setItem(LS_KEY, JSON.stringify(hiddenCards));
       } catch (_) { logger.error('Ошибка сохранения в localStorage'); }
       try {
-        var response = await fetch('api_user_settings.php', {
+        var response = await fetch('/api/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'hidden_cards', value: hiddenCards })
+          body: JSON.stringify({ type: 'hidden_cards', value: hiddenCards, csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || '' })
         });
         if (!response.ok) logger.warn('Failed to save hidden cards to server, saved to localStorage only');
       } catch (e) {
@@ -53,7 +57,7 @@
         var saved = localStorage.getItem(LS_KEY);
         if (saved) localHidden = JSON.parse(saved);
       } catch (_) {}
-      var response = await fetch('api_user_settings.php?type=hidden_cards');
+      var response = await fetch('/api/settings?type=hidden_cards');
       if (response.ok) {
         var data = await response.json();
         if (data.success && Array.isArray(data.value)) {
@@ -61,10 +65,10 @@
           if (cardsToHide.length === 0 && localHidden.length > 0) {
             cardsToHide = localHidden;
             try {
-              await fetch('api_user_settings.php', {
+              await fetch('/api/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'hidden_cards', value: cardsToHide })
+                body: JSON.stringify({ type: 'hidden_cards', value: cardsToHide, csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || '' })
               });
             } catch (_) {}
           } else if (cardsToHide.length > 0) {

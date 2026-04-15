@@ -24,47 +24,41 @@ class UserManager {
      */
     private static function loadUsers(): array {
         if (!file_exists(self::$usersFile)) {
-            // Создаем дефолтного пользователя при первом запуске
+            // Создаем дефолтного пользователя при первом запуске с СЛУЧАЙНЫМ паролем
+            $randomPassword = bin2hex(random_bytes(12)); // 24-символьный случайный пароль
             $defaultUsers = [
                 'admin' => [
-                    'password' => password_hash('admin123', PASSWORD_DEFAULT),
+                    'password' => password_hash($randomPassword, PASSWORD_DEFAULT),
                     'role' => 'admin'
                 ]
             ];
-            
+
             $saved = self::saveUsers($defaultUsers);
             if (!$saved) {
                 error_log('WARNING: Failed to create users.json - using in-memory users');
             }
-            
+
+            // Логируем сгенерированный пароль (один раз, при первом запуске)
+            error_log('FIRST RUN: Admin user created with password: ' . $randomPassword . ' — CHANGE IT IMMEDIATELY!');
+
             return $defaultUsers;
         }
-        
+
         $content = @file_get_contents(self::$usersFile);
         if ($content === false) {
             require_once __DIR__ . '/includes/Logger.php';
             Logger::error('Failed to read users.json');
-            // Возвращаем дефолтного пользователя в памяти
-            return [
-                'admin' => [
-                    'password' => password_hash('admin123', PASSWORD_DEFAULT),
-                    'role' => 'admin'
-                ]
-            ];
+            // Возвращаем пустой массив — без фолбека на дефолтный пароль
+            return [];
         }
-        
+
         $users = json_decode($content, true);
         if (!is_array($users) || empty($users)) {
             require_once __DIR__ . '/includes/Logger.php';
-            Logger::warning('users.json is empty or invalid - using default admin');
-            return [
-                'admin' => [
-                    'password' => password_hash('admin123', PASSWORD_DEFAULT),
-                    'role' => 'admin'
-                ]
-            ];
+            Logger::warning('users.json is empty or invalid');
+            return [];
         }
-        
+
         return $users;
     }
     
@@ -295,7 +289,10 @@ function authenticate(array $dbConfig, bool $rememberMe = true): bool {
     
     // Предотвращаем фиксацию сессии
     SessionManager::regenerateId();
-    
+
+    // Ротируем CSRF-токен при новой авторизации
+    unset($_SESSION['csrf_token']);
+
     // Авторизуем пользователя (авторизация происходит по факту успешного подключения к БД)
     $_SESSION['user_authenticated'] = true;
     $_SESSION['username'] = $dbConfig['user'] . '@' . $dbConfig['host']; // Используем user@host как идентификатор
@@ -317,70 +314,12 @@ function authenticate(array $dbConfig, bool $rememberMe = true): bool {
     require_once __DIR__ . '/includes/ColumnMetadata.php';
     ColumnMetadata::clearCache();
     
-    // Дополнительная проверка и миграция БД при авторизации
-    // (на случай, если миграция не была выполнена в testDatabaseConnection)
-    try {
-        // Создаем временное подключение для миграции
-        $host = $dbConfig['host'] ?? 'localhost';
-        $port = $dbConfig['port'] ?? 3306;
-        $user = $dbConfig['user'] ?? '';
-        $password = $dbConfig['password'] ?? '';
-        $database = $dbConfig['database'] ?? '';
-        $charset = $dbConfig['charset'] ?? 'utf8mb4';
-        
-        $tempMysqli = @new mysqli($host, $user, $password, $database, $port);
-        if (!$tempMysqli->connect_errno) {
-            $tempMysqli->set_charset($charset);
-            
-            require_once __DIR__ . '/includes/DatabaseSchemaManager.php';
-            $schemaManager = new DatabaseSchemaManager($tempMysqli);
-            $migrationResults = $schemaManager->validateAndMigrate();
-            
-            // Логируем результаты
-            if (!empty($migrationResults['tables_created']) || 
-                !empty($migrationResults['columns_added']) || 
-                !empty($migrationResults['indexes_created'])) {
-                Logger::info('DB Schema migration completed during authentication', [
-                    'tables' => $migrationResults['tables_created'],
-                    'columns' => $migrationResults['columns_added'],
-                    'indexes' => $migrationResults['indexes_created']
-                ]);
-            }
-            
-            if (!empty($migrationResults['errors'])) {
-                Logger::warning('DB Schema migration warnings during authentication', $migrationResults['errors']);
-            }
-            
-            $tempMysqli->close();
-        }
-    } catch (Exception $e) {
-        // Не блокируем авторизацию из-за ошибок миграции
-        Logger::warning('DB Schema migration failed during authentication', [
-            'error' => $e->getMessage()
-        ]);
-    }
-    
-    // Если включен "запомнить меня", устанавливаем долгосрочный cookie
+    // Миграция схемы БД уже выполнена в testDatabaseConnection(),
+    // который всегда вызывается перед authenticate(). Повторный вызов не нужен.
+
+    // Устанавливаем cookie: remember_me → 30 дней, иначе session cookie
     if ($rememberMe) {
-        $isLocalhost = in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1']);
-        $secure = !$isLocalhost && (
-            (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') 
-            || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
-        );
-        $cookieLifetime = time() + (30 * 24 * 60 * 60); // 30 дней
-        
-        if (PHP_VERSION_ID >= 70300) {
-            setcookie(session_name(), session_id(), [
-                'expires' => $cookieLifetime,
-                'path' => '/',
-                'domain' => '',
-                'secure' => $secure,
-                'httponly' => true,
-                'samesite' => 'Lax',  // Изменено с Strict на Lax для поддержки редиректов
-            ]);
-        } else {
-            setcookie(session_name(), session_id(), $cookieLifetime, '/; samesite=Lax', '', $secure, true);
-        }
+        SessionManager::refreshRememberMeCookie();
     }
     
     return true;
@@ -440,31 +379,42 @@ function checkSessionTimeout(): void {
     if (!isAuthenticated()) {
         return;
     }
-    
-    // Если включен "запомнить меня", используем длительный таймаут (30 дней)
-    // Иначе используем короткий таймаут (8 часов)
-    $rememberMe = $_SESSION['remember_me'] ?? true;
-    $timeout = $rememberMe ? (30 * 24 * 60 * 60) : (8 * 60 * 60);
-    
-    // Проверяем время последней активности (обновляем только раз в 5 минут)
+
+    // Если включен "запомнить меня" — таймаут 30 дней по неактивности
+    // Иначе — 8 часов по неактивности
+    $rememberMe = $_SESSION['remember_me'] ?? false;
+    $timeout = $rememberMe ? SessionManager::REMEMBER_ME_LIFETIME : SessionManager::DEFAULT_LIFETIME;
+
+    // Определяем время последней активности
     $lastActivity = $_SESSION['last_activity'] ?? $_SESSION['login_time'] ?? time();
-    $activityUpdateInterval = 5 * 60; // 5 минут
-    
-    // Проверяем таймаут по времени входа
-    if (isset($_SESSION['login_time']) && (time() - $_SESSION['login_time']) > $timeout) {
-        // Очищаем сессию без перезапуска
-        $_SESSION = [];
-        session_destroy();
-        
+
+    // Проверяем таймаут по времени ПОСЛЕДНЕЙ АКТИВНОСТИ (не по login_time)
+    if ((time() - $lastActivity) > $timeout) {
+        // Уничтожаем сессию через SessionManager (удаляет и cookie)
+        SessionManager::destroy();
+
+        // Для AJAX запросов возвращаем JSON (иначе fetch получит HTML и JSON.parse упадёт)
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+            strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error' => 'Session expired', 'redirect' => 'login.php?message=timeout']);
+            exit;
+        }
+
         // Редирект с сообщением через GET
         header('Location: login.php?message=timeout');
         exit;
     }
-    
+
     // Обновляем время последней активности только раз в 5 минут
-    // Это предотвращает бесконечное продление сессии при каждом запросе
+    // чтобы не писать в сессию на каждый запрос
+    $activityUpdateInterval = 5 * 60;
     if (!isset($_SESSION['last_activity']) || (time() - $lastActivity) >= $activityUpdateInterval) {
         $_SESSION['last_activity'] = time();
+
+        // Продлеваем cookie для remember_me (скользящее окно 30 дней)
+        SessionManager::refreshRememberMeCookie();
     }
 }
 

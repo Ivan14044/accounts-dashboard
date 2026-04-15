@@ -24,7 +24,7 @@ try {
     }
     
     // Создаем сервис
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     
     // Создаем фильтр с обязательным условием "только избранные"
     // shouldFilter=true — обязательный второй аргумент, без него фильтр не применяется

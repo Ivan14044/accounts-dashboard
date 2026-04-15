@@ -4,14 +4,21 @@
  * Выполняет SQL скрипты для создания таблиц
  */
 
-// Параметры подключения к БД
+// Проверяем авторизацию — скрипт доступен только для авторизованных admin-пользователей
+require_once __DIR__ . '/auth.php';
+requireAuth();
+
+// Параметры подключения к БД берутся из сессии (вводятся на странице логина)
+if (!isset($_SESSION['db_config']) || !is_array($_SESSION['db_config'])) {
+    die('Ошибка: нет конфигурации БД в сессии. Авторизуйтесь через login.php.');
+}
 $config = [
-    'host' => 'if592995.mysql.tools',
-    'port' => 3306,
-    'user' => 'if592995_accountfactory',
-    'password' => 'zhA4*4@u8S',
-    'database' => 'if592995_accountfactory',
-    'charset' => 'utf8mb4',
+    'host' => $_SESSION['db_config']['host'] ?? 'localhost',
+    'port' => $_SESSION['db_config']['port'] ?? 3306,
+    'user' => $_SESSION['db_config']['user'] ?? '',
+    'password' => $_SESSION['db_config']['password'] ?? '',
+    'database' => $_SESSION['db_config']['database'] ?? '',
+    'charset' => $_SESSION['db_config']['charset'] ?? 'utf8mb4',
     'ssl' => [
         'ca' => null,
         'capath' => null,

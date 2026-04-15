@@ -29,7 +29,7 @@ class SavedFiltersManager {
      */
     async loadFilters() {
         try {
-            const response = await fetch('/api/filters', {
+            const response = await fetch(window.getTableAwareUrl('/api/filters'), {
                 method: 'GET',
                 credentials: 'same-origin',
                 headers: {
@@ -223,7 +223,7 @@ class SavedFiltersManager {
         try {
             // CSRF-токен обязателен для POST/PUT/DELETE — без него API возвращает 403
             const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
-            const response = await fetch('/api/filters', {
+            const response = await fetch(window.getTableAwareUrl('/api/filters'), {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -233,7 +233,8 @@ class SavedFiltersManager {
                 body: JSON.stringify({
                     name: name,
                     filters: filters,
-                    csrf: csrfToken
+                    csrf: csrfToken,
+                    table: (window.DashboardConfig && window.DashboardConfig.currentTable) || 'accounts'
                 })
             });
             
@@ -290,14 +291,9 @@ class SavedFiltersManager {
         
         // Обновляем данные через AJAX
         if (typeof refreshDashboardData === 'function') {
-            if (typeof selectedAllFiltered !== 'undefined') {
-                selectedAllFiltered = false;
-            }
-            if (typeof selectedIds !== 'undefined' && selectedIds instanceof Set) {
-                selectedIds.clear();
-            }
-            if (typeof updateSelectedCount === 'function') {
-                updateSelectedCount();
+            // Сбрасываем выделение через публичный API модуля selection
+            if (window.DashboardSelection && typeof window.DashboardSelection.clearSelection === 'function') {
+                window.DashboardSelection.clearSelection();
             }
             refreshDashboardData();
         } else {
@@ -316,7 +312,7 @@ class SavedFiltersManager {
         try {
             // CSRF-токен обязателен для DELETE — без него API возвращает 403
             const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
-            const response = await fetch('/api/filters', {
+            const response = await fetch(window.getTableAwareUrl('/api/filters'), {
                 method: 'DELETE',
                 credentials: 'same-origin',
                 headers: {

@@ -85,6 +85,9 @@
   }
 
   async function refreshDashboardData(options) {
+    if (typeof performance !== 'undefined' && performance.mark) {
+      performance.mark('refresh-start');
+    }
     if (refreshController) {
       refreshQueued = true;
       try { refreshController.abort(); } catch(_) {}
@@ -112,6 +115,9 @@
       if (!res.ok) return;
       const data = await res.json();
       if (!data.success) return;
+      if (typeof performance !== 'undefined' && performance.mark) {
+        performance.mark('refresh-data-received');
+      }
 
       const myGeneration = ++refreshGeneration;
       if (myGeneration !== refreshGeneration) return;
@@ -133,9 +139,21 @@
         if (foundTotalEl) foundTotalEl.textContent = String(filteredTotalNum);
       }
 
-      // Обновляем пагинацию через модуль DashboardPagination
-      if (window.DashboardPagination && typeof window.DashboardPagination.updatePaginationUI === 'function') {
-        window.DashboardPagination.updatePaginationUI({ page: data.page, pages: data.pages });
+      // Обновляем пагинацию синхронно
+      if (typeof data.page === 'number') {
+        const pageNumEl = getEl('pageNum');
+        if (pageNumEl) pageNumEl.textContent = String(data.page);
+        const pageJumpInputEl = getEl('pageJumpInput');
+        if (pageJumpInputEl) {
+          pageJumpInputEl.value = String(data.page);
+          if (typeof data.pages === 'number') {
+            pageJumpInputEl.max = String(data.pages);
+          }
+        }
+      }
+      if (typeof data.pages === 'number') {
+        const pagesCountEl = getEl('pagesCount');
+        if (pagesCountEl) pagesCountEl.textContent = String(data.pages);
       }
 
       if (typeof data.filteredTotal === 'number') {
@@ -143,6 +161,26 @@
         if (tableEl) tableEl.setAttribute('aria-rowcount', String(data.filteredTotal));
         if (window.DashboardSelection) {
           window.DashboardSelection.setFilteredTotalLive(data.filteredTotal);
+        }
+      }
+
+      // ── Фаза 1.5: Пагинация — обновляем СИНХРОННО (не в rAF!).
+      //    outerHTML замена лёгкая, а в rAF generation-check может пропустить обновление
+      //    если автообновление (30с) или фильтр сработали между fetch и rAF. ──
+      if (data.paginationHtml !== undefined) {
+        const nav = document.getElementById('paginationNav');
+        if (nav) {
+          if (data.paginationHtml) {
+            nav.outerHTML = data.paginationHtml;
+          } else {
+            nav.style.display = 'none';
+            nav.innerHTML = '';
+          }
+        } else if (data.paginationHtml) {
+          const footerNav = document.querySelector('.dashboard-table__footer-nav');
+          if (footerNav) {
+            footerNav.insertAdjacentHTML('beforeend', data.paginationHtml);
+          }
         }
       }
 
@@ -186,7 +224,12 @@
         // Таблица (основная тяжёлая операция)
         if (window.tableModule && typeof window.tableModule.updateRows === 'function') {
           window.tableModule.updateRows(data);
-        } else {
+        }
+        if (typeof performance !== 'undefined' && performance.mark) {
+          performance.mark('refresh-end');
+          performance.measure('refresh-total', 'refresh-start', 'refresh-end');
+        }
+        if (!(window.tableModule && typeof window.tableModule.updateRows === 'function')) {
           const fallbackBody = getS('#accountsTable tbody');
           if (fallbackBody && Array.isArray(data.rows)) {
             const columnsCount = document.querySelectorAll('#accountsTable thead th').length || 1;
@@ -203,10 +246,15 @@
           window.DashboardSelection.invalidateCache();
         }
 
-        // Восстанавливаем состояние чекбоксов из selectedIds после замены строк таблицы
-        if (window.DashboardSelection && typeof window.DashboardSelection.initCheckboxStates === 'function') {
-          window.DashboardSelection.initCheckboxStates();
+        // Пагинация уже обновлена СИНХРОННО в Фазе 1.5 (до rAF) — здесь только pageJumpInput
+        if (typeof data.page === 'number') {
+          const pageJumpInput = document.getElementById('pageJumpInput');
+          if (pageJumpInput) {
+            pageJumpInput.value = String(data.page);
+            if (typeof data.pages === 'number') pageJumpInput.max = String(data.pages);
+          }
         }
+
         if (window.DashboardSelection && typeof window.DashboardSelection.updateSelectedOnPageCounter === 'function') {
           window.DashboardSelection.updateSelectedOnPageCounter();
         }

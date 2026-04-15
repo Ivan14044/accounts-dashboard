@@ -112,46 +112,49 @@
         const currentSort = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.sort) || '';
         const currentDir = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.dir) || '';
 
-        // Создаем скрытую форму
-        const form = document.createElement('form');
-        form.method = 'GET';
-        form.action = 'export.php';
-
         const params = new URLSearchParams(window.location.search);
         params.set('format', format);
         params.set('sort', currentSort);
         params.set('dir', currentDir);
 
+        // Определяем IDs для экспорта выбранных
+        let selectedIds = '';
         if (scope === 'all') {
             params.set('select', 'all');
         } else if (scope === 'selected') {
-            const ids = Array.from(DS.getSelectedIds()).join(',');
-            params.set('ids', ids);
+            selectedIds = Array.from(DS.getSelectedIds()).join(',');
             params.delete('select');
+            // IDs добавим в форму отдельно (не в URL params, чтобы не превысить лимит GET)
         } else if (scope === 'custom') {
-            params.set('select', 'all'); // Для кастомного лимита ведем себя как "все по фильтру" + limit
+            params.set('select', 'all');
             params.set('limit', limit);
         }
 
         // Если TXT, добавляем видимые колонки
         if (format === 'txt') {
             let visibleCols = [];
-            try { 
-                const saved = localStorage.getItem('dashboard_visible_columns'); 
-                if (saved) visibleCols = JSON.parse(saved); 
+            try {
+                const saved = localStorage.getItem('dashboard_visible_columns');
+                if (saved) visibleCols = JSON.parse(saved);
             } catch (_) { }
-            
+
             if (!Array.isArray(visibleCols) || visibleCols.length === 0) {
                 visibleCols = Array.from(document.querySelectorAll('#accountsTable thead th[data-col]')).map(th => th.getAttribute('data-col'));
             }
-            
+
             const ALL_COL_KEYS = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.allColumnKeys) || [];
             visibleCols = (visibleCols || []).filter(c => ALL_COL_KEYS.includes(c));
             visibleCols = visibleCols.filter(c => c !== 'id');
             params.set('cols', visibleCols.join(','));
         }
 
-        // Добавляем все параметры в форму
+        // Создаём форму — используем POST для больших списков IDs, GET для остальных
+        const usePOST = selectedIds.length > 2000;
+        const form = document.createElement('form');
+        form.method = usePOST ? 'POST' : 'GET';
+        form.action = window.getTableAwareUrl('export.php');
+
+        // Добавляем URL-параметры как скрытые поля
         params.forEach((value, key) => {
             const input = document.createElement('input');
             input.type = 'hidden';
@@ -159,6 +162,15 @@
             input.value = value;
             form.appendChild(input);
         });
+
+        // Добавляем IDs отдельным полем (может быть очень большим)
+        if (selectedIds) {
+            const idsInput = document.createElement('input');
+            idsInput.type = 'hidden';
+            idsInput.name = 'ids';
+            idsInput.value = selectedIds;
+            form.appendChild(idsInput);
+        }
 
         document.body.appendChild(form);
         form.submit();

@@ -91,8 +91,11 @@ try {
     $text = isset($input['text']) ? trim((string)$input['text']) : '';
     $status = isset($input['status']) ? trim((string)$input['status']) : '';
     $csrf = isset($input['csrf']) ? (string)$input['csrf'] : '';
+    // enable_like может приходить как в корне, так и внутри options (совместимость)
+    $enableLikeRoot = !empty($input['enable_like']);
+    $enableLikeOpts = !empty($input['options']['enable_like']);
     $options = [
-        'enable_like' => !empty($input['enable_like'])
+        'enable_like' => $enableLikeRoot || $enableLikeOpts
     ];
     
     Logger::debug('MASS TRANSFER: Извлечены параметры', [
@@ -126,7 +129,7 @@ try {
     // Обработка массового переноса
     Logger::debug('MASS TRANSFER: Started', ['text_length' => strlen($text), 'status' => $status]);
     
-    $service = new MassTransferService();
+    $service = new MassTransferService($tableName);
     $result = $service->processTransfer($text, $status, $options);
     
     Logger::info('MASS TRANSFER: Completed', [

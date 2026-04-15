@@ -37,7 +37,7 @@ try {
     requireAuth();
     checkSessionTimeout();
     
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     
     // Проверяем, поддерживается ли Soft Delete
     $meta = $service->getColumnMetadata();

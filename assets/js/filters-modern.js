@@ -409,7 +409,7 @@ function clearSearch() {
 }
 
 // Обработчик input на поле поиска НЕ дублируется здесь —
-// единственный живой обработчик находится в dashboard-inline.js (applyLiveSearch, debounce 300ms).
+// живой обработчик находится в init-script.php (applyLiveSearch, debounce 300ms).
 
 // ========================================
 // СБРОС ВСЕХ ФИЛЬТРОВ
@@ -476,17 +476,11 @@ document.addEventListener('keydown', function(e) {
 
 /**
  * Обработка быстрых фильтров (toggle switches).
- * Клик на обёртке .toggle-switch-wrapper: если кликнули вне label/checkbox — программно кликаем checkbox.
- * Реальное применение фильтра — через единый change listener ниже (в DOMContentLoaded).
+ * Клики по .toggle-switch-wrapper обрабатываются единым делегированным обработчиком в DOMContentLoaded
+ * (см. document.addEventListener('click', ...) для .toggle-switch-wrapper).
  */
 function initQuickFilterWrappers() {
-    document.querySelectorAll('.toggle-switch-wrapper').forEach(function(wrapper) {
-        wrapper.addEventListener('click', function(e) {
-            if (e.target.closest('input[type="checkbox"]') || e.target.closest('label.toggle-switch')) return;
-            var cb = wrapper.querySelector('input[type="checkbox"]');
-            if (cb) cb.click();
-        });
-    });
+    /* Делегирование на document — отдельных подписок не вешаем */
 }
 
 
@@ -548,6 +542,19 @@ window.applyFormFiltersWithoutReload = applyFormFiltersWithoutReload;
 document.addEventListener('DOMContentLoaded', function() {
     var filtersForm = document.getElementById('filtersForm');
     if (!filtersForm) return;
+
+    // Класс на .filters-modern при развёрнутом теле (вместо :has() — меньше нагрузка на рендер)
+    var filtersBody = document.getElementById('filtersBody');
+    var filtersModern = filtersForm && filtersForm.closest('.filters-modern');
+    if (filtersBody && filtersModern) {
+        function setFiltersOpen() {
+            filtersModern.classList.toggle('filters-body-open', filtersBody.classList.contains('show'));
+        }
+        setFiltersOpen();
+        /* Только shown/hidden — меньше вызовов при раскрытии/скрытии, плавнее FPS */
+        filtersBody.addEventListener('shown.bs.collapse', setFiltersOpen);
+        filtersBody.addEventListener('hidden.bs.collapse', setFiltersOpen);
+    }
 
     // Инициализация обёрток быстрых фильтров (клик вне label → toggle checkbox)
     initQuickFilterWrappers();
@@ -642,23 +649,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // Проверяем видимость активных фильтров и кнопки "Сбросить все"
     updateActiveFiltersVisibility();
 
-    // Обработчик кнопки "Сбросить все фильтры"
-    var resetBtn = document.getElementById('resetAllFiltersBtn');
-    if (resetBtn) {
-        resetBtn.addEventListener('click', function() {
-            resetAllFilters();
-        });
-    }
-    
     // Добавляем плавные анимации для chips
     document.querySelectorAll('.filter-chip').forEach((chip, index) => {
         chip.style.animationDelay = (index * 50) + 'ms';
     });
     
-    // Делегирование событий для удаления filter-chip (более надежно чем inline onclick)
+    // Единый делегированный обработчик кликов: chip-remove, кнопка сброса, toggle-wrapper (меньше подписок)
     document.addEventListener('click', function(e) {
+        const resetBtn = e.target.closest('#resetAllFiltersBtn');
+        if (resetBtn) {
+            resetAllFilters();
+            return;
+        }
         const removeBtn = e.target.closest('.filter-chip-remove');
-        if (!removeBtn) return;
+        if (removeBtn) {
         
         e.preventDefault();
         e.stopPropagation();
@@ -692,6 +696,14 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 (typeof logger !== 'undefined' ? logger.error : console.error)('removeFilterChip function not found');
             }
+        }
+            return;
+        }
+        // Toggle-wrapper: клик по обёртке (не по checkbox/label) — программный клик по checkbox
+        const wrapper = e.target.closest('.toggle-switch-wrapper');
+        if (wrapper && !e.target.closest('input[type="checkbox"]') && !e.target.closest('label.toggle-switch')) {
+            var cb = wrapper.querySelector('input[type="checkbox"]');
+            if (cb) cb.click();
         }
     });
     

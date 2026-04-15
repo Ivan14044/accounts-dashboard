@@ -48,12 +48,15 @@ class ResponseHeaders {
     
     /**
      * Устанавливает ETag для условных запросов
-     * 
+     *
      * @param string $etag Значение ETag
      */
     public static function setETag(string $etag): void {
+        // Sanitize etag by removing control characters that could be used for header injection
+        $etag = str_replace(["\r", "\n", "\0"], '', $etag);
+
         header("ETag: \"$etag\"");
-        
+
         // Проверяем If-None-Match для 304 ответа
         if (isset($_SERVER['HTTP_IF_NONE_MATCH']) && $_SERVER['HTTP_IF_NONE_MATCH'] === "\"$etag\"") {
             http_response_code(304);

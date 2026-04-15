@@ -12,6 +12,8 @@ require_once __DIR__ . '/AccountsService.php';
 require_once __DIR__ . '/RequestHandler.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Logger.php';
+require_once __DIR__ . '/TableResolver.php';
+require_once __DIR__ . '/Database.php';
 
 class DashboardController {
     private $service;
@@ -22,14 +24,24 @@ class DashboardController {
     
     /**
      * Обработка массового обновления статуса при клике на кастомную карточку
-     * 
+     *
      * @return bool true если был обработан запрос и нужно сделать редирект
      */
     public function handleApplyStatus(): bool {
         if (!isset($_GET['apply_status']) || empty($_GET['apply_status'])) {
             return false;
         }
-        
+
+        // Проверка CSRF токена (массовое обновление требует защиты)
+        require_once __DIR__ . '/Validator.php';
+        $csrf = $_GET['csrf_token'] ?? '';
+        if (!Validator::validateCsrfToken($csrf)) {
+            require_once __DIR__ . '/Logger.php';
+            Logger::warning('APPLY_STATUS: CSRF validation failed');
+            $_SESSION['error_message'] = 'CSRF validation failed. Please try again.';
+            return false;
+        }
+
         try {
             $targetStatus = trim($_GET['apply_status']);
             
@@ -63,7 +75,13 @@ class DashboardController {
             // Убираем параметр apply_status из URL и перенаправляем
             unset($_GET['apply_status']);
             $redirectUrl = '?' . http_build_query($_GET);
-            header("Location: $redirectUrl");
+            // Валидируем URL: проверяем, что это относительный URL (начинается с ?)
+            if (strpos($redirectUrl, '?') === 0 || basename($redirectUrl) === $redirectUrl) {
+                header("Location: $redirectUrl");
+            } else {
+                // Fallback на главную страницу дашборда
+                header("Location: ?");
+            }
             return true; // Запрос обработан, нужен редирект
         } catch (Exception $e) {
             Logger::error('Error applying status', [
@@ -347,6 +365,12 @@ class DashboardController {
             'dir' => $dir,
             'offset' => $offset,
             'filteredTotal' => $filteredTotal,
+            // Мульти-таблица
+            'currentTable' => $this->service->getTableName(),
+            'availableTables' => TableResolver::getInstance(
+                Database::getInstance()->getConnection(),
+                Database::getInstance()->getConnection()->query("SELECT DATABASE()")->fetch_row()[0] ?? ''
+            )->getAvailableTables(),
         ];
     }
 }

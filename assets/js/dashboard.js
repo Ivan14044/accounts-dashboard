@@ -133,7 +133,7 @@ const dashboardDomCache = (function() {
             
             try {
                 logger.debug('🚀 [GLOBAL UPLOAD] Отправка запроса на import_accounts.php...');
-                const response = await fetch('import_accounts.php', {
+                const response = await fetch(window.getTableAwareUrl('import_accounts.php'), {
                     method: 'POST',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'
@@ -322,14 +322,14 @@ const dashboardDomCache = (function() {
                                     errorTitle = 'Дубликат логина';
                                 }
                                 
-                                detailsHtml += `<div class="fw-semibold mb-1">${errorTitle} <span class="badge bg-danger">${group.count}</span></div>`;
-                                
+                                detailsHtml += `<div class="fw-semibold mb-1">${this.escapeHtml(errorTitle)} <span class="badge bg-danger">${group.count}</span></div>`;
+
                                 // Примеры строк
                                 if (group.examples.length > 0) {
                                     const examplesText = group.examples.length === group.count
-                                        ? `Строки: ${group.examples.join(', ')}`
-                                        : `Примеры строк: ${group.examples.join(', ')}${group.count > group.examples.length ? ` и ещё ${group.count - group.examples.length}` : ''}`;
-                                    detailsHtml += `<div class="text-muted small">${examplesText}</div>`;
+                                        ? `Строки: ${group.examples.map(e => this.escapeHtml(String(e))).join(', ')}`
+                                        : `Примеры строк: ${group.examples.map(e => this.escapeHtml(String(e))).join(', ')}${group.count > group.examples.length ? ` и ещё ${group.count - group.examples.length}` : ''}`;
+                                    detailsHtml += `<div class="text-muted small">${this.escapeHtml(examplesText)}</div>`;
                                 }
                                 
                                 detailsHtml += '</div>';
@@ -628,22 +628,12 @@ class Dashboard {
         
         // Обработчики для селектов
         this.bindSelectEvents();
-        
-        // Пагинация
-        this.bindPaginationEvents();
-        
+
         // Предотвращение утечек памяти при закрытии страницы
         window.addEventListener('beforeunload', this.boundHandlers.beforeunload);
     }
     
     handleDocumentClick(e) {
-        // Пагинация
-        const pageLink = e.target.closest('ul.pagination a.page-link');
-        if (pageLink) {
-            this.handlePaginationClick(e, pageLink);
-            return;
-        }
-        
         // Переключение паролей
         const pwToggle = e.target.closest('.pw-toggle');
         if (pwToggle) {
@@ -725,17 +715,8 @@ class Dashboard {
             });
         }
         
-        // Селект страниц (пагинация) - оставляем автоприменение
-        const pageSelect = dashboardDomCache.getById('pageSelect');
-        if (pageSelect) {
-            pageSelect.addEventListener('change', this.handlePageSelectChange.bind(this));
-        }
     }
-    
-    bindPaginationEvents() {
-        // Уже обрабатывается в handleDocumentClick
-    }
-    
+
     // Дебаунс функция для оптимизации
     debounce(func, wait) {
         let timeout;
@@ -793,27 +774,6 @@ class Dashboard {
         return;
     }
     
-    handlePageSelectChange() {
-        const pageSelect = dashboardDomCache.getById('pageSelect');
-        const selectedPage = parseInt(pageSelect.value);
-        
-        if (selectedPage && selectedPage > 0) {
-            const url = new URL(window.location);
-            url.searchParams.set('page', String(selectedPage));
-            history.replaceState(null, '', url.toString());
-            
-            // Обновляем номер страницы немедленно
-            const pageNumEl = dashboardDomCache.getById('pageNum');
-            if (pageNumEl) pageNumEl.textContent = String(selectedPage);
-            
-            // НЕ очищаем selectedIds при пагинации - выбранные строки должны сохраняться между страницами
-            // selectedAllFiltered сбрасываем, так как это относится к текущему фильтру
-            this.selectedAllFiltered = false;
-            this.updateSelectedCount();
-            this.debouncedRefresh();
-        }
-    }
-    
     updateUrlAndRefresh(param, value) {
         const url = new URL(window.location);
         if (value) {
@@ -828,42 +788,6 @@ class Dashboard {
         this.selectedIds.clear();
         this.updateSelectedCount();
         this.debouncedRefresh();
-    }
-    
-    handlePaginationClick(e, pageLink) {
-        e.preventDefault();
-        
-        const li = pageLink.closest('li');
-        if (li && li.classList.contains('disabled')) return;
-        
-        const href = pageLink.getAttribute('href') || '';
-        if (!href) return;
-        
-        try {
-            const url = new URL(href, window.location.origin);
-            const pageParam = parseInt(url.searchParams.get('page') || '1');
-            const current = new URL(window.location);
-            current.searchParams.set('page', String(pageParam));
-            history.replaceState(null, '', current.toString());
-            
-            // Обновляем UI немедленно
-            this.updatePageUI(pageParam);
-            
-            // НЕ сбрасываем выбор при смене страницы - сохраняем выбранные ID
-            // selectedAllFiltered сбрасываем, так как это относится к фильтру, а не к конкретным ID
-            this.selectedAllFiltered = false;
-            this.debouncedRefresh();
-        } catch (error) {
-            logger.error('Pagination error:', error);
-        }
-    }
-    
-    updatePageUI(pageNum) {
-        const pageNumEl = dashboardDomCache.getById('pageNum');
-        if (pageNumEl) pageNumEl.textContent = String(pageNum);
-        
-        const pageSelectEl = dashboardDomCache.getById('pageSelect');
-        if (pageSelectEl) pageSelectEl.value = String(pageNum);
     }
     
     // Оптимизированное обновление данных
@@ -1237,31 +1161,59 @@ class Dashboard {
         const full = target.getAttribute('data-full') || '';
         const title = target.getAttribute('data-title') || 'Данные';
         if (!full) return;
-        
+
         let modal = dashboardDomCache.getById('fullDataModal');
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'fullDataModal';
-            modal.innerHTML = `
-                <div class="fdm-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:99999;">
-                  <div class="fdm-dialog" style="max-width:70vw;max-height:70vh;width:70vw;background:#fff;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;">
-                    <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;">
-                      <div style="font-weight:600">${this.escapeHtml(title)}</div>
-                      <button type="button" class="fdm-close" style="border:none;background:transparent;font-size:20px;line-height:1;cursor:pointer">&times;</button>
-                    </div>
-                    <div style="padding:16px;overflow:auto">
-                      <pre style="white-space:pre-wrap;word-wrap:break-word;font-family:monospace;margin:0">${this.escapeHtml(full)}</pre>
-                    </div>
-                  </div>
-                </div>
-            `;
+
+            // Build the modal structure safely using DOM methods instead of innerHTML
+            const backdrop = document.createElement('div');
+            backdrop.className = 'fdm-backdrop';
+            backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:99999;';
+
+            const dialog = document.createElement('div');
+            dialog.className = 'fdm-dialog';
+            dialog.style.cssText = 'max-width:70vw;max-height:70vh;width:70vw;background:#fff;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;';
+
+            const header = document.createElement('div');
+            header.style.cssText = 'padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;';
+
+            const titleDiv = document.createElement('div');
+            titleDiv.style.fontWeight = '600';
+            titleDiv.textContent = title;
+
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'fdm-close';
+            closeBtn.style.cssText = 'border:none;background:transparent;font-size:20px;line-height:1;cursor:pointer';
+            closeBtn.textContent = '×';
+
+            header.appendChild(titleDiv);
+            header.appendChild(closeBtn);
+
+            const content = document.createElement('div');
+            content.style.cssText = 'padding:16px;overflow:auto';
+
+            const pre = document.createElement('pre');
+            pre.style.cssText = 'white-space:pre-wrap;word-wrap:break-word;font-family:monospace;margin:0';
+            pre.textContent = full;
+
+            content.appendChild(pre);
+
+            dialog.appendChild(header);
+            dialog.appendChild(content);
+            backdrop.appendChild(dialog);
+            modal.appendChild(backdrop);
+
             document.body.appendChild(modal);
-            modal.querySelector('.fdm-backdrop').addEventListener('click', (e) => {
+
+            backdrop.addEventListener('click', (e) => {
                 if (e.target.classList.contains('fdm-backdrop')) {
                     modal.remove();
                 }
             });
-            modal.querySelector('.fdm-close').addEventListener('click', () => modal.remove());
+            closeBtn.addEventListener('click', () => modal.remove());
         }
     }
     
@@ -1556,7 +1508,7 @@ class Dashboard {
             
             try {
                 logger.debug('🚀 Отправка запроса на import_accounts.php...');
-                const response = await fetch('import_accounts.php', {
+                const response = await fetch(window.getTableAwareUrl('import_accounts.php'), {
                     method: 'POST',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'
@@ -1642,22 +1594,31 @@ class Dashboard {
                     
                     // Успешная загрузка
                     let message = result.message || `Успешно обработано ${result.total || 0} строк(и)`;
-                    
+
                     if (result.errors && result.errors.length > 0) {
                         logger.warn('⚠️ Обнаружены ошибки при импорте:', result.errors.slice(0, 10));
                         message += `<br><strong>Ошибки (${result.errors.length}):</strong><ul class="mb-0 mt-2 small">`;
                         result.errors.slice(0, 10).forEach(err => { // Показываем только первые 10 ошибок
-                            message += `<li>Строка ${err.row}: ${err.message}</li>`;
+                            // Escape both row number and message from server
+                            const escapedRow = this.escapeHtml(String(err.row));
+                            const escapedMsg = this.escapeHtml(err.message);
+                            message += `<li>Строка ${escapedRow}: ${escapedMsg}</li>`;
                         });
                         if (result.errors.length > 10) {
                             message += `<li><em>... и еще ${result.errors.length - 10} ошибок</em></li>`;
                         }
                         message += '</ul>';
                     }
-                    
+
                     if (successDiv) {
                         logger.debug('📝 Отображение сообщения об успехе в successDiv');
-                        successDiv.innerHTML = message;
+                        // For messages with HTML structure (list), use innerHTML with properly escaped content
+                        // For plain text messages, use textContent
+                        if (message.includes('<')) {
+                            successDiv.innerHTML = message;
+                        } else {
+                            successDiv.textContent = message;
+                        }
                         successDiv.classList.remove('d-none');
                     } else {
                         logger.warn('⚠️ successDiv не найден, не удалось отобразить сообщение');
@@ -1750,11 +1711,13 @@ class Dashboard {
         const row = document.createElement('tr');
         row.dataset.rowIndex = rowCount;
         
-        // Получаем список статусов
+        // Получаем список статусов (уже с экранированием)
         const statusOptions = this.getStatusOptionsHtml();
-        
+
+        // Build row safely with proper escaping of row number
+        const rowNumber = rowCount + 1;
         row.innerHTML = `
-            <td class="text-center">${rowCount + 1}</td>
+            <td class="text-center">${this.escapeHtml(String(rowNumber))}</td>
             <td>
                 <input type="text" class="form-control form-control-sm" name="login" maxlength="255" required>
                 <div class="invalid-feedback small">Обязательно</div>
@@ -2076,10 +2039,10 @@ class Dashboard {
         const validation = this.validateAccountsTable();
         if (!validation.valid) {
             let errorMsg = `Найдены ошибки валидации в ${validation.errors.length} строке(ах). `;
-            errorMsg += validation.errors.map(e => `Строка ${e.row}: ${e.errors.join(', ')}`).join('; ');
-            
+            errorMsg += validation.errors.map(e => `Строка ${this.escapeHtml(String(e.row))}: ${this.escapeHtml(e.errors.join(', '))}`).join('; ');
+
             if (errorsDiv) {
-                errorsDiv.innerHTML = errorMsg;
+                errorsDiv.textContent = errorMsg;
                 errorsDiv.classList.remove('d-none');
             }
             if (typeof window.showToast === 'function') {
@@ -2163,17 +2126,26 @@ class Dashboard {
         if (errorsDiv) errorsDiv.classList.add('d-none');
         
         let message = result.message || `Создано: ${result.created || 0}, Пропущено: ${result.skipped || 0}`;
-        
+
         if (result.errors && result.errors.length > 0) {
             message += `<br><strong>Ошибки (${result.errors.length}):</strong><ul class="mb-0 mt-2">`;
             result.errors.forEach(err => {
-                message += `<li>Строка ${err.row}: ${err.message}</li>`;
+                // Escape both row number and message from server
+                const escapedRow = this.escapeHtml(String(err.row));
+                const escapedMsg = this.escapeHtml(err.message);
+                message += `<li>Строка ${escapedRow}: ${escapedMsg}</li>`;
             });
             message += '</ul>';
         }
-        
+
         if (successDiv) {
-            successDiv.innerHTML = message;
+            // For messages with HTML structure (list), use innerHTML with properly escaped content
+            // For plain text messages, use textContent
+            if (message.includes('<')) {
+                successDiv.innerHTML = message;
+            } else {
+                successDiv.textContent = message;
+            }
             successDiv.classList.remove('d-none');
         }
         

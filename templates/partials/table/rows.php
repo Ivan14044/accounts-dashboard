@@ -154,8 +154,8 @@
         </td>
       <?php endforeach; ?>
       <td class="ac-cell ac-cell--actions text-end" data-column="actions">
-        <a class="btn btn-sm btn-outline-primary" href="view.php?id=<?= (int)$r['id'] ?>">
-          <i class="fas fa-eye me-1"></i>Открыть
+        <a class="btn-table-open" href="view.php?id=<?= (int)$r['id'] ?>">
+          <i class="fas fa-arrow-right"></i> Открыть
         </a>
       </td>
     </tr>

@@ -85,7 +85,9 @@ class FilterBuilder {
             $this->pendingSearchQuery = $query;
         } else {
             // Текстовый запрос: LIKE сразу (fallback не нужен)
-            $like = '%' . $query . '%';
+            // Экранируем SQL-wildcard символы % и _ в пользовательском вводе
+            $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $query);
+            $like = '%' . $escaped . '%';
             foreach ($availableFields as $field) {
                 $orConds[] = '`' . $field . '` LIKE ?';
                 $this->params[] = $like;
@@ -132,7 +134,8 @@ class FilterBuilder {
             return $this;
         }
 
-        $like = '%' . $this->pendingSearchQuery . '%';
+        $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $this->pendingSearchQuery);
+        $like = '%' . $escaped . '%';
 
         // Вставляем новые LIKE-параметры на то же место
         $likeParams = [];
@@ -161,8 +164,11 @@ class FilterBuilder {
      * @return self Возвращает $this для цепочки вызовов
      */
     public function addStatusFilter($statusArray, bool $includeEmpty = false): self {
+        if (!isset($this->columnsList['status'])) {
+            return $this;
+        }
         $statusConditions = [];
-        
+
         // Фильтр по выбранным статусам
         if (!empty($statusArray)) {
             if (is_string($statusArray)) {
@@ -181,7 +187,7 @@ class FilterBuilder {
         
         // Фильтр пустых статусов
         if ($includeEmpty) {
-            $statusConditions[] = '(status IS NULL OR status = "")';
+            $statusConditions[] = "(status IS NULL OR status = '')";
         }
         
         // Объединяем через OR если есть хотя бы одно условие
@@ -199,10 +205,11 @@ class FilterBuilder {
         if (empty($idsArray) || !is_array($idsArray)) {
             return $this;
         }
-        
-        // Фильтруем и приводим к целым числам
-        $idsArray = array_filter(array_map('intval', $idsArray));
-        
+
+        // Сначала фильтруем только числовые строки, потом приводим к целым числам
+        $numericIds = array_filter($idsArray, 'is_numeric');
+        $idsArray = array_map('intval', $numericIds);
+
         if (!empty($idsArray)) {
             $placeholders = implode(',', array_fill(0, count($idsArray), '?'));
             $this->conditions[] = "id IN ($placeholders)";
@@ -210,7 +217,7 @@ class FilterBuilder {
                 $this->params[] = $id;
             }
         }
-        
+
         return $this;
     }
     
@@ -565,7 +572,10 @@ class FilterBuilder {
                     require_once __DIR__ . '/Database.php';
                     $mysqli = Database::getInstance()->getConnection();
                     if ($mysqli instanceof mysqli) {
-                        $metadata = ColumnMetadata::getInstance($mysqli);
+                        // Пробуем получить текущую таблицу из глобального контекста
+                        global $tableName;
+                        $tbl = !empty($tableName) ? $tableName : 'accounts';
+                        $metadata = ColumnMetadata::getInstance($mysqli, $tbl);
                         $hasDeletedAtColumn = $metadata->columnExists('deleted_at');
                     }
                 } catch (Exception $e) {

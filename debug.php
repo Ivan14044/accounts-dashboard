@@ -4,7 +4,6 @@
  */
 // Загружаем config.php ПЕРЕД bootstrap.php, чтобы инициализировать подключение к БД
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/bootstrap.php';
 
 // Загружаем DashboardController (не включен в bootstrap.php)
 require_once __DIR__ . '/includes/DashboardController.php';
@@ -16,7 +15,7 @@ requireAuth();
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-$service = new AccountsService();
+$service = new AccountsService($tableName);
 $controller = new DashboardController($service);
 
 // Получаем данные

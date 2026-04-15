@@ -16,19 +16,18 @@ require_once __DIR__ . '/Database.php';
 
 class MassTransferService {
     private $db;
-    private $table = 'accounts';
-    
+    private $table;
+
     const MAX_INPUT_SIZE = 20 * 1024 * 1024; // 20MB
     const MAX_LINES = 50000;
     const MAX_BATCH_SIZE = 1000;  // SELECT IN() для поиска по id_soc_account
     const MAX_URL_BATCH_SIZE = 50;
-    // UPDATE батч уменьшен с 5000 до 200: меньше IDs в IN() → row lock удерживается
-    // меньше времени → другие запросы (accountfactory) не блокируются (slow log анализ)
     const UPDATE_BATCH_SIZE = 200;
-    
+
     const ID_PATTERN = '/\b(10|61)[0-9A-Za-z]{10,23}\b/';
-    
-    public function __construct() {
+
+    public function __construct(string $table = 'accounts') {
+        $this->table = $table;
         $this->db = Database::getInstance()->getConnection();
     }
     
@@ -43,52 +42,78 @@ class MassTransferService {
     
     /**
      * Парсинг текста и извлечение ID
+     *
+     * Поддерживаемые форматы:
+     * - Полные URL: https://www.facebook.com/profile.php?id=61579160816458
+     * - URL с коротким путём: https://www.facebook.com/61579160816458
+     * - Чистый ID: 61579160816458
+     * - Формат число_строка_число: 97693208494_H9wZQ30BEX_61571235444141
+     * - Любое число 11+ цифр
      */
     public function parseText(string $text): array {
         $this->validateInputSize($text);
-        
+
         $lines = array_filter(array_map('trim', explode("\n", $text)));
-        
+
         if (count($lines) > self::MAX_LINES) {
             $lines = array_slice($lines, 0, self::MAX_LINES);
         }
-        
+
         $ids = [];
+        $urls = []; // Сохраняем оригинальные URL для поиска по social_url
         $unparsed = [];
-        
+
         foreach ($lines as $line) {
             $parsed = false;
-            
-            if (preg_match_all(self::ID_PATTERN, $line, $matches)) {
+
+            // 1. Специальная обработка Facebook URL: profile.php?id=XXXXX
+            if (preg_match('/profile\.php\?id=(\d{8,})/', $line, $urlMatch)) {
+                $ids[] = $urlMatch[1];
+                // Сохраняем полный URL для фаллбэка поиска по social_url
+                if (preg_match('/https?:\/\/[^\s]+/', $line, $fullUrl)) {
+                    $urls[] = $urlMatch[1]; // ID для URL-поиска
+                }
+                $parsed = true;
+            }
+
+            // 2. Facebook URL без profile.php: facebook.com/XXXXX (числовой профиль)
+            if (!$parsed && preg_match('/facebook\.com\/(\d{8,})/', $line, $shortUrlMatch)) {
+                $ids[] = $shortUrlMatch[1];
+                $parsed = true;
+            }
+
+            // 3. Стандартный паттерн: ID начинающийся с 10 или 61
+            if (!$parsed && preg_match_all(self::ID_PATTERN, $line, $matches)) {
                 foreach ($matches[0] as $id) {
                     $ids[] = $id;
                     $parsed = true;
                 }
             }
-            
-            // Формат: число_строка_число (например 97693208494_H9wZQ30BEX_61571235444141)
+
+            // 4. Формат: число_строка_число (например 97693208494_H9wZQ30BEX_61571235444141)
             if (!$parsed && preg_match('/^(\d{11,})_[^_]+_(\d{11,})$/', $line, $formatMatches)) {
                 if (isset($formatMatches[1])) { $ids[] = $formatMatches[1]; $parsed = true; }
                 if (isset($formatMatches[2])) { $ids[] = $formatMatches[2]; $parsed = true; }
             }
-            
-            // Числовые ID длиной 11+ цифр
+
+            // 5. Числовые ID длиной 11+ цифр (фаллбэк)
             if (!$parsed && preg_match_all('/\d{11,}/', $line, $numericMatches)) {
                 foreach ($numericMatches[0] as $numericId) {
                     $ids[] = $numericId;
                     $parsed = true;
                 }
             }
-            
+
             if (!$parsed && $line !== '' && count($unparsed) < 50) {
                 $unparsed[] = mb_substr($line, 0, 100);
             }
         }
-        
+
         $ids = array_values(array_unique($ids));
-        
+
         return [
             'ids' => $ids,
+            'urls' => array_values(array_unique($urls)),
             'unparsed' => $unparsed,
             'total_lines' => count($lines)
         ];
@@ -97,34 +122,39 @@ class MassTransferService {
     /**
      * Поиск аккаунтов в БД.
      * @param bool $enableLike Искать ли в social_url для ненайденных (медленно)
+     * @param bool $hadUrls Входные данные содержали URL (автоматически включает поиск по social_url)
      */
-    public function findAccounts(array $ids, bool $enableLike = false): array {
+    public function findAccounts(array $ids, bool $enableLike = false, bool $hadUrls = false): array {
         if (empty($ids)) {
             return ['ids' => [], 'matched_by_id_soc' => 0, 'matched_by_url' => 0, 'total' => 0];
         }
-        
+
         // Фаза 1: точный поиск по id_soc_account (быстро, по индексу)
         $result = $this->searchByIdSocAccount($ids);
         $foundIds = $result['ids'];
         $matchedTokens = $result['matched_tokens'];
         $matchedByIdSoc = count($foundIds);
-        
-        // Фаза 2: поиск в social_url — только если enable_like включён
+
+        // Фаза 2: поиск в social_url
+        // Включается если: (а) пользователь включил enable_like, ИЛИ (б) входные данные были URL
+        // и не все ID найдены по id_soc_account
         $matchedByUrl = 0;
-        if ($enableLike) {
+        $shouldSearchUrl = $enableLike || ($hadUrls && count($matchedTokens) < count($ids));
+
+        if ($shouldSearchUrl) {
             $notFoundIds = array_values(array_filter($ids, function($id) use ($matchedTokens) {
                 return !isset($matchedTokens[$id]);
             }));
-            
+
             if (!empty($notFoundIds)) {
                 $urlResult = $this->searchBySocialUrl($notFoundIds);
                 $foundIds = array_merge($foundIds, $urlResult['ids']);
                 $matchedByUrl = count($urlResult['ids']);
             }
         }
-        
+
         $foundIds = array_values(array_unique(array_map('intval', $foundIds)));
-        
+
         return [
             'ids' => $foundIds,
             'matched_by_id_soc' => $matchedByIdSoc,
@@ -145,11 +175,16 @@ class MassTransferService {
             if (empty($chunk)) continue;
             
             $placeholders = str_repeat('?,', count($chunk) - 1) . '?';
-            $sql = "SELECT id, id_soc_account 
-                    FROM {$this->table} 
+            $sql = "SELECT id, id_soc_account
+                    FROM {$this->table}
                     WHERE deleted_at IS NULL AND id_soc_account IN ($placeholders)";
-            
-            $stmt = qprep($this->db, $sql, $chunk);
+
+            $stmt = $this->db->prepare($sql);
+            if (!$stmt) {
+                throw new Exception('Failed to prepare search by id_soc_account: ' . $this->db->error);
+            }
+            $types = str_repeat('s', count($chunk));
+            $stmt->bind_param($types, ...$chunk);
             $stmt->execute();
             $result = $stmt->get_result();
             
@@ -185,10 +220,15 @@ class MassTransferService {
                 $params[] = '%' . $id . '%';
             }
             
-            $sql = "SELECT id FROM {$this->table} 
+            $sql = "SELECT id FROM {$this->table}
                     WHERE deleted_at IS NULL AND (" . implode(' OR ', $orConds) . ")";
-            
-            $stmt = qprep($this->db, $sql, $params);
+
+            $stmt = $this->db->prepare($sql);
+            if (!$stmt) {
+                throw new Exception('Failed to prepare search by social_url: ' . $this->db->error);
+            }
+            $types = str_repeat('s', count($params));
+            $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $result = $stmt->get_result();
             
@@ -271,8 +311,9 @@ class MassTransferService {
             throw new Exception('Не найдено ни одного валидного ID в тексте.' . $hint);
         }
         
-        // 2. Поиск
-        $searchResult = $this->findAccounts($parseResult['ids'], $enableLike);
+        // 2. Поиск (если были URL — автоматически включаем поиск по social_url)
+        $hadUrls = !empty($parseResult['urls']);
+        $searchResult = $this->findAccounts($parseResult['ids'], $enableLike, $hadUrls);
         
         if (empty($searchResult['ids'])) {
             throw new Exception('Ни один из распознанных ID не найден в базе данных.');

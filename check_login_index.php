@@ -8,6 +8,8 @@
  * - WHERE status IN (...) AND deleted_at IS NULL ORDER BY id → нужен idx_deleted_status_id.
  */
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
+requireAuth();
 
 if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
     echo "Ошибка: нет подключения к БД. Проверьте config.php.\n";

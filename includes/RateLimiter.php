@@ -25,7 +25,7 @@ class RateLimiter {
     public function __construct($cacheDir = null) {
         require_once __DIR__ . '/Config.php';
         
-        $this->cacheDir = $cacheDir ?? Config::RATELIMIT_DIR;
+        $this->cacheDir = $cacheDir ?? Config::getDir(Config::RATELIMIT_DIR);
         $this->enabled = Config::FEATURE_RATE_LIMITING;
         
         // Создаём директорию если не существует
@@ -194,7 +194,7 @@ class RateLimiter {
             return [];
         }
         
-        $records = @unserialize($content);
+        $records = @json_decode($content, true);
         return is_array($records) ? $records : [];
     }
     
@@ -205,7 +205,7 @@ class RateLimiter {
      * @param array $records Массив timestamp'ов
      */
     private function writeRecords($file, array $records) {
-        $content = serialize($records);
+        $content = json_encode($records);
         @file_put_contents($file, $content, LOCK_EX);
     }
     

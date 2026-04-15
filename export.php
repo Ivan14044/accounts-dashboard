@@ -31,6 +31,29 @@ if (function_exists('ob_get_level')) {
 // Загружаем Logger первым, чтобы можно было логировать ошибки
 require_once __DIR__ . '/includes/Logger.php';
 
+/**
+ * Write a CSV row using RFC 4180 rules (no backslash escape).
+ * On PHP 7.4+ delegates to fputcsv with escape=''.
+ * On PHP < 7.4 writes manually: fields are quoted when they contain
+ * the delimiter, a double-quote, or a newline; quotes are escaped as "".
+ */
+function writeCsvRow($handle, array $fields, string $delimiter = ';') {
+    if (PHP_VERSION_ID >= 70400) {
+        return fputcsv($handle, $fields, $delimiter, '"', '');
+    }
+    $out = [];
+    foreach ($fields as $field) {
+        $field = (string)$field;
+        if (strpos($field, '"') !== false || strpos($field, $delimiter) !== false
+            || strpos($field, "\n") !== false || strpos($field, "\r") !== false) {
+            $out[] = '"' . str_replace('"', '""', $field) . '"';
+        } else {
+            $out[] = $field;
+        }
+    }
+    return fwrite($handle, implode($delimiter, $out) . "\n");
+}
+
 // Обработчик фатальных ошибок
 register_shutdown_function(function() {
     $error = error_get_last();
@@ -103,10 +126,14 @@ Logger::info('EXPORT: ===== EXPORT STARTED =====', [
 
 // Получаем параметры
 try {
-    $ids = get_param('ids'); // Список ID через запятую
-    $selectAll = get_param('select') === 'all';
-    $format = strtolower(get_param('format', 'csv'));
-    $colsParam = get_param('cols');
+    // IDs могут приходить через GET (малые списки) или POST (большие списки >2000 символов)
+    $ids = get_param('ids');
+    if ($ids === '' && isset($_POST['ids'])) {
+        $ids = trim((string)$_POST['ids']);
+    }
+    $selectAll = get_param('select') === 'all' || (isset($_POST['select']) && $_POST['select'] === 'all');
+    $format = strtolower(get_param('format', isset($_POST['format']) ? $_POST['format'] : 'csv'));
+    $colsParam = get_param('cols') ?: (isset($_POST['cols']) ? trim((string)$_POST['cols']) : '');
     
     Logger::info('EXPORT: Parameters parsed', [
         'ids' => $ids,
@@ -127,7 +154,7 @@ try {
 
 // Инициализируем сервис
 try {
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     $meta = $service->getColumnMetadata();
     $allCols = $meta['all'];
     $numericMeta = $meta['numeric'];
@@ -162,8 +189,8 @@ if ($ids !== '' && !$selectAll) {
         $orderBy = "FIELD(id, " . implode(',', $idArray) . ")";
     }
 } else {
-    // Используем фильтры из запроса
-    $queryParams = $_GET;
+    // Используем фильтры из запроса (поддержка GET и POST)
+    $queryParams = array_merge($_GET, $_POST);
     
     // Нормализуем параметр status для правильной обработки
     // Если передан status[] как массив, преобразуем в status
@@ -204,7 +231,17 @@ if ($ids !== '' && !$selectAll) {
 // ЗАЩИТА: Требуем хотя бы один параметр для экспорта
 $hasStatus = !empty($_GET['status']) || !empty($_GET['status[]']);
 $hasQuery = !empty($_GET['q']);
-if (empty($idArray) && !$selectAll && !$hasQuery && !$hasStatus) {
+// Проверяем ВСЕ возможные фильтры, не только status и q
+$otherFilterKeys = ['status_marketplace', 'currency', 'geo', 'status_rk', 'has_email', 'has_2fa',
+    'has_token', 'has_avatar', 'has_cover', 'has_password', 'has_fp', 'fully_filled', 'favorites',
+    'limit_rk_from', 'limit_rk_to', 'scenario_pharma_from', 'scenario_pharma_to',
+    'quantity_friends_from', 'quantity_friends_to', 'bm_status', 'year_created_from', 'year_created_to',
+    'empty_status'];
+$hasOtherFilters = false;
+foreach ($otherFilterKeys as $fk) {
+    if (!empty($_GET[$fk])) { $hasOtherFilters = true; break; }
+}
+if (empty($idArray) && !$selectAll && !$hasQuery && !$hasStatus && !$hasOtherFilters) {
     Logger::warning('EXPORT: Blocked - no filters provided', [
         'has_status' => $hasStatus,
         'has_query' => $hasQuery,
@@ -364,7 +401,10 @@ if (!headers_sent()) {
             while (ob_get_level() > 0) { @ob_end_clean(); }
         }
         header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="accounts_export.csv"');
+        $csvDateStr = date('Y-m-d_H-i-s');
+        $csvFilename = "accounts_{$totalRows}_{$csvDateStr}.csv";
+        $csvFilenameSafe = rawurlencode($csvFilename);
+        header("Content-Disposition: attachment; filename=\"{$csvFilename}\"; filename*=UTF-8''{$csvFilenameSafe}");
         header('Cache-Control: no-cache, must-revalidate');
         header('Pragma: no-cache');
         // Добавляем BOM для корректного отображения UTF-8 в Excel
@@ -431,7 +471,12 @@ if ($format === 'txt') {
         $s = str_replace(["\r","\n","|"], [' ',' ',' '], $s);
         // Удаляем управляющие символы, но сохраняем UTF-8
         $s = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $s);
-        return trim($s);
+        $s = trim($s);
+        // Защита от CSV/formula injection при открытии в Excel
+        if ($s !== '' && in_array($s[0], ['=', '+', '-', '@'], true)) {
+            $s = "'" . $s;
+        }
+        return $s;
     };
 
     // Определяем стратегию обработки
@@ -700,7 +745,7 @@ if ($format === 'txt') {
         $columns[$col] = $knownTitles[$col] ?? ucfirst(str_replace('_', ' ', $col));
     }
     // Используем точку с запятой как разделитель для Excel
-    fputcsv($output, array_values($columns), ';');
+    writeCsvRow($output, array_values($columns), ';');
 
     // Санитизация для CSV-инъекций и UTF-8
     $sanitize = function($v) {
@@ -749,7 +794,7 @@ if ($format === 'txt') {
                 $line[] = mb_convert_encoding($sanitized, 'UTF-8', 'UTF-8');
             }
             // Используем точку с запятой как разделитель для Excel
-            fputcsv($output, $line, ';');
+            writeCsvRow($output, $line, ';');
             $exportedCount++;
         }
         
@@ -791,9 +836,11 @@ exit(0);
     if (isset($output) && $output) {
         @fclose($output);
     }
-    http_response_code(500);
-    header('Content-Type: text/plain; charset=utf-8');
-    die('Export failed: ' . htmlspecialchars($e->getMessage()));
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=utf-8');
+    }
+    die("\nExport failed: " . htmlspecialchars($e->getMessage()));
 } catch (Throwable $e) {
     Logger::error('EXPORT: Fatal throwable during export', [
         'error' => $e->getMessage(),
@@ -804,8 +851,10 @@ exit(0);
     if (isset($output) && $output) {
         @fclose($output);
     }
-    http_response_code(500);
-    header('Content-Type: text/plain; charset=utf-8');
-    die('Export failed: ' . htmlspecialchars($e->getMessage()));
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=utf-8');
+    }
+    die("\nExport failed: " . htmlspecialchars($e->getMessage()));
 }
 ?>

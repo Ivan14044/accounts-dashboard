@@ -30,6 +30,31 @@ require_once __DIR__ . '/../includes/Logger.php';
 require_once __DIR__ . '/../includes/Validator.php';
 require_once __DIR__ . '/../includes/Database.php';
 
+// ============================================================
+// Вспомогательные функции (вынесены сюда, чтобы не дублировать)
+// ============================================================
+
+// Убедиться что таблица account_favorites существует
+function ensureAccountFavoritesTable(Database $db): void {
+    if ($db->tableExists('account_favorites')) {
+        return;
+    }
+    $sql = "
+    CREATE TABLE IF NOT EXISTS `account_favorites` (
+        `user_id` VARCHAR(255) NOT NULL,
+        `account_id` INT NOT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (`user_id`, `account_id`),
+        INDEX `idx_user_id` (`user_id`),
+        INDEX `idx_account_id` (`account_id`),
+        INDEX `idx_user_created` (`user_id`, `created_at`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    if (!$db->executeDDL($sql, ['account_favorites'])) {
+        throw new Exception('Ошибка создания таблицы избранного');
+    }
+}
+
 // Middleware для проверки авторизации и rate limiting
 $authMiddleware = function() {
     requireAuth();
@@ -44,8 +69,8 @@ $router->addMiddleware($authMiddleware);
 
 // Регистрируем маршруты
 // Accounts endpoints
-$router->get('/accounts/count', function() {
-    $service = new AccountsService();
+$router->get('/accounts/count', function() use ($tableName) {
+    $service = new AccountsService($tableName);
     
     // Если передан параметр q, возвращаем также количество результатов
     if (!empty($_GET['q'])) {
@@ -71,7 +96,7 @@ $router->get('/accounts/count', function() {
     }
 });
 
-$router->post('/accounts', function() {
+$router->post('/accounts', function() use ($tableName) {
     $input = read_json_input(1048576); // 1MB максимум
     if (!is_array($input)) {
         throw new InvalidArgumentException('Invalid input');
@@ -97,7 +122,7 @@ $router->post('/accounts', function() {
     }
     
     // Получаем сервис и метаданные для валидации полей
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     $meta = $service->getColumnMetadata();
     
     // Подготавливаем данные для создания аккаунта
@@ -150,7 +175,7 @@ $router->post('/accounts', function() {
     ]);
 });
 
-$router->post('/accounts/bulk', function() {
+$router->post('/accounts/bulk', function() use ($tableName) {
     $input = read_json_input(20 * 1024 * 1024); // 20MB максимум для bulk операций
     if (!is_array($input)) {
         throw new InvalidArgumentException('Invalid input');
@@ -181,7 +206,7 @@ $router->post('/accounts/bulk', function() {
     }
     
     // Получаем сервис и метаданные для валидации полей
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     $meta = $service->getColumnMetadata();
     
     // Валидируем и нормализуем данные для каждого аккаунта
@@ -237,7 +262,7 @@ $router->post('/accounts/bulk', function() {
     json_success($result);
 });
 
-$router->post('/accounts/custom-card', function() {
+$router->post('/accounts/custom-card', function() use ($tableName) {
     // Проверка CSRF токена для POST запросов
     $input = read_json_input(1048576); // 1MB максимум
     $csrf = isset($input['csrf']) ? (string)$input['csrf'] : '';
@@ -248,7 +273,7 @@ $router->post('/accounts/custom-card', function() {
         return;
     }
     
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     
     // Получаем фильтры из POST запроса (JSON)
     $filters = $input;
@@ -259,7 +284,7 @@ $router->post('/accounts/custom-card', function() {
     }
     
     // Создаем фильтр из переданных параметров
-    $filter = $service->createFilterFromArray($filters);
+    $filter = $service->createFilterFromRequest($filters);
     
     // Подсчитываем количество записей
     $count = $service->getAccountsCount($filter);
@@ -267,80 +292,136 @@ $router->post('/accounts/custom-card', function() {
     json_success(['count' => $count]);
 });
 
-$router->post('/status/register', function() {
+// ────────────────────────────────────────────────────────────
+// Проверка аккаунтов на валидность (getuid.live)
+// ────────────────────────────────────────────────────────────
+require_once __DIR__ . '/../includes/AccountValidationService.php';
+
+/**
+ * POST /accounts/validate/prepare
+ * Подготовка списка: извлекает FB ID из записей, фильтрует пустые.
+ */
+$router->post('/accounts/validate/prepare', function() use ($tableName) {
+    $input = read_json_input(1048576);
+    if (!is_array($input)) throw new InvalidArgumentException('Invalid input');
+
+    $csrf = (string)($input['csrf'] ?? '');
+    if (!Validator::validateCsrfToken($csrf)) {
+        throw new InvalidArgumentException('CSRF validation failed');
+    }
+
+    $scope = (string)($input['scope'] ?? 'selected');
+    if (!in_array($scope, ['selected', 'page', 'filter'], true)) {
+        throw new InvalidArgumentException('Invalid scope');
+    }
+
+    $ids    = isset($input['ids']) && is_array($input['ids']) ? array_filter(array_map('intval', $input['ids'])) : [];
+    $query  = (string)($input['query'] ?? '');
+    $limit  = min(max((int)($input['limit'] ?? Config::VALIDATE_PREPARE_LIMIT), 1), Config::VALIDATE_PREPARE_LIMIT);
+    $offset = max(0, (int)($input['offset'] ?? 0));
+
+    $service  = new AccountsService($tableName);
+    $data     = $service->getAccountsForValidation($scope, $ids, $query, $limit, $offset);
+    $prepared = AccountValidationService::prepareItems($data['rows']);
+
+    $rowCount = count($data['rows']);
+    $nextOffset = $offset + $rowCount;
+
+    json_success([
+        'items'       => $prepared['items'],
+        'skipped'     => $prepared['skipped'],
+        'total'       => $data['total'],
+        'has_more'    => $scope === 'filter' && $nextOffset < $data['total'],
+        'next_offset' => $nextOffset,
+    ]);
+});
+
+/**
+ * POST /accounts/validate/check
+ * Проверка батча через getuid.live (curl_multi, параллельно).
+ * Сессия закрывается до начала — чтобы не блокировать другие запросы.
+ */
+$router->post('/accounts/validate/check', function() use ($tableName) {
+    $input = read_json_input(1048576);
+    if (!is_array($input)) throw new InvalidArgumentException('Invalid input');
+
+    $csrf = (string)($input['csrf'] ?? '');
+    if (!Validator::validateCsrfToken($csrf)) {
+        throw new InvalidArgumentException('CSRF validation failed');
+    }
+
+    $items = isset($input['items']) && is_array($input['items']) ? $input['items'] : [];
+    if (count($items) > Config::VALIDATE_CHECK_MAX_ITEMS) {
+        throw new InvalidArgumentException('Too many items, max ' . Config::VALIDATE_CHECK_MAX_ITEMS);
+    }
+
+    // Отпускаем сессию — длинная операция не должна блокировать UI
+    session_write_close();
+    set_time_limit(120);
+
+    $result = AccountValidationService::checkItems($items);
+    json_success($result);
+});
+
+$router->post('/status/register', function() use ($tableName) {
     $input = read_json_input(1048576); // 1MB максимум
     if (!is_array($input)) {
         throw new Exception('Invalid input');
     }
-    
+
     // Проверка CSRF токена
     $csrf = isset($input['csrf']) ? (string)$input['csrf'] : '';
     if (!Validator::validateCsrfToken($csrf)) {
         Logger::warning('REGISTER STATUS API: CSRF validation failed');
         throw new Exception('CSRF validation failed');
     }
-    
+
     $status = isset($input['status']) ? trim((string)$input['status']) : '';
-    
+
     if ($status === '') {
         throw new Exception('Status is required');
     }
-    
-    // Валидация статуса (только буквы, цифры, подчеркивания, дефисы, пробелы)
-    if (!preg_match('/^[a-zA-Z0-9_\-\s]+$/', $status)) {
-        throw new Exception('Invalid status format. Only letters, numbers, underscores, hyphens and spaces are allowed');
+
+    // Валидация статуса (буквы включая кириллицу, цифры, подчеркивания, дефисы, пробелы)
+    if (!preg_match('/^[\p{L}0-9_\-\s]+$/u', $status)) {
+        throw new Exception('Invalid status format. Only letters (including Cyrillic), numbers, underscores, hyphens and spaces are allowed');
     }
-    
-    $service = new AccountsService();
-    
-    // Проверяем, есть ли уже записи с таким статусом
-    $meta = $service->getColumnMetadata();
-    require_once __DIR__ . '/../includes/FilterBuilder.php';
-    require_once __DIR__ . '/../includes/ColumnMetadata.php';
-    require_once __DIR__ . '/../includes/Database.php';
-    
-    $filter = new FilterBuilder($meta['columns'], $meta['numeric'], \AccountsService::getNumericLikeColumns());
-    $filter->addEqualFilter('status', $status);
-    $count = $service->getAccountsCount($filter);
-    
-    if ($count > 0) {
-        // Статус уже существует в БД — просто очищаем кэши, чтобы он появился в фильтрах
-        ColumnMetadata::clearCache();
-        Database::getInstance()->clearCache();
-        json_success(['message' => 'Status already exists', 'exists' => true]);
-        return;
-    }
-    
-    // Создаем запись с новым статусом, чтобы он появился в списке доступных статусов
-    // Используем специальный префикс для идентификации таких записей
+
+    $service = new AccountsService($tableName);
     $mysqli = Database::getInstance()->getConnection();
 
-    // Проверяем, есть ли уже служебная запись с таким статусом
+    // Проверяем, есть ли уже записи с таким статусом, используя INSERT ... ON DUPLICATE KEY UPDATE
+    // Используем специальный префикс для идентификации служебных записей
     $serviceLogin = '__status_marker_' . md5($status);
-    $checkStmt = $mysqli->prepare("SELECT id FROM accounts WHERE login = ? AND status = ? LIMIT 1");
-    $checkStmt->bind_param('ss', $serviceLogin, $status);
-    $checkStmt->execute();
-    $checkResult = $checkStmt->get_result();
-    
-    if ($checkResult->num_rows === 0) {
-        // Создаем служебную запись с новым статусом
-        $insertStmt = $mysqli->prepare("INSERT INTO accounts (login, status, created_at) VALUES (?, ?, NOW())");
-        $insertStmt->bind_param('ss', $serviceLogin, $status);
-        $insertStmt->execute();
-        $insertStmt->close();
+
+    // Используем INSERT ... ON DUPLICATE KEY UPDATE для атомарной операции
+    $sql = "INSERT INTO accounts (login, status, created_at) VALUES (?, ?, NOW())
+            ON DUPLICATE KEY UPDATE status = VALUES(status)";
+
+    $stmt = $mysqli->prepare($sql);
+    if (!$stmt) {
+        throw new Exception('Failed to prepare statement: ' . $mysqli->error);
     }
-    
-    $checkStmt->close();
-    
+
+    $stmt->bind_param('ss', $serviceLogin, $status);
+    if (!$stmt->execute()) {
+        throw new Exception('Failed to register status: ' . $stmt->error);
+    }
+
+    $affectedRows = $stmt->affected_rows;
+    $stmt->close();
+
     // Очищаем кэш метаданных и кэши запросов, чтобы новый статус появился в списке
     ColumnMetadata::clearCache();
     Database::getInstance()->clearCache();
-    
-    json_success(['message' => 'Status registered successfully', 'exists' => false]);
+
+    // Определяем, был ли статус создан или уже существовал
+    $exists = $affectedRows === 0 || $affectedRows === 2; // 2 = UPDATE, 1 = INSERT
+    json_success(['message' => 'Status registered successfully', 'exists' => $exists]);
 });
 
 // Favorites endpoints
-$router->get('/favorites', function() {
+$router->get('/favorites', function() use ($tableName) {
     $userId = $_SESSION['username'] ?? null;
     if (!$userId) {
         json_error('Необходима авторизация');
@@ -349,28 +430,8 @@ $router->get('/favorites', function() {
 
     $db = Database::getInstance();
     $mysqli = $db->getConnection();
+    ensureAccountFavoritesTable($db);
 
-    // Проверяем существование таблицы и создаём, если её нет
-    if (!$db->tableExists('account_favorites')) {
-        $createTableSQL = "
-        CREATE TABLE IF NOT EXISTS `account_favorites` (
-            `user_id` VARCHAR(255) NOT NULL,
-            `account_id` INT NOT NULL,
-            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (`user_id`, `account_id`),
-            INDEX `idx_user_id` (`user_id`),
-            INDEX `idx_account_id` (`account_id`),
-            INDEX `idx_user_created` (`user_id`, `created_at`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ";
-        
-        $allowedTables = ['account_favorites'];
-        if (!$db->executeDDL($createTableSQL, $allowedTables)) {
-            json_error('Ошибка создания таблицы избранного');
-            return;
-        }
-    }
-    
     $stmt = $mysqli->prepare("SELECT account_id FROM account_favorites WHERE user_id = ? ORDER BY created_at DESC");
     if (!$stmt) {
         throw new Exception('Failed to prepare statement: ' . $mysqli->error);
@@ -392,7 +453,7 @@ $router->get('/favorites', function() {
     json_success(['favorites' => $favorites]);
 });
 
-$router->post('/favorites', function() {
+$router->post('/favorites', function() use ($tableName) {
     $userId = $_SESSION['username'] ?? null;
     if (!$userId) {
         json_error('Необходима авторизация');
@@ -418,28 +479,8 @@ $router->post('/favorites', function() {
 
     $db = Database::getInstance();
     $mysqli = $db->getConnection();
+    ensureAccountFavoritesTable($db);
 
-    // Проверяем существование таблицы
-    if (!$db->tableExists('account_favorites')) {
-        $createTableSQL = "
-        CREATE TABLE IF NOT EXISTS `account_favorites` (
-            `user_id` VARCHAR(255) NOT NULL,
-            `account_id` INT NOT NULL,
-            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (`user_id`, `account_id`),
-            INDEX `idx_user_id` (`user_id`),
-            INDEX `idx_account_id` (`account_id`),
-            INDEX `idx_user_created` (`user_id`, `created_at`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ";
-        
-        $allowedTables = ['account_favorites'];
-        if (!$db->executeDDL($createTableSQL, $allowedTables)) {
-            json_error('Ошибка создания таблицы избранного');
-            return;
-        }
-    }
-    
     $stmt = $mysqli->prepare("INSERT IGNORE INTO account_favorites (user_id, account_id) VALUES (?, ?)");
     if (!$stmt) {
         throw new Exception('Failed to prepare statement: ' . $mysqli->error);
@@ -456,7 +497,7 @@ $router->post('/favorites', function() {
     json_success(['message' => 'Добавлено в избранное']);
 });
 
-$router->delete('/favorites', function() {
+$router->delete('/favorites', function() use ($tableName) {
     $userId = $_SESSION['username'] ?? null;
     if (!$userId) {
         json_error('Необходима авторизация');
@@ -497,40 +538,80 @@ $router->delete('/favorites', function() {
     json_success(['message' => 'Удалено из избранного']);
 });
 
+// Вспомогательная функция: убедиться что таблица user_settings существует
+function ensureUserSettingsTable(Database $db): void {
+    if ($db->tableExists('user_settings')) {
+        return;
+    }
+    $sql = "
+    CREATE TABLE IF NOT EXISTS `user_settings` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `username` VARCHAR(255) NOT NULL,
+        `setting_type` VARCHAR(100) NOT NULL,
+        `setting_value` TEXT,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY `unique_user_setting` (`username`, `setting_type`),
+        INDEX `idx_username` (`username`),
+        INDEX `idx_setting_type` (`setting_type`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    if (!$db->executeDDL($sql, ['user_settings'])) {
+        throw new Exception('Failed to create user_settings table');
+    }
+}
+
+// Вспомогательная функция: сохранить настройку пользователя (POST и PUT)
+function saveUserSetting(string $username, array $input): void {
+    $csrf = isset($input['csrf']) ? (string)$input['csrf'] : '';
+    if (!Validator::validateCsrfToken($csrf)) {
+        Logger::warning('USER SETTINGS API: CSRF validation failed');
+        throw new Exception('CSRF validation failed');
+    }
+
+    if (!isset($input['value'])) {
+        throw new Exception('Value is required');
+    }
+
+    $settingType = $input['type'] ?? 'custom_cards';
+    $settingValue = $input['value'];
+
+    $db = Database::getInstance();
+    $mysqli = $db->getConnection();
+    ensureUserSettingsTable($db);
+
+    $valueJson = json_encode($settingValue, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $stmt = $mysqli->prepare("
+        INSERT INTO user_settings (username, setting_type, setting_value)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            setting_value = VALUES(setting_value),
+            updated_at = CURRENT_TIMESTAMP
+    ");
+    if (!$stmt) {
+        throw new Exception('Failed to prepare statement: ' . $mysqli->error);
+    }
+    $stmt->bind_param('sss', $username, $settingType, $valueJson);
+    if (!$stmt->execute()) {
+        throw new Exception('Failed to save settings: ' . $mysqli->error);
+    }
+    $stmt->close();
+
+    json_success(['message' => 'Settings saved successfully']);
+}
+
 // Settings endpoints
-$router->get('/settings', function() {
+$router->get('/settings', function() use ($tableName) {
     $username = $_SESSION['username'] ?? null;
     if (!$username) {
         throw new Exception('User not authenticated');
     }
 
     $settingType = $_GET['type'] ?? 'custom_cards';
-
     $db = Database::getInstance();
     $mysqli = $db->getConnection();
+    ensureUserSettingsTable($db);
 
-    // Проверяем существование таблицы
-    if (!$db->tableExists('user_settings')) {
-        $createTableSQL = "
-        CREATE TABLE IF NOT EXISTS `user_settings` (
-            `id` INT AUTO_INCREMENT PRIMARY KEY,
-            `username` VARCHAR(255) NOT NULL,
-            `setting_type` VARCHAR(100) NOT NULL,
-            `setting_value` TEXT,
-            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY `unique_user_setting` (`username`, `setting_type`),
-            INDEX `idx_username` (`username`),
-            INDEX `idx_setting_type` (`setting_type`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ";
-        
-        $allowedTables = ['user_settings'];
-        if (!$db->executeDDL($createTableSQL, $allowedTables)) {
-            throw new Exception('Failed to create user_settings table');
-        }
-    }
-    
     $stmt = $mysqli->prepare("SELECT setting_value FROM user_settings WHERE username = ? AND setting_type = ? LIMIT 1");
     if (!$stmt) {
         throw new Exception('Failed to prepare statement: ' . $mysqli->error);
@@ -538,178 +619,82 @@ $router->get('/settings', function() {
     $stmt->bind_param('ss', $username, $settingType);
     $stmt->execute();
     $result = $stmt->get_result();
-    
+
     if ($row = $result->fetch_assoc()) {
         $value = json_decode($row['setting_value'], true);
         json_success(['value' => $value]);
     } else {
-        $defaultValue = $settingType === 'custom_cards' ? [] : [];
-        json_success(['value' => $defaultValue]);
+        json_success(['value' => []]);
     }
-    
+
     $stmt->close();
 });
 
-$router->post('/settings', function() {
+$router->post('/settings', function() use ($tableName) {
     $username = $_SESSION['username'] ?? null;
     if (!$username) {
         throw new Exception('User not authenticated');
     }
-    
-    $input = read_json_input(1048576);
-    
-    // Проверка CSRF токена
-    $csrf = isset($input['csrf']) ? (string)$input['csrf'] : '';
-    if (!Validator::validateCsrfToken($csrf)) {
-        Logger::warning('USER SETTINGS API: CSRF validation failed');
-        throw new Exception('CSRF validation failed');
-    }
-    
-    $settingType = $input['type'] ?? 'custom_cards';
-    $settingValue = $input['value'] ?? null;
-    
-    if (!isset($input['value'])) {
-        throw new Exception('Value is required');
-    }
-
-    $db = Database::getInstance();
-    $mysqli = $db->getConnection();
-
-    // Проверяем существование таблицы
-    if (!$db->tableExists('user_settings')) {
-        $createTableSQL = "
-        CREATE TABLE IF NOT EXISTS `user_settings` (
-            `id` INT AUTO_INCREMENT PRIMARY KEY,
-            `username` VARCHAR(255) NOT NULL,
-            `setting_type` VARCHAR(100) NOT NULL,
-            `setting_value` TEXT,
-            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY `unique_user_setting` (`username`, `setting_type`),
-            INDEX `idx_username` (`username`),
-            INDEX `idx_setting_type` (`setting_type`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ";
-        
-        $allowedTables = ['user_settings'];
-        if (!$db->executeDDL($createTableSQL, $allowedTables)) {
-            throw new Exception('Failed to create user_settings table');
-        }
-    }
-    
-    $valueJson = json_encode($settingValue, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    
-    $stmt = $mysqli->prepare("
-        INSERT INTO user_settings (username, setting_type, setting_value) 
-        VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE 
-            setting_value = VALUES(setting_value),
-            updated_at = CURRENT_TIMESTAMP
-    ");
-    
-    if (!$stmt) {
-        throw new Exception('Failed to prepare statement: ' . $mysqli->error);
-    }
-    
-    $stmt->bind_param('sss', $username, $settingType, $valueJson);
-    
-    if (!$stmt->execute()) {
-        throw new Exception('Failed to save settings: ' . $mysqli->error);
-    }
-    
-    $stmt->close();
-    
-    json_success(['message' => 'Settings saved successfully']);
+    saveUserSetting($username, read_json_input(1048576));
 });
 
-$router->put('/settings', function() {
-    // PUT обрабатывается так же, как POST
+$router->put('/settings', function() use ($tableName) {
     $username = $_SESSION['username'] ?? null;
     if (!$username) {
         throw new Exception('User not authenticated');
     }
-    
-    $input = read_json_input(1048576);
-    
-    // Проверка CSRF токена
-    $csrf = isset($input['csrf']) ? (string)$input['csrf'] : '';
-    if (!Validator::validateCsrfToken($csrf)) {
-        Logger::warning('USER SETTINGS API: CSRF validation failed');
-        throw new Exception('CSRF validation failed');
-    }
-    
-    $settingType = $input['type'] ?? 'custom_cards';
-    $settingValue = $input['value'] ?? null;
-    
-    if (!isset($input['value'])) {
-        throw new Exception('Value is required');
-    }
-
-    $db = Database::getInstance();
-    $mysqli = $db->getConnection();
-
-    // Проверяем существование таблицы
-    if (!$db->tableExists('user_settings')) {
-        $createTableSQL = "
-        CREATE TABLE IF NOT EXISTS `user_settings` (
-            `id` INT AUTO_INCREMENT PRIMARY KEY,
-            `username` VARCHAR(255) NOT NULL,
-            `setting_type` VARCHAR(100) NOT NULL,
-            `setting_value` TEXT,
-            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY `unique_user_setting` (`username`, `setting_type`),
-            INDEX `idx_username` (`username`),
-            INDEX `idx_setting_type` (`setting_type`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-        ";
-        
-        $allowedTables = ['user_settings'];
-        if (!$db->executeDDL($createTableSQL, $allowedTables)) {
-            throw new Exception('Failed to create user_settings table');
-        }
-    }
-    
-    $valueJson = json_encode($settingValue, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    
-    $stmt = $mysqli->prepare("
-        INSERT INTO user_settings (username, setting_type, setting_value) 
-        VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE 
-            setting_value = VALUES(setting_value),
-            updated_at = CURRENT_TIMESTAMP
-    ");
-    
-    if (!$stmt) {
-        throw new Exception('Failed to prepare statement: ' . $mysqli->error);
-    }
-    
-    $stmt->bind_param('sss', $username, $settingType, $valueJson);
-    
-    if (!$stmt->execute()) {
-        throw new Exception('Failed to save settings: ' . $mysqli->error);
-    }
-    
-    $stmt->close();
-    
-    json_success(['message' => 'Settings saved successfully']);
+    saveUserSetting($username, read_json_input(1048576));
 });
+
+// Вспомогательная функция: убедиться что таблица saved_filters существует
+function ensureSavedFiltersTable(Database $db): void {
+    if ($db->tableExists('saved_filters')) {
+        // Добавляем колонку table_name если её ещё нет
+        $mysqli = $db->getConnection();
+        $check = $mysqli->query("SHOW COLUMNS FROM `saved_filters` LIKE 'table_name'");
+        if ($check && $check->num_rows === 0) {
+            $mysqli->query("ALTER TABLE `saved_filters` ADD COLUMN `table_name` VARCHAR(255) NOT NULL DEFAULT 'accounts' AFTER `user_id`");
+            $mysqli->query("ALTER TABLE `saved_filters` ADD INDEX `idx_user_table` (`user_id`, `table_name`)");
+        }
+        return;
+    }
+    $sql = "
+    CREATE TABLE IF NOT EXISTS `saved_filters` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `user_id` VARCHAR(255) NOT NULL,
+        `table_name` VARCHAR(255) NOT NULL DEFAULT 'accounts',
+        `name` VARCHAR(255) NOT NULL,
+        `filters` JSON NOT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX `idx_user_id` (`user_id`),
+        INDEX `idx_user_updated` (`user_id`, `updated_at`),
+        INDEX `idx_user_table` (`user_id`, `table_name`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+    if (!$db->executeDDL($sql, ['saved_filters'])) {
+        throw new Exception('Ошибка создания таблицы saved_filters');
+    }
+}
 
 // Saved filters endpoints
-$router->get('/filters', function() {
+$router->get('/filters', function() use ($tableName) {
     $userId = $_SESSION['username'] ?? null;
     if (!$userId) {
         json_error('Необходима авторизация');
         return;
     }
 
-    $mysqli = Database::getInstance()->getConnection();
+    $db = Database::getInstance();
+    ensureSavedFiltersTable($db);
+    $mysqli = $db->getConnection();
     
-    $stmt = $mysqli->prepare("SELECT id, name, filters, created_at, updated_at FROM saved_filters WHERE user_id = ? ORDER BY updated_at DESC LIMIT 100");
+    $filterTable = $_GET['table'] ?? 'accounts';
+    $stmt = $mysqli->prepare("SELECT id, name, filters, created_at, updated_at FROM saved_filters WHERE user_id = ? AND table_name = ? ORDER BY updated_at DESC LIMIT 100");
     if (!$stmt) {
         throw new Exception('Failed to prepare statement');
     }
-    $stmt->bind_param('s', $userId);
+    $stmt->bind_param('ss', $userId, $filterTable);
     $stmt->execute();
     $result = $stmt->get_result();
     
@@ -728,7 +713,7 @@ $router->get('/filters', function() {
     json_success(['filters' => $filters]);
 });
 
-$router->post('/filters', function() {
+$router->post('/filters', function() use ($tableName) {
     $userId = $_SESSION['username'] ?? null;
     if (!$userId) {
         json_error('Необходима авторизация');
@@ -747,33 +732,59 @@ $router->post('/filters', function() {
     
     $name = trim($input['name'] ?? '');
     $filters = $input['filters'] ?? [];
-    
+
     if (empty($name)) {
         json_error('Название фильтра обязательно');
         return;
     }
-    
+
+    if (mb_strlen($name, 'UTF-8') > 255) {
+        json_error('Название фильтра слишком длинное (макс. 255 символов)');
+        return;
+    }
+
     if (empty($filters) || !is_array($filters)) {
         json_error('Фильтры должны быть массивом');
         return;
     }
 
-    $mysqli = Database::getInstance()->getConnection();
+    $db = Database::getInstance();
+    ensureSavedFiltersTable($db);
+    $mysqli = $db->getConnection();
+
+    // Проверяем лимит количества сохранённых фильтров на пользователя
+    $countStmt = $mysqli->prepare("SELECT COUNT(*) as cnt FROM saved_filters WHERE user_id = ?");
+    if ($countStmt) {
+        $countStmt->bind_param('s', $userId);
+        $countStmt->execute();
+        $countResult = $countStmt->get_result()->fetch_assoc();
+        $countStmt->close();
+        if (($countResult['cnt'] ?? 0) >= 50) {
+            json_error('Достигнут лимит сохранённых фильтров (максимум 50). Удалите ненужные фильтры.');
+            return;
+        }
+    }
+
     $filtersJson = json_encode($filters, JSON_UNESCAPED_UNICODE);
-    $stmt = $mysqli->prepare("INSERT INTO saved_filters (user_id, name, filters) VALUES (?, ?, ?)");
+    $filterTable = $input['table'] ?? 'accounts';
+    $stmt = $mysqli->prepare("INSERT INTO saved_filters (user_id, table_name, name, filters) VALUES (?, ?, ?, ?)");
     if (!$stmt) {
         throw new Exception('Failed to prepare statement');
     }
-    $stmt->bind_param('sss', $userId, $name, $filtersJson);
-    $stmt->execute();
+    $stmt->bind_param('ssss', $userId, $filterTable, $name, $filtersJson);
+    if (!$stmt->execute()) {
+        $error = $stmt->error;
+        $stmt->close();
+        throw new Exception('Failed to save filter: ' . $error);
+    }
     $filterId = $mysqli->insert_id;
     $stmt->close();
-    
+
     Logger::info('Filter saved', ['user' => $userId, 'filter_id' => $filterId, 'name' => $name]);
     json_success(['id' => $filterId, 'message' => 'Фильтр сохранён']);
 });
 
-$router->put('/filters', function() {
+$router->put('/filters', function() use ($tableName) {
     $userId = $_SESSION['username'] ?? null;
     if (!$userId) {
         json_error('Необходима авторизация');
@@ -809,7 +820,9 @@ $router->put('/filters', function() {
         return;
     }
 
-    $mysqli = Database::getInstance()->getConnection();
+    $db = Database::getInstance();
+    ensureSavedFiltersTable($db);
+    $mysqli = $db->getConnection();
     $filtersJson = json_encode($filters, JSON_UNESCAPED_UNICODE);
     $stmt = $mysqli->prepare("UPDATE saved_filters SET name = ?, filters = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?");
     if (!$stmt) {
@@ -817,13 +830,19 @@ $router->put('/filters', function() {
     }
     $stmt->bind_param('ssis', $name, $filtersJson, $id, $userId);
     $stmt->execute();
+    $affected = $stmt->affected_rows;
     $stmt->close();
-    
+
+    if ($affected === 0) {
+        json_error('Фильтр не найден или не принадлежит вам', 404);
+        return;
+    }
+
     Logger::info('Filter updated', ['user' => $userId, 'filter_id' => $id, 'name' => $name]);
     json_success(['message' => 'Фильтр обновлён']);
 });
 
-$router->delete('/filters', function() {
+$router->delete('/filters', function() use ($tableName) {
     $userId = $_SESSION['username'] ?? null;
     if (!$userId) {
         json_error('Необходима авторизация');
@@ -847,7 +866,9 @@ $router->delete('/filters', function() {
         return;
     }
 
-    $mysqli = Database::getInstance()->getConnection();
+    $db = Database::getInstance();
+    ensureSavedFiltersTable($db);
+    $mysqli = $db->getConnection();
     $stmt = $mysqli->prepare("DELETE FROM saved_filters WHERE id = ? AND user_id = ?");
     if (!$stmt) {
         throw new Exception('Failed to prepare statement');

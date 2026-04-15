@@ -24,17 +24,21 @@ const RowIdsCache = {
     }
     
     const rowIds = [];
-    
-    // Пытаемся использовать виртуализацию, если она включена
-    if (window.tableVirtualization && window.tableVirtualization.enabled && window.tableVirtualization.allRows) {
-      // Виртуализация включена - используем allRows
-      window.tableVirtualization.allRows.forEach(row => {
+    const v = window.tableVirtualization;
+
+    // Режим виртуализации «из данных»: allRows пуст, ID берём из rowsData
+    if (v && v.enabled && v.rowsData && v.rowsData.length > 0) {
+      v.rowsData.forEach(function (row) {
+        const id = row && (row.id !== undefined) ? parseInt(row.id, 10) : NaN;
+        if (Number.isFinite(id)) rowIds.push(id);
+      });
+    } else if (v && v.enabled && v.allRows && v.allRows.length > 0) {
+      // Виртуализация с DOM-строками
+      v.allRows.forEach(function (row) {
         const checkbox = row.querySelector('.row-checkbox');
         if (checkbox) {
-          const rowId = parseInt(checkbox.value);
-          if (Number.isFinite(rowId)) {
-            rowIds.push(rowId);
-          }
+          const rowId = parseInt(checkbox.value, 10);
+          if (Number.isFinite(rowId)) rowIds.push(rowId);
         }
       });
     } else {
@@ -120,7 +124,7 @@ function toggleRowSelection(id, checked) {
       logger.debug('❌ Удалён ID:', id, '| Всего выбрано:', selectedIds.size);
     }
   }
-  saveSelectedIds();
+  (window.scheduleIdle || function(fn) { setTimeout(fn, 0); })(saveSelectedIds);
   updateSelectedCount();
   if (typeof logger !== 'undefined') {
     logger.debug('📦 Список выбранных ID:', Array.from(selectedIds));
@@ -134,7 +138,7 @@ function updateSelectedCount() {
   if (selectedCountEl) {
     selectedCountEl.textContent = selectedAllFiltered ? 'Все по фильтру' : count;
   }
-  const exportBtns = document.querySelectorAll('#exportSelectedCsv, #exportSelectedTxt, #deleteSelected, #changeStatusSelected, #bulkEditFieldBtn');
+  const exportBtns = document.querySelectorAll('#exportSelectedCsv, #exportSelectedTxt, #deleteSelected, #changeStatusSelected, #bulkEditFieldBtn, #validateAccountsBtn');
   exportBtns.forEach(btn => btn.disabled = (!selectedAllFiltered && count === 0));
   
   // Показываем/скрываем кнопку "Сбросить выбор"
@@ -313,8 +317,8 @@ function handleSelectAllChange(isChecked, keepAllFilteredMode = false) {
     });
   }
   
-  // После батча обновляем счетчики ОДИН РАЗ и сохраняем в localStorage
-  saveSelectedIds();
+  // После батча сохраняем в localStorage в idle
+  (window.scheduleIdle || function(fn) { setTimeout(fn, 0); })(saveSelectedIds);
   
   if (typeof logger !== 'undefined') {
     logger.debug('✅ Массовое выделение завершено. Всего выбрано:', selectedIds.size);
@@ -385,7 +389,7 @@ window.DashboardSelection = {
   clearSelection: () => {
     selectedIds.clear();
     selectedAllFiltered = false;
-    saveSelectedIds();
+    (window.scheduleIdle || function(fn) { setTimeout(fn, 0); })(saveSelectedIds);
     updateSelectedCount();
     updateSelectedOnPageCounter();
   },

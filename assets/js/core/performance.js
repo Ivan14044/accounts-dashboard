@@ -1,8 +1,20 @@
 /**
  * Утилиты для оптимизации производительности
  * 
- * Батчинг DOM операций, дебаунсинг, троттлинг
+ * Батчинг DOM операций, дебаунсинг, троттлинг, requestIdleCallback
  */
+
+/**
+ * Выполнить callback в период простоя главного потока (requestIdleCallback с fallback)
+ * @param {Function} callback - Функция для отложенного выполнения
+ */
+function scheduleIdle(callback) {
+  if (typeof requestIdleCallback !== 'undefined') {
+    requestIdleCallback(callback, { timeout: 100 });
+  } else {
+    setTimeout(callback, 0);
+  }
+}
 
 /**
  * Дебаунсинг функции (отложенное выполнение)
@@ -159,12 +171,58 @@ function lazyLoad(modulePath) {
   });
 }
 
+/**
+ * Замер FPS при скролле/анимации: считает вызовы requestAnimationFrame за 1–2 сек, выводит средний FPS.
+ * Запуск: window.__MEASURE_FPS__ = true или URL ?fps=1. По умолчанию не выполняется.
+ */
+function measureFPS(durationMs) {
+  durationMs = durationMs || 2000;
+  var frames = 0;
+  var start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
+  function tick() {
+    frames++;
+    if (typeof performance !== 'undefined' ? performance.now() - start < durationMs : (Date.now() - start) < durationMs) {
+      requestAnimationFrame(tick);
+    } else {
+      var elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
+      var fps = Math.round((frames / elapsed) * 1000);
+      if (typeof console !== 'undefined' && console.log) {
+        console.log('[FPS] ' + frames + ' frames in ' + (elapsed / 1000).toFixed(2) + 's → ~' + fps + ' FPS');
+      }
+      var el = document.getElementById('fps-measure-output');
+      if (el) {
+        el.textContent = 'FPS: ' + fps + ' (' + frames + ' frames, ' + (elapsed / 1000).toFixed(2) + 's)';
+      }
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+function runFPSMeasureIfRequested() {
+  var urlFlag = false;
+  try {
+    var params = new URLSearchParams(window.location.search);
+    urlFlag = params.get('fps') === '1' || params.get('fps') === 'true';
+  } catch (_) {}
+  if (window.__MEASURE_FPS__ === true || urlFlag) {
+    var overlay = document.createElement('div');
+    overlay.id = 'fps-measure-output';
+    overlay.setAttribute('aria-live', 'polite');
+    overlay.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:9999;background:rgba(0,0,0,0.8);color:#0f0;padding:6px 10px;font-family:monospace;font-size:12px;border-radius:4px;';
+    overlay.textContent = 'FPS: measuring...';
+    document.body.appendChild(overlay);
+    measureFPS(2000);
+  }
+}
+
 // Создаем глобальный экземпляр BatchUpdater
 const batchUpdater = new BatchUpdater();
 
 // Экспортируем для использования
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    scheduleIdle,
     debounce,
     throttle,
     batchDOM,
@@ -174,13 +232,22 @@ if (typeof module !== 'undefined' && module.exports) {
     lazyLoad
   };
 } else {
+  window.scheduleIdle = scheduleIdle;
+  window.measureFPS = measureFPS;
   window.performanceUtils = {
+    scheduleIdle,
     debounce,
     throttle,
     batchDOM,
     BatchUpdater,
     batchUpdater,
     measurePerformance,
-    lazyLoad
+    lazyLoad,
+    measureFPS
   };
+  if (document.readyState === 'complete') {
+    runFPSMeasureIfRequested();
+  } else {
+    window.addEventListener('load', runFPSMeasureIfRequested);
+  }
 }

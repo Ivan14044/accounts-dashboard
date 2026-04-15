@@ -136,65 +136,60 @@ document.addEventListener('DOMContentLoaded', function() {
     async function restoreAccounts(ids) {
         try {
             restoreSelectedBtn.disabled = true;
-            
-            const response = await fetch('restore.php', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({
-                    ids: ids,
-                    csrf: getCsrfToken()
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error('Ошибка восстановления');
-            }
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                if (typeof showToast === 'function') {
-                    showToast(`Восстановлено ${data.restored_count || ids.length} аккаунт(ов)`, 'success');
-                }
-                
-                // Удаляем восстановленные аккаунты из выбранных
-                ids.forEach(id => selectedIds.delete(id));
-                updateSelectedCount();
-                
-                // Удаляем строки из таблицы
-                ids.forEach(id => {
-                    const row = document.querySelector(`tr[data-id="${id}"]`);
-                    if (row) {
-                        row.remove();
-                    }
+            var BATCH = 1000;
+            var totalRestored = 0;
+
+            for (var i = 0; i < ids.length; i += BATCH) {
+                var batch = ids.slice(i, i + BATCH);
+                var response = await fetch(window.getTableAwareUrl('restore.php'), {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        ids: batch,
+                        csrf: getCsrfToken()
+                    })
                 });
-                
-                // Обновляем счётчик
-                const deletedCountEl = document.querySelector('.trash-header p');
-                if (deletedCountEl) {
-                    const remaining = document.querySelectorAll('.trash-checkbox').length;
-                    deletedCountEl.textContent = `Удалённые аккаунты (${remaining} записей)`;
+
+                if (!response.ok) {
+                    throw new Error('Ошибка восстановления (HTTP ' + response.status + ')');
                 }
-                
-                // Если корзина пуста, перезагружаем страницу
-                if (document.querySelectorAll('.trash-checkbox').length === 0) {
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1000);
+
+                var data = await response.json();
+                if (data.success) {
+                    totalRestored += (data.restored_count || batch.length);
+                } else {
+                    throw new Error(data.error || 'Ошибка восстановления');
                 }
-            } else {
-                throw new Error(data.error || 'Ошибка восстановления');
+            }
+
+            if (typeof showToast === 'function') {
+                showToast('Восстановлено ' + totalRestored + ' аккаунт(ов)', 'success');
+            }
+
+            // Удаляем восстановленные аккаунты из выбранных
+            ids.forEach(function(id) { selectedIds.delete(id); });
+            updateSelectedCount();
+
+            // Удаляем строки из таблицы
+            ids.forEach(function(id) {
+                var row = document.querySelector('tr[data-id="' + id + '"]');
+                if (row) row.remove();
+            });
+
+            // Если корзина пуста, перезагружаем страницу
+            if (document.querySelectorAll('.trash-checkbox').length === 0) {
+                setTimeout(function() { window.location.reload(); }, 1000);
             }
         } catch (error) {
-            (typeof logger !== 'undefined' ? logger.error : console.error)('Restore error:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Restore error:', error.message);
             if (typeof showToast === 'function') {
-                showToast('Ошибка при восстановлении аккаунтов: ' + error.message, 'error');
+                showToast('Ошибка при восстановлении: ' + error.message, 'error');
             } else {
-                alert('Ошибка при восстановлении аккаунтов: ' + error.message);
+                alert('Ошибка при восстановлении: ' + error.message);
             }
         } finally {
             restoreSelectedBtn.disabled = selectedIds.size === 0;
@@ -207,67 +202,63 @@ document.addEventListener('DOMContentLoaded', function() {
     async function deletePermanently(ids) {
         try {
             deletePermanentlyBtn.disabled = true;
-            
-            const response = await fetch('delete_permanent.php', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({
-                    ids: ids,
-                    csrf: getCsrfToken()
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error('Ошибка удаления');
-            }
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                if (typeof showToast === 'function') {
-                    showToast(`Окончательно удалено ${data.deleted_count || ids.length} аккаунт(ов)`, 'success');
-                }
-                
-                // Удаляем удалённые аккаунты из выбранных
-                ids.forEach(id => selectedIds.delete(id));
-                updateSelectedCount();
-                
-                // Удаляем строки из таблицы
-                ids.forEach(id => {
-                    const row = document.querySelector(`tr[data-id="${id}"]`);
-                    if (row) {
-                        row.style.transition = 'opacity 0.3s';
-                        row.style.opacity = '0';
-                        setTimeout(() => row.remove(), 300);
-                    }
+            var BATCH = 1000;
+            var totalDeleted = 0;
+
+            for (var i = 0; i < ids.length; i += BATCH) {
+                var batch = ids.slice(i, i + BATCH);
+                var response = await fetch('delete_permanent.php', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        ids: batch,
+                        csrf: getCsrfToken()
+                    })
                 });
-                
-                // Обновляем счётчик
-                const deletedCountEl = document.querySelector('.trash-header p');
-                if (deletedCountEl) {
-                    const remaining = document.querySelectorAll('.trash-checkbox').length;
-                    deletedCountEl.textContent = `Удалённые аккаунты (${remaining} записей)`;
+
+                if (!response.ok) {
+                    throw new Error('Ошибка удаления (HTTP ' + response.status + ')');
                 }
-                
-                // Если корзина пуста, перезагружаем страницу
-                setTimeout(() => {
-                    if (document.querySelectorAll('.trash-checkbox').length === 0) {
-                        window.location.reload();
-                    }
-                }, 500);
-            } else {
-                throw new Error(data.error || 'Ошибка удаления');
+
+                var data = await response.json();
+                if (data.success) {
+                    totalDeleted += (data.deleted_count || batch.length);
+                } else {
+                    throw new Error(data.error || 'Ошибка удаления');
+                }
             }
-        } catch (error) {
-            (typeof logger !== 'undefined' ? logger.error : console.error)('Delete permanent error:', error);
+
             if (typeof showToast === 'function') {
-                showToast('Ошибка при удалении аккаунтов: ' + error.message, 'error');
+                showToast('Окончательно удалено ' + totalDeleted + ' аккаунт(ов)', 'success');
+            }
+
+            ids.forEach(function(id) { selectedIds.delete(id); });
+            updateSelectedCount();
+
+            ids.forEach(function(id) {
+                var row = document.querySelector('tr[data-id="' + id + '"]');
+                if (row) {
+                    row.style.transition = 'opacity 0.3s';
+                    row.style.opacity = '0';
+                    setTimeout(function() { row.remove(); }, 300);
+                }
+            });
+
+            setTimeout(function() {
+                if (document.querySelectorAll('.trash-checkbox').length === 0) {
+                    window.location.reload();
+                }
+            }, 500);
+        } catch (error) {
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Delete permanent error:', error.message);
+            if (typeof showToast === 'function') {
+                showToast('Ошибка при удалении: ' + error.message, 'error');
             } else {
-                alert('Ошибка при удалении аккаунтов: ' + error.message);
+                alert('Ошибка при удалении: ' + error.message);
             }
         } finally {
             deletePermanentlyBtn.disabled = selectedIds.size === 0;
@@ -281,7 +272,9 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] Начало очистки корзины...');
             emptyTrashBtn.disabled = true;
-            
+            restoreSelectedBtn.disabled = true;
+            deletePermanentlyBtn.disabled = true;
+
             const csrfToken = getCsrfToken();
             if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] CSRF токен получен:', csrfToken ? (csrfToken.substring(0, 20) + '...') : 'НЕ НАЙДЕН');
             
@@ -290,7 +283,7 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             if (typeof logger !== 'undefined') logger.debug('🗑️ [EMPTY TRASH] Отправка запроса с телом:', requestBody);
             
-            const response = await fetch('empty_trash.php', {
+            const response = await fetch(window.getTableAwareUrl('empty_trash.php'), {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -370,9 +363,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } finally {
             emptyTrashBtn.disabled = false;
+            restoreSelectedBtn.disabled = selectedIds.size === 0;
+            deletePermanentlyBtn.disabled = selectedIds.size === 0;
         }
     }
-    
+
     /**
      * Получение CSRF токена
      */

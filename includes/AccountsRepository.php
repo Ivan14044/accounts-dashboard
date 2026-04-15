@@ -16,13 +16,14 @@ require_once __DIR__ . '/Config.php';
 
 class AccountsRepository {
     private $db;
-    private $table = 'accounts';
+    private $table;
     private $metadata;
-    
-    public function __construct() {
+
+    public function __construct(string $table = 'accounts') {
+        $this->table = $table;
         $this->db = Database::getInstance();
         $mysqli = $this->db->getConnection();
-        $this->metadata = ColumnMetadata::getInstance($mysqli);
+        $this->metadata = ColumnMetadata::getInstance($mysqli, $this->table);
     }
     
     /**
@@ -115,6 +116,81 @@ class AccountsRepository {
         $row = $result ? $result->fetch_assoc() : null;
         $stmt->close();
         return $row ?: null;
+    }
+    
+    /**
+     * Получение записей для проверки валидности (только id, login, id_soc_account, cookies)
+     * Используется для prepare перед вызовом getuid.live
+     *
+     * @param array $ids Массив ID записей
+     * @return array
+     */
+    public function getAccountsByIdsForValidation(array $ids): array {
+        if (empty($ids)) {
+            return [];
+        }
+        $ids = array_map('intval', array_unique(array_filter($ids)));
+        if (empty($ids)) {
+            return [];
+        }
+        $cols = ['id', 'login'];
+        if ($this->metadata->columnExists('id_soc_account')) {
+            $cols[] = 'id_soc_account';
+        }
+        if ($this->metadata->columnExists('social_url')) {
+            $cols[] = 'social_url';
+        }
+        if ($this->metadata->columnExists('cookies')) {
+            $cols[] = 'cookies';
+        }
+        $selectCols = '`' . implode('`, `', $cols) . '`';
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $deletedCond = $this->metadata->columnExists('deleted_at') ? ' AND (deleted_at IS NULL OR deleted_at = 0)' : '';
+        $sql = "SELECT $selectCols FROM {$this->table} WHERE id IN ($placeholders)" . $deletedCond;
+        $types = str_repeat('i', count($ids));
+        $stmt = $this->db->getConnection()->prepare($sql);
+        if (!$stmt) {
+            throw new Exception('Failed to prepare getAccountsByIdsForValidation');
+        }
+        $stmt->bind_param($types, ...$ids);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $rows = [];
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $stmt->close();
+        return $rows;
+    }
+    
+    /**
+     * Получение записей по фильтру для проверки валидности (только id, login, id_soc_account, cookies)
+     *
+     * @param FilterBuilder $filter
+     * @param string $orderBy
+     * @param int $limit
+     * @param int $offset
+     * @return array
+     */
+    public function getAccountsByFilterForValidation(FilterBuilder $filter, string $orderBy, int $limit, int $offset): array {
+        $cols = ['id', 'login'];
+        if ($this->metadata->columnExists('id_soc_account')) {
+            $cols[] = 'id_soc_account';
+        }
+        if ($this->metadata->columnExists('social_url')) {
+            $cols[] = 'social_url';
+        }
+        if ($this->metadata->columnExists('cookies')) {
+            $cols[] = 'cookies';
+        }
+        $selectCols = '`' . implode('`, `', $cols) . '`';
+        $where = $filter->getWhereClause(false);
+        $params = $filter->getParams();
+        $innerSql = "SELECT id FROM {$this->table} $where ORDER BY $orderBy LIMIT ? OFFSET ?";
+        $params[] = (int) $limit;
+        $params[] = (int) $offset;
+        $sql = "SELECT $selectCols FROM {$this->table} INNER JOIN ($innerSql) AS _page USING(id) ORDER BY $orderBy";
+        return $this->db->prepare($sql, $params);
     }
     
     /**
@@ -409,13 +485,16 @@ class AccountsRepository {
         
         $affectedRows = $stmt->affected_rows;
         $stmt->close();
-        
+
+        // Очищаем кэш после изменений
+        $this->db->clearCache();
+
         return $affectedRows;
     }
-    
+
     /**
      * Массовое обновление поля
-     * 
+     *
      * @param array $ids Массив ID
      * @param string $field Имя поля
      * @param mixed $value Значение
@@ -542,6 +621,11 @@ class AccountsRepository {
         } catch (Exception $e) {
             $conn->rollback();
             throw $e;
+        } finally {
+            // Ensure rollback if transaction is still active (in case of unexpected exit/errors)
+            if ($conn && $conn->in_transaction) {
+                $conn->rollback();
+            }
         }
     }
     
@@ -1036,6 +1120,7 @@ class AccountsRepository {
         $errors = [];
         $skippedDetails = []; // НОВОЕ: Детали пропущенных строк
         $createdIds = [];
+        $updatedLogins = []; // Для audit log: логины обновлённых аккаунтов
         
         $supportsSoftDelete = $this->metadata->columnExists('deleted_at');
         
@@ -1197,7 +1282,9 @@ class AccountsRepository {
                     }
                     
                     // ОПТИМИЗАЦИЯ: Проверяем дубликаты в массиве (вместо SQL запроса для каждой строки)
-                    $isDuplicate = isset($existingLogins[$loginValue]);
+                    // Normalize login to lowercase for case-insensitive comparison
+                    $loginKey = strtolower($loginValue);
+                    $isDuplicate = isset($existingLogins[$loginKey]);
                     
                     if ($isDuplicate) {
                         Logger::debug('CREATE ACCOUNTS BULK: Дубликат найден', [
@@ -1219,6 +1306,7 @@ class AccountsRepository {
                                 $this->updateAccountByLogin($loginValue, $data, $allowedFields, $fieldData);
                                 $conn->release_savepoint($batchSpName);
                                 $updated++;
+                                $updatedLogins[] = $loginValue;
                                 Logger::info('CREATE ACCOUNTS BULK: Запись обновлена', [
                                     'row' => $rowNum + 1,
                                     'login' => $loginValue
@@ -1282,20 +1370,35 @@ class AccountsRepository {
                     }
                     
                     if (count($paramValues) > 0) {
-                        $stmt->bind_param($paramTypes, ...$paramValues);
+                        if (!$stmt->bind_param($paramTypes, ...$paramValues)) {
+                            $error = $stmt->error;
+                            $errorCode = $stmt->errno;
+                            $stmt->close();
+                            $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
+                            Logger::error('CREATE ACCOUNTS BULK: Failed to bind parameters', [
+                                'row' => $rowNum + 1,
+                                'error_code' => $errorCode,
+                                'error' => $error
+                            ]);
+                            $errors[] = [
+                                'row' => $rowNum + 1,
+                                'message' => 'Failed to bind parameters: ' . $error
+                            ];
+                            continue;
+                        }
                     }
-                    
+
                     if (!$stmt->execute()) {
                         $error = $stmt->error;
                         $errorCode = $stmt->errno; // Исправлено: используем errno от statement, а не от connection
                         $stmt->close();
-                        
+
                         // Проверяем, является ли ошибка дубликатом уникального ключа (error code 1062)
                         // или нарушением уникального индекса (error code 1169)
-                        $isDuplicateError = ($errorCode === 1062 || $errorCode === 1169) || 
+                        $isDuplicateError = ($errorCode === 1062 || $errorCode === 1169) ||
                                            (stripos($error, 'Duplicate entry') !== false) ||
                                            (stripos($error, 'duplicate') !== false && stripos($error, 'login') !== false);
-                        
+
                         Logger::info('CREATE ACCOUNTS BULK: Ошибка при вставке', [
                             'row' => $rowNum + 1,
                             'login' => $loginValue,
@@ -1305,10 +1408,10 @@ class AccountsRepository {
                             'is_duplicate' => $isDuplicateError,
                             'duplicate_action' => $duplicateAction
                         ]);
-                        
+
                         // откат только этой строки через savepoint
                         $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
-                        
+
                         if ($isDuplicateError) {
                             // Это дубликат login - обрабатываем в зависимости от duplicateAction
                             if ($duplicateAction === 'error') {
@@ -1351,12 +1454,15 @@ class AccountsRepository {
                     
                     $newId = (int)$conn->insert_id;
                     $stmt->close();
-                    
+
                     // Фиксируем savepoint этой строки (данные войдут в батч-коммит)
                     $conn->release_savepoint($batchSpName);
-                    
+
                     $created++;
                     $createdIds[] = $newId;
+
+                    // Обновляем кеш существующих логинов для корректной обработки дубликатов внутри файла
+                    $existingLogins[$loginKey] = true;
                     
                     Logger::debug('CREATE ACCOUNTS BULK: Строка успешно добавлена', [
                         'row' => $rowNum + 1,
@@ -1404,7 +1510,8 @@ class AccountsRepository {
                 'skipped' => $skipped,
                 'skipped_details' => $skippedDetails, // НОВОЕ: Детали пропущенных
                 'errors' => $errors,
-                'created_ids' => $createdIds
+                'created_ids' => $createdIds,
+                'updated_logins' => $updatedLogins
             ];
     }
     
@@ -1466,9 +1573,11 @@ class AccountsRepository {
         
         $result = $stmt->get_result();
         $existingLogins = [];
-        
+
         while ($row = $result->fetch_assoc()) {
-            $existingLogins[$row['login']] = true;
+            // Normalize to lowercase for case-insensitive comparison (MySQL collation is typically case-insensitive)
+            $loginKey = strtolower($row['login']);
+            $existingLogins[$loginKey] = true;
         }
         
         $stmt->close();

@@ -1,16 +1,31 @@
 <?php
 /**
  * Футер таблицы с пагинацией и summary
+ * $page      — текущая страница (скорректированная сервером, не сырой URL-параметр)
+ * $pages     — всего страниц
+ * $prev      — номер предыдущей страницы
+ * $next      — номер следующей страницы
+ * $startPage, $endPage, $pageNumbers — окно кнопок
+ * $filteredTotal, $rows, $perPage — данные таблицы
  */
-$__basePath = '';
-$__commonQs = $_GET;
-unset($__commonQs['page']);
-$__commonQs = $__commonQs ?: [];
+
+// Формируем базовый набор query-параметров (без page) для href ссылок
+$__qs = $_GET;
+unset($__qs['page']);
+$__qs = $__qs ?: [];
+
+// Хелпер: строит href для конкретной страницы (function_exists — защита от повторного include)
+if (!function_exists('pgHref')) {
+    function pgHref(array $qs, int $p): string {
+        return '?' . http_build_query(array_merge($qs, ['page' => $p]));
+    }
+}
 ?>
 <footer class="dashboard-table__footer">
+
   <div class="dashboard-table__footer-info text-muted small">
-    Найдено: <span id="foundTotal"><?= number_format($filteredTotal) ?></span>
-    • Стр. <span id="pageNum"><?= (int)max(1, (int)get_param('page', 1)) ?></span>
+    Найдено: <span id="foundTotal"><?= number_format((int)$filteredTotal) ?></span>
+    • Стр. <span id="pageNum"><?= (int)$page ?></span>
     из <span id="pagesCount"><?= (int)$pages ?></span>
     • Показывается: <span id="showingCount"><?= count($rows) ?></span>
     <span id="virtualizationHint" class="ms-2 d-none">
@@ -18,64 +33,115 @@ $__commonQs = $__commonQs ?: [];
       <span id="virtualizationStats">Видно <span id="visibleRowsCount">0</span> из <span id="totalRowsOnPage">0</span> строк</span>
     </span>
   </div>
+
   <div class="dashboard-table__footer-nav">
+
+    <!-- Поле быстрого перехода -->
     <div class="dashboard-table__footer-select d-flex align-items-center gap-2">
       <label class="form-label mb-0 small" for="pageJumpInput">Перейти на стр.:</label>
-      <input type="number" class="form-control form-control-sm dashboard-table__footer-page-input" id="pageJumpInput" min="1" max="<?= (int)$pages ?>" value="<?= (int)$page ?>" placeholder="№" aria-label="Номер страницы">
-      <button type="button" class="btn btn-sm btn-outline-secondary" id="pageJumpBtn" aria-label="Перейти на введённую страницу">Перейти</button>
+      <input
+        type="number"
+        class="form-control form-control-sm dashboard-table__footer-page-input"
+        id="pageJumpInput"
+        min="1"
+        max="<?= (int)$pages ?>"
+        value="<?= (int)$page ?>"
+        placeholder="№"
+        aria-label="Номер страницы"
+      >
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        id="pageJumpBtn"
+        aria-label="Перейти на введённую страницу"
+      >Перейти</button>
     </div>
+
+    <!-- Кнопки пагинации (только если страниц > 1) -->
     <?php if ($pages > 1): ?>
-    <nav aria-label="Навигация по страницам" class="dashboard-table__pagination">
+    <nav aria-label="Навигация по страницам" class="dashboard-table__pagination" id="paginationNav">
       <ul class="pagination m-0">
-        <li class="page-item <?= $page == 1 ? 'disabled' : '' ?>">
-          <a class="page-link" href="<?= $__basePath . '?' . http_build_query(array_merge($__commonQs, ['page'=>1])) ?>" aria-label="Первая">
+
+        <!-- Первая страница -->
+        <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+          <a class="page-link"
+             href="<?= pgHref($__qs, 1) ?>"
+             data-page="1"
+             aria-label="Первая">
             <i class="fas fa-angle-double-left"></i>
           </a>
         </li>
-        <li class="page-item <?= $page == 1 ? 'disabled' : '' ?>">
-          <a class="page-link" href="<?= $__basePath . '?' . http_build_query(array_merge($__commonQs, ['page'=>(int)$prev])) ?>" aria-label="Предыдущая">
+
+        <!-- Предыдущая страница -->
+        <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
+          <a class="page-link"
+             href="<?= pgHref($__qs, (int)$prev) ?>"
+             data-page="<?= (int)$prev ?>"
+             aria-label="Предыдущая">
             <i class="fas fa-angle-left"></i>
           </a>
         </li>
+
+        <!-- Если окно не начинается с 1 — показываем «1 …» -->
         <?php if ($startPage > 1): ?>
           <li class="page-item">
-            <a class="page-link" href="<?= $__basePath . '?' . http_build_query(array_merge($__commonQs, ['page'=>1])) ?>">1</a>
+            <a class="page-link" href="<?= pgHref($__qs, 1) ?>" data-page="1">1</a>
           </li>
           <?php if ($startPage > 2): ?>
             <li class="page-item disabled"><span class="page-link">…</span></li>
           <?php endif; ?>
         <?php endif; ?>
+
+        <!-- Окно номеров страниц -->
         <?php foreach ($pageNumbers as $pnum): ?>
-          <?php if ($pnum == $page): ?>
+          <?php if ((int)$pnum === (int)$page): ?>
             <li class="page-item active" aria-current="page">
               <span class="page-link"><?= (int)$pnum ?></span>
             </li>
           <?php else: ?>
             <li class="page-item">
-              <a class="page-link" href="<?= $__basePath . '?' . http_build_query(array_merge($__commonQs, ['page'=>(int)$pnum])) ?>"><?= (int)$pnum ?></a>
+              <a class="page-link"
+                 href="<?= pgHref($__qs, (int)$pnum) ?>"
+                 data-page="<?= (int)$pnum ?>"><?= (int)$pnum ?></a>
             </li>
           <?php endif; ?>
         <?php endforeach; ?>
+
+        <!-- Если окно не заканчивается последней — показываем «… N» -->
         <?php if ($endPage < $pages): ?>
           <?php if ($endPage < $pages - 1): ?>
             <li class="page-item disabled"><span class="page-link">…</span></li>
           <?php endif; ?>
           <li class="page-item">
-            <a class="page-link" href="<?= $__basePath . '?' . http_build_query(array_merge($__commonQs, ['page'=>(int)$pages])) ?>"><?= (int)$pages ?></a>
+            <a class="page-link"
+               href="<?= pgHref($__qs, (int)$pages) ?>"
+               data-page="<?= (int)$pages ?>"><?= (int)$pages ?></a>
           </li>
         <?php endif; ?>
-        <li class="page-item <?= $page == $pages ? 'disabled' : '' ?>">
-          <a class="page-link" href="<?= $__basePath . '?' . http_build_query(array_merge($__commonQs, ['page'=>(int)$next])) ?>" aria-label="Следующая">
+
+        <!-- Следующая страница -->
+        <li class="page-item <?= $page >= $pages ? 'disabled' : '' ?>">
+          <a class="page-link"
+             href="<?= pgHref($__qs, (int)$next) ?>"
+             data-page="<?= (int)$next ?>"
+             aria-label="Следующая">
             <i class="fas fa-angle-right"></i>
           </a>
         </li>
-        <li class="page-item <?= $page == $pages ? 'disabled' : '' ?>">
-          <a class="page-link" href="<?= $__basePath . '?' . http_build_query(array_merge($__commonQs, ['page'=>(int)$pages])) ?>" aria-label="Последняя">
+
+        <!-- Последняя страница -->
+        <li class="page-item <?= $page >= $pages ? 'disabled' : '' ?>">
+          <a class="page-link"
+             href="<?= pgHref($__qs, (int)$pages) ?>"
+             data-page="<?= (int)$pages ?>"
+             aria-label="Последняя">
             <i class="fas fa-angle-double-right"></i>
           </a>
         </li>
+
       </ul>
     </nav>
     <?php endif; ?>
+
   </div>
 </footer>

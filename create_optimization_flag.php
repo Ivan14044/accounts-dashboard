@@ -9,6 +9,11 @@
  * read-only окружение и т.п.).
  */
 
+// Проверяем авторизацию
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
+requireAuth();
+
 $projectRoot = __DIR__;
 $flagFile = $projectRoot . '/.optimization_applied';
 $tempDir = sys_get_temp_dir();

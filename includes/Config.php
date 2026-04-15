@@ -127,6 +127,46 @@ class Config {
     const LOGIN_BLOCK_TIME = 300; // 5 минут
     
     // ========================================
+    // ПРОВЕРКА ВАЛИДНОСТИ АККАУНТОВ (getuid.live)
+    // ========================================
+    
+    /**
+     * URL для проверки FB аккаунтов (check.fb.tools bulk API)
+     */
+    const FB_CHECK_URL = 'https://check.fb.tools/api/check/account';
+
+    /**
+     * Таймаут запроса к check.fb.tools (секунд)
+     */
+    const FB_CHECK_TIMEOUT = 15;
+
+    /**
+     * Размер батча FB ID за один запрос к check.fb.tools.
+     * API поддерживает bulk — отправляем много ID за раз.
+     */
+    const FB_CHECK_BATCH_SIZE = 50;
+
+    /**
+     * Количество повторных попыток при ошибке/429
+     */
+    const FB_CHECK_RETRY_COUNT = 2;
+
+    /**
+     * Задержка между повторными попытками (секунд)
+     */
+    const FB_CHECK_RETRY_DELAY = 1;
+
+    /**
+     * Максимум записей за один запрос validate/check
+     */
+    const VALIDATE_CHECK_MAX_ITEMS = 500;
+
+    /**
+     * Максимум записей за один запрос validate/prepare (по фильтру)
+     */
+    const VALIDATE_PREPARE_LIMIT = 2000;
+    
+    // ========================================
     // БЕЗОПАСНОСТЬ
     // ========================================
     
@@ -155,24 +195,38 @@ class Config {
     // ========================================
     
     /**
-     * Директория для кэша
+     * Директория для кэша (вычисляется в runtime через getTempBase())
      */
-    const CACHE_DIR = '/tmp/dashboard_cache';
-    
+    const CACHE_DIR = 'dashboard_cache';
+
     /**
      * Директория для логов
      */
-    const LOG_DIR = '/tmp/dashboard_logs';
-    
+    const LOG_DIR = 'dashboard_logs';
+
     /**
      * Директория для rate limiting данных
      */
-    const RATELIMIT_DIR = '/tmp/dashboard_ratelimit';
-    
+    const RATELIMIT_DIR = 'dashboard_ratelimit';
+
     /**
      * Директория для временных файлов
      */
-    const TEMP_DIR = '/tmp/dashboard_temp';
+    const TEMP_DIR = 'dashboard_temp';
+
+    /**
+     * Базовая временная директория (кроссплатформенная)
+     */
+    public static function getTempBase(): string {
+        return sys_get_temp_dir();
+    }
+
+    /**
+     * Полный путь к директории по константе
+     */
+    public static function getDir(string $subdir): string {
+        return self::getTempBase() . DIRECTORY_SEPARATOR . $subdir;
+    }
     
     // ========================================
     // БАЗА ДАННЫХ
@@ -245,10 +299,11 @@ class Config {
             self::RATELIMIT_DIR,
             self::TEMP_DIR
         ];
-        
-        foreach ($dirs as $dir) {
-            if (!is_dir($dir)) {
-                @mkdir($dir, 0755, true);
+
+        foreach ($dirs as $subdir) {
+            $fullPath = self::getDir($subdir);
+            if (!is_dir($fullPath)) {
+                @mkdir($fullPath, 0755, true);
             }
         }
     }
@@ -270,7 +325,7 @@ class Config {
      * @return bool
      */
     public static function isFeatureEnabled($feature) {
-        $constantName = 'self::FEATURE_' . strtoupper($feature);
+        $constantName = 'Config::FEATURE_' . strtoupper($feature);
         return defined($constantName) && constant($constantName);
     }
     

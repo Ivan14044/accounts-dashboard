@@ -12,6 +12,33 @@ class AuditLogger {
 
     private function __construct() {
         $this->mysqli = Database::getInstance()->getConnection();
+        $this->ensureTableExists();
+    }
+
+    /**
+     * Автоматическое создание таблицы account_history, если она не существует
+     */
+    private function ensureTableExists(): void {
+        static $checked = false;
+        if ($checked) return;
+        $checked = true;
+
+        $result = $this->mysqli->query("SHOW TABLES LIKE 'account_history'");
+        if ($result && $result->num_rows === 0) {
+            $sql = "CREATE TABLE IF NOT EXISTS `account_history` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `account_id` INT NOT NULL,
+                `field_name` VARCHAR(255) NOT NULL,
+                `old_value` TEXT,
+                `new_value` TEXT,
+                `changed_by` VARCHAR(255) NOT NULL,
+                `changed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `ip_address` VARCHAR(45),
+                INDEX `idx_account_id` (`account_id`),
+                INDEX `idx_changed_at` (`changed_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            $this->mysqli->query($sql);
+        }
     }
     
     public static function getInstance() {
@@ -31,7 +58,12 @@ class AuditLogger {
             'token',
             'cookies',
             'first_cookie',
-            'two_fa'
+            'two_fa',
+            'api_key',
+            'secret',
+            'auth_token',
+            'access_token',
+            'private_key'
         ];
     }
     
@@ -113,6 +145,11 @@ class AuditLogger {
      */
     public function logBulkChange(array $accountIds, string $fieldName, $oldValue, $newValue, string $changedBy = null): int {
         if (!$this->enabled || empty($accountIds)) {
+            return 0;
+        }
+
+        // Защита от SQL injection через имя колонки
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $fieldName)) {
             return 0;
         }
         

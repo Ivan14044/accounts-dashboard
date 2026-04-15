@@ -58,7 +58,11 @@ try {
     $field = trim((string)($input['field'] ?? ''));
     $value = $input['value'] ?? '';
     $csrf = (string)($input['csrf'] ?? '');
-    
+
+    if (is_string($value) && strlen($value) > 65536) {
+        throw new InvalidArgumentException('Value is too long (max 64KB)');
+    }
+
     if (empty($field)) {
         throw new InvalidArgumentException('Field is required');
     }
@@ -72,10 +76,10 @@ try {
     // Валидация ID (если не selectAll)
     $ids = [];
     if (!$selectAll) {
-        $ids = Validator::validateIds($input['ids'] ?? [], 1000);
+        $ids = Validator::validateIds($input['ids'] ?? []);
     }
     
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     
     // Валидация поля через метаданные
     $meta = $service->getColumnMetadata();

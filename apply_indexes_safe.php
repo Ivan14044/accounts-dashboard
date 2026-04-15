@@ -7,6 +7,11 @@
  * На больших таблицах создание индексов может занять несколько минут — таймаут отключён.
  */
 
+// Проверяем авторизацию
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
+requireAuth();
+
 // Отключаем лимит времени выполнения (на больших таблицах каждый CREATE INDEX может занимать 1–5 мин)
 set_time_limit(0);
 if (function_exists('ignore_user_abort')) {
@@ -27,7 +32,7 @@ if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
 
 // Увеличиваем таймаут сессии MySQL, чтобы долгий CREATE INDEX не обрывался (по умолчанию 28800 сек)
 $mysqli->query("SET SESSION wait_timeout = 3600");
-@$mysqli->query("SET SESSION max_statement_time = 0"); // MySQL 5.7.8+: без лимита на один запрос; на старых версиях — игнор
+$mysqli->query("SET SESSION max_statement_time = 0"); // MySQL 5.7.8+: без лимита на один запрос; на старых версиях — игнор
 
 echo "✅ Подключение к БД успешно\n";
 $dbName = $mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? 'unknown';
@@ -110,7 +115,7 @@ $indexes = [
 
 // Проверяем, существует ли уже колонка login_numeric (для MySQL 5.7)
 $hasLoginNumericCol = false;
-$colCheckResult = @$mysqli->query("SHOW COLUMNS FROM accounts LIKE 'login_numeric'");
+$colCheckResult = $mysqli->query("SHOW COLUMNS FROM accounts LIKE 'login_numeric'");
 if ($colCheckResult && $colCheckResult->num_rows > 0) {
     $hasLoginNumericCol = true;
 }
@@ -126,7 +131,7 @@ if ($isMysql8Plus) {
     if (!$hasLoginNumericCol && in_array('idx_login_numeric', $existingIndexes)) {
         echo "⚠️  Обнаружен проблемный функциональный индекс idx_login_numeric.\n";
         echo "   Мигрируем на безопасный generated column (это устраняет 'Data truncated' ошибку)...\n";
-        $dropResult = @$mysqli->query("DROP INDEX idx_login_numeric ON accounts");
+        $dropResult = $mysqli->query("DROP INDEX idx_login_numeric ON accounts");
         if ($dropResult) {
             echo "✅ Старый функциональный индекс idx_login_numeric удалён\n";
             // Удаляем из списка существующих, чтобы создать заново как generated column index
@@ -141,7 +146,7 @@ if ($isMysql8Plus) {
         echo "ℹ️  MySQL 8.0+ — создаётся VIRTUAL generated column login_numeric + индекс...\n";
         $alterSql = "ALTER TABLE accounts ADD COLUMN login_numeric BIGINT UNSIGNED"
             . " GENERATED ALWAYS AS (IF(login REGEXP '^[0-9]+$', CAST(login AS UNSIGNED), NULL)) VIRTUAL";
-        $alterResult = @$mysqli->query($alterSql);
+        $alterResult = $mysqli->query($alterSql);
         if ($alterResult === false) {
             echo "❌ Не удалось добавить login_numeric: " . $mysqli->error . "\n";
             echo "   Колонка может уже существовать или нет прав ALTER TABLE.\n\n";
@@ -173,7 +178,7 @@ if ($isMysql8Plus) {
         // Добавляем generated column: числовое значение login (NULL если не число)
         $alterSql = "ALTER TABLE accounts ADD COLUMN login_numeric BIGINT UNSIGNED"
             . " GENERATED ALWAYS AS (IF(login REGEXP '^[0-9]+$', CAST(login AS UNSIGNED), NULL)) STORED";
-        $alterResult = @$mysqli->query($alterSql);
+        $alterResult = $mysqli->query($alterSql);
         if ($alterResult === false) {
             echo "❌ Не удалось добавить login_numeric: " . $mysqli->error . "\n";
             echo "   Колонка может уже существовать или нет прав ALTER TABLE.\n\n";
@@ -217,8 +222,8 @@ foreach ($indexes as $index) {
     }
     
     // Пытаемся создать индекс
-    $result = @$mysqli->query($sql);
-    
+    $result = $mysqli->query($sql);
+
     if ($result === false) {
         $error = $mysqli->error;
         // Проверяем, не ошибка ли из-за несуществующей колонки
@@ -312,7 +317,7 @@ foreach ($redundantIndexes as $ri) {
         continue;
     }
     
-    $dropResult = @$mysqli->query("DROP INDEX `$name` ON accounts");
+    $dropResult = $mysqli->query("DROP INDEX `$name` ON accounts");
     if ($dropResult === false) {
         echo "❌ $name - не удалось удалить: " . $mysqli->error . "\n";
     } else {
@@ -361,7 +366,7 @@ foreach ($otherTableIndexes as $item) {
         continue;
     }
 
-    $result = @$mysqli->query($sql);
+    $result = $mysqli->query($sql);
     if ($result === false) {
         echo "❌ $name ($table) - ОШИБКА: " . $mysqli->error . "\n";
         $errors++;
@@ -397,7 +402,7 @@ if ($errors === 0 || $success > 0) {
 
     // Создаём флаг оптимизации — иначе при каждом запросе Database::ensureIndexes() выполняет 12+ проверок INFORMATION_SCHEMA
     $flagFile = __DIR__ . '/.optimization_applied';
-    if (@file_put_contents($flagFile, date('c') . " indexes applied\n") !== false) {
+    if (is_dir(dirname($flagFile)) && file_put_contents($flagFile, date('c') . " indexes applied\n") !== false) {
         echo "✅ Флаг .optimization_applied создан (проверка индексов при запросах отключена).\n\n";
     } else {
         echo "⚠️  Не удалось создать .optimization_applied в корне проекта. Создайте вручную или выполните: php create_optimization_flag.php\n\n";

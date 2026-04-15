@@ -16,13 +16,14 @@ require_once __DIR__ . '/Logger.php';
 
 class StatisticsService {
     private $db;
-    private $table = 'accounts';
+    private $table;
     private $metadata;
-    
-    public function __construct() {
+
+    public function __construct(string $table = 'accounts') {
+        $this->table = $table;
         $this->db = Database::getInstance();
         $mysqli = $this->db->getConnection();
-        $this->metadata = ColumnMetadata::getInstance($mysqli);
+        $this->metadata = ColumnMetadata::getInstance($mysqli, $this->table);
     }
     
     /**
@@ -42,38 +43,46 @@ class StatisticsService {
         }
         
         // Определяем поле timestamp для "недавних"
-        $tsField = 'created_at';
-        if ($this->metadata->columnExists('updated_at')) {
-            $tsField = $this->metadata->columnExists('created_at') 
-                ? 'COALESCE(updated_at, created_at)' 
-                : 'updated_at';
+        $hasCreatedAt = $this->metadata->columnExists('created_at');
+        $hasUpdatedAt = $this->metadata->columnExists('updated_at');
+        $hasStatus = $this->metadata->columnExists('status');
+        $hasEmail = $this->metadata->columnExists('email');
+        $hasTwoFa = $this->metadata->columnExists('two_fa');
+
+        $tsField = null;
+        if ($hasUpdatedAt && $hasCreatedAt) {
+            $tsField = 'COALESCE(updated_at, created_at)';
+        } elseif ($hasUpdatedAt) {
+            $tsField = 'updated_at';
+        } elseif ($hasCreatedAt) {
+            $tsField = 'created_at';
         }
-        
-        // ОПТИМИЗАЦИЯ: Один запрос вместо 8!
-        // Используем агрегацию и условный подсчёт
+
         $where = '';
         $params = [];
-        
+
         if ($filter && $filter->getConditionsCount() > 0) {
-            $where = $filter->getWhereClause(false); // false = не включать удаленные (deleted_at IS NULL)
+            $where = $filter->getWhereClause(false);
             $params = $filter->getParams();
         } else {
-            // Если фильтр не передан, все равно исключаем удаленные записи
             if ($this->metadata->columnExists('deleted_at')) {
                 $where = 'WHERE deleted_at IS NULL';
             }
         }
-        
-        $sql = "
-        SELECT 
-            COUNT(*) as total,
-            SUM(CASE WHEN status IS NULL OR status = '' THEN 1 ELSE 0 END) as empty_status,
-            SUM(CASE WHEN email IS NOT NULL AND email <> '' 
-                     AND two_fa IS NOT NULL AND two_fa <> '' THEN 1 ELSE 0 END) as email_two_fa,
-            SUM(CASE WHEN $tsField >= DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 1 ELSE 0 END) as recent_all
-        FROM {$this->table}
-        $where
-        ";
+
+        // Строим SELECT-часть динамически под доступные колонки
+        $selectParts = ['COUNT(*) as total'];
+        if ($hasStatus) {
+            $selectParts[] = "SUM(CASE WHEN status IS NULL OR status = '' THEN 1 ELSE 0 END) as empty_status";
+        }
+        if ($hasEmail && $hasTwoFa) {
+            $selectParts[] = "SUM(CASE WHEN email IS NOT NULL AND email <> '' AND two_fa IS NOT NULL AND two_fa <> '' THEN 1 ELSE 0 END) as email_two_fa";
+        }
+        if ($tsField) {
+            $selectParts[] = "SUM(CASE WHEN $tsField >= DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 1 ELSE 0 END) as recent_all";
+        }
+
+        $sql = "SELECT " . implode(', ', $selectParts) . " FROM {$this->table} $where";
         
         $mainStats = $this->db->prepare($sql, $params);
         $stats = $mainStats[0] ?? [];
@@ -83,24 +92,17 @@ class StatisticsService {
         $emailTwoFa = (int)($stats['email_two_fa'] ?? 0);
         $recentAll = (int)($stats['recent_all'] ?? 0);
         
-        // Статистика по статусам (отдельный GROUP BY для детализации).
-        // ВАЖНО: используем GROUP BY status (без COALESCE), чтобы MySQL мог применить
-        // idx_stats_covering(deleted_at, status, updated_at, created_at) как covering index
-        // с loose index scan. COALESCE в GROUP BY запрещает использование индекса для
-        // группировки и вызывает filesort на 139k строках (было 7.8 сек в slow log).
-        // Объединение NULL и '' выполняется в PHP (строчка ниже).
-        $statusSql = "
-        SELECT 
-            status,
-            COUNT(*) as count,
-            SUM(CASE WHEN $tsField >= DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 1 ELSE 0 END) as recent_count
-        FROM {$this->table}
-        $where
-        GROUP BY status
-        ORDER BY status
-        ";
-        
-        $statusStats = $this->db->prepare($statusSql, $params, 'status_stats');
+        // Статистика по статусам
+        $statusStats = [];
+        if ($hasStatus) {
+            $recentPart = $tsField ? ", SUM(CASE WHEN $tsField >= DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 1 ELSE 0 END) as recent_count" : '';
+            $statusSql = "
+            SELECT status, COUNT(*) as count{$recentPart}
+            FROM {$this->table} $where
+            GROUP BY status ORDER BY status
+            ";
+            $statusStats = $this->db->prepare($statusSql, $params, 'status_stats');
+        }
         
         $byStatus = [];
         $recentByStatus = [];
@@ -255,81 +257,46 @@ class StatisticsService {
      * @return array Ассоциативный массив с ключами: status, status_marketplace, currency, geo, status_rk
      */
     public function getUniqueFilterValues(): array {
-        $cacheKey = 'unique_filter_values';
+        $cacheKey = 'unique_filter_values_' . $this->table;
         $cached = $this->db->getCached($cacheKey);
         if ($cached !== null) {
             Logger::debug('UNIQUE FILTER VALUES: Returned from cache');
             return $cached;
         }
-        
-        // Один запрос вместо 5 отдельных запросов
-        // Исключаем удаленные записи из всех подсчетов
+
         $deletedCondition = '';
         if ($this->metadata->columnExists('deleted_at')) {
             $deletedCondition = 'AND deleted_at IS NULL';
         }
-        
-        $sql = "
-        SELECT 
-            'status' as type, status as value, COUNT(*) as count
-            FROM {$this->table} 
-            WHERE status IS NOT NULL AND status != '' $deletedCondition
-            GROUP BY status
-        UNION ALL
-            SELECT 'status_marketplace', status_marketplace, COUNT(*)
-            FROM {$this->table}
-            WHERE status_marketplace IS NOT NULL AND status_marketplace != '' $deletedCondition
-            GROUP BY status_marketplace
-        UNION ALL
-            SELECT 'currency', currency, COUNT(*)
-            FROM {$this->table}
-            WHERE currency IS NOT NULL AND currency != '' $deletedCondition
-            GROUP BY currency
-        UNION ALL
-            SELECT 'geo', geo, COUNT(*)
-            FROM {$this->table}
-            WHERE geo IS NOT NULL AND geo != '' $deletedCondition
-            GROUP BY geo
-        UNION ALL
-            SELECT 'status_rk', status_rk, COUNT(*)
-            FROM {$this->table}
-            WHERE status_rk IS NOT NULL AND status_rk != '' $deletedCondition
-            GROUP BY status_rk
-        ORDER BY type, value
-        ";
-        
-        $results = $this->db->prepare($sql, [], $cacheKey);
-        
-        // Группируем результаты по типу
-        $grouped = [
-            'status' => [],
-            'status_marketplace' => [],
-            'currency' => [],
-            'geo' => [],
-            'status_rk' => []
-        ];
-        
-        foreach ($results as $row) {
-            $type = $row['type'];
-            $value = $row['value'];
-            $count = (int)$row['count'];
-            
-            if (isset($grouped[$type])) {
-                $grouped[$type][$value] = $count;
+
+        // Строим UNION ALL динамически — только для существующих колонок
+        $filterColumns = ['status', 'status_marketplace', 'currency', 'geo', 'status_rk'];
+        $unions = [];
+        foreach ($filterColumns as $col) {
+            if ($this->metadata->columnExists($col)) {
+                $unions[] = "SELECT '{$col}' as type, `{$col}` as value, COUNT(*) as count FROM {$this->table} WHERE `{$col}` IS NOT NULL AND `{$col}` != '' {$deletedCondition} GROUP BY `{$col}`";
             }
         }
-        
-        // Кэшируем результат на 5 минут
+
+        $grouped = [];
+        foreach ($filterColumns as $col) {
+            $grouped[$col] = [];
+        }
+
+        if (!empty($unions)) {
+            $sql = implode(" UNION ALL ", $unions) . " ORDER BY type, value LIMIT 10000";
+            $results = $this->db->prepare($sql, [], $cacheKey);
+
+            foreach ($results as $row) {
+                $type = $row['type'];
+                $value = $row['value'];
+                if (isset($grouped[$type])) {
+                    $grouped[$type][$value] = (int)$row['count'];
+                }
+            }
+        }
+
         $this->db->cache($cacheKey, $grouped, Config::STATS_CACHE_TTL);
-        
-        Logger::debug('UNIQUE FILTER VALUES: Calculated', [
-            'status_count' => count($grouped['status']),
-            'status_marketplace_count' => count($grouped['status_marketplace']),
-            'currency_count' => count($grouped['currency']),
-            'geo_count' => count($grouped['geo']),
-            'status_rk_count' => count($grouped['status_rk'])
-        ]);
-        
         return $grouped;
     }
     

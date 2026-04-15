@@ -741,7 +741,7 @@
         const estimatedDuration = Math.min(rowCount * 10, 30000); // Максимум 30 секунд
         progressControl = simulateProgress(estimatedDuration);
         
-        const response = await fetch('import_accounts.php', {
+        const response = await fetch(window.getTableAwareUrl('import_accounts.php'), {
           method: 'POST',
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
           body: formData,

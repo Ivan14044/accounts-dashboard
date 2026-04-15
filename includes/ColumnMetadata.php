@@ -4,41 +4,33 @@
  * Решает проблему множественных SHOW COLUMNS запросов
  */
 class ColumnMetadata {
-    private static $instance = null;
+    private static $instances = [];
     private $metadata = null;
     private $cacheFile = null;
     private $mysqli = null;
-    
-    private function __construct($mysqli) {
+    private $tableName;
+
+    private function __construct($mysqli, string $tableName = 'accounts') {
         $this->mysqli = $mysqli;
-        // Создаем уникальный кэш-файл для каждой БД (host+database+user)
+        $this->tableName = $tableName;
         $dbName = $mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? 'unknown';
         $dbHost = $mysqli->host_info;
         $dbUser = $mysqli->user ?? 'unknown';
         $cacheKey = md5($dbHost . '|' . $dbName . '|' . $dbUser);
-        $this->cacheFile = sys_get_temp_dir() . '/accounts_metadata_cache_' . $cacheKey . '.json';
+        $this->cacheFile = sys_get_temp_dir() . '/table_metadata_cache_' . $cacheKey . '_' . $tableName . '.json';
         $this->loadMetadata();
     }
-    
-    public static function getInstance($mysqli) {
-        // Сбрасываем instance, если БД изменилась (для поддержки разных БД)
+
+    public static function getInstance($mysqli, string $tableName = 'accounts') {
         $dbName = $mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? 'unknown';
         $dbHost = $mysqli->host_info;
         $dbUser = $mysqli->user ?? 'unknown';
-        $currentKey = md5($dbHost . '|' . $dbName . '|' . $dbUser);
-        
-        if (self::$instance === null) {
-            self::$instance = new self($mysqli);
-        } else {
-            // Проверяем, что текущая БД совпадает с БД из кэша
-            $cachedKey = md5($mysqli->host_info . '|' . ($dbName ?? 'unknown') . '|' . ($mysqli->user ?? 'unknown'));
-            $currentCacheFile = sys_get_temp_dir() . '/accounts_metadata_cache_' . $cachedKey . '.json';
-            if ($currentCacheFile !== self::$instance->cacheFile) {
-                // БД изменилась, создаем новый instance
-                self::$instance = new self($mysqli);
-            }
+        $instanceKey = md5($dbHost . '|' . $dbName . '|' . $dbUser) . '|' . $tableName;
+
+        if (!isset(self::$instances[$instanceKey])) {
+            self::$instances[$instanceKey] = new self($mysqli, $tableName);
         }
-        return self::$instance;
+        return self::$instances[$instanceKey];
     }
     
     /**
@@ -47,9 +39,9 @@ class ColumnMetadata {
     private function loadMetadata() {
         // Попытка загрузить из кэша
         if (file_exists($this->cacheFile)) {
-            $cacheData = @file_get_contents($this->cacheFile);
+            $cacheData = file_get_contents($this->cacheFile);
             if ($cacheData) {
-                $cached = @json_decode($cacheData, true);
+                $cached = json_decode($cacheData, true);
                 // Проверяем что кэш свежий (не старше 1 часа) и что он для текущей БД
                 if ($cached && isset($cached['timestamp']) && (time() - $cached['timestamp']) < 3600) {
                     // Проверяем, что структура таблицы не изменилась (проверяем наличие колонки id)
@@ -60,10 +52,10 @@ class ColumnMetadata {
                         try {
                             $dbName = $this->mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? '';
                             $countStmt = $this->mysqli->prepare(
-                                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'accounts'"
+                                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?"
                             );
                             if ($countStmt) {
-                                $countStmt->bind_param('s', $dbName);
+                                $countStmt->bind_param('ss', $dbName, $this->tableName);
                                 $countStmt->execute();
                                 $actualCount = (int)$countStmt->get_result()->fetch_row()[0];
                                 $countStmt->close();
@@ -109,8 +101,7 @@ class ColumnMetadata {
         $allCols = [];
         
         // Используем INFORMATION_SCHEMA вместо SHOW COLUMNS для большей безопасности
-        // Имя таблицы экранируем через обратные кавычки
-        $tableName = 'accounts';
+        $tableName = $this->tableName;
         $dbName = $this->mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? '';
         
         // Безопасный запрос через INFORMATION_SCHEMA
@@ -157,7 +148,7 @@ class ColumnMetadata {
             $stmt->close();
         } else {
             // Fallback на SHOW COLUMNS если INFORMATION_SCHEMA недоступен
-            $result = $this->mysqli->query("SHOW COLUMNS FROM `accounts`");
+            $result = $this->mysqli->query("SHOW COLUMNS FROM `" . $this->mysqli->real_escape_string($this->tableName) . "`");
             if ($result) {
                 while ($row = $result->fetch_assoc()) {
                     $name = $row['Field'];
@@ -206,8 +197,10 @@ class ColumnMetadata {
             'timestamp' => time(),
             'data' => $this->metadata
         ], JSON_UNESCAPED_UNICODE);
-        
-        @file_put_contents($this->cacheFile, $cacheData, LOCK_EX);
+
+        if (is_dir(dirname($this->cacheFile))) {
+            file_put_contents($this->cacheFile, $cacheData, LOCK_EX);
+        }
     }
     
     /**
@@ -257,24 +250,27 @@ class ColumnMetadata {
      */
     public static function clearCache($mysqli = null) {
         if ($mysqli !== null) {
-            // Очищаем кэш для конкретной БД
             $dbName = $mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? 'unknown';
             $dbHost = $mysqli->host_info;
             $dbUser = $mysqli->user ?? 'unknown';
             $cacheKey = md5($dbHost . '|' . $dbName . '|' . $dbUser);
-            $cacheFile = sys_get_temp_dir() . '/accounts_metadata_cache_' . $cacheKey . '.json';
-            if (file_exists($cacheFile)) {
-                @unlink($cacheFile);
+            // Удаляем кэши для всех таблиц этой БД
+            $files = glob(sys_get_temp_dir() . '/table_metadata_cache_' . $cacheKey . '_*.json');
+            foreach ($files as $file) {
+                unlink($file);
             }
         } else {
-            // Очищаем все кэши
-            $cacheDir = sys_get_temp_dir();
-            $files = glob($cacheDir . '/accounts_metadata_cache_*.json');
+            $files = glob(sys_get_temp_dir() . '/table_metadata_cache_*.json');
             foreach ($files as $file) {
-                @unlink($file);
+                unlink($file);
+            }
+            // Совместимость: удаляем старые файлы кэша
+            $oldFiles = glob(sys_get_temp_dir() . '/accounts_metadata_cache_*.json');
+            foreach ($oldFiles as $file) {
+                unlink($file);
             }
         }
-        self::$instance = null;
+        self::$instances = [];
     }
     
     /**

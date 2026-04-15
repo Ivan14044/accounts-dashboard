@@ -69,10 +69,10 @@ try {
     // Валидация ID (если не selectAll)
     $ids = [];
     if (!$selectAll) {
-        $ids = Validator::validateIds($input['ids'] ?? [], 1000);
+        $ids = Validator::validateIds($input['ids'] ?? []);
     }
     
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     
     if ($selectAll) {
         // Обновление всех по фильтру

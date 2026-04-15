@@ -38,7 +38,7 @@
 
   async function loadCustomCardsFromStorage() {
     try {
-      var response = await fetch('api_user_settings.php?type=custom_cards', {
+      var response = await fetch('/api/settings?type=custom_cards', {
         method: 'GET',
         credentials: 'same-origin'
       });
@@ -71,11 +71,11 @@
       logger.warn('Failed to save to localStorage:', e);
     }
     try {
-      var response = await fetch('api_user_settings.php', {
+      var response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ type: 'custom_cards', value: cards })
+        body: JSON.stringify({ type: 'custom_cards', value: cards, csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || '' })
       });
       if (!response.ok) {
         logger.warn('Failed to save to server, saved to localStorage only');
@@ -236,11 +236,12 @@
           if (c.pharmaFrom) filters.pharma_from = c.pharmaFrom;
           if (c.pharmaTo) filters.pharma_to = c.pharmaTo;
         }
-        var response = await fetch('api_custom_card.php', {
+        var filtersWithCsrf = Object.assign({}, filters, { csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || '' });
+        var response = await fetch('/api/accounts/custom-card', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
           credentials: 'same-origin',
-          body: JSON.stringify(filters)
+          body: JSON.stringify(filtersWithCsrf)
         });
         if (!response.ok) return;
         var json = await response.json();
@@ -321,10 +322,11 @@
 
     if (targetStatus && targetStatus.trim() !== '') {
       try {
-        var registerResponse = await fetch('api_register_status.php', {
+        var registerResponse = await fetch('/api/status/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: targetStatus })
+          credentials: 'same-origin',
+          body: JSON.stringify({ status: targetStatus, csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || '' })
         });
         if (registerResponse.ok) {
           var registerData = await registerResponse.json();
@@ -380,10 +382,11 @@
       for (var i = 0; i < uniqueStatuses.length; i++) {
         var status = uniqueStatuses[i];
         try {
-          var response = await fetch('api_register_status.php', {
+          var response = await fetch('/api/status/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: status })
+            credentials: 'same-origin',
+            body: JSON.stringify({ status: status, csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || '' })
           });
           if (response.ok) {
             var data = await response.json();
@@ -490,10 +493,11 @@
         var originalHtml = registerBtn.innerHTML;
         registerBtn.innerHTML = '<span class="loader loader-sm loader-white" style="display:inline-block;vertical-align:middle;width:16px;height:16px;border-top-width:2px;border-right-width:2px;margin-right:8px;"></span> Регистрация...';
         try {
-          var response = await fetch('api_register_status.php', {
+          var response = await fetch('/api/status/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: status })
+            credentials: 'same-origin',
+            body: JSON.stringify({ status: status, csrf: (window.DashboardConfig && window.DashboardConfig.csrfToken) || '' })
           });
           if (!response.ok) {
             var errorData = await response.json();

@@ -29,11 +29,16 @@ function initStatusModal() {
   
   // Применение нового статуса
   applyStatusBtn.addEventListener('click', async function() {
+    if (applyStatusBtn.disabled) return;
+    applyStatusBtn.disabled = true;
+    const originalStatusText = applyStatusBtn.innerHTML;
+
     const statusSelect = getElementById('statusSelect');
     const statusNewInput = getElementById('statusNewInput');
     const newStatus = (statusNewInput?.value || '').trim() || statusSelect?.value;
-    
+
     if (!newStatus) {
+      applyStatusBtn.disabled = false;
       if (typeof showToast === 'function') {
         showToast('Укажите статус', 'error');
       }
@@ -53,22 +58,45 @@ function initStatusModal() {
           logger.group('📝 Изменение статуса (все по фильтру)');
         }
       } else {
-        const ids = Array.from(DS ? DS.getSelectedIds() : []);
-        body = { ids, status: newStatus, csrf: csrfToken };
+        const allIds = Array.from(DS ? DS.getSelectedIds() : []);
         if (typeof logger !== 'undefined') {
           logger.group('📝 Изменение статуса (выбранные)');
-          logger.debug('ID для изменения:', ids);
-          logger.debug('Количество:', ids.length);
+          logger.debug('ID для изменения:', allIds.length);
+          logger.groupEnd();
         }
+
+        // Батчинг: если >1000 ID, разбиваем на части
+        if (allIds.length > 1000) {
+          var BATCH = 1000;
+          var totalAffected = 0;
+          for (var bi = 0; bi < allIds.length; bi += BATCH) {
+            var batchIds = allIds.slice(bi, bi + BATCH);
+            var batchRes = await fetch(window.getTableAwareUrl('status_update.php'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+              body: JSON.stringify({ ids: batchIds, status: newStatus, csrf: csrfToken })
+            });
+            if (batchRes.ok) {
+              var batchData = await batchRes.json();
+              if (batchData.success) totalAffected += (batchData.affected || 0);
+            }
+          }
+          if (typeof showToast === 'function') showToast('Статус обновлён (' + totalAffected + ' записей)', 'success');
+          var modal = bootstrap.Modal.getInstance(getElementById('statusModal'));
+          if (modal) modal.hide();
+          if (window.DashboardSelection) { window.DashboardSelection.clearSelection(); window.DashboardSelection.initCheckboxStates(); }
+          if (typeof refreshDashboardData === 'function') await refreshDashboardData();
+          return;
+        }
+
+        body = { ids: allIds, status: newStatus, csrf: csrfToken };
       }
-      
+
       if (typeof logger !== 'undefined') {
         logger.debug('Новый статус:', newStatus);
-        logger.debug('Тело запроса:', body);
-        logger.groupEnd();
       }
-      
-      const res = await fetch('status_update.php', {
+
+      const res = await fetch(window.getTableAwareUrl('status_update.php'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -144,6 +172,9 @@ function initStatusModal() {
       if (typeof showToast === 'function') {
         showToast('Ошибка обновления статуса: ' + error.message, 'error');
       }
+    } finally {
+      applyStatusBtn.disabled = false;
+      applyStatusBtn.innerHTML = originalStatusText;
     }
   });
 }
@@ -229,9 +260,14 @@ function initBulkEditModal() {
   // Применение массового изменения поля
   if (applyBulkFieldBtn) {
     applyBulkFieldBtn.addEventListener('click', async function() {
+      if (applyBulkFieldBtn.dataset.submitting === 'true') return;
+      applyBulkFieldBtn.dataset.submitting = 'true';
+      const originalBulkText = applyBulkFieldBtn.innerHTML;
+
       const field = (getElementById('bulkFieldSelect')?.value || '').trim();
       const value = (getElementById('bulkFieldValue')?.value || '').trim();
       if (!field) {
+        applyBulkFieldBtn.dataset.submitting = 'false';
         if (typeof showToast === 'function') {
           showToast('Выберите поле', 'error');
         }
@@ -252,35 +288,61 @@ function initBulkEditModal() {
       
       try {
         const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
-        let body;
+
         if (DS.getSelectedAllFiltered()) {
           const params = new URLSearchParams(window.location.search);
-          body = { field, value, ids: [], select: 'all', query: params.toString(), csrf: csrfToken, scope };
+          const body = { field, value, ids: [], select: 'all', query: params.toString(), csrf: csrfToken, scope };
+
+          const res = await fetch(window.getTableAwareUrl('bulk_update_field.php'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify(body)
+          });
+
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(text || 'HTTP error');
+          }
+
+          const json = await res.json();
+          if (!json.success) {
+            throw new Error(json.error || 'Ошибка массового обновления поля');
+          }
+
+          if (typeof showToast === 'function') {
+            showToast(`Поле "${field}" обновлено для ${json.affected || 0} записей`, 'success');
+          }
         } else {
-          body = { field, value, ids: Array.from(DS.getSelectedIds()), csrf: csrfToken, scope };
-        }
-        
-        const res = await fetch('bulk_update_field.php', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-          },
-          body: JSON.stringify(body)
-        });
-        
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || 'HTTP error');
-        }
-        
-        const json = await res.json();
-        if (!json.success) {
-          throw new Error(json.error || 'Ошибка массового обновления поля');
-        }
-        
-        if (typeof showToast === 'function') {
-          showToast(`Поле "${field}" обновлено для ${json.affected || 0} записей`, 'success');
+          const allIds = Array.from(DS.getSelectedIds());
+          const BATCH = 1000;
+          let totalAffected = 0;
+
+          for (let bi = 0; bi < allIds.length; bi += BATCH) {
+            const batchIds = allIds.slice(bi, bi + BATCH);
+            const body = { field, value, ids: batchIds, csrf: csrfToken, scope };
+
+            const res = await fetch(window.getTableAwareUrl('bulk_update_field.php'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+              body: JSON.stringify(body)
+            });
+
+            if (!res.ok) {
+              const text = await res.text();
+              throw new Error(text || 'HTTP error');
+            }
+
+            const json = await res.json();
+            if (!json.success) {
+              throw new Error(json.error || 'Ошибка массового обновления поля');
+            }
+
+            totalAffected += (json.affected || 0);
+          }
+
+          if (typeof showToast === 'function') {
+            showToast(`Поле "${field}" обновлено для ${totalAffected} записей`, 'success');
+          }
         }
         
         if (typeof refreshDashboardData === 'function') {
@@ -303,6 +365,9 @@ function initBulkEditModal() {
         if (typeof showToast === 'function') {
           showToast('Ошибка массового изменения поля: ' + error.message, 'error');
         }
+      } finally {
+        applyBulkFieldBtn.dataset.submitting = 'false';
+        applyBulkFieldBtn.innerHTML = originalBulkText;
       }
     });
   }
@@ -422,7 +487,7 @@ function initTransferModal() {
         csrf: csrfToken
       };
       
-      const res = await fetch('mass_transfer.php', {
+      const res = await fetch(window.getTableAwareUrl('mass_transfer.php'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

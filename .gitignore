@@ -18,6 +18,10 @@ users.json
 # IDE
 .vscode/
 .idea/
+.vs/
+
+# Claude Code
+.claude/
 *.swp
 *.swo
 *~

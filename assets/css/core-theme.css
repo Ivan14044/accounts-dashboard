@@ -1,0 +1,268 @@
+/* ================================================================
+   CORE-THEME.CSS — Theme Overrides & Refinements v4.0
+   Graphite Blue accent + strict minimalism.
+   Loaded AFTER core-base.css.
+   ================================================================ */
+
+/* ========================================
+   CHECKBOX REFINEMENTS
+   ======================================== */
+input[type="checkbox"],
+.form-check-input,
+input.form-check-input {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+/* ========================================
+   BUTTON REFINEMENTS (Override Bootstrap)
+   ======================================== */
+.btn:not(.btn-close) {
+  border-radius: var(--radius-md) !important;
+  font-weight: var(--font-weight-medium) !important;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease !important;
+}
+
+.btn-primary,
+button.btn-primary {
+  background: var(--primary-700) !important;
+  border-color: var(--primary-700) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-800) !important;
+  border-color: var(--primary-800) !important;
+  box-shadow: none !important;
+}
+
+.btn-outline-primary {
+  background: transparent !important;
+  color: var(--primary-700) !important;
+  border-color: var(--gray-300) !important;
+}
+
+.btn-outline-primary:hover:not(:disabled) {
+  background: var(--primary-50) !important;
+  color: var(--primary-800) !important;
+  border-color: var(--primary-300) !important;
+  box-shadow: none !important;
+}
+
+.btn-success,
+button.btn-success {
+  background: var(--primary-700) !important;
+  border-color: var(--primary-700) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: var(--primary-800) !important;
+  border-color: var(--primary-800) !important;
+  box-shadow: none !important;
+}
+
+.btn-danger,
+button.btn-danger {
+  background: var(--danger-600) !important;
+  border-color: var(--danger-600) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-700) !important;
+  border-color: var(--danger-700) !important;
+  box-shadow: none !important;
+}
+
+.btn-warning,
+button.btn-warning {
+  background: var(--gray-700) !important;
+  border-color: var(--gray-700) !important;
+  color: #ffffff !important;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: var(--gray-800) !important;
+  border-color: var(--gray-800) !important;
+}
+
+.btn:disabled,
+button:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ========================================
+   FORM REFINEMENTS (Override Bootstrap)
+   ======================================== */
+.form-control,
+.form-select,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"]:not(.search-input-modern),
+input[type="number"],
+textarea,
+select {
+  border: 1.5px solid var(--color-border) !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--color-bg) !important;
+  color: var(--color-text) !important;
+  transition: border-color 200ms ease, box-shadow 200ms ease !important;
+}
+
+.form-control:focus,
+.form-select:focus,
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  border-color: var(--primary-400) !important;
+  box-shadow: var(--shadow-focus) !important;
+}
+
+.form-label,
+label:not(.form-check-label):not(.toggle-switch):not(.toggle-switch-label) {
+  font-size: var(--font-size-sm) !important;
+  font-weight: var(--font-weight-medium) !important;
+  color: var(--color-text) !important;
+  margin-bottom: 6px !important;
+}
+
+/* ========================================
+   TABLE REFINEMENTS
+   ======================================== */
+.table thead th {
+  background: var(--gray-50) !important;
+  border-bottom: 1px solid var(--gray-200) !important;
+  color: var(--gray-400) !important;
+  font-weight: 500 !important;
+}
+
+.table tbody tr:hover {
+  background: var(--gray-50) !important;
+}
+
+/* ========================================
+   CARD REFINEMENTS
+   ======================================== */
+.card {
+  border: 1px solid var(--gray-200) !important;
+  border-radius: var(--radius-xl) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.card-header {
+  background: #ffffff !important;
+  border-bottom: 1px solid var(--gray-100) !important;
+}
+
+/* ========================================
+   DROPDOWN REFINEMENTS
+   ======================================== */
+.dropdown-menu {
+  border: 1px solid var(--gray-200) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: 6px !important;
+  background: #ffffff !important;
+}
+
+.dropdown-item:hover {
+  background: var(--gray-50) !important;
+  color: var(--color-text) !important;
+}
+
+/* ========================================
+   MODAL REFINEMENTS
+   ======================================== */
+.modal-content {
+  border-radius: var(--radius-xl) !important;
+  box-shadow: var(--shadow-2xl) !important;
+  border: 1px solid var(--gray-200) !important;
+}
+
+.modal-backdrop {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+}
+
+/* ========================================
+   BADGE REFINEMENTS
+   ======================================== */
+.badge-primary, .bg-primary:not(.btn):not(.btn-primary) {
+  background: var(--primary-50) !important;
+  color: var(--primary-700) !important;
+}
+.badge-success, .bg-success:not(.btn):not(.btn-success) {
+  background: var(--success-50) !important;
+  color: var(--success-700) !important;
+}
+.badge-danger, .bg-danger:not(.btn):not(.btn-danger) {
+  background: var(--danger-50) !important;
+  color: var(--danger-700) !important;
+}
+.badge-warning, .bg-warning:not(.btn):not(.btn-warning) {
+  background: var(--warning-50) !important;
+  color: var(--warning-600) !important;
+}
+
+/* ========================================
+   PAGINATION REFINEMENTS
+   ======================================== */
+.page-item.active .page-link {
+  background: var(--primary-700) !important;
+  color: #ffffff !important;
+  border-color: var(--primary-700) !important;
+  box-shadow: none !important;
+}
+
+/* ========================================
+   FAVORITE ICONS
+   ======================================== */
+.favorite-btn,
+button.favorite-btn,
+.btn.favorite-btn {
+  border: none !important;
+  background: transparent !important;
+  padding: 4px !important;
+}
+
+.favorite-header-cell i.fa-star {
+  color: var(--gray-400) !important;
+}
+
+/* ========================================
+   UTILITY COLORS
+   ======================================== */
+.text-primary { color: var(--primary-700) !important; }
+.text-success { color: var(--color-success) !important; }
+.text-danger  { color: var(--color-danger) !important; }
+.text-warning { color: var(--color-warning) !important; }
+.text-muted   { color: var(--color-text-muted) !important; }
+
+/* ========================================
+   LOADER COLORS
+   ======================================== */
+.loader {
+  border-top-color: var(--primary-600) !important;
+  animation: loaderSpin 0.8s linear infinite !important;
+}
+.loader.loader-primary { border-top-color: var(--primary-600) !important; }
+.loader.loader-white   { border-top-color: #FFF !important; }
+.loader.loader-success { border-top-color: var(--color-success) !important; }
+.loader.loader-danger  { border-top-color: var(--color-danger) !important; }
+.loader.loader-warning { border-top-color: var(--color-warning) !important; }
+
+/* ========================================
+   ALERT LEFT-BORDER FIX (Bootstrap override)
+   ======================================== */
+.alert-success { border-left: 4px solid var(--success-500) !important; }
+.alert-danger  { border-left: 4px solid var(--danger-500) !important; }
+.alert-warning { border-left: 4px solid var(--warning-500) !important; }
+.alert-info    { border-left: 4px solid var(--info-500) !important; }

@@ -11,7 +11,7 @@ require_once __DIR__ . '/includes/Config.php';
 requireAuth();
 checkSessionTimeout();
 
-$service = new AccountsService();
+$service = new AccountsService($tableName);
 $meta = $service->getColumnMetadata();
 $allColumns = $meta['all'];
 
@@ -41,12 +41,32 @@ echo "\xEF\xBB\xBF";
 
 $output = fopen('php://output', 'w');
 
+/**
+ * Write CSV row using RFC 4180 rules (no backslash escape).
+ */
+function writeCsvRow($handle, array $fields, string $delimiter = ';') {
+    if (PHP_VERSION_ID >= 70400) {
+        return fputcsv($handle, $fields, $delimiter, '"', '');
+    }
+    $out = [];
+    foreach ($fields as $field) {
+        $field = (string)$field;
+        if (strpos($field, '"') !== false || strpos($field, $delimiter) !== false
+            || strpos($field, "\n") !== false || strpos($field, "\r") !== false) {
+            $out[] = '"' . str_replace('"', '""', $field) . '"';
+        } else {
+            $out[] = $field;
+        }
+    }
+    return fwrite($handle, implode($delimiter, $out) . "\n");
+}
+
 // Только строка заголовков
-fputcsv($output, $headers, ';');
+writeCsvRow($output, $headers, ';');
 
 // Пустые строки для заполнения пользователем
 for ($i = 0; $i < 5; $i++) {
-    fputcsv($output, array_fill(0, count($headers), ''), ';');
+    writeCsvRow($output, array_fill(0, count($headers), ''), ';');
 }
 
 fclose($output);
