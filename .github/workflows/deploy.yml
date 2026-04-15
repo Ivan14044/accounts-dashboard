@@ -44,11 +44,14 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: ${{ env.FTP_SERVER_DIR }}
           local-dir: ./
+          # FTPS обязателен: plain FTP рвётся хостингом с ошибкой
+          # "Server sent FIN packet unexpectedly". Explicit FTPS по тому же 21 порту.
+          protocol: ftps
           # ВРЕМЕННО: разовая перезаливка всего. Sync-state на сервере разъехался
           # с реальными файлами (часть ассетов застряла на версии от 24 марта),
           # поэтому нужен один полный прогон. После успешного деплоя — УБРАТЬ эту строку.
           dangerous-clean-slate: true
-          # Устойчивость при нестабильном FTP (ECONNRESET на data socket)
+          # Устойчивость при нестабильном FTP + для хостингов с самоподписанным TLS
           security: loose
           timeout: 120000
           log-level: verbose
