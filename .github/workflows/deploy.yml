@@ -23,6 +23,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Пишем SHA коммита в файл — видно на домене, какая версия реально залита.
+      # Открой https://panel.account-factory.site/deployed-version.txt после деплоя.
+      - name: Write deployed version marker
+        run: |
+          {
+            echo "commit: ${{ github.sha }}"
+            echo "short:  $(echo ${{ github.sha }} | cut -c1-7)"
+            echo "branch: ${{ github.ref_name }}"
+            echo "run:    ${{ github.run_number }}"
+            echo "time:   $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > deployed-version.txt
+          cat deployed-version.txt
+
       - name: Deploy via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
@@ -31,6 +44,10 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: ${{ env.FTP_SERVER_DIR }}
           local-dir: ./
+          # ВРЕМЕННО: разовая перезаливка всего. Sync-state на сервере разъехался
+          # с реальными файлами (часть ассетов застряла на версии от 24 марта),
+          # поэтому нужен один полный прогон. После успешного деплоя — УБРАТЬ эту строку.
+          dangerous-clean-slate: true
           # Устойчивость при нестабильном FTP (ECONNRESET на data socket)
           security: loose
           timeout: 120000
