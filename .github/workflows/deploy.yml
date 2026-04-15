@@ -39,7 +39,12 @@ jobs:
           } > deployed-version.txt
           cat deployed-version.txt
 
-      - name: Deploy via FTP
+      # Хостинг периодически рвёт FTPS-соединение (FIN / ECONNRESET на data-сокете),
+      # поэтому деплой запускается до 3 раз подряд. Sync-state сохраняется на сервере
+      # между попытками — каждая следующая только дозаливает недоехавшие файлы.
+      - name: Deploy via FTPS — attempt 1
+        id: deploy1
+        continue-on-error: true
         uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -47,10 +52,65 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: ${{ env.FTP_SERVER_DIR }}
           local-dir: ./
-          # FTPS обязателен: plain FTP рвётся хостингом с ошибкой
-          # "Server sent FIN packet unexpectedly". Explicit FTPS по тому же 21 порту.
           protocol: ftps
-          # Устойчивость при нестабильном FTP + для хостингов с самоподписанным TLS
+          security: loose
+          timeout: 120000
+          log-level: verbose
+          exclude: |
+            - **/.git*
+            - **/.github
+            - **/node_modules
+            - **/.env
+            - **/.cursor
+            - **/*.log
+            - **/Thumbs.db
+            - **/.DS_Store
+            - **/.optimization_applied
+
+      - name: Pause before retry 2
+        if: steps.deploy1.outcome == 'failure'
+        run: sleep 15
+
+      - name: Deploy via FTPS — attempt 2
+        id: deploy2
+        if: steps.deploy1.outcome == 'failure'
+        continue-on-error: true
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ env.FTP_SERVER_DIR }}
+          local-dir: ./
+          protocol: ftps
+          security: loose
+          timeout: 120000
+          log-level: verbose
+          exclude: |
+            - **/.git*
+            - **/.github
+            - **/node_modules
+            - **/.env
+            - **/.cursor
+            - **/*.log
+            - **/Thumbs.db
+            - **/.DS_Store
+            - **/.optimization_applied
+
+      - name: Pause before retry 3
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy via FTPS — attempt 3 (final)
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ env.FTP_SERVER_DIR }}
+          local-dir: ./
+          protocol: ftps
           security: loose
           timeout: 120000
           log-level: verbose
