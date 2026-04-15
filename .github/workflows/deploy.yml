@@ -12,7 +12,10 @@ on:
   workflow_dispatch:
 
 env:
-  FTP_SERVER_DIR: /home/if592995/panel.account-factory.site/www/
+  # FTP-аккаунт chroot-нут в /home/if592995/panel.account-factory.site/www/,
+  # поэтому server-dir должен быть относительным — иначе файлы уедут во
+  # вложенную папку home/if592995/panel.account-factory.site/www/ под webroot.
+  FTP_SERVER_DIR: ./
   # Убирает предупреждение о Node.js 20 (actions переходят на Node 24)
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
@@ -47,10 +50,6 @@ jobs:
           # FTPS обязателен: plain FTP рвётся хостингом с ошибкой
           # "Server sent FIN packet unexpectedly". Explicit FTPS по тому же 21 порту.
           protocol: ftps
-          # ВРЕМЕННО: разовая перезаливка всего. Sync-state на сервере разъехался
-          # с реальными файлами (часть ассетов застряла на версии от 24 марта),
-          # поэтому нужен один полный прогон. После успешного деплоя — УБРАТЬ эту строку.
-          dangerous-clean-slate: true
           # Устойчивость при нестабильном FTP + для хостингов с самоподписанным TLS
           security: loose
           timeout: 120000
