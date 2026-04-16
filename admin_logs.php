@@ -9,6 +9,7 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/AuditLogger.php';
 require_once __DIR__ . '/includes/Utils.php';
+require_once __DIR__ . '/includes/Validator.php';
 
 // Проверяем авторизацию
 requireAuth();
@@ -19,8 +20,43 @@ function e($string) {
     return htmlspecialchars((string)$string, ENT_QUOTES, 'UTF-8');
 }
 
+/**
+ * Защита от CSV/formula injection при открытии в Excel.
+ * Префиксуем апострофом любые значения, начинающиеся с опасных символов.
+ */
+function sanitizeCsvCell($value): string {
+    $s = (string)($value ?? '');
+    if ($s === '') return $s;
+    $first = $s[0];
+    if ($first === '=' || $first === '+' || $first === '-' || $first === '@'
+        || $first === "\t" || $first === "\r") {
+        return "'" . $s;
+    }
+    return $s;
+}
+
 // ===== Экспорт CSV =====
-if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+// Требуем POST + CSRF — чтобы нельзя было выкачать весь audit log ссылкой CSRF.
+if (
+    (($_POST['export'] ?? '') === 'csv') &&
+    (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST')
+) {
+    try {
+        Validator::validateCsrfToken((string)($_POST['csrf'] ?? ''));
+    } catch (Throwable $e) {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=utf-8');
+        die('CSRF validation failed');
+    }
+
+    // Переносим все нужные фильтры из POST в $_GET чтобы сохранить дальнейшую логику.
+    foreach (['date_from','date_to','user','field','account_id','search','period'] as $k) {
+        if (isset($_POST[$k])) { $_GET[$k] = $_POST[$k]; }
+    }
+    $_GET['export'] = 'csv';
+}
+
+if (isset($_GET['export']) && $_GET['export'] === 'csv' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $mysqli = Database::getInstance()->getConnection();
 
     $exportWhere = [];
@@ -89,14 +125,14 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 
         while ($row = $result->fetch_assoc()) {
             fputcsv($output, [
-                $row['id'],
-                $row['account_id'],
-                $row['field_name'],
-                $row['old_value'],
-                $row['new_value'],
-                $row['changed_by'],
-                $row['changed_at'],
-                $row['ip_address']
+                sanitizeCsvCell($row['id']),
+                sanitizeCsvCell($row['account_id']),
+                sanitizeCsvCell($row['field_name']),
+                sanitizeCsvCell($row['old_value']),
+                sanitizeCsvCell($row['new_value']),
+                sanitizeCsvCell($row['changed_by']),
+                sanitizeCsvCell($row['changed_at']),
+                sanitizeCsvCell($row['ip_address']),
             ]);
         }
 
@@ -702,9 +738,20 @@ function activePeriod(): string {
                     <button onclick="toggleAutoRefresh()" class="btn btn-sm btn-outline-light" id="autoRefreshBtn" title="Автообновление каждые 30 сек">
                         <i class="fas fa-sync-alt me-1"></i> Авто
                     </button>
-                    <a href="<?= e(buildUrl(['export' => 'csv'])) ?>" class="btn btn-sm btn-outline-light">
-                        <i class="fas fa-file-csv me-1"></i> CSV
-                    </a>
+                    <form method="post" action="admin_logs.php" class="d-inline">
+                        <input type="hidden" name="export" value="csv">
+                        <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf_token'] ?? '') ?>">
+                        <input type="hidden" name="date_from" value="<?= e($dateFrom) ?>">
+                        <input type="hidden" name="date_to" value="<?= e($dateTo) ?>">
+                        <input type="hidden" name="user" value="<?= e($filterUser) ?>">
+                        <input type="hidden" name="field" value="<?= e($filterField) ?>">
+                        <input type="hidden" name="account_id" value="<?= e($filterAccountId > 0 ? $filterAccountId : '') ?>">
+                        <input type="hidden" name="search" value="<?= e($filterSearch) ?>">
+                        <input type="hidden" name="period" value="<?= e($period) ?>">
+                        <button type="submit" class="btn btn-sm btn-outline-light">
+                            <i class="fas fa-file-csv me-1"></i> CSV
+                        </button>
+                    </form>
                     <a href="log.php" class="btn btn-sm btn-outline-light">
                         <i class="fas fa-server me-1"></i> Системные логи
                     </a>

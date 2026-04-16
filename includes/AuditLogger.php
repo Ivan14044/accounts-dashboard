@@ -195,49 +195,70 @@ class AuditLogger {
             $stmt->close();
         }
         
-        $insertSql = "INSERT INTO account_history (account_id, field_name, old_value, new_value, changed_by, ip_address) VALUES ";
-        $insertValues = [];
-        $insertParams = [];
-        $insertTypes = '';
-        
+        // Собираем «нормализованные» строки. Для нечувствительных полей пропускаем
+        // записи без фактического изменения.
+        $rowsToInsert = [];
         foreach ($accountIds as $accountId) {
             if (!$isSensitive) {
-                // Для нечувствительных полей проверяем изменение
                 $accountOldValue = $oldValues[$accountId] ?? '';
                 if ($accountOldValue === $newValueStr) {
-                    continue; // Пропускаем, если значение не изменилось
+                    continue;
                 }
-                $oldValueStr = $accountOldValue;
+                $rowOldValue = $accountOldValue;
+            } else {
+                $rowOldValue = $oldValueStr; // уже '[СКРЫТО]'
             }
-            
-            // Для чувствительных полей всегда логируем факт изменения
-            
-            $insertValues[] = "(?, ?, ?, ?, ?, ?)";
-            $insertParams[] = $accountId;
-            $insertParams[] = $fieldName;
-            $insertParams[] = $oldValueStr;
-            $insertParams[] = $newValueStr;
-            $insertParams[] = $changedBy;
-            $insertParams[] = $ipAddress;
-            $insertTypes .= 'isssss';
+            $rowsToInsert[] = [$accountId, $fieldName, $rowOldValue, $newValueStr, $changedBy, $ipAddress];
         }
-        
-        if (empty($insertValues)) {
+
+        if (empty($rowsToInsert)) {
             return 0;
         }
-        
-        // Массовая вставка
-        $fullSql = $insertSql . implode(', ', $insertValues);
-        $insertStmt = $this->mysqli->prepare($fullSql);
-        if (!$insertStmt) {
-            return 0;
+
+        // Чанкуем INSERT, чтобы не упереться в max_allowed_packet
+        // при массовых операциях на 10k+ записей.
+        $CHUNK = 500;
+        $insertSql = "INSERT INTO account_history (account_id, field_name, old_value, new_value, changed_by, ip_address) VALUES ";
+        $count = 0;
+
+        foreach (array_chunk($rowsToInsert, $CHUNK) as $chunk) {
+            $placeholders = [];
+            $params       = [];
+            $types        = '';
+            foreach ($chunk as $row) {
+                $placeholders[] = '(?, ?, ?, ?, ?, ?)';
+                $params[] = $row[0]; // account_id
+                $params[] = $row[1]; // field_name
+                $params[] = $row[2]; // old_value
+                $params[] = $row[3]; // new_value
+                $params[] = $row[4]; // changed_by
+                $params[] = $row[5]; // ip_address
+                $types   .= 'isssss';
+            }
+
+            $stmt = $this->mysqli->prepare($insertSql . implode(', ', $placeholders));
+            if (!$stmt) {
+                // Не прерываем — логируем и пробуем следующий чанк.
+                require_once __DIR__ . '/Logger.php';
+                Logger::error('Audit log: failed to prepare chunked INSERT', [
+                    'error' => $this->mysqli->error,
+                    'chunk_size' => count($chunk),
+                ]);
+                continue;
+            }
+            $stmt->bind_param($types, ...$params);
+            if ($stmt->execute()) {
+                $count += $stmt->affected_rows;
+            } else {
+                require_once __DIR__ . '/Logger.php';
+                Logger::error('Audit log: chunked INSERT failed', [
+                    'error' => $stmt->error,
+                    'chunk_size' => count($chunk),
+                ]);
+            }
+            $stmt->close();
         }
-        
-        $insertStmt->bind_param($insertTypes, ...$insertParams);
-        $insertStmt->execute();
-        $count = $insertStmt->affected_rows;
-        $insertStmt->close();
-        
+
         return $count;
     }
     

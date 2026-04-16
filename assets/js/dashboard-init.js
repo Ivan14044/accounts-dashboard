@@ -93,15 +93,32 @@ if (typeof window.showToast !== 'function') {
     const bgColor = type === 'success' ? 'success' : (type === 'error' ? 'danger' : 'info');
     toast.className = `toast align-items-center text-white bg-${bgColor} border-0 position-fixed`;
     toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999;';
-    toast.innerHTML = `
-      <div class="d-flex">
-        <div class="toast-body">
-          <i class="fas fa-${type === 'success' ? 'check' : (type === 'error' ? 'exclamation-triangle' : 'info-circle')} me-2"></i>
-          ${message}
-        </div>
-        <button type="button" class="toast-close" aria-label="Закрыть" title="Закрыть"><i class="fas fa-times"></i></button>
-      </div>
-    `;
+
+    // Строим DOM через createElement/textContent — НЕ через innerHTML со строкой,
+    // чтобы не было XSS через message (например, когда приходит из data.error).
+    const wrap = document.createElement('div');
+    wrap.className = 'd-flex';
+
+    const body = document.createElement('div');
+    body.className = 'toast-body';
+
+    const icon = document.createElement('i');
+    icon.className = 'fas me-2 fa-' + (type === 'success' ? 'check' : (type === 'error' ? 'exclamation-triangle' : 'info-circle'));
+    body.appendChild(icon);
+    body.appendChild(document.createTextNode(' ' + String(message == null ? '' : message)));
+
+    const closeBtnEl = document.createElement('button');
+    closeBtnEl.type = 'button';
+    closeBtnEl.className = 'toast-close';
+    closeBtnEl.setAttribute('aria-label', 'Закрыть');
+    closeBtnEl.setAttribute('title', 'Закрыть');
+    const closeIcon = document.createElement('i');
+    closeIcon.className = 'fas fa-times';
+    closeBtnEl.appendChild(closeIcon);
+
+    wrap.appendChild(body);
+    wrap.appendChild(closeBtnEl);
+    toast.appendChild(wrap);
     document.body.appendChild(toast);
     const closeBtn = toast.querySelector('.toast-close');
     if (closeBtn) {
@@ -1370,15 +1387,16 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
       const DS = window.DashboardSelection;
       if (!DS || (!DS.getSelectedAllFiltered() && DS.getSelectedIds().size === 0)) return;
       
-      // Создаем скрытую форму для корректной обработки заголовков скачивания
+      // Создаем скрытую форму для корректной обработки заголовков скачивания.
+      // POST обязателен — export.php требует POST + CSRF.
       const form = document.createElement('form');
-      form.method = 'GET';
+      form.method = 'POST';
       form.action = window.getTableAwareUrl('export.php');
       // Не указываем target, чтобы браузер правильно обработал Content-Disposition: attachment
-      
+
       const currentSort = window.DashboardConfig.currentSort;
       const currentDir = window.DashboardConfig.currentDir;
-      
+
       if (DS.getSelectedAllFiltered()) {
         // Добавляем все параметры из текущего URL
         const params = new URLSearchParams(window.location.search);
@@ -1386,7 +1404,7 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
         params.set('format', 'csv');
         params.set('sort', currentSort);
         params.set('dir', currentDir);
-        
+
         // Добавляем все параметры как скрытые поля формы
         params.forEach((value, key) => {
           const input = document.createElement('input');
@@ -1398,14 +1416,14 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
       } else {
         // Экспорт выбранных ID
         const ids = Array.from(DS.getSelectedIds()).join(',');
-        
+
         const fields = {
           'ids': ids,
           'format': 'csv',
           'sort': currentSort,
           'dir': currentDir
         };
-        
+
         Object.keys(fields).forEach(key => {
           const input = document.createElement('input');
           input.type = 'hidden';
@@ -1415,13 +1433,20 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
         });
       }
 
+      // CSRF-токен
+      const csrfInput1 = document.createElement('input');
+      csrfInput1.type = 'hidden';
+      csrfInput1.name = 'csrf';
+      csrfInput1.value = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
+      form.appendChild(csrfInput1);
+
       // Добавляем форму в DOM, отправляем и удаляем
       document.body.appendChild(form);
       form.submit();
       document.body.removeChild(form);
     });
   }
-   
+
   // Export selected TXT (pipe-delimited, только видимые колонки)
   const exportSelectedTxt = getElementById('exportSelectedTxt');
   if (exportSelectedTxt) {
@@ -1440,9 +1465,10 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
       // Убираем ID из экспорта, если он есть
       visibleCols = visibleCols.filter(c => c !== 'id');
 
-      // Создаем скрытую форму для корректной обработки заголовков скачивания
+      // Создаем скрытую форму для корректной обработки заголовков скачивания.
+      // POST обязателен — export.php требует POST + CSRF.
       const form = document.createElement('form');
-      form.method = 'GET';
+      form.method = 'POST';
       form.action = window.getTableAwareUrl('export.php');
       // Не указываем target, чтобы браузер правильно обработал Content-Disposition: attachment
 
@@ -1454,7 +1480,7 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
         params.set('sort', currentSort);
         params.set('dir', currentDir);
         params.set('cols', visibleCols.join(','));
-        
+
         // Добавляем все параметры как скрытые поля формы
         params.forEach((value, key) => {
           const input = document.createElement('input');
@@ -1467,7 +1493,7 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
         // Экспорт выбранных ID
         const ids = Array.from(DS.getSelectedIds()).join(',');
         const cols = visibleCols.join(',');
-        
+
         const fields = {
           'ids': ids,
           'format': 'txt',
@@ -1475,7 +1501,7 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
           'dir': currentDir,
           'cols': cols
         };
-        
+
         Object.keys(fields).forEach(key => {
           const input = document.createElement('input');
           input.type = 'hidden';
@@ -1485,13 +1511,20 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
         });
       }
 
+      // CSRF-токен
+      const csrfInput2 = document.createElement('input');
+      csrfInput2.type = 'hidden';
+      csrfInput2.name = 'csrf';
+      csrfInput2.value = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
+      form.appendChild(csrfInput2);
+
       // Добавляем форму в DOM, отправляем и удаляем
       document.body.appendChild(form);
       form.submit();
       document.body.removeChild(form);
     });
   }
-  
+
   // Delete selected
   const deleteSelectedBtn = getElementById('deleteSelected');
   if (deleteSelectedBtn) {

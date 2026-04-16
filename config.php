@@ -16,6 +16,12 @@ mysqli_report(MYSQLI_REPORT_OFF);
 require_once __DIR__ . '/includes/SessionManager.php';
 SessionManager::start();
 
+// Устанавливаем базовые security-заголовки для всех страниц, инклудящих config.php.
+// CSP/X-Frame-Options/X-Content-Type-Options/Referrer-Policy/Permissions-Policy/HSTS.
+// Для JSON-endpoints это не мешает (заголовки поверх Content-Type).
+require_once __DIR__ . '/includes/ResponseHeaders.php';
+ResponseHeaders::setSecurityHeaders();
+
 // Проверяем наличие параметров БД в сессии (приоритет над любыми глобальными настройками)
 if (isset($_SESSION['db_config']) && is_array($_SESSION['db_config'])) {
     $dbConfig = $_SESSION['db_config'];
@@ -26,18 +32,14 @@ if (isset($_SESSION['db_config']) && is_array($_SESSION['db_config'])) {
     $DB_PORT = $dbConfig['port'] ?? 3306;
     $DB_CHARSET = $dbConfig['charset'] ?? 'utf8mb4';
     
-    // Логируем для отладки (без пароля)
-    $logConfig = $dbConfig;
-    if (isset($logConfig['password'])) {
-        $logConfig['password'] = '***';
-    }
-    error_log('CONFIG: Using DB config from session: ' . json_encode($logConfig));
+    // Не логируем хост/юзера/базу в общий php_errors.log — это утечка инфраструктуры.
+    // Если нужна отладка, включите DEBUG в config и логируйте через Logger::debug().
 } else {
     // Жёсткий отказ от .env / переменных окружения для настроек БД аккаунтов.
     // Единственный допустимый источник настроек подключения к БД — данные,
     // которые пользователь ввёл на странице логина и которые сохранены в сессии.
-    error_log('CONFIG: No session db_config found; DB connection must be configured via login form.');
-    
+    // Не логируем это событие в общий php_errors.log — оно нормальное для первого захода.
+
     // Инициализируем значения по умолчанию (чтобы последующая проверка сработала корректно)
     $DB_HOST = 'localhost';
     $DB_NAME = '';

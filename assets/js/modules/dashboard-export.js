@@ -148,10 +148,9 @@
             params.set('cols', visibleCols.join(','));
         }
 
-        // Создаём форму — используем POST для больших списков IDs, GET для остальных
-        const usePOST = selectedIds.length > 2000;
+        // Всегда используем POST — export.php требует POST + CSRF.
         const form = document.createElement('form');
-        form.method = usePOST ? 'POST' : 'GET';
+        form.method = 'POST';
         form.action = window.getTableAwareUrl('export.php');
 
         // Добавляем URL-параметры как скрытые поля
@@ -171,6 +170,14 @@
             idsInput.value = selectedIds;
             form.appendChild(idsInput);
         }
+
+        // CSRF-токен
+        const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrf';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
 
         document.body.appendChild(form);
         form.submit();

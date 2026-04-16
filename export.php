@@ -76,6 +76,7 @@ try {
     require_once __DIR__ . '/includes/AccountsService.php';
     require_once __DIR__ . '/includes/Config.php';
     require_once __DIR__ . '/includes/RateLimitMiddleware.php';
+    require_once __DIR__ . '/includes/Validator.php';
 } catch (Exception $e) {
     Logger::error('EXPORT: Failed to load dependencies', [
         'error' => $e->getMessage(),
@@ -101,6 +102,25 @@ try {
     Logger::error('EXPORT: Auth/rate limit error', ['error' => $e->getMessage()]);
     http_response_code(403);
     die('Export failed: Authentication error');
+}
+
+// Требуем POST + валидный CSRF-токен.
+// Это блокирует CSRF-эксфильтрацию данных через <img src=export.php?...>.
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+    Logger::warning('EXPORT: Rejecting non-POST request', ['method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown']);
+    http_response_code(405);
+    header('Allow: POST');
+    header('Content-Type: text/plain; charset=utf-8');
+    die('Export requires POST with CSRF token');
+}
+$csrfToken = $_POST['csrf'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+try {
+    Validator::validateCsrfToken((string)$csrfToken);
+} catch (Throwable $csrfErr) {
+    Logger::warning('EXPORT: CSRF validation failed');
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    die('Export failed: CSRF validation failed');
 }
 
 // Буферизация уже отключена в начале файла

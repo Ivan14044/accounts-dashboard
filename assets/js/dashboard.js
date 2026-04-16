@@ -894,21 +894,30 @@ class Dashboard {
     updateTable(data) {
         const tbody = dashboardDomCache.get('#accountsTable tbody');
         if (!tbody || !Array.isArray(data.rows)) return;
-        
+
         // Сохраняем позицию скролла
         const prevScrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        
+
         // Плавная анимация обновления
         tbody.style.opacity = '0.7';
         tbody.style.transition = 'opacity 0.2s ease';
-        
+
+        // Generation guard: если за 100ms пришёл более свежий updateTable(),
+        // отменяем перезапись содержимого, чтобы stale-ответ не затёр новый.
+        this._tableGen = (this._tableGen || 0) + 1;
+        const gen = this._tableGen;
+
         setTimeout(() => {
+            if (gen !== this._tableGen) {
+                // Пришёл более свежий апдейт — дропаем этот.
+                return;
+            }
             tbody.innerHTML = this.generateTableRows(data.rows);
             tbody.style.opacity = '1';
-            
+
             // Восстанавливаем позицию скролла
             window.scrollTo(0, prevScrollTop);
-            
+
             // Переинициализируем обработчики
             this.rebindTableEvents();
             this.applySavedColumnVisibility();

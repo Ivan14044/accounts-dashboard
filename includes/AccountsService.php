@@ -639,9 +639,44 @@ class AccountsService {
     
     /**
      * Массовое обновление произвольного поля по фильтру
-     * Делегирует работу в AccountsRepository
+     * Делегирует работу в AccountsRepository, предварительно фиксируя старые значения в audit log.
      */
     public function updateFieldByFilter(FilterBuilder $filter, string $field, $value): int {
+        // AUDIT: зеркалит схему updateStatusByFilter — сначала собираем ID по фильтру,
+        // потом logBulkChange (который сам прочитает старые значения через $field),
+        // потом основной UPDATE.
+        try {
+            $auditLogger = AuditLogger::getInstance();
+            if ($auditLogger->isEnabled()) {
+                $where = $filter->getWhereClause();
+                $params = $filter->getParams();
+                $sql = "SELECT id FROM {$this->table} " . ($where ?: '');
+                $mysqli = $this->db->getConnection();
+                $stmt = $mysqli->prepare($sql);
+                if ($stmt) {
+                    if (!empty($params)) {
+                        $stmt->bind_param($filter->getParamTypes(), ...$params);
+                    }
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $ids = [];
+                    while ($row = $result->fetch_assoc()) {
+                        $ids[] = (int)$row['id'];
+                    }
+                    $stmt->close();
+
+                    if (!empty($ids)) {
+                        $auditLogger->logBulkChange($ids, $field, null, $value);
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            Logger::warning('Audit log failed for updateFieldByFilter', [
+                'field' => $field,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         return $this->repository->updateFieldByFilter($filter, $field, $value);
     }
 

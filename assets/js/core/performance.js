@@ -234,6 +234,12 @@ if (typeof module !== 'undefined' && module.exports) {
 } else {
   window.scheduleIdle = scheduleIdle;
   window.measureFPS = measureFPS;
+  // Canonical источник debounce/throttle — новые модули должны использовать их отсюда.
+  // Остаются локальные дубликаты в dashboard.js/quick-search.js/table-module.js —
+  // не трогаем без тестов, новый код берёт window.debounce.
+  if (typeof window.debounce !== 'function') window.debounce = debounce;
+  if (typeof window.throttle !== 'function') window.throttle = throttle;
+  window.batchDOM = window.batchDOM || batchDOM;
   window.performanceUtils = {
     scheduleIdle,
     debounce,

@@ -204,44 +204,44 @@ class AccountsRepository {
         if (empty($ids) || $status === '') {
             throw new InvalidArgumentException('IDs and status are required');
         }
-        
+
         // Валидация ID
         $ids = array_filter(array_map('intval', $ids));
         if (empty($ids)) {
             throw new InvalidArgumentException('Valid IDs are required');
         }
-        
+
         $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-        
+
         // Проверяем наличие поля updated_at
-        $updateTimestamp = $this->metadata->columnExists('updated_at') 
-            ? ', updated_at = CURRENT_TIMESTAMP' 
+        $updateTimestamp = $this->metadata->columnExists('updated_at')
+            ? ', updated_at = CURRENT_TIMESTAMP'
             : '';
-        
+
         // Исключаем soft-deleted аккаунты из обновления статуса
         $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
         $sql = "UPDATE {$this->table} SET status = ? $updateTimestamp WHERE id IN ($placeholders)$softDeleteClause";
         $params = array_merge([$status], $ids);
-        
+
         $stmt = $this->db->getConnection()->prepare($sql);
         if (!$stmt) {
             throw new Exception('Failed to prepare update statement');
         }
-        
+
         $types = 's' . str_repeat('i', count($ids));
         $stmt->bind_param($types, ...$params);
-        
+
         if (!$stmt->execute()) {
             $stmt->close();
             throw new Exception('Failed to update status');
         }
-        
+
         $affectedRows = $stmt->affected_rows;
         $stmt->close();
-        
+
         // Очищаем кэш после изменений
         $this->db->clearCache();
-        
+
         return $affectedRows;
     }
     
@@ -443,16 +443,16 @@ class AccountsRepository {
         if ($id <= 0) {
             throw new InvalidArgumentException('Invalid ID');
         }
-        
+
         if (!$this->metadata->columnExists($field)) {
             throw new InvalidArgumentException('Invalid field');
         }
-        
+
         // Запрещенные поля
         if ($field === 'id') {
             throw new InvalidArgumentException('Field is read-only');
         }
-        
+
         // Нормализуем значение по типу колонки
         $normalized = $this->normalizeValueByColumnType($field, $value);
         $normalizedValue = $normalized['value'];
@@ -504,16 +504,16 @@ class AccountsRepository {
         if (empty($ids) || $field === '') {
             throw new InvalidArgumentException('IDs and field are required');
         }
-        
+
         if (!$this->metadata->columnExists($field)) {
             throw new InvalidArgumentException('Invalid field name');
         }
-        
+
         $ids = array_filter(array_map('intval', $ids));
         if (empty($ids)) {
             throw new InvalidArgumentException('Valid IDs are required');
         }
-        
+
         $placeholders = str_repeat('?,', count($ids) - 1) . '?';
         
         $updateTimestamp = $this->metadata->columnExists('updated_at')

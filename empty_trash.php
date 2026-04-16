@@ -173,19 +173,22 @@ try {
             $placeholders = str_repeat('?,', count($deletedIds) - 1) . '?';
             $types = str_repeat('i', count($deletedIds));
 
-            // Удаляем из избранного
+            // Удаляем из избранного. При ошибке — бросаем исключение, чтобы
+            // транзакция откатилась и не остались orphan favorites.
             $cleanupSql = "DELETE FROM account_favorites WHERE account_id IN ($placeholders)";
             $cleanupStmt = $mysqli->prepare($cleanupSql);
-            if ($cleanupStmt) {
-                $cleanupStmt->bind_param($types, ...$deletedIds);
-                if ($cleanupStmt->execute()) {
-                    $favoritesDeleted = $cleanupStmt->affected_rows;
-                    Logger::debug('EMPTY TRASH: Удалено из избранного', ['count' => $favoritesDeleted]);
-                } else {
-                    Logger::warning('EMPTY TRASH: Ошибка удаления из избранного', ['error' => $cleanupStmt->error]);
-                }
-                $cleanupStmt->close();
+            if (!$cleanupStmt) {
+                throw new Exception('EMPTY TRASH: Failed to prepare favorites cleanup: ' . $mysqli->error);
             }
+            $cleanupStmt->bind_param($types, ...$deletedIds);
+            if (!$cleanupStmt->execute()) {
+                $err = $cleanupStmt->error;
+                $cleanupStmt->close();
+                throw new Exception('EMPTY TRASH: Favorites cleanup failed: ' . $err);
+            }
+            $favoritesDeleted = $cleanupStmt->affected_rows;
+            Logger::debug('EMPTY TRASH: Удалено из избранного', ['count' => $favoritesDeleted]);
+            $cleanupStmt->close();
         }
 
         Logger::debug('EMPTY TRASH: Окончательное удаление аккаунтов из таблицы accounts...');

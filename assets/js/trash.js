@@ -60,44 +60,51 @@ document.addEventListener('DOMContentLoaded', function() {
     // Восстановление выбранных аккаунтов
     if (restoreSelectedBtn) {
         restoreSelectedBtn.addEventListener('click', function() {
+            if (restoreSelectedBtn.disabled) return; // guard от двойного клика
             if (selectedIds.size === 0) return;
-            
+
             if (!confirm(`Восстановить ${selectedIds.size} аккаунт(ов)?`)) {
                 return;
             }
-            
+
+            // Дизейблим сразу — остальное (visual state) restoreAccounts уже делает.
+            restoreSelectedBtn.disabled = true;
             restoreAccounts(Array.from(selectedIds));
         });
     }
-    
+
     // Окончательное удаление выбранных аккаунтов
     if (deletePermanentlyBtn) {
         deletePermanentlyBtn.addEventListener('click', function() {
+            if (deletePermanentlyBtn.disabled) return;
             if (selectedIds.size === 0) return;
-            
+
             if (!confirm(`ВНИМАНИЕ! Вы уверены, что хотите окончательно удалить ${selectedIds.size} аккаунт(ов)?\n\nЭто действие нельзя отменить!`)) {
                 return;
             }
-            
+
             if (!confirm('Это действие невозможно отменить. Вы действительно уверены?')) {
                 return;
             }
-            
+
+            deletePermanentlyBtn.disabled = true;
             deletePermanently(Array.from(selectedIds));
         });
     }
-    
+
     // Очистка корзины (удаление всех удалённых аккаунтов)
     if (emptyTrashBtn) {
         emptyTrashBtn.addEventListener('click', function() {
+            if (emptyTrashBtn.disabled) return;
             if (!confirm('ВНИМАНИЕ! Вы уверены, что хотите окончательно удалить ВСЕ аккаунты из корзины?\n\nЭто действие нельзя отменить!')) {
                 return;
             }
-            
+
             if (!confirm('Это действие невозможно отменить. Вы действительно уверены, что хотите удалить все аккаунты из корзины?')) {
                 return;
             }
-            
+
+            emptyTrashBtn.disabled = true;
             emptyTrash();
         });
     }

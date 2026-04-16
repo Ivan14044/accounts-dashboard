@@ -38,8 +38,21 @@ class UserManager {
                 error_log('WARNING: Failed to create users.json - using in-memory users');
             }
 
-            // Логируем сгенерированный пароль (один раз, при первом запуске)
-            error_log('FIRST RUN: Admin user created with password: ' . $randomPassword . ' — CHANGE IT IMMEDIATELY!');
+            // Сохраняем сгенерированный пароль в отдельный файл, а не в общий php_errors.log.
+            // Администратор должен открыть файл один раз и удалить его.
+            // Пишем рядом с users.json, чтобы был такой же приватный scope.
+            $markerFile = __DIR__ . '/FIRST_RUN_ADMIN_PASSWORD.txt';
+            $markerContent = "Admin user created on first run.\n"
+                . 'Username: admin' . "\n"
+                . 'Password: ' . $randomPassword . "\n\n"
+                . "CHANGE THIS PASSWORD IMMEDIATELY and DELETE this file.\n"
+                . 'Created at: ' . date('c') . "\n";
+            $ok = @file_put_contents($markerFile, $markerContent, LOCK_EX);
+            if ($ok !== false) {
+                @chmod($markerFile, 0600);
+            }
+            // В общий лог пишем только факт создания — без пароля.
+            error_log('FIRST RUN: Admin user created. See FIRST_RUN_ADMIN_PASSWORD.txt next to users.json (delete after use).');
 
             return $defaultUsers;
         }

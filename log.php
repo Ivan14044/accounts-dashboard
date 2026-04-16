@@ -7,6 +7,7 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/includes/Logger.php';
 require_once __DIR__ . '/includes/AuditLogger.php';
 require_once __DIR__ . '/includes/Utils.php';
+require_once __DIR__ . '/includes/Validator.php';
 
 // Проверяем авторизацию
 requireAuth();
@@ -17,18 +18,52 @@ $logType = $_GET['type'] ?? 'system'; // 'system' или 'actions'
 
 // Обработка действия очистки логов
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'clear') {
+    header('Content-Type: application/json');
+
+    // CSRF защита (токен из POST body или из заголовка)
+    $postToken = $_POST['csrf'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    try {
+        Validator::validateCsrfToken($postToken);
+    } catch (Throwable $e) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'CSRF validation failed']);
+        exit;
+    }
+
+    // Строгая валидация даты — только формат YYYY-MM-DD и настоящая дата.
+    // Это защита от path traversal ("../users") и null-byte injection.
     $clearDate = $_GET['date'] ?? date('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$clearDate)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid date format']);
+        exit;
+    }
+    $parts = explode('-', $clearDate);
+    if (!checkdate((int)$parts[1], (int)$parts[2], (int)$parts[0])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid date']);
+        exit;
+    }
+
     Logger::ensureLogDir();
     $logDir = Logger::getLogDir();
     $logFile = $logDir . '/' . $clearDate . '.log';
-    
-    if (file_exists($logFile)) {
-        @unlink($logFile);
-        header('Content-Type: application/json');
+
+    // Двойная защита: realpath должен остаться внутри $logDir.
+    $realLogDir = realpath($logDir);
+    $realLogFile = realpath($logFile);
+    if ($realLogDir === false || $realLogFile === false ||
+        strpos($realLogFile, $realLogDir . DIRECTORY_SEPARATOR) !== 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid log path']);
+        exit;
+    }
+
+    if (file_exists($realLogFile)) {
+        @unlink($realLogFile);
         echo json_encode(['success' => true]);
         exit;
     } else {
-        header('Content-Type: application/json');
         echo json_encode(['success' => false, 'error' => 'Файл не найден']);
         exit;
     }
@@ -500,11 +535,17 @@ function highlightLevel($line) {
     
     function clearLogs() {
       if (confirm('Вы уверены, что хотите очистить логи за сегодня?')) {
+        const csrf = <?= json_encode($_SESSION['csrf_token'] ?? '', JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+        const body = new URLSearchParams({ csrf: csrf });
         fetch('log.php?action=clear&date=<?= date('Y-m-d') ?>', {
           method: 'POST',
+          credentials: 'same-origin',
           headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-          }
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRF-Token': csrf
+          },
+          body: body.toString()
         })
         .then(response => response.json())
         .then(data => {

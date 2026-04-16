@@ -23,6 +23,24 @@
     } : null;
   }
 
+  // HTML-escape для интерполяции пользовательского текста в innerHTML.
+  // Значения кастомных карточек (name, key, targetStatus) редактируются
+  // через UI/API и при манипуляции с другого окна могут содержать XSS.
+  function esc(v) {
+    if (v == null) return '';
+    return String(v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+  // Разрешаем только символы, безопасные в HTML-атрибутах (id/data-*).
+  // Всё остальное выкидываем, чтобы не нужно было экранировать значение.
+  function safeKey(v) {
+    return String(v == null ? '' : v).replace(/[^a-zA-Z0-9_\-]/g, '');
+  }
+
   function loadCustomCardsFromLocalStorage() {
     try {
       var raw = localStorage.getItem(LS_KEY_CUSTOM_CARDS);
@@ -114,21 +132,34 @@
       if (filters.has_fan_page) filterDesc.push('Fan Page');
       if (filters.full_filled) filterDesc.push('Полностью заполнено');
       if (c.targetStatus) filterDesc.push('→ ' + c.targetStatus);
-      var colorBadge = c.settings && c.settings.color
-        ? '<span class="badge" style="background-color:' + c.settings.color + ';width:16px;height:16px;border-radius:4px;display:inline-block;"></span>'
+
+      // Разрешаем в inline-style только hex-цвет; иначе style=... можно сломать.
+      var colorSafe = /^#[0-9A-Fa-f]{3,8}$/.test((c.settings && c.settings.color) || '')
+        ? c.settings.color
         : '';
+      var colorBadge = colorSafe
+        ? '<span class="badge" style="background-color:' + colorSafe + ';width:16px;height:16px;border-radius:4px;display:inline-block;"></span>'
+        : '';
+
+      var keySafe = safeKey(c.key);
+      var name = esc(c.name || 'Без названия');
+      var descSafe = esc(filterDesc.length > 0 ? filterDesc.join(' • ') : 'Без фильтров');
+      var target = esc(c.targetStatus || '');
+      var targetKey = safeKey(c.targetStatus || '');
+      var checked = c.visible !== false ? 'checked' : '';
+
       return '<div class="d-flex align-items-center justify-content-between border rounded p-2 mb-2">' +
         '<div class="flex-grow-1">' +
-          '<div class="fw-semibold d-flex align-items-center gap-2">' + colorBadge + (c.name || 'Без названия') + '</div>' +
-          '<div class="text-muted small">' + (filterDesc.length > 0 ? filterDesc.join(' • ') : 'Без фильтров') + '</div>' +
+          '<div class="fw-semibold d-flex align-items-center gap-2">' + colorBadge + name + '</div>' +
+          '<div class="text-muted small">' + descSafe + '</div>' +
         '</div>' +
         '<div class="d-flex align-items-center gap-2">' +
           '<div class="form-check">' +
-            '<input class="form-check-input card-toggle" type="checkbox" data-card="custom:' + c.key + '" id="card_custom_' + idx + '" ' + (c.visible !== false ? 'checked' : '') + '>' +
+            '<input class="form-check-input card-toggle" type="checkbox" data-card="custom:' + keySafe + '" id="card_custom_' + idx + '" ' + checked + '>' +
             '<label class="form-check-label" for="card_custom_' + idx + '">Показывать</label>' +
           '</div>' +
-          (c.targetStatus ? '<button type="button" class="btn btn-sm btn-outline-info" data-register-status="' + c.targetStatus + '" title="Повторно зарегистрировать статус"><i class="fas fa-sync-alt"></i> Обновить</button>' : '') +
-          '<button type="button" class="btn btn-sm btn-outline-danger" data-remove-custom-card="' + c.key + '" title="Удалить"><i class="fas fa-trash"></i></button>' +
+          (c.targetStatus ? '<button type="button" class="btn btn-sm btn-outline-info" data-register-status="' + target + '" title="Повторно зарегистрировать статус"><i class="fas fa-sync-alt"></i> Обновить</button>' : '') +
+          '<button type="button" class="btn btn-sm btn-outline-danger" data-remove-custom-card="' + keySafe + '" title="Удалить"><i class="fas fa-trash"></i></button>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -184,10 +215,13 @@
       cardElement.style.setProperty('--card-color', cardColor);
       cardElement.style.setProperty('--card-color-dark', darkerColor);
 
-      cardElement.innerHTML = '<button type="button" class="stat-card-hide-btn" data-card="' + cardId + '" title="Скрыть карточку"><i class="fas fa-eye-slash"></i></button>' +
-        '<div class="stat-header"><h3 class="stat-title">' + (c.name || 'Кастом') + '</h3></div>' +
+      var cardIdSafe = 'custom:' + safeKey(c.key);
+      var nameEsc = esc(c.name || 'Кастом');
+      var trendEsc = c.targetStatus ? '→ ' + esc(c.targetStatus) : 'Кастомные условия';
+      cardElement.innerHTML = '<button type="button" class="stat-card-hide-btn" data-card="' + cardIdSafe + '" title="Скрыть карточку"><i class="fas fa-eye-slash"></i></button>' +
+        '<div class="stat-header"><h3 class="stat-title">' + nameEsc + '</h3></div>' +
         '<div class="stat-value">0</div>' +
-        '<div class="stat-trend"><small class="text-muted">' + (c.targetStatus ? '→ ' + c.targetStatus : 'Кастомные условия') + '</small></div>';
+        '<div class="stat-trend"><small class="text-muted">' + trendEsc + '</small></div>';
 
       if (isHiddenByUser) cardElement.classList.add('hidden');
       row.appendChild(cardElement);
