@@ -119,41 +119,61 @@ class AccountValidationService
 
     /**
      * Check FB IDs in batches via check.fb.tools bulk API.
+     * Все суб-батчи выполняются ПАРАЛЛЕЛЬНО через curl_multi.
+     * Ретраи неудачных батчей — тоже параллельно.
      *
      * @return array [fb_id => bool]
      */
     private static function checkFbIdsBulk(array $fbIds): array
     {
-        $fbIds     = array_values(array_unique(array_filter(array_map('strval', $fbIds))));
-        $results   = [];
-        $batchSize = Config::FB_CHECK_BATCH_SIZE;
+        $fbIds = array_values(array_unique(array_filter(array_map('strval', $fbIds))));
+        if (empty($fbIds)) return [];
 
-        for ($offset = 0; $offset < count($fbIds); $offset += $batchSize) {
-            $batch = array_slice($fbIds, $offset, $batchSize);
+        $batches = array_chunk($fbIds, Config::FB_CHECK_BATCH_SIZE);
 
-            $batchResults = self::callCheckApi($batch);
+        // Fire all batches in parallel
+        $batchResults = self::runParallel($batches);
 
-            if ($batchResults === null) {
-                // Retry with delay
-                for ($attempt = 1; $attempt <= Config::FB_CHECK_RETRY_COUNT; $attempt++) {
-                    sleep(Config::FB_CHECK_RETRY_DELAY * $attempt);
-                    Logger::debug('check.fb.tools retry', [
-                        'attempt' => $attempt,
-                        'count'   => count($batch),
-                    ]);
-                    $batchResults = self::callCheckApi($batch);
-                    if ($batchResults !== null) break;
+        // Collect failed batch indices and retry them (also in parallel)
+        $failedIdx = [];
+        foreach ($batchResults as $idx => $res) {
+            if ($res === null) $failedIdx[] = $idx;
+        }
+
+        for ($attempt = 1; $attempt <= Config::FB_CHECK_RETRY_COUNT && !empty($failedIdx); $attempt++) {
+            sleep(Config::FB_CHECK_RETRY_DELAY * $attempt);
+            Logger::debug('check.fb.tools retry', [
+                'attempt' => $attempt,
+                'batches' => count($failedIdx),
+            ]);
+
+            $retryBatches = [];
+            foreach ($failedIdx as $idx) $retryBatches[$idx] = $batches[$idx];
+
+            $retryResults = self::runParallel($retryBatches);
+
+            $newFailed = [];
+            foreach ($retryResults as $originalIdx => $res) {
+                if ($res !== null) {
+                    $batchResults[$originalIdx] = $res;
+                } else {
+                    $newFailed[] = $originalIdx;
                 }
             }
+            $failedIdx = $newFailed;
+        }
 
-            if (is_array($batchResults)) {
-                foreach ($batchResults as $fbId => $isValid) {
+        // Combine all batch results
+        $results = [];
+        foreach ($batchResults as $idx => $res) {
+            if (is_array($res)) {
+                foreach ($res as $fbId => $isValid) {
                     $results[$fbId] = $isValid;
                 }
             } else {
                 // All retries failed — mark batch as false
-                Logger::warning('check.fb.tools batch failed after retries', ['count' => count($batch)]);
-                foreach ($batch as $fbId) {
+                Logger::warning('check.fb.tools batch failed after retries', ['count' => count($batches[$idx])]);
+                foreach ($batches[$idx] as $fbId) {
                     $results[$fbId] = false;
                 }
             }
@@ -163,63 +183,103 @@ class AccountValidationService
     }
 
     /**
-     * Single API call to check.fb.tools.
+     * Выполнить несколько запросов к check.fb.tools параллельно через curl_multi.
+     * Ключи входного массива $batches сохраняются в результате.
      *
-     * @param array $fbIds List of FB IDs to check
-     * @return array|null [fb_id => bool] on success, null on error
+     * @param array $batches [idx => array<string>]
+     * @return array [idx => array|null]  массив [fb_id => bool] при успехе, null при ошибке
      */
-    private static function callCheckApi(array $fbIds): ?array
+    private static function runParallel(array $batches): array
     {
-        $payload = json_encode([
-            'inputData'    => array_map('strval', array_values($fbIds)),
-            'checkFriends' => false,
-            'userLang'     => 'ru',
-        ]);
+        if (empty($batches)) return [];
 
-        $ch = curl_init(Config::FB_CHECK_URL);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $payload,
-            CURLOPT_TIMEOUT        => Config::FB_CHECK_TIMEOUT,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_HTTPHEADER     => [
-                'Content-Type: application/json',
-                'Accept: application/json',
-            ],
-        ]);
+        $mh      = curl_multi_init();
+        $handles = [];
 
-        $body     = curl_exec($ch);
-        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error    = curl_error($ch);
-        curl_close($ch);
-
-        if ($error || $httpCode !== 200 || $body === false) {
-            Logger::warning('check.fb.tools request failed', [
-                'http_code' => $httpCode,
-                'error'     => $error,
+        foreach ($batches as $idx => $batch) {
+            $payload = json_encode([
+                'inputData'    => array_map('strval', array_values($batch)),
+                'checkFriends' => false,
+                'userLang'     => 'ru',
             ]);
-            return null;
+
+            $ch = curl_init(Config::FB_CHECK_URL);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $payload,
+                CURLOPT_TIMEOUT        => Config::FB_CHECK_TIMEOUT,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_HTTPHEADER     => [
+                    'Content-Type: application/json',
+                    'Accept: application/json',
+                ],
+            ]);
+
+            curl_multi_add_handle($mh, $ch);
+            $handles[$idx] = $ch;
         }
 
-        $json = @json_decode($body, true);
-        if (!is_array($json) || !isset($json['data']) || !is_array($json['data'])) {
-            Logger::warning('check.fb.tools invalid response', [
-                'body' => substr((string)$body, 0, 500),
-            ]);
-            return null;
-        }
+        // Крутим цикл до завершения всех запросов.
+        // Паттерн устойчив к curl_multi_select() == -1 на некоторых системах.
+        $running = null;
+        do {
+            $status = curl_multi_exec($mh, $running);
+        } while ($status === CURLM_CALL_MULTI_PERFORM);
 
-        $results = [];
-        foreach ($json['data'] as $entry) {
-            $account = (string)($entry['account'] ?? '');
-            $status  = (string)($entry['status']['name'] ?? '');
-            if ($account !== '') {
-                $results[$account] = ($status === 'valid');
+        while ($running && $status === CURLM_OK) {
+            if (curl_multi_select($mh, 1.0) === -1) {
+                usleep(100);
             }
+            do {
+                $status = curl_multi_exec($mh, $running);
+            } while ($status === CURLM_CALL_MULTI_PERFORM);
         }
+
+        // Забираем тела ответов, сохраняя исходные ключи
+        $results = [];
+        foreach ($handles as $idx => $ch) {
+            $body     = curl_multi_getcontent($ch);
+            $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error    = curl_error($ch);
+
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+
+            if ($error || $httpCode !== 200 || $body === false || $body === '') {
+                Logger::warning('check.fb.tools request failed', [
+                    'http_code' => $httpCode,
+                    'error'     => $error,
+                    'batch_idx' => $idx,
+                ]);
+                $results[$idx] = null;
+                continue;
+            }
+
+            $json = @json_decode($body, true);
+            if (!is_array($json) || !isset($json['data']) || !is_array($json['data'])) {
+                Logger::warning('check.fb.tools invalid response', [
+                    'body'      => substr((string)$body, 0, 500),
+                    'batch_idx' => $idx,
+                ]);
+                $results[$idx] = null;
+                continue;
+            }
+
+            $batchResult = [];
+            foreach ($json['data'] as $entry) {
+                $account = (string)($entry['account'] ?? '');
+                $status  = (string)($entry['status']['name'] ?? '');
+                if ($account !== '') {
+                    $batchResult[$account] = ($status === 'valid');
+                }
+            }
+            $results[$idx] = $batchResult;
+        }
+
+        curl_multi_close($mh);
 
         return $results;
     }
