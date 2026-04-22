@@ -8,16 +8,12 @@
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/Database.php';
-require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/auth.php';
 
 header('Content-Type: text/html; charset=utf-8');
 
 // Только для авторизованных пользователей
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    http_response_code(403);
-    echo '<h2>Доступ запрещён. Войдите в дашборд сначала.</h2>';
-    exit;
-}
+requireAuth();
 
 $db = Database::getInstance();
 $mysqli = $db->getConnection();
