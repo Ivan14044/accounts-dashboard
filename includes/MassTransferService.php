@@ -66,42 +66,40 @@ class MassTransferService {
         foreach ($lines as $line) {
             $parsed = false;
 
-            // 1. Специальная обработка Facebook URL: profile.php?id=XXXXX
-            if (preg_match('/profile\.php\?id=(\d{8,})/', $line, $urlMatch)) {
-                $ids[] = $urlMatch[1];
-                // Сохраняем полный URL для фаллбэка поиска по social_url
-                if (preg_match('/https?:\/\/[^\s]+/', $line, $fullUrl)) {
-                    $urls[] = $urlMatch[1]; // ID для URL-поиска
+            // 1. Специальная обработка Facebook URL: profile.php?id=XXXXX (ID + сохраняем для URL-поиска)
+            if (preg_match_all('/profile\.php\?id=(\d{8,})/', $line, $urlMatch)) {
+                foreach ($urlMatch[1] as $id) {
+                    $ids[] = $id;
+                    $urls[] = $id;
                 }
                 $parsed = true;
             }
 
             // 2. Facebook URL без profile.php: facebook.com/XXXXX (числовой профиль)
-            if (!$parsed && preg_match('/facebook\.com\/(\d{8,})/', $line, $shortUrlMatch)) {
-                $ids[] = $shortUrlMatch[1];
+            if (preg_match_all('/facebook\.com\/(\d{8,})/', $line, $shortUrlMatch)) {
+                foreach ($shortUrlMatch[1] as $id) { $ids[] = $id; }
                 $parsed = true;
             }
 
             // 3. Стандартный паттерн: ID начинающийся с 10 или 61
-            if (!$parsed && preg_match_all(self::ID_PATTERN, $line, $matches)) {
-                foreach ($matches[0] as $id) {
-                    $ids[] = $id;
-                    $parsed = true;
-                }
+            if (preg_match_all(self::ID_PATTERN, $line, $matches)) {
+                foreach ($matches[0] as $id) { $ids[] = $id; }
+                $parsed = true;
             }
 
             // 4. Формат: число_строка_число (например 97693208494_H9wZQ30BEX_61571235444141)
-            if (!$parsed && preg_match('/^(\d{11,})_[^_]+_(\d{11,})$/', $line, $formatMatches)) {
-                if (isset($formatMatches[1])) { $ids[] = $formatMatches[1]; $parsed = true; }
-                if (isset($formatMatches[2])) { $ids[] = $formatMatches[2]; $parsed = true; }
+            if (preg_match('/^(\d{11,})_[^_]+_(\d{11,})$/', $line, $formatMatches)) {
+                if (isset($formatMatches[1])) { $ids[] = $formatMatches[1]; }
+                if (isset($formatMatches[2])) { $ids[] = $formatMatches[2]; }
+                $parsed = true;
             }
 
-            // 5. Числовые ID длиной 11+ цифр (фаллбэк)
-            if (!$parsed && preg_match_all('/\d{11,}/', $line, $numericMatches)) {
-                foreach ($numericMatches[0] as $numericId) {
-                    $ids[] = $numericId;
-                    $parsed = true;
-                }
+            // 5. Числовые ID длиной 11+ цифр — выполняется ВСЕГДА, ловит логины-числа,
+            //    которые лежат в строке рядом с URL (например `4915212806074|...|profile.php?id=...`).
+            //    Раньше этот regex был fallback'ом и не запускался, если до него уже что-то нашлось.
+            if (preg_match_all('/\d{11,}/', $line, $numericMatches)) {
+                foreach ($numericMatches[0] as $numericId) { $ids[] = $numericId; }
+                $parsed = true;
             }
 
             if (!$parsed && $line !== '' && count($unparsed) < 50) {
