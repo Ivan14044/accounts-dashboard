@@ -1,14 +1,14 @@
 /**
  * dashboard-validate.js
- * Модуль проверки аккаунтов на валидность (check.fb.tools)
+ * Модуль проверки аккаунтов на валидность (NPPR fbchecker)
  *
  * ВАЖНО: параллельные запросы к нашему API блокируются nginx rate limiter'ом (429).
  * Поэтому отправляем СТРОГО ОДИН запрос за раз (CONCURRENCY=1),
  * а параллельность обеспечивает бэкенд: AccountValidationService раскидывает
- * суб-батчи к check.fb.tools через curl_multi.
+ * суб-батчи к NPPR через curl_multi.
  *
- * BATCH_SIZE=500 (= VALIDATE_CHECK_MAX_ITEMS) → бэкенд делит их на 10 суб-батчей
- * по FB_CHECK_BATCH_SIZE=50 и обращается к check.fb.tools одновременно.
+ * BATCH_SIZE=500 (= VALIDATE_CHECK_MAX_ITEMS) → бэкенд делит их на суб-батчи
+ * по NPPR_BATCH_SIZE=100 и обращается к NPPR одновременно.
  * UI обновляется после каждого большого батча. Ошибки не крашат процесс.
  */
 (function () {

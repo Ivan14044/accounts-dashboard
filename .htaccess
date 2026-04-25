@@ -45,6 +45,10 @@ php_value memory_limit 256M
     Require all denied
 </FilesMatch>
 
+<FilesMatch "^nppr_token\.txt$">
+    Require all denied
+</FilesMatch>
+
 <FilesMatch "\.json$">
     Require all denied
 </FilesMatch>

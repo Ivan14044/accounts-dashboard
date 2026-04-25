@@ -127,34 +127,51 @@ class Config {
     const LOGIN_BLOCK_TIME = 300; // 5 минут
     
     // ========================================
-    // ПРОВЕРКА ВАЛИДНОСТИ АККАУНТОВ (getuid.live)
+    // ПРОВЕРКА ВАЛИДНОСТИ АККАУНТОВ (NPPR Services API)
+    // https://npprservices.pro/apidoc
     // ========================================
-    
-    /**
-     * URL для проверки FB аккаунтов (check.fb.tools bulk API)
-     */
-    const FB_CHECK_URL = 'https://check.fb.tools/api/check/account';
 
     /**
-     * Таймаут запроса к check.fb.tools (секунд)
+     * Базовый URL NPPR API
      */
-    const FB_CHECK_TIMEOUT = 15;
+    const NPPR_BASE_URL = 'https://npprservices.pro/api';
 
     /**
-     * Размер батча FB ID за один запрос к check.fb.tools.
+     * URL для проверки FB аккаунтов (NPPR fbchecker)
+     */
+    const NPPR_FBCHECK_URL = 'https://npprservices.pro/api/services/fbchecker';
+
+    /**
+     * Таймаут запроса к NPPR (секунд)
+     */
+    const NPPR_TIMEOUT = 30;
+
+    /**
+     * Размер батча FB ID за один запрос к NPPR.
      * API поддерживает bulk — отправляем много ID за раз.
      */
-    const FB_CHECK_BATCH_SIZE = 50;
+    const NPPR_BATCH_SIZE = 100;
 
     /**
      * Количество повторных попыток при ошибке/429
      */
-    const FB_CHECK_RETRY_COUNT = 2;
+    const NPPR_RETRY_COUNT = 2;
 
     /**
      * Задержка между повторными попытками (секунд)
      */
-    const FB_CHECK_RETRY_DELAY = 1;
+    const NPPR_RETRY_DELAY = 1;
+
+    /**
+     * Имя ENV-переменной с токеном NPPR
+     */
+    const NPPR_TOKEN_ENV = 'NPPR_API_TOKEN';
+
+    /**
+     * Имя файла с токеном NPPR (fallback, относительно корня проекта).
+     * Файл должен быть в .gitignore.
+     */
+    const NPPR_TOKEN_FILE = 'nppr_token.txt';
 
     /**
      * Максимум записей за один запрос validate/check
@@ -165,6 +182,22 @@ class Config {
      * Максимум записей за один запрос validate/prepare (по фильтру)
      */
     const VALIDATE_PREPARE_LIMIT = 2000;
+
+    /**
+     * Получить токен NPPR API.
+     * Приоритет: переменная окружения NPPR_API_TOKEN -> файл nppr_token.txt в корне проекта.
+     * Возвращает пустую строку, если токен не задан.
+     */
+    public static function getNpprToken(): string {
+        $token = (string)getenv(self::NPPR_TOKEN_ENV);
+        if ($token === '' && defined('PROJECT_ROOT')) {
+            $tokenFile = PROJECT_ROOT . DIRECTORY_SEPARATOR . self::NPPR_TOKEN_FILE;
+            if (is_file($tokenFile) && is_readable($tokenFile)) {
+                $token = trim((string)@file_get_contents($tokenFile));
+            }
+        }
+        return preg_replace('/[^A-Za-z0-9]/', '', $token);
+    }
     
     // ========================================
     // БЕЗОПАСНОСТЬ

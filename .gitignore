@@ -4,6 +4,7 @@
 # Конфигурация
 .env
 config.local.php
+nppr_token.txt
 
 # Логи
 *.log

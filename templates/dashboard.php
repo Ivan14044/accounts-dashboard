@@ -865,7 +865,7 @@
         <!-- Шаг 1: Выбор scope -->
         <div id="vldScopePane">
           <p class="text-muted mb-3 small">
-            Проверка аккаунтов через <strong>check.fb.tools</strong> — определяет, активен аккаунт или заблокирован.
+            Проверка аккаунтов через <strong>NPPR Services</strong> — определяет, активен аккаунт или заблокирован.
           </p>
           <div class="mb-3">
             <label class="form-label fw-semibold small" for="vldScopeSelect">Что проверяем</label>

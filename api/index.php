@@ -338,7 +338,7 @@ $router->post('/accounts/validate/prepare', function() use ($tableName) {
 
 /**
  * POST /accounts/validate/check
- * Проверка батча через check.fb.tools (curl_multi, параллельно внутри запроса).
+ * Проверка батча через NPPR fbchecker (curl_multi, параллельно внутри запроса).
  * Сессия закрывается до начала — чтобы не блокировать другие запросы.
  */
 $router->post('/accounts/validate/check', function() use ($tableName) {
