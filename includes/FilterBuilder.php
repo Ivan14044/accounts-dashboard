@@ -112,13 +112,20 @@ class FilterBuilder {
     }
 
     /**
-     * Фаза 2: заменяет точный поиск на LIKE '%...%' по login, email, social_url, id_fan_page_1/2/3.
+     * Фаза 2: заменяет точный поиск на LIKE '%...%' по login, email, social_url,
+     * id_fan_page_1/2/3, cookies, first_cookie, token. Поиск в cookies/first_cookie/token
+     * нужен для FB ID, которые типично хранятся внутри JSON cookies (c_user) или access_token,
+     * а не в индексированных полях. Это симметрия с массовым переносом, который смотрит cookies.
      * Вызывать только если canFallbackToLikeSearch() === true и фаза 1 дала 0 результатов.
      */
     public function fallbackToLikeSearch(): self {
         if (!$this->canFallbackToLikeSearch()) return $this;
 
-        $searchFields = ['login', 'email', 'social_url', 'id_fan_page_1', 'id_fan_page_2', 'id_fan_page_3'];
+        $searchFields = [
+            'login', 'email', 'social_url',
+            'id_fan_page_1', 'id_fan_page_2', 'id_fan_page_3',
+            'cookies', 'first_cookie', 'token',
+        ];
         $availableFields = array_intersect($searchFields, array_keys($this->columnsList));
 
         // Удаляем старые search-параметры из массива params
