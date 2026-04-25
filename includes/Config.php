@@ -169,9 +169,10 @@ class Config {
 
     /**
      * Имя файла с токеном NPPR (fallback, относительно корня проекта).
-     * Файл должен быть в .gitignore.
+     * Файл должен быть в .gitignore. Имя начинается с точки, чтобы блокироваться
+     * существующим правилом ".htaccess" (RewriteRule ^\.(?!well-known/) - [F]).
      */
-    const NPPR_TOKEN_FILE = 'nppr_token.txt';
+    const NPPR_TOKEN_FILE = '.nppr_token';
 
     /**
      * Максимум записей за один запрос validate/check

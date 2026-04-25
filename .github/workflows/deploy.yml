@@ -39,16 +39,32 @@ jobs:
           } > deployed-version.txt
           cat deployed-version.txt
 
+      # СНАЧАЛА удаляем со старый файл с засвеченным токеном (если он остался от прошлого деплоя).
+      # Файл нельзя оставлять — он лежит в webroot с расширением .txt и читается по HTTP.
+      # Игнорируем код возврата: файла может уже не быть.
+      - name: Remove leaked nppr_token.txt from server
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          curl --ssl-reqd --insecure -sS \
+            --user "$FTP_USERNAME:$FTP_PASSWORD" \
+            --quote "DELE nppr_token.txt" \
+            "ftp://$FTP_SERVER/" \
+            && echo "deleted nppr_token.txt" \
+            || echo "nppr_token.txt was not present (ok)"
+
       # Материализуем токен NPPR из GitHub Secret в файл, который заберёт FTPS-upload.
-      # Файл в .gitignore (не коммитится) и заблокирован в .htaccess от прямого HTTP-доступа.
-      # Если секрет не задан — файл не создаётся, валидация просто будет писать warning в лог.
+      # Имя начинается с точки → блокируется правилом .htaccess для скрытых файлов.
+      # Файл в .gitignore (не коммитится). Если секрет не задан — файл не создаётся.
       - name: Write NPPR token file
         env:
           NPPR_API_TOKEN: ${{ secrets.NPPR_API_TOKEN }}
         run: |
           if [ -n "$NPPR_API_TOKEN" ]; then
-            printf '%s' "$NPPR_API_TOKEN" > nppr_token.txt
-            echo "nppr_token.txt written ($(wc -c < nppr_token.txt) bytes)"
+            printf '%s' "$NPPR_API_TOKEN" > .nppr_token
+            echo ".nppr_token written ($(wc -c < .nppr_token) bytes)"
           else
             echo "::warning::NPPR_API_TOKEN secret is not set — account validation will be disabled until configured"
           fi
