@@ -355,6 +355,18 @@
   <script>
     window.DashboardConfig = window.DashboardConfig || {};
     window.DashboardConfig.csrfToken = <?= json_encode((string)getCsrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
+    // На странице корзины не подключается dashboard-init.js, поэтому
+    // даём минимальное определение getTableAwareUrl — иначе trash.js падает
+    // с "window.getTableAwareUrl is not a function" при empty/restore.
+    if (typeof window.getTableAwareUrl !== 'function') {
+      window.getTableAwareUrl = function (url) {
+        var table = (window.DashboardConfig && window.DashboardConfig.currentTable) ||
+                    (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.currentTable) || '';
+        if (!table || table === 'accounts') return url;
+        var sep = url.indexOf('?') === -1 ? '?' : '&';
+        return url + sep + 'table=' + encodeURIComponent(table);
+      };
+    }
   </script>
   <script src="assets/js/trash.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
 </body>
