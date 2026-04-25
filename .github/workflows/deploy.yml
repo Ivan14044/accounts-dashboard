@@ -23,6 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Sequential, not parallel: shared-hosting FTP throttles concurrent
+      # connections from the same account and dropped the second target.
+      max-parallel: 1
       matrix:
         target:
           # FTP login приземляет в /home/if592995/panel.account-factory.site/www/,
