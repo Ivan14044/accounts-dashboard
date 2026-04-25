@@ -553,16 +553,38 @@
       });
     }
     
-    // Информация о пропущенных аккаунтах (дубликаты)
+    // Информация о пропущенных аккаунтах (дубликаты) — со списком логинов и кнопкой копирования
     if (hasSkipped) {
+      var dupLogins = skipped_details
+        .map(function (d) { return (d && d.login != null) ? String(d.login) : ''; })
+        .filter(function (s) { return s !== ''; });
+      var loginsText = dupLogins.join('\n');
+      var loginsAttr = loginsText.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      var escapeHtml = function (s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      };
+
       html += '<div id="skippedDetailsSection" class="alert alert-info">';
-      html += '<div class="d-flex align-items-center">';
-      html += '<i class="fas fa-info-circle fa-2x text-info me-3"></i>';
-      html += '<div>';
-      html += '<h6 class="mb-1">Обнаружено ' + skipped + ' ' + (skipped === 1 ? 'дубликат' : skipped < 5 ? 'дубликата' : 'дубликатов') + '</h6>';
-      html += '<small class="text-muted">Аккаунты с такими логинами уже существуют в базе данных и не были загружены повторно</small>';
-      html += '</div>';
-      html += '</div>';
+      html += '  <div class="d-flex align-items-start">';
+      html += '    <i class="fas fa-info-circle fa-2x text-info me-3 mt-1"></i>';
+      html += '    <div class="flex-grow-1">';
+      html += '      <div class="d-flex justify-content-between align-items-center mb-2">';
+      html += '        <h6 class="mb-0">Обнаружено ' + skipped + ' ' + (skipped === 1 ? 'дубликат' : skipped < 5 ? 'дубликата' : 'дубликатов') + '</h6>';
+      if (dupLogins.length > 0) {
+        html += '        <button type="button" class="btn btn-sm btn-outline-info" id="copyDupLoginsBtn" data-logins="' + loginsAttr + '">';
+        html += '          <i class="fas fa-copy"></i> Копировать логины';
+        html += '        </button>';
+      }
+      html += '      </div>';
+      html += '      <small class="text-muted d-block mb-2">Аккаунты с такими логинами уже существуют в базе и не были загружены повторно.</small>';
+      if (dupLogins.length > 0) {
+        html += '      <details>';
+        html += '        <summary class="text-info" style="cursor:pointer">Показать список логинов (' + dupLogins.length + ')</summary>';
+        html += '        <pre class="mb-0 mt-2 p-2 bg-light border rounded" style="max-height:240px;overflow:auto;font-size:.85rem">' + escapeHtml(loginsText) + '</pre>';
+        html += '      </details>';
+      }
+      html += '    </div>';
+      html += '  </div>';
       html += '</div>';
     }
     
@@ -578,7 +600,40 @@
     html += '</div>'; // Конец import-results-summary
     
     body.innerHTML = html;
-    
+
+    // Кнопка копирования списка логинов-дубликатов в буфер обмена
+    var copyBtn = body.querySelector('#copyDupLoginsBtn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function () {
+        var text = copyBtn.getAttribute('data-logins') || '';
+        text = text.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+        var done = function () {
+          var orig = copyBtn.innerHTML;
+          copyBtn.innerHTML = '<i class="fas fa-check"></i> Скопировано';
+          copyBtn.classList.add('btn-success');
+          copyBtn.classList.remove('btn-outline-info');
+          setTimeout(function () {
+            copyBtn.innerHTML = orig;
+            copyBtn.classList.remove('btn-success');
+            copyBtn.classList.add('btn-outline-info');
+          }, 1500);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(function () {
+            var ta = document.createElement('textarea');
+            ta.value = text; document.body.appendChild(ta); ta.select();
+            try { document.execCommand('copy'); done(); } catch (e) {}
+            document.body.removeChild(ta);
+          });
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = text; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); done(); } catch (e) {}
+          document.body.removeChild(ta);
+        }
+      });
+    }
+
     // Показываем модальное окно
     if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
       const modalInstance = bootstrap.Modal.getOrCreateInstance(modal);

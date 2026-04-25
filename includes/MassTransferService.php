@@ -135,9 +135,25 @@ class MassTransferService {
         $matchedTokens = $result['matched_tokens'];
         $matchedByIdSoc = count($foundIds);
 
+        // Фаза 1.5: точный поиск по login для оставшихся (быстро, по индексу).
+        // CSV-импорт записывает FB ID в login, поэтому без этой фазы массовый перенос
+        // не находит аккаунты, добавленные через импорт.
+        $matchedByLogin = 0;
+        $notFoundAfterIdSoc = array_values(array_filter($ids, function($id) use ($matchedTokens) {
+            return !isset($matchedTokens[$id]);
+        }));
+        if (!empty($notFoundAfterIdSoc)) {
+            $loginResult = $this->searchByLogin($notFoundAfterIdSoc);
+            $foundIds = array_merge($foundIds, $loginResult['ids']);
+            foreach ($loginResult['matched_tokens'] as $token => $_) {
+                $matchedTokens[$token] = true;
+            }
+            $matchedByLogin = count($loginResult['ids']);
+        }
+
         // Фаза 2: поиск в social_url
         // Включается если: (а) пользователь включил enable_like, ИЛИ (б) входные данные были URL
-        // и не все ID найдены по id_soc_account
+        // и не все ID найдены по точным фазам
         $matchedByUrl = 0;
         $shouldSearchUrl = $enableLike || ($hadUrls && count($matchedTokens) < count($ids));
 
@@ -158,9 +174,48 @@ class MassTransferService {
         return [
             'ids' => $foundIds,
             'matched_by_id_soc' => $matchedByIdSoc,
+            'matched_by_login' => $matchedByLogin,
             'matched_by_url' => $matchedByUrl,
             'total' => count($foundIds)
         ];
+    }
+
+    /**
+     * Точный поиск по login. Исключает удалённые аккаунты.
+     * CSV-импорт пишет FB ID в login, и эта фаза ловит такие записи.
+     */
+    private function searchByLogin(array $ids): array {
+        $foundIds = [];
+        $matchedTokens = [];
+
+        for ($i = 0; $i < count($ids); $i += self::MAX_BATCH_SIZE) {
+            $chunk = array_slice($ids, $i, self::MAX_BATCH_SIZE);
+            if (empty($chunk)) continue;
+
+            $placeholders = str_repeat('?,', count($chunk) - 1) . '?';
+            $sql = "SELECT id, login
+                    FROM {$this->table}
+                    WHERE deleted_at IS NULL AND login IN ($placeholders)";
+
+            $stmt = $this->db->prepare($sql);
+            if (!$stmt) {
+                throw new Exception('Failed to prepare search by login: ' . $this->db->error);
+            }
+            $types = str_repeat('s', count($chunk));
+            $stmt->bind_param($types, ...$chunk);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            while ($row = $result->fetch_assoc()) {
+                $foundIds[] = (int)$row['id'];
+                if (!empty($row['login'])) {
+                    $matchedTokens[$row['login']] = true;
+                }
+            }
+            $stmt->close();
+        }
+
+        return ['ids' => $foundIds, 'matched_tokens' => $matchedTokens];
     }
     
     /**
