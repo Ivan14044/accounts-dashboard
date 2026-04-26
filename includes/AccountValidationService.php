@@ -43,22 +43,33 @@ class AccountValidationService
         return ['items' => $items, 'skipped' => $skipped];
     }
 
-    /** Extract unique FB IDs from id_soc_account, social_url and cookies fields */
+    /**
+     * Extract unique FB IDs that belong to THIS account (own ID only).
+     * Sources, in priority:
+     *   1. id_soc_account — direct, authoritative
+     *   2. social_url     — usually facebook.com/profile.php?id=... or vanity link
+     *   3. cookies        — ONLY the c_user value (authenticated user's FB ID).
+     *      Не сканируем cookies регуляркой целиком: куки содержат десятки чужих
+     *      FB-ID (реклама, друзья, посты, трекеры). Они возвращают «not found»
+     *      от acctool и душат API параллельными запросами.
+     */
     private static function extractFbIds(array $row): array
     {
         $ids = [];
-        $sources = [
-            trim((string)($row['id_soc_account'] ?? '')),
-            trim((string)($row['social_url'] ?? '')),
-            (string)($row['cookies'] ?? ''),
-        ];
 
-        foreach ($sources as $text) {
-            if ($text !== '' && preg_match_all(self::FB_ID_PATTERN, $text, $m)) {
-                foreach ($m[0] as $id) {
-                    $ids[$id] = true;
-                }
-            }
+        $idSoc = trim((string)($row['id_soc_account'] ?? ''));
+        if ($idSoc !== '' && preg_match_all(self::FB_ID_PATTERN, $idSoc, $m)) {
+            foreach ($m[0] as $id) $ids[$id] = true;
+        }
+
+        $socialUrl = trim((string)($row['social_url'] ?? ''));
+        if ($socialUrl !== '' && preg_match_all(self::FB_ID_PATTERN, $socialUrl, $m)) {
+            foreach ($m[0] as $id) $ids[$id] = true;
+        }
+
+        $cookies = (string)($row['cookies'] ?? '');
+        if ($cookies !== '' && preg_match('/(?:^|[\s;])c_user=([0-9]{8,23})\b/i', $cookies, $cm)) {
+            $ids[$cm[1]] = true;
         }
 
         return array_keys($ids);
