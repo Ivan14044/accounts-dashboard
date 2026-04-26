@@ -1,24 +1,11 @@
 <?php
 /**
- * AccountValidationService — проверка аккаунтов через NPPR Services API
+ * AccountValidationService — проверка аккаунтов через acctool.top checker API
  *
- * Scheme:
- *   1. prepareItems(rows)  — extract FB IDs from id_soc_account/social_url/cookies
- *   2. checkItems(items)   — bulk check via NPPR /services/fbchecker
- *
- * NPPR API (https://npprservices.pro/apidoc):
- *   POST /services/fbchecker
- *   Body: { token: "<64char>", accs: ["id1","id2",...] }
- *   Response: {
- *     balance: int,
- *     duplicates: array,
- *     active: { "<acc>": "<fbid>", ... },
- *     banned: array,
- *     notFound: array,
- *     withoutToken: array
- *   }
- *
- * Token storage: ENV NPPR_API_TOKEN, fallback — file <project>/nppr_token.txt (gitignored).
+ * API (без токена):
+ *   POST https://checker.acctool.top/check
+ *   Body: { lines: ["id1", "id2", ...] }
+ *   Response: { results: [{ full_line: "id1", id: "extracted_id", status: "Active|Blocked|Invalid ID" }] }
  */
 
 require_once __DIR__ . '/Config.php';
@@ -82,7 +69,7 @@ class AccountValidationService
     // ────────────────────────────────────────────────────────
 
     /**
-     * Check items. An account is valid if at least one of its FB IDs is valid.
+     * Check items. An account is valid if at least one of its FB IDs is active.
      */
     public static function checkItems(array $items): array
     {
@@ -90,7 +77,6 @@ class AccountValidationService
         $invalid = [];
         $skipped = [];
 
-        // Collect all unique FB IDs
         $allFbIds = [];
         foreach ($items as $item) {
             $fbIds = $item['fb_ids'] ?? [];
@@ -103,10 +89,8 @@ class AccountValidationService
             }
         }
 
-        // Bulk check via NPPR
         $results = self::checkFbIdsBulk(array_keys($allFbIds));
 
-        // Map results back to items
         foreach ($items as $item) {
             $fbIds = $item['fb_ids'] ?? [];
             if (empty($fbIds)) continue;
@@ -127,9 +111,8 @@ class AccountValidationService
     }
 
     /**
-     * Check FB IDs in batches via NPPR fbchecker bulk API.
-     * Все суб-батчи выполняются ПАРАЛЛЕЛЬНО через curl_multi.
-     * Ретраи неудачных батчей — тоже параллельно.
+     * Check FB IDs in batches via acctool.top bulk API.
+     * Sub-batches run in parallel via curl_multi. Failed batches are retried.
      *
      * @return array [fb_id => bool]
      */
@@ -138,42 +121,23 @@ class AccountValidationService
         $fbIds = array_values(array_unique(array_filter(array_map('strval', $fbIds))));
         if (empty($fbIds)) return [];
 
-        $token = Config::getNpprToken();
-        if ($token === '') {
-            Logger::warning('NPPR token is not configured', [
-                'env'  => Config::NPPR_TOKEN_ENV,
-                'file' => Config::NPPR_TOKEN_FILE,
-            ]);
-            // Без токена ни один батч не отработает — все считаем невалидными
-            $out = [];
-            foreach ($fbIds as $fbId) $out[$fbId] = false;
-            return $out;
-        }
+        $batches      = array_chunk($fbIds, Config::ACCTOOL_BATCH_SIZE);
+        $batchResults = self::runParallel($batches);
 
-        $batches = array_chunk($fbIds, Config::NPPR_BATCH_SIZE);
-
-        // Fire all batches in parallel
-        $batchResults = self::runParallel($batches, $token);
-
-        // Collect failed batch indices and retry them (also in parallel)
         $failedIdx = [];
         foreach ($batchResults as $idx => $res) {
             if ($res === null) $failedIdx[] = $idx;
         }
 
-        for ($attempt = 1; $attempt <= Config::NPPR_RETRY_COUNT && !empty($failedIdx); $attempt++) {
-            sleep(Config::NPPR_RETRY_DELAY * $attempt);
-            Logger::debug('NPPR fbchecker retry', [
-                'attempt' => $attempt,
-                'batches' => count($failedIdx),
-            ]);
+        for ($attempt = 1; $attempt <= 2 && !empty($failedIdx); $attempt++) {
+            sleep($attempt);
+            Logger::debug('acctool checker retry', ['attempt' => $attempt, 'batches' => count($failedIdx)]);
 
             $retryBatches = [];
             foreach ($failedIdx as $idx) $retryBatches[$idx] = $batches[$idx];
 
-            $retryResults = self::runParallel($retryBatches, $token);
-
-            $newFailed = [];
+            $retryResults = self::runParallel($retryBatches);
+            $newFailed    = [];
             foreach ($retryResults as $originalIdx => $res) {
                 if ($res !== null) {
                     $batchResults[$originalIdx] = $res;
@@ -184,7 +148,6 @@ class AccountValidationService
             $failedIdx = $newFailed;
         }
 
-        // Combine all batch results
         $results = [];
         foreach ($batchResults as $idx => $res) {
             if (is_array($res)) {
@@ -192,8 +155,7 @@ class AccountValidationService
                     $results[$fbId] = $isValid;
                 }
             } else {
-                // All retries failed — mark batch as false
-                Logger::warning('NPPR fbchecker batch failed after retries', ['count' => count($batches[$idx])]);
+                Logger::warning('acctool checker batch failed after retries', ['count' => count($batches[$idx])]);
                 foreach ($batches[$idx] as $fbId) {
                     $results[$fbId] = false;
                 }
@@ -204,14 +166,12 @@ class AccountValidationService
     }
 
     /**
-     * Выполнить несколько запросов к NPPR fbchecker параллельно через curl_multi.
-     * Ключи входного массива $batches сохраняются в результате.
+     * Run batches in parallel via curl_multi.
      *
-     * @param array  $batches [idx => array<string>]
-     * @param string $token   NPPR API token
-     * @return array [idx => array|null]  массив [fb_id => bool] при успехе, null при ошибке
+     * @param array $batches [idx => array<string>]
+     * @return array [idx => array<fb_id, bool>|null]
      */
-    private static function runParallel(array $batches, string $token): array
+    private static function runParallel(array $batches): array
     {
         if (empty($batches)) return [];
 
@@ -219,17 +179,14 @@ class AccountValidationService
         $handles = [];
 
         foreach ($batches as $idx => $batch) {
-            $payload = json_encode([
-                'token' => $token,
-                'accs'  => array_map('strval', array_values($batch)),
-            ]);
+            $payload = json_encode(['lines' => array_map('strval', array_values($batch))]);
 
-            $ch = curl_init(Config::NPPR_FBCHECK_URL);
+            $ch = curl_init(Config::ACCTOOL_CHECK_URL);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_POST           => true,
                 CURLOPT_POSTFIELDS     => $payload,
-                CURLOPT_TIMEOUT        => Config::NPPR_TIMEOUT,
+                CURLOPT_TIMEOUT        => Config::ACCTOOL_TIMEOUT,
                 CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_SSL_VERIFYPEER => true,
@@ -244,8 +201,6 @@ class AccountValidationService
             $handles[$idx] = $ch;
         }
 
-        // Крутим цикл до завершения всех запросов.
-        // Паттерн устойчив к curl_multi_select() == -1 на некоторых системах.
         $running = null;
         do {
             $status = curl_multi_exec($mh, $running);
@@ -260,8 +215,7 @@ class AccountValidationService
             } while ($status === CURLM_CALL_MULTI_PERFORM);
         }
 
-        $results     = [];
-        $lastBalance = null;
+        $results = [];
 
         foreach ($handles as $idx => $ch) {
             $body     = curl_multi_getcontent($ch);
@@ -272,7 +226,7 @@ class AccountValidationService
             curl_close($ch);
 
             if ($error || $httpCode !== 200 || $body === false || $body === '') {
-                Logger::warning('NPPR fbchecker request failed', [
+                Logger::warning('acctool checker request failed', [
                     'http_code' => $httpCode,
                     'error'     => $error,
                     'batch_idx' => $idx,
@@ -283,61 +237,25 @@ class AccountValidationService
             }
 
             $json = @json_decode($body, true);
-            if (!is_array($json)) {
-                Logger::warning('NPPR fbchecker invalid response', [
+            if (!is_array($json) || !isset($json['results']) || !is_array($json['results'])) {
+                Logger::warning('acctool checker invalid response', [
                     'body'      => substr((string)$body, 0, 500),
                     'batch_idx' => $idx,
                 ]);
                 $results[$idx] = null;
                 continue;
-            }
-
-            // NPPR возвращает ошибки в формате { error: "..." } или { message: "..." }
-            if (isset($json['error']) || (!isset($json['active']) && !isset($json['banned']) && !isset($json['notFound']))) {
-                Logger::warning('NPPR fbchecker API error', [
-                    'batch_idx' => $idx,
-                    'body'      => substr((string)$body, 0, 500),
-                ]);
-                $results[$idx] = null;
-                continue;
-            }
-
-            if (isset($json['balance'])) {
-                $lastBalance = (int)$json['balance'];
             }
 
             $batchResult = [];
-
-            // active: {acc => fb_id} — валидные
-            if (isset($json['active']) && is_array($json['active'])) {
-                foreach ($json['active'] as $acc => $_fbId) {
-                    $key = (string)$acc;
-                    if ($key !== '') $batchResult[$key] = true;
+            foreach ($json['results'] as $item) {
+                $line   = (string)($item['full_line'] ?? '');
+                $status = (string)($item['status']    ?? '');
+                if ($line !== '') {
+                    $batchResult[$line] = (strtolower($status) === 'active');
                 }
             }
 
-            // banned: array of acc strings — невалидные (забанены)
-            if (isset($json['banned']) && is_array($json['banned'])) {
-                foreach ($json['banned'] as $k => $v) {
-                    // На случай если NPPR вернёт ассоциативный массив (как для других чекеров)
-                    $acc = is_string($k) ? $k : (string)$v;
-                    if ($acc !== '' && !isset($batchResult[$acc])) {
-                        $batchResult[$acc] = false;
-                    }
-                }
-            }
-
-            // notFound: array of acc strings — невалидные (не найдены)
-            if (isset($json['notFound']) && is_array($json['notFound'])) {
-                foreach ($json['notFound'] as $k => $v) {
-                    $acc = is_string($k) ? $k : (string)$v;
-                    if ($acc !== '' && !isset($batchResult[$acc])) {
-                        $batchResult[$acc] = false;
-                    }
-                }
-            }
-
-            // ID, не попавшие ни в одну категорию (теоретически таких быть не должно) — false
+            // IDs absent from response → false
             foreach ($batches[$idx] as $fbId) {
                 $key = (string)$fbId;
                 if (!isset($batchResult[$key])) {
@@ -349,10 +267,6 @@ class AccountValidationService
         }
 
         curl_multi_close($mh);
-
-        if ($lastBalance !== null) {
-            Logger::debug('NPPR fbchecker balance', ['balance' => $lastBalance]);
-        }
 
         return $results;
     }

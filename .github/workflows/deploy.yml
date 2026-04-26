@@ -2,7 +2,7 @@
 # feature/dashboard-load-optimization. Оба таргета используют один и тот же
 # FTP-аккаунт, но разные server-dir.
 #
-# Секреты: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, NPPR_API_TOKEN.
+# Секреты: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD.
 
 name: Deploy to FTP
 
@@ -53,20 +53,6 @@ jobs:
             echo "time:   $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } > deployed-version.txt
           cat deployed-version.txt
-
-      # Материализуем токен NPPR из GitHub Secret в файл, который заберёт FTPS-upload.
-      # Имя начинается с точки → блокируется правилом .htaccess для скрытых файлов.
-      # Файл в .gitignore (не коммитится). Если секрет не задан — файл не создаётся.
-      - name: Write NPPR token file
-        env:
-          NPPR_API_TOKEN: ${{ secrets.NPPR_API_TOKEN }}
-        run: |
-          if [ -n "$NPPR_API_TOKEN" ]; then
-            printf '%s' "$NPPR_API_TOKEN" > .nppr_token
-            echo ".nppr_token written ($(wc -c < .nppr_token) bytes)"
-          else
-            echo "::warning::NPPR_API_TOKEN secret is not set — account validation will be disabled until configured"
-          fi
 
       # Хостинг периодически рвёт FTPS-соединение (FIN / ECONNRESET на data-сокете),
       # поэтому деплой запускается до 3 раз подряд. Sync-state сохраняется на сервере
