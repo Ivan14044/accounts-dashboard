@@ -4,6 +4,8 @@
 # Конфигурация
 .env
 config.local.php
+nppr_token.txt
+.nppr_token
 
 # Логи
 *.log
@@ -18,6 +20,10 @@ users.json
 # IDE
 .vscode/
 .idea/
+.vs/
+
+# Claude Code
+.claude/
 *.swp
 *.swo
 *~

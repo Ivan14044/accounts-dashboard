@@ -4,6 +4,8 @@
  * Автоматически создаёт таблицу, если её нет
  */
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
+requireAuth();
 require_once __DIR__ . '/includes/Logger.php';
 
 header('Content-Type: text/html; charset=utf-8');
@@ -73,8 +75,9 @@ header('Content-Type: text/html; charset=utf-8');
         
         <?php
         try {
-            global $mysqli;
-            
+            require_once __DIR__ . '/includes/Database.php';
+            $mysqli = Database::getInstance()->getConnection();
+
             if (!$mysqli) {
                 throw new Exception('Не удалось подключиться к базе данных');
             }
@@ -129,7 +132,8 @@ header('Content-Type: text/html; charset=utf-8');
                     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     PRIMARY KEY (`user_id`, `account_id`),
                     INDEX `idx_user_id` (`user_id`),
-                    INDEX `idx_account_id` (`account_id`)
+                    INDEX `idx_account_id` (`account_id`),
+                    INDEX `idx_user_created` (`user_id`, `created_at`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                 ";
                 

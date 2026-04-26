@@ -59,8 +59,8 @@ try {
     // CSRF валидация
     if (!verifyCsrfToken($csrf)) {
         Logger::warning('EMPTY TRASH: CSRF validation failed', [
-            'csrf' => substr($csrf, 0, 20) . '...',
-            'session_csrf' => isset($_SESSION['csrf_token']) ? substr($_SESSION['csrf_token'], 0, 20) . '...' : 'not_set'
+            'csrf_present' => !empty($csrf),
+            'csrf_valid' => false
         ]);
         json_error('CSRF validation failed', 403);
     }
@@ -70,21 +70,17 @@ try {
     Logger::debug('EMPTY TRASH: Инициализация Database и ColumnMetadata...');
     require_once __DIR__ . '/includes/Database.php';
     require_once __DIR__ . '/includes/ColumnMetadata.php';
-    global $mysqli;
-    
-    if (!$mysqli) {
-        throw new Exception('Database connection not available');
-    }
-    
+    $db = Database::getInstance();
+    $mysqli = $db->getConnection();
+
     Logger::debug('EMPTY TRASH: Проверка поддержки Soft Delete...');
     // Проверяем, поддерживается ли Soft Delete (безопасная проверка)
     try {
-        $db = Database::getInstance();
-        $metadata = ColumnMetadata::getInstance($mysqli);
-        
+        $metadata = ColumnMetadata::getInstance($mysqli, $tableName);
+
         if (!$metadata->columnExists('deleted_at')) {
             Logger::warning('EMPTY TRASH: Soft Delete не поддерживается');
-            json_error('Soft Delete не поддерживается. Таблица accounts не имеет колонки deleted_at.');
+            json_error('Soft Delete не поддерживается. Таблица ' . e($tableName) . ' не имеет колонки deleted_at.');
             exit;
         }
         
@@ -101,7 +97,7 @@ try {
     // Считаем количество удалённых аккаунтов перед удалением
     // Для TIMESTAMP колонки правильное условие - только IS NOT NULL (пустая строка там быть не может)
     try {
-        $getCountSql = "SELECT COUNT(*) as cnt FROM accounts WHERE deleted_at IS NOT NULL";
+        $getCountSql = "SELECT COUNT(*) as cnt FROM `{$tableName}` WHERE deleted_at IS NOT NULL";
         $countStmt = $mysqli->prepare($getCountSql);
         if (!$countStmt) {
             Logger::error('EMPTY TRASH: Ошибка подготовки запроса подсчета', [
@@ -146,7 +142,7 @@ try {
     Logger::debug('EMPTY TRASH: Получение ID удаленных аккаунтов...');
     // Получаем ID всех удалённых аккаунтов для очистки связанных данных
     // Для TIMESTAMP колонки правильное условие - только IS NOT NULL
-    $getIdsSql = "SELECT id FROM accounts WHERE deleted_at IS NOT NULL";
+    $getIdsSql = "SELECT id FROM `{$tableName}` WHERE deleted_at IS NOT NULL";
     $getIdsStmt = $mysqli->prepare($getIdsSql);
     if (!$getIdsStmt) {
         throw new Exception('Failed to prepare select statement: ' . $mysqli->error);
@@ -167,42 +163,37 @@ try {
     
     Logger::debug('EMPTY TRASH: Найдено ID для удаления', ['count' => count($deletedIds)]);
     
-    // Очищаем связанные данные перед удалением
-    if (!empty($deletedIds)) {
-        Logger::debug('EMPTY TRASH: Очистка связанных данных...');
-        $placeholders = str_repeat('?,', count($deletedIds) - 1) . '?';
-        $types = str_repeat('i', count($deletedIds));
-        
-        // Удаляем из избранного
-        $cleanupSql = "DELETE FROM account_favorites WHERE account_id IN ($placeholders)";
-        $cleanupStmt = $mysqli->prepare($cleanupSql);
-        if ($cleanupStmt) {
-            $cleanupStmt->bind_param($types, ...$deletedIds);
-            if ($cleanupStmt->execute()) {
-                $favoritesDeleted = $cleanupStmt->affected_rows;
-                Logger::debug('EMPTY TRASH: Удалено из избранного', ['count' => $favoritesDeleted]);
-            } else {
-                Logger::warning('EMPTY TRASH: Ошибка удаления из избранного', ['error' => $cleanupStmt->error]);
+    // Оборачиваем в транзакцию: favorites + accounts удаляются атомарно
+    $mysqli->begin_transaction();
+
+    try {
+        // Очищаем связанные данные перед удалением
+        if (!empty($deletedIds)) {
+            Logger::debug('EMPTY TRASH: Очистка связанных данных...');
+            $placeholders = str_repeat('?,', count($deletedIds) - 1) . '?';
+            $types = str_repeat('i', count($deletedIds));
+
+            // Удаляем из избранного. При ошибке — бросаем исключение, чтобы
+            // транзакция откатилась и не остались orphan favorites.
+            $cleanupSql = "DELETE FROM account_favorites WHERE account_id IN ($placeholders)";
+            $cleanupStmt = $mysqli->prepare($cleanupSql);
+            if (!$cleanupStmt) {
+                throw new Exception('EMPTY TRASH: Failed to prepare favorites cleanup: ' . $mysqli->error);
             }
+            $cleanupStmt->bind_param($types, ...$deletedIds);
+            if (!$cleanupStmt->execute()) {
+                $err = $cleanupStmt->error;
+                $cleanupStmt->close();
+                throw new Exception('EMPTY TRASH: Favorites cleanup failed: ' . $err);
+            }
+            $favoritesDeleted = $cleanupStmt->affected_rows;
+            Logger::debug('EMPTY TRASH: Удалено из избранного', ['count' => $favoritesDeleted]);
             $cleanupStmt->close();
         }
-        
-        // Удаляем историю изменений (опционально - можно оставить для аудита)
-        // Раскомментируйте, если нужно удалять историю:
-        // $cleanupSql = "DELETE FROM account_history WHERE account_id IN ($placeholders)";
-        // $cleanupStmt = $mysqli->prepare($cleanupSql);
-        // if ($cleanupStmt) {
-        //     $cleanupStmt->bind_param($types, ...$deletedIds);
-        //     $cleanupStmt->execute();
-        //     $cleanupStmt->close();
-        // }
-    }
-    
-    Logger::debug('EMPTY TRASH: Окончательное удаление аккаунтов из таблицы accounts...');
-    // Окончательно удаляем все удалённые аккаунты
-    // Для TIMESTAMP колонки правильное условие - только IS NOT NULL
-    $sql = "DELETE FROM accounts WHERE deleted_at IS NOT NULL";
-    $stmt = $mysqli->prepare($sql);
+
+        Logger::debug('EMPTY TRASH: Окончательное удаление аккаунтов из таблицы accounts...');
+        $sql = "DELETE FROM `{$tableName}` WHERE deleted_at IS NOT NULL";
+        $stmt = $mysqli->prepare($sql);
     
     if (!$stmt) {
         throw new Exception('Failed to prepare delete statement: ' . $mysqli->error);
@@ -221,21 +212,28 @@ try {
     
     $actualDeleted = $stmt->affected_rows;
     $stmt->close();
-    
+
+    $mysqli->commit();
+
+    } catch (Throwable $txErr) {
+        $mysqli->rollback();
+        throw $txErr;
+    }
+
     Logger::info('EMPTY TRASH: Успешно удалено аккаунтов', [
         'deleted_count' => $actualDeleted
     ]);
-    
+
     Logger::warning('Trash emptied', [
         'user' => $_SESSION['username'] ?? 'unknown',
         'count' => $actualDeleted
     ]);
-    
+
     json_success([
         'message' => "Корзина очищена. Удалено $actualDeleted аккаунт(ов)",
         'deleted_count' => $actualDeleted
     ]);
-    
+
 } catch (Throwable $e) {
     Logger::error('EMPTY TRASH: Критическая ошибка', [
         'message' => $e->getMessage(),

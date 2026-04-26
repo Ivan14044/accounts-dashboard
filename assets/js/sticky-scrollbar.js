@@ -30,6 +30,10 @@
       // Наблюдатели
       this.resizeObserver = null;
       this.rafId = null;
+      // Throttle ResizeObserver: один update за период (FPS)
+      this._resizeScheduled = false;
+      this._resizeDelay = 60;
+      this._resizeTimerId = null;
       
       this.init();
     }
@@ -59,7 +63,7 @@
       // Проверка наличия элементов
       if (!this.wrapper || !this.scrollbar || !this.content || !this.tableWrap || !this.table) {
         if (this.options.debug) {
-          console.warn('StickyScrollbar: Не найдены необходимые элементы', {
+          (typeof logger !== 'undefined' ? logger.warn : console.warn)('StickyScrollbar: Не найдены необходимые элементы', {
             wrapper: !!this.wrapper,
             scrollbar: !!this.scrollbar,
             content: !!this.content,
@@ -83,68 +87,66 @@
       window.updateStickyScrollbar = () => this.update();
       
       if (this.options.debug) {
-        console.log('StickyScrollbar: Инициализация завершена');
+        if (typeof logger !== 'undefined') logger.debug('StickyScrollbar: Инициализация завершена');
       }
     }
     
     /**
-     * Привязка событий скролла
+     * Привязка событий скролла (один RAF на кадр — меньше layout thrashing, лучше FPS)
      */
     attachEvents() {
-      // Синхронизация: sticky -> table (пользователь скроллит sticky)
-      this.scrollbar.addEventListener('scroll', () => {
-        // Пропускаем если синхронизация идет от таблицы
+      const self = this;
+      let scrollSyncRafId = null;
+      let scrollSyncSource = null;
+
+      function runScrollSync() {
+        scrollSyncRafId = null;
+        const src = scrollSyncSource;
+        scrollSyncSource = null;
+        if (!self.tableWrap || !self.scrollbar) return;
+        if (src === 'table') {
+          self.syncingFromSticky = true;
+          const left = self.tableWrap.scrollLeft;
+          self.scrollbar.scrollLeft = left;
+          self.lastScrollLeft = left;
+          self.syncingFromSticky = false;
+        } else if (src === 'scrollbar') {
+          self.syncingFromTable = true;
+          const left = self.scrollbar.scrollLeft;
+          self.tableWrap.scrollLeft = left;
+          self.lastScrollLeft = left;
+          self.syncingFromTable = false;
+        }
+      }
+
+      function scheduleScrollSync(source) {
+        scrollSyncSource = source;
+        if (scrollSyncRafId !== null) return;
+        scrollSyncRafId = requestAnimationFrame(runScrollSync);
+      }
+
+      // Сохраняем ссылки для removeEventListener в destroy()
+      this._onScrollbarScroll = () => {
         if (this.syncingFromTable) return;
-        
-        // Устанавливаем флаг
         this.syncingFromSticky = true;
-        
-        // Мгновенная синхронизация напрямую
-        const scrollLeft = this.scrollbar.scrollLeft;
-        
-        // Синхронизируем только если позиции отличаются
-        if (Math.abs(this.tableWrap.scrollLeft - scrollLeft) > 0.1) {
-          this.tableWrap.scrollLeft = scrollLeft;
-          this.lastScrollLeft = scrollLeft;
-        }
-        
-        // Сбрасываем флаг асинхронно для предотвращения циклов
-        // Используем микротаск для немедленного сброса после текущего стека
-        queueMicrotask(() => {
-          this.syncingFromSticky = false;
-        });
-      }, { passive: true });
-      
-      // Синхронизация: table -> sticky (пользователь скроллит table)
-      this.tableWrap.addEventListener('scroll', () => {
-        // Пропускаем если синхронизация идет от sticky
+        scheduleScrollSync('scrollbar');
+        queueMicrotask(() => { this.syncingFromSticky = false; });
+      };
+      this._onTableScroll = () => {
         if (this.syncingFromSticky) return;
-        
-        // Устанавливаем флаг
         this.syncingFromTable = true;
-        
-        // Мгновенная синхронизация напрямую
-        const scrollLeft = this.tableWrap.scrollLeft;
-        
-        // Синхронизируем только если позиции отличаются
-        if (Math.abs(this.scrollbar.scrollLeft - scrollLeft) > 0.1) {
-          this.scrollbar.scrollLeft = scrollLeft;
-          this.lastScrollLeft = scrollLeft;
-        }
-        
-        // Сбрасываем флаг асинхронно для предотвращения циклов
-        // Используем микротаск для немедленного сброса после текущего стека
-        queueMicrotask(() => {
-          this.syncingFromTable = false;
-        });
-      }, { passive: true });
-      
-      // Обновление при ресайзе окна
+        scheduleScrollSync('table');
+        queueMicrotask(() => { this.syncingFromTable = false; });
+      };
       let resizeTimer;
-      window.addEventListener('resize', () => {
+      this._onWindowResize = () => {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => this.update(), 100);
-      }, { passive: true });
+      };
+
+      this.scrollbar.addEventListener('scroll', this._onScrollbarScroll, { passive: true });
+      this.tableWrap.addEventListener('scroll', this._onTableScroll, { passive: true });
+      window.addEventListener('resize', this._onWindowResize, { passive: true });
     }
     
     /**
@@ -152,18 +154,21 @@
      */
     setupObservers() {
       if (typeof ResizeObserver === 'undefined') return;
+      const self = this;
       
       this.resizeObserver = new ResizeObserver(() => {
-        // Отменяем предыдущий RAF
-        if (this.rafId) {
-          cancelAnimationFrame(this.rafId);
-        }
-        
-        // Используем RAF для батчинга обновлений
-        this.rafId = requestAnimationFrame(() => {
-          this.update();
-          this.rafId = null;
-        });
+        if (self._resizeScheduled) return;
+        self._resizeScheduled = true;
+        if (self._resizeTimerId) clearTimeout(self._resizeTimerId);
+        self._resizeTimerId = setTimeout(function() {
+          self._resizeScheduled = false;
+          self._resizeTimerId = null;
+          if (self.rafId) cancelAnimationFrame(self.rafId);
+          self.rafId = requestAnimationFrame(function() {
+            self.update();
+            self.rafId = null;
+          });
+        }, self._resizeDelay);
       });
       
       // Наблюдаем за таблицей и контейнером
@@ -178,40 +183,35 @@
       if (!this.table || !this.tableWrap || !this.content || !this.wrapper) {
         return;
       }
-      
-      // Получаем размеры
+      // Все чтения в начале (батчинг для FPS — меньше layout thrashing)
       const tableWidth = this.table.scrollWidth;
       const containerWidth = this.tableWrap.clientWidth;
-      
-      // Проверяем, нужен ли скроллбар
       const needsScrollbar = tableWidth > containerWidth;
-      
+      const tableScrollLeft = needsScrollbar ? this.tableWrap.scrollLeft : 0;
+
       if (needsScrollbar) {
-        // Устанавливаем ширину контента для корректной прокрутки
         this.content.style.width = tableWidth + 'px';
-        
-        // Показываем скроллбар
         if (!this.isActive) {
           this.wrapper.classList.add('active');
           this.isActive = true;
         }
-        
-        // Синхронизируем позицию скролла
-        this.syncPosition();
+        if (this.scrollbar && Math.abs(this.scrollbar.scrollLeft - tableScrollLeft) > 1) {
+          this.scrollbar.scrollLeft = tableScrollLeft;
+          this.lastScrollLeft = tableScrollLeft;
+        }
       } else {
-        // Скрываем скроллбар
         if (this.isActive) {
           this.wrapper.classList.remove('active');
           this.isActive = false;
         }
       }
-      
+
       if (this.options.debug) {
-        console.log('StickyScrollbar: update', {
+        if (typeof logger !== 'undefined') logger.debug('StickyScrollbar: update', {
           tableWidth,
           containerWidth,
           needsScrollbar,
-          scrollLeft: this.tableWrap.scrollLeft
+          scrollLeft: tableScrollLeft
         });
       }
     }
@@ -235,18 +235,32 @@
      * Очистка ресурсов
      */
     destroy() {
+      // Удаляем event listeners
+      if (this.scrollbar && this._onScrollbarScroll) {
+        this.scrollbar.removeEventListener('scroll', this._onScrollbarScroll);
+      }
+      if (this.tableWrap && this._onTableScroll) {
+        this.tableWrap.removeEventListener('scroll', this._onTableScroll);
+      }
+      if (this._onWindowResize) {
+        window.removeEventListener('resize', this._onWindowResize);
+      }
+
       // Отключаем наблюдателей
       if (this.resizeObserver) {
         this.resizeObserver.disconnect();
         this.resizeObserver = null;
       }
-      
+      if (this._resizeTimerId) {
+        clearTimeout(this._resizeTimerId);
+        this._resizeTimerId = null;
+      }
       // Отменяем RAF
       if (this.rafId) {
         cancelAnimationFrame(this.rafId);
         this.rafId = null;
       }
-      
+
       // Удаляем метод обновления
       if (window.updateStickyScrollbar) {
         delete window.updateStickyScrollbar;

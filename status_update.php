@@ -1,7 +1,32 @@
 <?php
 /**
- * API для обновления статуса аккаунтов
- * Поддерживает обновление выбранных записей или всех по фильтру
+ * API для обновления статуса аккаунтов.
+ *
+ * Поддерживает два режима работы:
+ * 1) Обновление выбранных записей:
+ *    POST JSON:
+ *    {
+ *      "ids": [1, 2, 3],          // массив ID аккаунтов (максимум 1000)
+ *      "status": "NEW_STATUS",    // новый статус
+ *      "csrf": "..."              // CSRF-токен
+ *    }
+ *
+ * 2) Обновление всех записей по активным фильтрам:
+ *    POST JSON:
+ *    {
+ *      "ids": [],                 // пустой массив
+ *      "select": "all",           // специальный режим "все по фильтру"
+ *      "query": "q=&status[]=...",// строка query-параметров текущей страницы
+ *      "status": "NEW_STATUS",    // новый статус
+ *      "csrf": "..."              // CSRF-токен
+ *    }
+ *
+ * Ответ в обоих случаях:
+ * {
+ *   "success": true,
+ *   "affected": 123,              // количество обновлённых записей
+ *   "scope": "all-filtered"       // только для режима select=all
+ * }
  */
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/auth.php';
@@ -44,10 +69,10 @@ try {
     // Валидация ID (если не selectAll)
     $ids = [];
     if (!$selectAll) {
-        $ids = Validator::validateIds($input['ids'] ?? [], 1000);
+        $ids = Validator::validateIds($input['ids'] ?? []);
     }
     
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     
     if ($selectAll) {
         // Обновление всех по фильтру

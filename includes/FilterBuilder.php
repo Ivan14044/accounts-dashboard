@@ -13,16 +13,32 @@ class FilterBuilder {
     private $params = [];
     private $columnsList = [];
     private $numericColumns = [];
+    /** @var string[] Колонки, хранящиеся как строка, но используемые как число (limit_rk, scenario_pharma и т.д.) — прямое сравнение без TRIM/CAST для индекса (slow log 19–20). */
+    private $numericLikeColumns = [];
+
+    /** @var string|null Исходный поисковый запрос (для двухфазного fallback exact→LIKE) */
+    private $pendingSearchQuery = null;
+    /** @var int|null Индекс search-условия в $this->conditions */
+    private $searchConditionIndex = null;
+    /** @var int Кол-во параметров, добавленных search-фильтром */
+    private $searchParamsCount = 0;
+    /** @var int Позиция первого search-параметра в $this->params */
+    private $searchParamsOffset = 0;
     
-    public function __construct(array $columns, array $numericColumns = []) {
+    public function __construct(array $columns, array $numericColumns = [], array $numericLikeColumns = []) {
         $this->columnsList = $columns;
         $this->numericColumns = $numericColumns;
+        $this->numericLikeColumns = $numericLikeColumns;
     }
     
     /**
-     * Добавляет поисковый фильтр по нескольким полям
-     * 
-     * Ищет по login, email и social_url (простое совпадение текста через LIKE).
+     * Добавляет поисковый фильтр по нескольким полям.
+     *
+     * Двухфазная стратегия для числовых запросов и URL с ID:
+     *   Фаза 1 — точный поиск по индексированным полям (login, id_soc_account) → мгновенно.
+     *   Фаза 2 (fallback) — если фаза 1 не дала результатов, вызывается fallbackToLikeSearch(),
+     *     который заменяет условие на LIKE '%...%' по всем полям (медленнее, но найдёт в social_url).
+     * Для текстовых запросов — сразу LIKE '%...%' (полный скан, без fallback).
      * 
      * @param string|null $query Поисковый запрос
      * @return self Возвращает $this для цепочки вызовов
@@ -33,27 +49,117 @@ class FilterBuilder {
         $query = trim((string)$query);
         if ($query === '') return $this;
         
-        // Поиск только по login, email и social_url
-        $like = '%' . $query . '%';
         $searchFields = ['login', 'email', 'social_url'];
-        
-        // Проверяем, какие поля существуют в таблице
         $availableFields = array_intersect($searchFields, array_keys($this->columnsList));
-        
-        if (empty($availableFields)) {
-            return $this; // Если ни одно поле не найдено, не добавляем условие
+        if (empty($availableFields)) return $this;
+
+        $hasLogin = in_array('login', $availableFields, true);
+        $hasIdSoc = isset($this->columnsList['id_soc_account']);
+
+        // Колонки id_fan_page_1/2/3 — для поиска по числовым ID (page ID и т.п.)
+        $fanPageFields = ['id_fan_page_1', 'id_fan_page_2', 'id_fan_page_3'];
+        $availableFanPage = array_filter($fanPageFields, function($f) { return isset($this->columnsList[$f]); });
+
+        // Извлекаем числовой ID из Facebook-URL
+        $extractedId = null;
+        if (preg_match('/(?:facebook\.com|fb\.com).*[?&]id=(\d+)/', $query, $m)) {
+            $extractedId = $m[1];
+        } elseif (preg_match('#(?:facebook\.com|fb\.com)/(\d+)(?:[/?]|$)#', $query, $m)) {
+            $extractedId = $m[1];
         }
-        
+
         $orConds = [];
-        foreach ($availableFields as $field) {
-            $orConds[] = '`' . $field . '` LIKE ?';
-            $this->params[] = $like;
+        $this->searchParamsOffset = count($this->params);
+
+        if ($extractedId) {
+            // Фаза 1: точный поиск по индексированным полям + id_fan_page (LIKE убран — убивает индексы через OR)
+            if ($hasLogin) { $orConds[] = '`login` = ?';          $this->params[] = $extractedId; }
+            if ($hasIdSoc) { $orConds[] = '`id_soc_account` = ?'; $this->params[] = $extractedId; }
+            foreach ($availableFanPage as $f) { $orConds[] = '`' . $f . '` = ?'; $this->params[] = $extractedId; }
+            $this->pendingSearchQuery = $extractedId;
+        } elseif (ctype_digit($query)) {
+            // Фаза 1: точный поиск по login, id_soc_account, id_fan_page_1/2/3
+            if ($hasLogin) { $orConds[] = '`login` = ?';          $this->params[] = $query; }
+            if ($hasIdSoc) { $orConds[] = '`id_soc_account` = ?'; $this->params[] = $query; }
+            foreach ($availableFanPage as $f) { $orConds[] = '`' . $f . '` = ?'; $this->params[] = $query; }
+            $this->pendingSearchQuery = $query;
+        } else {
+            // Текстовый запрос: LIKE сразу (fallback не нужен)
+            // Экранируем SQL-wildcard символы % и _ в пользовательском вводе
+            $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $query);
+            $like = '%' . $escaped . '%';
+            foreach ($availableFields as $field) {
+                $orConds[] = '`' . $field . '` LIKE ?';
+                $this->params[] = $like;
+            }
         }
-        
+
         if (!empty($orConds)) {
+            $this->searchConditionIndex = count($this->conditions);
+            $this->searchParamsCount = count($this->params) - $this->searchParamsOffset;
             $this->conditions[] = '(' . implode(' OR ', $orConds) . ')';
         }
         
+        return $this;
+    }
+
+    /**
+     * Можно ли откатить поиск на LIKE (фаза 2)?
+     * Возвращает true, если текущий поиск — точный (числовой/URL), и fallback ещё не применялся.
+     */
+    public function canFallbackToLikeSearch(): bool {
+        return $this->pendingSearchQuery !== null && $this->searchConditionIndex !== null;
+    }
+
+    /**
+     * Фаза 2: заменяет точный поиск на LIKE '%...%' по login, email, social_url,
+     * id_fan_page_1/2/3, cookies, first_cookie, token. Поиск в cookies/first_cookie/token
+     * нужен для FB ID, которые типично хранятся внутри JSON cookies (c_user) или access_token,
+     * а не в индексированных полях. Это симметрия с массовым переносом, который смотрит cookies.
+     * Вызывать только если canFallbackToLikeSearch() === true и фаза 1 дала 0 результатов.
+     */
+    public function fallbackToLikeSearch(): self {
+        if (!$this->canFallbackToLikeSearch()) return $this;
+
+        $searchFields = [
+            'login', 'email', 'social_url',
+            'id_fan_page_1', 'id_fan_page_2', 'id_fan_page_3',
+            'cookies', 'first_cookie', 'token',
+        ];
+        $availableFields = array_intersect($searchFields, array_keys($this->columnsList));
+
+        // Удаляем старые search-параметры из массива params
+        array_splice($this->params, $this->searchParamsOffset, $this->searchParamsCount);
+
+        if (empty($availableFields)) {
+            // Нет доступных полей для LIKE-поиска — убираем exact-match условие,
+            // чтобы не получить невалидный SQL-фрагмент "()"
+            array_splice($this->conditions, $this->searchConditionIndex, 1);
+            $this->searchConditionIndex = null;
+            $this->searchParamsCount = 0;
+            $this->pendingSearchQuery = null;
+            return $this;
+        }
+
+        $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $this->pendingSearchQuery);
+        $like = '%' . $escaped . '%';
+
+        // Вставляем новые LIKE-параметры на то же место
+        $likeParams = [];
+        $orConds = [];
+        foreach ($availableFields as $field) {
+            $orConds[] = '`' . $field . '` LIKE ?';
+            $likeParams[] = $like;
+        }
+        array_splice($this->params, $this->searchParamsOffset, 0, $likeParams);
+
+        // Заменяем условие на LIKE-вариант
+        $this->conditions[$this->searchConditionIndex] = '(' . implode(' OR ', $orConds) . ')';
+        $this->searchParamsCount = count($likeParams);
+
+        // Сбрасываем флаг — повторный fallback невозможен
+        $this->pendingSearchQuery = null;
+
         return $this;
     }
     
@@ -65,8 +171,11 @@ class FilterBuilder {
      * @return self Возвращает $this для цепочки вызовов
      */
     public function addStatusFilter($statusArray, bool $includeEmpty = false): self {
+        if (!isset($this->columnsList['status'])) {
+            return $this;
+        }
         $statusConditions = [];
-        
+
         // Фильтр по выбранным статусам
         if (!empty($statusArray)) {
             if (is_string($statusArray)) {
@@ -85,7 +194,7 @@ class FilterBuilder {
         
         // Фильтр пустых статусов
         if ($includeEmpty) {
-            $statusConditions[] = '(status IS NULL OR status = "")';
+            $statusConditions[] = "(status IS NULL OR status = '')";
         }
         
         // Объединяем через OR если есть хотя бы одно условие
@@ -103,10 +212,11 @@ class FilterBuilder {
         if (empty($idsArray) || !is_array($idsArray)) {
             return $this;
         }
-        
-        // Фильтруем и приводим к целым числам
-        $idsArray = array_filter(array_map('intval', $idsArray));
-        
+
+        // Сначала фильтруем только числовые строки, потом приводим к целым числам
+        $numericIds = array_filter($idsArray, 'is_numeric');
+        $idsArray = array_map('intval', $numericIds);
+
         if (!empty($idsArray)) {
             $placeholders = implode(',', array_fill(0, count($idsArray), '?'));
             $this->conditions[] = "id IN ($placeholders)";
@@ -114,7 +224,7 @@ class FilterBuilder {
                 $this->params[] = $id;
             }
         }
-        
+
         return $this;
     }
     
@@ -157,6 +267,55 @@ class FilterBuilder {
     }
     
     /**
+     * Фильтр по статусам Business Manager (status_bm_1…status_bm_4).
+     *
+     * Варианты ($mode):
+     *   'has_valid'  — хотя бы один из слотов = 'valid'
+     *   'has_ban'    — хотя бы один из слотов = 'ban'
+     *   'only_valid' — ни один из присутствующих слотов не является 'ban'
+     *                  (NULL-слоты не считаются баном)
+     *
+     * Слоты status_bm_1…status_bm_4. Если ни одна из этих колонок не существует
+     * в таблице — условие не добавляется.
+     */
+    public function addBmStatusFilter(?string $mode): self {
+        if ($mode === null || $mode === '' || $mode === 'any') {
+            return $this;
+        }
+
+        // Определяем, какие слоты реально есть в таблице (обычно 1–4)
+        $slots = [];
+        for ($i = 1; $i <= 4; $i++) {
+            $col = 'status_bm_' . $i;
+            if (isset($this->columnsList[$col])) {
+                $slots[] = $col;
+            }
+        }
+
+        if (empty($slots)) {
+            return $this;
+        }
+
+        if ($mode === 'has_valid') {
+            // Хотя бы один слот = 'valid'
+            $orParts = array_map(function($col) { return "`$col` = 'valid'"; }, $slots);
+            $this->conditions[] = '(' . implode(' OR ', $orParts) . ')';
+        } elseif ($mode === 'has_ban') {
+            // Хотя бы один слот = 'ban'
+            $orParts = array_map(function($col) { return "`$col` = 'ban'"; }, $slots);
+            $this->conditions[] = '(' . implode(' OR ', $orParts) . ')';
+        } elseif ($mode === 'only_valid') {
+            // Ни один непустой слот не является 'ban' (NULL — слот не занят, не считается)
+            $andParts = array_map(function($col) { return "(`$col` IS NULL OR `$col` <> 'ban')"; }, $slots);
+            // Дополнительно: хотя бы один слот не NULL (у аккаунта вообще есть хотя бы один БМ)
+            $hasBmParts = array_map(function($col) { return "`$col` IS NOT NULL"; }, $slots);
+            $this->conditions[] = '(' . implode(' AND ', $andParts) . ' AND (' . implode(' OR ', $hasBmParts) . '))';
+        }
+
+        return $this;
+    }
+
+    /**
      * Добавляет фильтр "поле не пустое"
      */
     public function addNotEmptyFilter($field, $shouldFilter = false) {
@@ -167,7 +326,31 @@ class FilterBuilder {
         $this->conditions[] = "(`$field` IS NOT NULL AND `$field` <> '')";
         return $this;
     }
-    
+
+    /**
+     * Фильтр «есть email»: проверяет основную колонку email И запасную (extra_info_2).
+     * Если в email пусто, но в extra_info_2 содержится символ @ — аккаунт считается «с email».
+     */
+    public function addEmailPresentFilter(bool $shouldFilter = false): self {
+        if (!$shouldFilter) return $this;
+
+        $hasEmail = isset($this->columnsList['email']);
+        $hasExtra = isset($this->columnsList['extra_info_2']);
+
+        if (!$hasEmail && !$hasExtra) return $this;
+
+        $parts = [];
+        if ($hasEmail) {
+            $parts[] = "(`email` IS NOT NULL AND `email` <> '')";
+        }
+        if ($hasExtra) {
+            $parts[] = "`extra_info_2` LIKE '%@%'";
+        }
+
+        $this->conditions[] = '(' . implode(' OR ', $parts) . ')';
+        return $this;
+    }
+
     /**
      * Добавляет фильтр "поле пустое"
      */
@@ -203,41 +386,62 @@ class FilterBuilder {
     }
     
     /**
-     * Добавляет фильтр "числовое поле больше нуля"
+     * Добавляет фильтр "числовое поле больше нуля".
+     * Для numericColumns и numericLikeColumns — прямое сравнение (индекс); иначе CAST.
      */
     public function addGreaterThanZeroFilter($field, $shouldFilter = false) {
         if (!$shouldFilter || !isset($this->columnsList[$field])) {
             return $this;
         }
-        
-        $this->conditions[] = "CAST(`$field` AS UNSIGNED) > 0";
+        $useDirect = in_array($field, $this->numericColumns, true) || in_array($field, $this->numericLikeColumns, true);
+        $this->conditions[] = $useDirect ? "`$field` > 0" : "CAST(`$field` AS UNSIGNED) > 0";
         return $this;
     }
     
     /**
-     * Добавляет фильтр по числовому диапазону
+     * Добавляет фильтр по числовому диапазону.
+     * Для колонок из numericColumns (INT и т.д.) используем прямое сравнение без CAST,
+     * чтобы MySQL мог использовать индекс (slow log: 30 сек при CAST).
      */
     public function addRangeFilter($field, $from = null, $to = null) {
         if (!isset($this->columnsList[$field])) {
             return $this;
         }
 
-        // ВАЖНО: перед CAST отсекаем NULL и пустые строки, чтобы избежать
-        // ошибок MySQL вида "Truncated incorrect INTEGER value: ''"
-        if (($from !== null && $from !== '') || ($to !== null && $to !== '')) {
-            $this->conditions[] = "(`$field` IS NOT NULL AND TRIM(`$field`) <> '')";
+        $hasRange = ($from !== null && $from !== '') || ($to !== null && $to !== '');
+        $isNumericColumn = in_array($field, $this->numericColumns, true);
+        $isNumericLike = in_array($field, $this->numericLikeColumns, true);
+        $useDirectComparison = $isNumericColumn || $isNumericLike;
+
+        if ($hasRange) {
+            if ($isNumericColumn) {
+                $this->conditions[] = "`$field` IS NOT NULL";
+            } elseif ($isNumericLike) {
+                // Числоподобное поле (VARCHAR с числами): без TRIM, чтобы индекс мог использоваться (slow log 19–20)
+                $this->conditions[] = "(`$field` IS NOT NULL AND `$field` <> '')";
+            } else {
+                $this->conditions[] = "(`$field` IS NOT NULL AND TRIM(`$field`) <> '')";
+            }
         }
 
         if ($from !== null && $from !== '') {
-            $this->conditions[] = "CAST(`$field` AS UNSIGNED) >= ?";
+            if ($useDirectComparison) {
+                $this->conditions[] = "`$field` >= ?";
+            } else {
+                $this->conditions[] = "CAST(`$field` AS UNSIGNED) >= ?";
+            }
             $this->params[] = (int)$from;
         }
-        
+
         if ($to !== null && $to !== '') {
-            $this->conditions[] = "CAST(`$field` AS UNSIGNED) <= ?";
+            if ($useDirectComparison) {
+                $this->conditions[] = "`$field` <= ?";
+            } else {
+                $this->conditions[] = "CAST(`$field` AS UNSIGNED) <= ?";
+            }
             $this->params[] = (int)$to;
         }
-        
+
         return $this;
     }
     
@@ -274,16 +478,14 @@ class FilterBuilder {
         $yearTo = ($to !== null && $to !== '' && is_numeric($to)) ? (int)$to : 0;
         
         if ($yearFrom > 0 || $yearTo > 0) {
-            // Исключаем пустые года
+            // Исключаем пустые года; прямое сравнение для использования индекса по year_created
             $this->conditions[] = '`year_created` IS NOT NULL AND `year_created` > 0';
-            
             if ($yearFrom > 0) {
-                $this->conditions[] = 'CAST(`year_created` AS UNSIGNED) >= ?';
+                $this->conditions[] = '`year_created` >= ?';
                 $this->params[] = $yearFrom;
             }
-            
             if ($yearTo > 0) {
-                $this->conditions[] = 'CAST(`year_created` AS UNSIGNED) <= ?';
+                $this->conditions[] = '`year_created` <= ?';
                 $this->params[] = $yearTo;
             }
         }
@@ -305,8 +507,9 @@ class FilterBuilder {
             // Проверяем через ColumnMetadata, если доступен
             try {
                 require_once __DIR__ . '/ColumnMetadata.php';
-                global $mysqli;
-                if (isset($mysqli) && $mysqli instanceof mysqli) {
+                require_once __DIR__ . '/Database.php';
+                $mysqli = Database::getInstance()->getConnection();
+                if ($mysqli instanceof mysqli) {
                     $metadata = ColumnMetadata::getInstance($mysqli);
                     $hasDeletedAtColumn = $metadata->columnExists('deleted_at');
                 }
@@ -314,7 +517,7 @@ class FilterBuilder {
                 // Игнорируем ошибки проверки
             }
         }
-        
+
         // Добавляем условие только если колонка существует
         if ($hasDeletedAtColumn) {
             // Проверяем, есть ли уже фильтр по deleted_at
@@ -373,16 +576,20 @@ class FilterBuilder {
                 // Проверяем через ColumnMetadata, если доступен
                 try {
                     require_once __DIR__ . '/ColumnMetadata.php';
-                    global $mysqli;
-                    if (isset($mysqli) && $mysqli instanceof mysqli) {
-                        $metadata = ColumnMetadata::getInstance($mysqli);
+                    require_once __DIR__ . '/Database.php';
+                    $mysqli = Database::getInstance()->getConnection();
+                    if ($mysqli instanceof mysqli) {
+                        // Пробуем получить текущую таблицу из глобального контекста
+                        global $tableName;
+                        $tbl = !empty($tableName) ? $tableName : 'accounts';
+                        $metadata = ColumnMetadata::getInstance($mysqli, $tbl);
                         $hasDeletedAtColumn = $metadata->columnExists('deleted_at');
                     }
                 } catch (Exception $e) {
                     // Игнорируем ошибки проверки
                 }
             }
-            
+
             // Добавляем фильтр по deleted_at только если колонка существует
             if ($hasDeletedAtColumn) {
                 // Добавляем фильтр по deleted_at, если не включены удалённые и нет фильтра для показа удалённых
@@ -394,15 +601,14 @@ class FilterBuilder {
                     }
                 }
                 
-                // Если нет фильтра по deleted_at, добавляем условие для исключения удалённых
+                // Если нет фильтра по deleted_at, добавляем условие для исключения удалённых.
+                // Ставим deleted_at первым в списке условий, чтобы оптимизатор мог использовать idx_deleted_*.
                 if (!$hasDeletedFilter) {
-                    // Используем только IS NULL, так как deleted_at - это datetime колонка
-                    // и сравнение с пустой строкой вызывает ошибку MySQL
-                    $conditions[] = 'deleted_at IS NULL';
+                    array_unshift($conditions, 'deleted_at IS NULL');
                 }
             }
         }
-        
+
         if (empty($conditions)) {
             return '';
         }

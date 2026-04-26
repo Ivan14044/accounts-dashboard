@@ -56,32 +56,55 @@ class DatabaseSchemaManager {
      */
     private function getRequiredSchema(): array {
         return [
+            // Эталон структуры accounts: соответствует «правильной» БД (if592995_accountfactory)
             'accounts' => [
                 'columns' => [
-                    'id' => 'INT AUTO_INCREMENT',
-                    'login' => 'VARCHAR(255) NOT NULL',
+                    'id' => 'INT UNSIGNED AUTO_INCREMENT',
+                    'login' => 'VARCHAR(255)',
                     'password' => 'VARCHAR(255)',
                     'email' => 'VARCHAR(255)',
                     'email_password' => 'VARCHAR(255)',
                     'first_name' => 'VARCHAR(255)',
                     'last_name' => 'VARCHAR(255)',
                     'social_url' => 'TEXT',
-                    'birth_day' => 'INT',
-                    'birth_month' => 'INT',
-                    'birth_year' => 'INT',
+                    'birth_day' => 'TINYINT UNSIGNED NULL',
+                    'birth_month' => 'TINYINT UNSIGNED NULL',
+                    'birth_year' => 'SMALLINT UNSIGNED NULL',
                     'token' => 'TEXT',
                     'ads_id' => 'VARCHAR(255)',
-                    'cookies' => 'TEXT',
+                    'cookies' => 'LONGTEXT',
                     'user_agent' => 'TEXT',
                     'two_fa' => 'VARCHAR(255)',
                     'extra_info_1' => 'TEXT',
                     'extra_info_2' => 'TEXT',
+                    'link_ava' => 'TEXT',
+                    'link_document' => 'TEXT',
+                    'status' => 'VARCHAR(50)',
+                    'created_at' => 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
+                    'updated_at' => 'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+                    'date_registration' => 'DATETIME NULL',
+                    'full_cookies' => 'MEDIUMTEXT',
+                    'avatar' => 'TEXT',
+                    'cover' => 'TEXT',
+                    'full_filled' => 'TEXT',
+                    'id_bm_1' => 'VARCHAR(20)',
+                    'id_bm_2' => 'VARCHAR(20)',
+                    'id_bm_3' => 'VARCHAR(20)',
+                    'id_bm_4' => 'VARCHAR(20)',
+                    'status_bm_1' => 'VARCHAR(20)',
+                    'status_bm_2' => 'VARCHAR(20)',
+                    'status_bm_3' => 'VARCHAR(20)',
+                    'status_bm_4' => 'VARCHAR(20)',
+                    'fan_count_1' => 'INT UNSIGNED NULL',
+                    'fan_count_2' => 'INT UNSIGNED NULL',
+                    'fan_count_3' => 'INT UNSIGNED NULL',
+                    'verification_status_1' => 'VARCHAR(30)',
+                    'verification_status_2' => 'VARCHAR(30)',
+                    'verification_status_3' => 'VARCHAR(30)',
+                    'deleted_at' => 'DATETIME NULL',
                     'extra_info_3' => 'TEXT',
                     'extra_info_4' => 'TEXT',
-                    'status' => 'VARCHAR(100)',
-                    'created_at' => 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-                    'updated_at' => 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
-                    'deleted_at' => 'TIMESTAMP NULL DEFAULT NULL',
+                    'first_cookie' => 'LONGTEXT',
                     'PRIMARY KEY' => '(id)'
                 ],
                 'indexes' => [
@@ -267,8 +290,14 @@ class DatabaseSchemaManager {
         
         if (empty($this->dbName)) {
             // Fallback
-            $result = $this->mysqli->query("SHOW TABLES LIKE '$tableName'");
-            return $result && $result->num_rows > 0;
+            $stmt = $this->mysqli->prepare("SHOW TABLES LIKE ?");
+            if (!$stmt) return false;
+            $stmt->bind_param('s', $tableName);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $exists = $result && $result->num_rows > 0;
+            $stmt->close();
+            return $exists;
         }
         
         $sql = "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES 
@@ -285,10 +314,16 @@ class DatabaseSchemaManager {
         }
         
         // Fallback
-        $result = $this->mysqli->query("SHOW TABLES LIKE '$tableName'");
-        return $result && $result->num_rows > 0;
+        $stmt = $this->mysqli->prepare("SHOW TABLES LIKE ?");
+        if (!$stmt) return false;
+        $stmt->bind_param('s', $tableName);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $exists = $result && $result->num_rows > 0;
+        $stmt->close();
+        return $exists;
     }
-    
+
     /**
      * Проверка существования колонки
      * 
@@ -440,20 +475,18 @@ class DatabaseSchemaManager {
             return false;
         }
         
-        // Определяем позицию для новой колонки (после последней существующей)
+        // Определяем позицию для новой колонки (после указанной существующей)
         $position = '';
         if ($columnName === 'deleted_at') {
-            // Для deleted_at добавляем после updated_at, если он существует
             if ($this->columnExists($tableName, 'updated_at')) {
                 $position = ' AFTER `updated_at`';
             }
         } elseif ($columnName === 'updated_at') {
-            // Для updated_at добавляем после created_at, если он существует
             if ($this->columnExists($tableName, 'created_at')) {
                 $position = ' AFTER `created_at`';
             }
         }
-        
+
         $sql = "ALTER TABLE `$tableName` ADD COLUMN `$columnName` $columnDef$position";
         
         return $this->mysqli->query($sql) !== false;

@@ -68,7 +68,8 @@
           </div>
           <div class="form-text">
             <i class="fas fa-search me-1"></i>
-            Поиск выполняется в 3 колонках: <strong>id_soc_account</strong> (точное совпадение), <strong>social_url</strong> и <strong>cookies</strong> (вхождение)
+            Поиск выполняется по колонке <strong>id_soc_account</strong> (точное совпадение). 
+            При включённом расширенном поиске — дополнительно по <strong>social_url</strong> (вхождение ID).
           </div>
         </div>
         

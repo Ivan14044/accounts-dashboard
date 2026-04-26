@@ -1,6 +1,37 @@
 <?php
 /**
- * API для массового обновления поля
+ * API для массового обновления произвольного поля.
+ *
+ * Поддерживает два режима:
+ * 1) Обновление выбранных записей:
+ *    POST JSON:
+ *    {
+ *      "field": "status",              // имя допустимого поля (валидируется по метаданным)
+ *      "value": "NEW_VALUE",           // новое значение
+ *      "ids": [1, 2, 3],               // массив ID аккаунтов (максимум 1000)
+ *      "scope": "selected",            // режим \"выбранные\"
+ *      "csrf": "..."                   // CSRF-токен
+ *    }
+ *
+ * 2) Обновление по фильтру / для всех:
+ *    POST JSON:
+ *    {
+ *      "field": "status",
+ *      "value": "NEW_VALUE",
+ *      "ids": [],                      // пустой массив
+ *      "select": "all",                // специальный режим \"все по фильтру\"
+ *      "query": "q=&status[]=...",     // строка query-параметров текущей страницы
+ *      "scope": "filtered" | "all",    // \"filtered\" — только по фильтру, \"all\" — по всем без фильтра (требует явного подтверждения)
+ *      "csrf": "..."
+ *    }
+ *
+ * Ответ:
+ * {
+ *   "success": true,
+ *   "affected": 123,                   // количество обновлённых записей
+ *   "mode": "filter" | "all" | "selected",
+ *   "scope": "filtered" | "all" | "selected"
+ * }
  */
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/auth.php';
@@ -27,7 +58,11 @@ try {
     $field = trim((string)($input['field'] ?? ''));
     $value = $input['value'] ?? '';
     $csrf = (string)($input['csrf'] ?? '');
-    
+
+    if (is_string($value) && strlen($value) > 65536) {
+        throw new InvalidArgumentException('Value is too long (max 64KB)');
+    }
+
     if (empty($field)) {
         throw new InvalidArgumentException('Field is required');
     }
@@ -41,10 +76,10 @@ try {
     // Валидация ID (если не selectAll)
     $ids = [];
     if (!$selectAll) {
-        $ids = Validator::validateIds($input['ids'] ?? [], 1000);
+        $ids = Validator::validateIds($input['ids'] ?? []);
     }
     
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     
     // Валидация поля через метаданные
     $meta = $service->getColumnMetadata();

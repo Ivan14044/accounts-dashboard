@@ -16,7 +16,8 @@ class RequestHandler {
         'has_email', 'has_two_fa', 'has_token', 'has_avatar',
         'has_cover', 'has_password', 'has_fan_page', 'full_filled',
         'pharma_from', 'pharma_to', 'friends_from', 'friends_to',
-        'year_created_from', 'year_created_to'
+        'year_created_from', 'year_created_to',
+        'bm_status'
     ];
     
     /**
@@ -104,7 +105,7 @@ class RequestHandler {
         }
         
         // Булевы фильтры "не пустое"
-        $boolFilters = ['has_email', 'has_two_fa', 'has_token', 'has_avatar', 
+        $boolFilters = ['has_email', 'has_two_fa', 'has_token', 'has_avatar',
                        'has_cover', 'has_password', 'has_fan_page', 'full_filled'];
         foreach ($boolFilters as $key) {
             if (!empty($filterParams[$key])) {
@@ -125,12 +126,18 @@ class RequestHandler {
             ['pharma_from', 'pharma_to'],
             ['friends_from', 'friends_to'],
             ['year_created_from', 'year_created_to'],
-            ['limit_rk_from', 'limit_rk_to']
+            ['limit_rk_from', 'limit_rk_to'],
+            ['bm_from', 'bm_to'],
         ];
         foreach ($rangeFilters as $range) {
             if (!empty($filterParams[$range[0]]) || !empty($filterParams[$range[1]])) {
                 $count++;
             }
+        }
+
+        // Статус БМ (has_valid / has_ban / only_valid)
+        if (!empty($filterParams['bm_status']) && $filterParams['bm_status'] !== 'any') {
+            $count++;
         }
         
         return $count;

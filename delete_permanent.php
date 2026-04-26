@@ -8,6 +8,7 @@ require_once __DIR__ . '/includes/AccountsService.php';
 require_once __DIR__ . '/includes/Utils.php';
 require_once __DIR__ . '/includes/Logger.php';
 require_once __DIR__ . '/includes/ErrorHandler.php';
+require_once __DIR__ . '/includes/Database.php';
 
 try {
     requireAuth();
@@ -42,8 +43,8 @@ try {
         json_error('Valid IDs are required');
     }
     
-    global $mysqli;
-    
+    $mysqli = Database::getInstance()->getConnection();
+
     // Проверяем, что аккаунты действительно удалены
     // Для TIMESTAMP колонки достаточно проверки IS NOT NULL (пустая строка там быть не может)
     $placeholders = str_repeat('?,', count($ids) - 1) . '?';

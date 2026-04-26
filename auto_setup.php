@@ -23,7 +23,7 @@ if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
 
 // Получаем список существующих индексов
 $existingIndexes = [];
-$result = @$mysqli->query("SHOW INDEX FROM accounts");
+$result = $mysqli->query("SHOW INDEX FROM accounts");
 if ($result) {
     while ($row = $result->fetch_assoc()) {
         $existingIndexes[] = $row['Key_name'];
@@ -91,16 +91,16 @@ if ($needIndexes) {
     foreach ($indexes as $index) {
         $name = $index['name'];
         $sql = $index['sql'];
-        
+
         // Проверяем, существует ли уже индекс
         if (in_array($name, $existingIndexes)) {
             $skipped++;
             continue;
         }
-        
+
         // Пытаемся создать индекс
-        $result = @$mysqli->query($sql);
-        
+        $result = $mysqli->query($sql);
+
         if ($result !== false) {
             $created++;
             error_log("AUTO_SETUP: Created index: $name");
@@ -111,14 +111,16 @@ if ($needIndexes) {
     }
     
     // Оптимизация таблицы
-    @$mysqli->query("OPTIMIZE TABLE accounts");
-    @$mysqli->query("ANALYZE TABLE accounts");
-    
+    $mysqli->query("OPTIMIZE TABLE accounts");
+    $mysqli->query("ANALYZE TABLE accounts");
+
     error_log("AUTO_SETUP: Database optimization completed. Created: $created, Skipped: $skipped");
 }
 
 // Создаем флаг, что оптимизации применены
-@file_put_contents($setupFile, date('Y-m-d H:i:s') . "\nOptimizations applied automatically\n");
+if (is_dir(dirname($setupFile))) {
+    file_put_contents($setupFile, date('Y-m-d H:i:s') . "\nOptimizations applied automatically\n");
+}
 
 error_log('AUTO_SETUP: All optimizations applied successfully');
 

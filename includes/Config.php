@@ -97,10 +97,63 @@ class Config {
      */
     const RATE_LIMIT_WINDOW = 60;
     
+    // ========================================
+    // ИМПОРТ АККАУНТОВ
+    // ========================================
+    
+    /**
+     * Максимальный размер файла для импорта (20MB)
+     */
+    const MAX_IMPORT_FILE_SIZE = 20 * 1024 * 1024;
+    
+    /**
+     * Максимальное количество строк в CSV для импорта
+     */
+    const MAX_IMPORT_ROWS = 10000;
+    
+    /**
+     * Размер батча для массовой вставки при импорте
+     */
+    const IMPORT_BATCH_SIZE = 100;
+    
+    /**
+     * Лимит импортов на пользователя (импортов в минуту)
+     */
+    const IMPORT_RATE_LIMIT = 5;
+    
     /**
      * Время блокировки при превышении лимита входа (секунд)
      */
     const LOGIN_BLOCK_TIME = 300; // 5 минут
+    
+    // ========================================
+    // ПРОВЕРКА ВАЛИДНОСТИ АККАУНТОВ (acctool.top checker API)
+    // ========================================
+
+    /**
+     * URL checker API — токен не требуется
+     */
+    const ACCTOOL_CHECK_URL = 'https://checker.acctool.top/check';
+
+    /**
+     * Размер батча FB ID за один запрос
+     */
+    const ACCTOOL_BATCH_SIZE = 100;
+
+    /**
+     * Таймаут запроса (секунд)
+     */
+    const ACCTOOL_TIMEOUT = 30;
+
+    /**
+     * Максимум записей за один запрос validate/check
+     */
+    const VALIDATE_CHECK_MAX_ITEMS = 500;
+
+    /**
+     * Максимум записей за один запрос validate/prepare (по фильтру)
+     */
+    const VALIDATE_PREPARE_LIMIT = 2000;
     
     // ========================================
     // БЕЗОПАСНОСТЬ
@@ -131,24 +184,38 @@ class Config {
     // ========================================
     
     /**
-     * Директория для кэша
+     * Директория для кэша (вычисляется в runtime через getTempBase())
      */
-    const CACHE_DIR = '/tmp/dashboard_cache';
-    
+    const CACHE_DIR = 'dashboard_cache';
+
     /**
      * Директория для логов
      */
-    const LOG_DIR = '/tmp/dashboard_logs';
-    
+    const LOG_DIR = 'dashboard_logs';
+
     /**
      * Директория для rate limiting данных
      */
-    const RATELIMIT_DIR = '/tmp/dashboard_ratelimit';
-    
+    const RATELIMIT_DIR = 'dashboard_ratelimit';
+
     /**
      * Директория для временных файлов
      */
-    const TEMP_DIR = '/tmp/dashboard_temp';
+    const TEMP_DIR = 'dashboard_temp';
+
+    /**
+     * Базовая временная директория (кроссплатформенная)
+     */
+    public static function getTempBase(): string {
+        return sys_get_temp_dir();
+    }
+
+    /**
+     * Полный путь к директории по константе
+     */
+    public static function getDir(string $subdir): string {
+        return self::getTempBase() . DIRECTORY_SEPARATOR . $subdir;
+    }
     
     // ========================================
     // БАЗА ДАННЫХ
@@ -221,10 +288,11 @@ class Config {
             self::RATELIMIT_DIR,
             self::TEMP_DIR
         ];
-        
-        foreach ($dirs as $dir) {
-            if (!is_dir($dir)) {
-                @mkdir($dir, 0755, true);
+
+        foreach ($dirs as $subdir) {
+            $fullPath = self::getDir($subdir);
+            if (!is_dir($fullPath)) {
+                @mkdir($fullPath, 0755, true);
             }
         }
     }
@@ -246,8 +314,113 @@ class Config {
      * @return bool
      */
     public static function isFeatureEnabled($feature) {
-        $constantName = 'self::FEATURE_' . strtoupper($feature);
+        $constantName = 'Config::FEATURE_' . strtoupper($feature);
         return defined($constantName) && constant($constantName);
+    }
+    
+    /**
+     * Структура CSV файла для импорта аккаунтов
+     * Это единственное место, где определены все поля CSV
+     */
+    public const CSV_STRUCTURE = [
+        'login' => [
+            'required' => true,
+            'type' => 'string',
+            'max_length' => 255,
+            'label' => 'Логин',
+            'description' => 'Уникальный идентификатор аккаунта'
+        ],
+        'status' => [
+            'required' => true,
+            'type' => 'string',
+            'max_length' => 100,
+            'label' => 'Статус',
+            'description' => 'Текущий статус аккаунта (любое значение)'
+        ],
+        'password' => [
+            'required' => false,
+            'type' => 'string',
+            'max_length' => 255,
+            'label' => 'Пароль',
+            'sensitive' => true
+        ],
+        'email' => [
+            'required' => false,
+            'type' => 'email',
+            'max_length' => 255,
+            'label' => 'Email'
+        ],
+        'email_password' => [
+            'required' => false,
+            'type' => 'string',
+            'max_length' => 255,
+            'label' => 'Пароль от Email',
+            'sensitive' => true
+        ],
+        'cookies' => [
+            'required' => false,
+            'type' => 'text',
+            'label' => 'Cookies',
+            'sensitive' => true
+        ],
+        'first_cookie' => [
+            'required' => false,
+            'type' => 'text',
+            'label' => 'Первые куки',
+            'description' => 'Первые куки аккаунта (альтернатива полным cookies)',
+            'sensitive' => true
+        ],
+        'token' => [
+            'required' => false,
+            'type' => 'string',
+            'max_length' => 500,
+            'label' => 'Token',
+            'sensitive' => true
+        ],
+        'two_fa' => [
+            'required' => false,
+            'type' => 'string',
+            'max_length' => 255,
+            'label' => '2FA код',
+            'sensitive' => true
+        ]
+    ];
+    
+    /**
+     * Rate limiting для импорта
+     */
+    public const IMPORT_RATE_LIMIT_PER_MINUTE = 5;
+    public const IMPORT_RATE_LIMIT_PER_HOUR = 20;
+    
+    /**
+     * Получить обязательные поля CSV
+     * 
+     * @return array
+     */
+    public static function getRequiredCsvFields(): array {
+        return array_keys(array_filter(self::CSV_STRUCTURE, function($field) {
+            return $field['required'] ?? false;
+        }));
+    }
+    
+    /**
+     * Получить все поля CSV
+     * 
+     * @return array
+     */
+    public static function getAllCsvFields(): array {
+        return array_keys(self::CSV_STRUCTURE);
+    }
+    
+    /**
+     * Получить чувствительные поля (пароли, cookies и т.п.)
+     * 
+     * @return array
+     */
+    public static function getSensitiveCsvFields(): array {
+        return array_keys(array_filter(self::CSV_STRUCTURE, function($field) {
+            return $field['sensitive'] ?? false;
+        }));
     }
 }
 

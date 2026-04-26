@@ -7,9 +7,7 @@
           <i class="fas fa-filter"></i>
         </div>
         <span class="filters-modern-title">Фильтры</span>
-        <?php if ($activeFiltersCount > 0): ?>
-        <span class="filters-modern-badge"><?= (int)$activeFiltersCount ?></span>
-        <?php endif; ?>
+        <span class="filters-modern-badge" style="<?= $activeFiltersCount > 0 ? '' : 'display:none' ?>"><?= (int)$activeFiltersCount ?></span>
       </div>
       <div class="filters-modern-actions" id="filtersActionsContainer">
         <div id="savedFiltersContainer" style="display: inline-block; margin-right: 8px;"></div>
@@ -22,7 +20,14 @@
 
     <!-- Активные фильтры (Chips) -->
     <div class="active-filters-section <?= $activeFiltersCount > 0 ? 'has-filters' : '' ?>" id="activeFiltersSection">
-      <div class="active-filters-label">Активные фильтры</div>
+      <div class="active-filters-header">
+        <div class="active-filters-label">Активные фильтры</div>
+        <button type="button" class="btn btn-sm btn-outline-danger active-filters-reset-btn" id="resetAllFiltersBtn"
+                style="<?= $activeFiltersCount > 0 ? '' : 'display:none' ?>"
+                title="Сбросить все фильтры">
+          <i class="fas fa-times-circle me-1"></i>Сбросить все
+        </button>
+      </div>
       <div class="active-filters-list" id="activeFiltersList">
         <?php if ($q !== ''): ?>
         <div class="filter-chip" data-filter="q">
@@ -101,6 +106,26 @@
           <i class="fas fa-lock filter-chip-icon"></i>
           <span>Есть Пароль</span>
           <button class="filter-chip-remove" onclick="removeFilterChip('has_password')" title="Удалить">&times;</button>
+        </div>
+        <?php endif; ?>
+        
+        <?php if (isset($ALL_COLUMNS['bm']) && (!empty($bmFrom) || !empty($bmTo))): ?>
+        <div class="filter-chip" data-filter="bm_range">
+          <i class="fas fa-briefcase filter-chip-icon"></i>
+          <span>БМ: <?= e($bmFrom ?: '0') ?>—<?= e($bmTo ?: '∞') ?></span>
+          <button class="filter-chip-remove" onclick="removeFilterChip('bm_range')" title="Удалить">&times;</button>
+        </div>
+        <?php endif; ?>
+
+        <?php
+        // Chip для статуса БМ — показываем если выбран конкретный режим (не any и не пусто)
+        $bmStatusLabels = ['has_valid' => 'БМ: есть валидный', 'has_ban' => 'БМ: есть в бане', 'only_valid' => 'БМ: только валидные'];
+        if (isset($bmStatus) && $bmStatus !== '' && $bmStatus !== 'any' && isset($bmStatusLabels[$bmStatus])):
+        ?>
+        <div class="filter-chip" data-filter="bm_status">
+          <i class="fas fa-briefcase filter-chip-icon"></i>
+          <span><?= e($bmStatusLabels[$bmStatus]) ?></span>
+          <button class="filter-chip-remove" onclick="removeFilterChip('bm_status')" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -285,94 +310,87 @@
             </label>
             <div class="quick-filters-grid">
               <!-- Email -->
-              <div class="toggle-switch-wrapper <?= $hasEmailParam !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('has_email', this)">
+              <div class="toggle-switch-wrapper <?= $hasEmailParam !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-envelope toggle-switch-icon"></i>
                   <span class="toggle-switch-label">Email</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_email" value="1" <?= $hasEmailParam !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="has_email" value="1" <?= $hasEmailParam !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
               
               <!-- 2FA -->
-              <div class="toggle-switch-wrapper <?= $hasTwoFaParam !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('has_two_fa', this)">
+              <div class="toggle-switch-wrapper <?= $hasTwoFaParam !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-shield-alt toggle-switch-icon"></i>
                   <span class="toggle-switch-label">2FA</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_two_fa" value="1" <?= $hasTwoFaParam !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="has_two_fa" value="1" <?= $hasTwoFaParam !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
               
               <!-- Token -->
-              <div class="toggle-switch-wrapper <?= ($hasTokenParam ?? '') !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('has_token', this)">
+              <div class="toggle-switch-wrapper <?= ($hasTokenParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-key toggle-switch-icon"></i>
                   <span class="toggle-switch-label">Token</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_token" value="1" <?= ($hasTokenParam ?? '') !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="has_token" value="1" <?= ($hasTokenParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
               
               <!-- Fan Page -->
-              <div class="toggle-switch-wrapper <?= ($hasFanPageParam ?? '') !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('has_fan_page', this)">
+              <div class="toggle-switch-wrapper <?= ($hasFanPageParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-flag toggle-switch-icon"></i>
                   <span class="toggle-switch-label">Fan Page</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_fan_page" value="1" <?= ($hasFanPageParam ?? '') !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="has_fan_page" value="1" <?= ($hasFanPageParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
               
               <?php if (isset($ALL_COLUMNS['avatar'])): ?>
               <!-- Avatar -->
-              <div class="toggle-switch-wrapper <?= ($hasAvatarParam ?? '') !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('has_avatar', this)">
+              <div class="toggle-switch-wrapper <?= ($hasAvatarParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-user-circle toggle-switch-icon"></i>
                   <span class="toggle-switch-label">Avatar</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_avatar" value="1" <?= ($hasAvatarParam ?? '') !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="has_avatar" value="1" <?= ($hasAvatarParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
               <?php endif; ?>
               
               <!-- Password -->
-              <div class="toggle-switch-wrapper <?= ($hasPasswordParam ?? '') !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('has_password', this)">
+              <div class="toggle-switch-wrapper <?= ($hasPasswordParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-lock toggle-switch-icon"></i>
                   <span class="toggle-switch-label">Password</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_password" value="1" <?= ($hasPasswordParam ?? '') !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="has_password" value="1" <?= ($hasPasswordParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
               
               <!-- Избранное -->
-              <div class="toggle-switch-wrapper <?= ($favoritesOnlyParam ?? '') !== '' ? 'active' : '' ?>" 
-                   onclick="toggleQuickFilter('favorites_only', this)">
+              <div class="toggle-switch-wrapper <?= ($favoritesOnlyParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
                   <i class="fas fa-star toggle-switch-icon" style="color: var(--color-warning);"></i>
                   <span class="toggle-switch-label">Избранное</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="favorites_only" value="1" <?= ($favoritesOnlyParam ?? '') !== '' ? 'checked' : '' ?> onchange="event.stopPropagation()">
+                  <input type="checkbox" name="favorites_only" value="1" <?= ($favoritesOnlyParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
@@ -388,7 +406,8 @@
                             isset($ALL_COLUMNS['currency']) ||
                             isset($ALL_COLUMNS['geo']) ||
                             isset($ALL_COLUMNS['status_rk']) ||
-                            isset($ALL_COLUMNS['status_marketplace']);
+                            isset($ALL_COLUMNS['status_marketplace']) ||
+                            isset($ALL_COLUMNS['bm']);
           ?>
           
           <?php if ($hasRangeFilters): ?>
@@ -421,6 +440,38 @@
                   <input type="number" class="range-input-modern" name="friends_from" placeholder="От" min="0" max="1000" step="1" value="<?= e($friendsFrom) ?>">
                   <span class="range-separator">—</span>
                   <input type="number" class="range-input-modern" name="friends_to" placeholder="До" min="0" max="1000" step="1" value="<?= e($friendsTo) ?>">
+                </div>
+              </div>
+              <?php endif; ?>
+              
+              <?php if (isset($ALL_COLUMNS['bm'])): ?>
+              <?php
+              $hasBmStatusCols = isset($ALL_COLUMNS['status_bm_1']) || isset($ALL_COLUMNS['status_bm_2'])
+                              || isset($ALL_COLUMNS['status_bm_3']) || isset($ALL_COLUMNS['status_bm_4']);
+              $currentBmStatus = $bmStatus ?? '';
+              ?>
+              <div class="range-filter-group range-filter-group--bm">
+                <div class="range-filter-label">
+                  <i class="fas fa-briefcase"></i>
+                  Количество БМ
+                </div>
+                <div class="bm-filter-row">
+                  <div class="range-inputs">
+                    <input type="number" id="bm_from" class="range-input-modern" name="bm_from" placeholder="От" min="0" step="1" value="<?= e($bmFrom ?? '') ?>">
+                    <span class="range-separator">—</span>
+                    <input type="number" id="bm_to" class="range-input-modern" name="bm_to" placeholder="До" min="0" step="1" value="<?= e($bmTo ?? '') ?>">
+                  </div>
+                  <?php if ($hasBmStatusCols): ?>
+                  <div class="bm-status-inline">
+                    <label class="bm-status-label"><i class="fas fa-shield-alt"></i> Статус</label>
+                    <select id="bm_status" name="bm_status" class="form-select form-select-sm bm-status-select">
+                      <option value="any"<?= $currentBmStatus === '' || $currentBmStatus === 'any' ? ' selected' : '' ?>>Любые</option>
+                      <option value="has_valid"<?= $currentBmStatus === 'has_valid'  ? ' selected' : '' ?>>Есть валидный</option>
+                      <option value="has_ban"<?=   $currentBmStatus === 'has_ban'    ? ' selected' : '' ?>>Есть в бане</option>
+                      <option value="only_valid"<?= $currentBmStatus === 'only_valid' ? ' selected' : '' ?>>Только валидные</option>
+                    </select>
+                  </div>
+                  <?php endif; ?>
                 </div>
               </div>
               <?php endif; ?>

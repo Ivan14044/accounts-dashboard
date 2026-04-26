@@ -7,6 +7,7 @@
 error_reporting(E_ALL);
 ini_set('log_errors', '1');
 ini_set('display_errors', '0');
+ini_set('error_log', __DIR__ . '/php_errors.log');
 
 // Отключаем автоматические отчеты об ошибках MySQL
 mysqli_report(MYSQLI_REPORT_OFF);
@@ -15,7 +16,13 @@ mysqli_report(MYSQLI_REPORT_OFF);
 require_once __DIR__ . '/includes/SessionManager.php';
 SessionManager::start();
 
-// Проверяем наличие параметров БД в сессии (приоритет над глобальными настройками)
+// Устанавливаем базовые security-заголовки для всех страниц, инклудящих config.php.
+// CSP/X-Frame-Options/X-Content-Type-Options/Referrer-Policy/Permissions-Policy/HSTS.
+// Для JSON-endpoints это не мешает (заголовки поверх Content-Type).
+require_once __DIR__ . '/includes/ResponseHeaders.php';
+ResponseHeaders::setSecurityHeaders();
+
+// Проверяем наличие параметров БД в сессии (приоритет над любыми глобальными настройками)
 if (isset($_SESSION['db_config']) && is_array($_SESSION['db_config'])) {
     $dbConfig = $_SESSION['db_config'];
     $DB_HOST = $dbConfig['host'] ?? 'localhost';
@@ -25,49 +32,21 @@ if (isset($_SESSION['db_config']) && is_array($_SESSION['db_config'])) {
     $DB_PORT = $dbConfig['port'] ?? 3306;
     $DB_CHARSET = $dbConfig['charset'] ?? 'utf8mb4';
     
-    // Логируем для отладки (без пароля)
-    $logConfig = $dbConfig;
-    if (isset($logConfig['password'])) {
-        $logConfig['password'] = '***';
-    }
-    error_log('CONFIG: Using DB config from session: ' . json_encode($logConfig));
+    // Не логируем хост/юзера/базу в общий php_errors.log — это утечка инфраструктуры.
+    // Если нужна отладка, включите DEBUG в config и логируйте через Logger::debug().
 } else {
-    error_log('CONFIG: No session db_config found, using .env/config.local.php');
-    // Загрузка настроек из .env файла (только если нет параметров в сессии)
-    $envFile = __DIR__ . '/.env';
-    if (is_file($envFile) && is_readable($envFile)) {
-        $lines = @file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
-        foreach ($lines as $line) {
-            $line = trim($line);
-            // Пропускаем пустые строки и комментарии
-            if ($line === '' || $line[0] === '#') continue;
-            if (!strpos($line, '=')) continue;
-            
-            list($key, $value) = array_map('trim', explode('=', $line, 2));
-            // Убираем кавычки
-            if ($value !== '' && ($value[0] === '"' || $value[0] === "'")) {
-                $value = trim($value, "\"'");
-            }
-            
-            // Устанавливаем переменную окружения
-            putenv("$key=$value");
-            $_ENV[$key] = $value;
-        }
-    }
+    // Жёсткий отказ от .env / переменных окружения для настроек БД аккаунтов.
+    // Единственный допустимый источник настроек подключения к БД — данные,
+    // которые пользователь ввёл на странице логина и которые сохранены в сессии.
+    // Не логируем это событие в общий php_errors.log — оно нормальное для первого захода.
 
-    // Настройки БД с приоритетом переменных окружения
-    $DB_HOST = getenv('DB_HOST') ?: 'localhost';
-    $DB_NAME = getenv('DB_NAME') ?: '';
-    $DB_USER = getenv('DB_USER') ?: '';
-    $DB_PASS = getenv('DB_PASS') ?: '';
-    $DB_PORT = getenv('DB_PORT') ? (int)getenv('DB_PORT') : 3306;
+    // Инициализируем значения по умолчанию (чтобы последующая проверка сработала корректно)
+    $DB_HOST = 'localhost';
+    $DB_NAME = '';
+    $DB_USER = '';
+    $DB_PASS = '';
+    $DB_PORT = 3306;
     $DB_CHARSET = 'utf8mb4';
-
-    // Переопределение из config.local.php (если существует)
-    $localConfig = __DIR__ . '/config.local.php';
-    if (is_file($localConfig)) {
-        require $localConfig;
-    }
 }
 
 // Проверка обязательных параметров
@@ -75,13 +54,37 @@ if (empty($DB_NAME) || empty($DB_USER)) {
     $errorMsg = 'Database configuration is missing. ';
     if (isset($_SESSION['db_config'])) {
         $errorMsg .= 'Session db_config exists but missing required fields. ';
-        $errorMsg .= 'Config: ' . json_encode($_SESSION['db_config']);
+        $safeConfig = $_SESSION['db_config'];
+        if (isset($safeConfig['password'])) $safeConfig['password'] = '***';
+        $errorMsg .= 'Config: ' . json_encode($safeConfig);
     } else {
-        $errorMsg .= 'No session db_config found. Please check .env file or config.local.php or login again.';
+        $errorMsg .= 'No session db_config found. Database connection must be provided via login form.';
     }
-    // Логируем через error_log, так как Logger может быть недоступен на этой стадии
     error_log($errorMsg);
-    // Выбрасываем исключение вместо exit(), чтобы можно было перехватить в try-catch
+
+    // Если пользователь не авторизован (сессия истекла или не было входа) —
+    // редирект на страницу логина вместо HTTP 500. Так пользователь увидит форму входа,
+    // а не сообщение «Сайт не может обработать этот запрос».
+    if (!function_exists('isAuthenticated')) {
+        require_once __DIR__ . '/auth.php';
+    }
+    if (!isAuthenticated()) {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+            strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => false, 'error' => 'Unauthorized', 'redirect' => 'login.php']);
+            exit;
+        }
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'];
+        $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
+        $loginUrl = $protocol . '://' . $host . rtrim($scriptDir, '/') . '/login.php';
+        header('Location: ' . $loginUrl);
+        exit;
+    }
+
+    // Авторизован, но конфигурации БД нет (неконсистентная сессия) — выбрасываем исключение
     throw new Exception('Ошибка конфигурации. Проверьте настройки подключения к БД. ' . $errorMsg);
 }
 
@@ -90,22 +93,22 @@ $mysqli = @new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME, $DB_PORT);
 
 // Проверяем, что подключение успешно (mysqli может вернуть false при критических ошибках)
 if ($mysqli === false || $mysqli->connect_errno) {
-    $connectError = ($mysqli !== false && isset($mysqli->connect_error)) 
-        ? $mysqli->connect_error 
+    $connectError = ($mysqli !== false && isset($mysqli->connect_error))
+        ? $mysqli->connect_error
         : 'Unknown database connection error';
-    
-    $errorMsg = 'DB connect failed: ' . $connectError . ' | Host: ' . $DB_HOST . ' | Port: ' . $DB_PORT . ' | User: ' . $DB_USER . ' | Database: ' . $DB_NAME;
-    // Логируем через error_log, так как Logger может быть недоступен на этой стадии
-    error_log($errorMsg);
-    
+
+    // Логируем детальную информацию для администраторов/разработчиков
+    $detailedErrorMsg = 'DB connect failed: ' . $connectError . ' | Host: ' . $DB_HOST . ' | Port: ' . $DB_PORT . ' | User: ' . $DB_USER . ' | Database: ' . $DB_NAME;
+    error_log($detailedErrorMsg);
+
     // Сохраняем ошибку в сессию для отображения на странице логина
     $_SESSION['last_db_error'] = $connectError;
-    
+
     // Устанавливаем $mysqli в null для явной индикации ошибки
     $mysqli = null;
-    
-    // Выбрасываем исключение вместо exit(), чтобы можно было перехватить в try-catch
-    throw new RuntimeException('Сервис временно недоступен. Ошибка подключения к базе данных: ' . $connectError);
+
+    // Выбрасываем исключение с общей ошибкой (без деталей подключения)
+    throw new RuntimeException('Сервис временно недоступен. Пожалуйста, попробуйте позже.');
 }
 
 // Устанавливаем кодировку
@@ -126,25 +129,14 @@ if (!function_exists('e')) {
     }
 }
 
-// Проверяем, что таблица accounts существует (безопасная проверка через INFORMATION_SCHEMA)
-$dbName = $DB_NAME;
-$tableName = 'accounts';
-$checkTable = $mysqli->prepare("SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?");
-if ($checkTable) {
-    $checkTable->bind_param('ss', $dbName, $tableName);
-    $checkTable->execute();
-    $result = $checkTable->get_result();
-    $row = $result->fetch_assoc();
-    $tableExists = ($row['cnt'] ?? 0) > 0;
-    $checkTable->close();
-} else {
-    // Fallback на старый способ, если INFORMATION_SCHEMA недоступен
-    $tableExists = $mysqli->query("SHOW TABLES LIKE 'accounts'");
-    $tableExists = $tableExists && $tableExists->num_rows > 0;
-}
+// Определяем текущую таблицу через TableResolver
+require_once __DIR__ . '/includes/TableResolver.php';
+$tableResolver = TableResolver::getInstance($mysqli, $DB_NAME);
+$tableName = $tableResolver->getCurrentTable();
+$availableTables = $tableResolver->getAvailableTables();
 
-if (!$tableExists) {
-    // Создаем таблицу, если её нет
+// Если таблица accounts не существует — создаём её автоматически
+if (!in_array('accounts', $availableTables, true)) {
     $createTable = "
     CREATE TABLE IF NOT EXISTS `accounts` (
         `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -161,6 +153,7 @@ if (!$tableExists) {
         `token` TEXT,
         `ads_id` VARCHAR(255),
         `cookies` TEXT,
+        `first_cookie` TEXT,
         `user_agent` TEXT,
         `two_fa` VARCHAR(255),
         `extra_info_1` TEXT,
@@ -175,8 +168,62 @@ if (!$tableExists) {
         INDEX `idx_updated_at` (`updated_at`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ";
-    
+
     if (!$mysqli->query($createTable)) {
         error_log('Failed to create accounts table: ' . $mysqli->error);
     }
 }
+
+// ==========================================
+// КОНСОЛИДАЦИЯ BOOTSTRAP.PHP -> CONFIG.PHP
+// ==========================================
+
+// Определяем пути к директориям
+if (!defined('PROJECT_ROOT')) {
+    define('PROJECT_ROOT', __DIR__);
+}
+if (!defined('INCLUDES_DIR')) {
+    define('INCLUDES_DIR', PROJECT_ROOT . '/includes');
+}
+if (!defined('TEMPLATES_DIR')) {
+    define('TEMPLATES_DIR', PROJECT_ROOT . '/templates');
+}
+if (!defined('ASSETS_DIR')) {
+    define('ASSETS_DIR', PROJECT_ROOT . '/assets');
+}
+
+// Версия ассетов для кеша: фиксированная версия позволяет браузеру кешировать JS/CSS
+// Меняйте вручную при деплое новой версии (например: '2026-03-19')
+// ВАЖНО: time() отключает кеш браузера — каждый запрос грузит все файлы заново!
+if (!defined('ASSETS_VERSION')) {
+    $v = getenv('ASSETS_VERSION');
+    if ($v !== false && $v !== '') {
+        define('ASSETS_VERSION', $v);
+    } else {
+        define('ASSETS_VERSION', '2026-04-25-v15');
+    }
+}
+
+// Настройки PHP для поддержки загрузки файлов до 20MB
+@ini_set('upload_max_filesize', '20M');
+@ini_set('post_max_size', '25M');
+@ini_set('memory_limit', '256M');
+
+// Загружаем основные утилиты
+require_once INCLUDES_DIR . '/Utils.php';
+require_once INCLUDES_DIR . '/Logger.php';
+require_once INCLUDES_DIR . '/Config.php';
+require_once INCLUDES_DIR . '/ErrorHandler.php';
+
+// Загружаем классы для работы с БД
+require_once INCLUDES_DIR . '/Database.php';
+require_once INCLUDES_DIR . '/ColumnMetadata.php';
+require_once INCLUDES_DIR . '/FilterBuilder.php';
+
+// Загружаем сервисы
+require_once INCLUDES_DIR . '/AccountsService.php';
+require_once INCLUDES_DIR . '/AuditLogger.php';
+require_once INCLUDES_DIR . '/MassTransferService.php';
+require_once INCLUDES_DIR . '/RateLimiter.php';
+require_once INCLUDES_DIR . '/RateLimitMiddleware.php';
+require_once INCLUDES_DIR . '/RequestHandler.php';

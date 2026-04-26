@@ -1,6 +1,20 @@
 <?php
 /**
- * API для обновления одного поля записи
+ * API для обновления одного поля записи.
+ *
+ * Ожидает POST JSON:
+ * {
+ *   "id": 123,                 // ID аккаунта
+ *   "field": "status",         // имя допустимого поля (валидируется по метаданным)
+ *   "value": "NEW_VALUE",      // новое значение
+ *   "csrf": "..."              // CSRF-токен
+ * }
+ *
+ * Ответ:
+ * {
+ *   "success": true,
+ *   "affected": 1
+ * }
  */
 
 // Загружаем config.php с обработкой ошибок подключения к БД
@@ -37,6 +51,10 @@ try {
     $id = Validator::validateId($input['id'] ?? 0);
     $field = trim((string)($input['field'] ?? ''));
     $value = $input['value'] ?? '';
+    // Ограничиваем длину значения (64KB — достаточно для TEXT полей)
+    if (is_string($value) && strlen($value) > 65536) {
+        throw new InvalidArgumentException('Value is too long (max 64KB)');
+    }
     $csrf = (string)($input['csrf'] ?? '');
     
     if (empty($field)) {
@@ -50,7 +68,7 @@ try {
     }
     
     // Валидация поля через метаданные
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     $meta = $service->getColumnMetadata();
     $field = Validator::validateField($field, $meta['all']);
     

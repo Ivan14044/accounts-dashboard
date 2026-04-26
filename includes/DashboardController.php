@@ -12,6 +12,8 @@ require_once __DIR__ . '/AccountsService.php';
 require_once __DIR__ . '/RequestHandler.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Logger.php';
+require_once __DIR__ . '/TableResolver.php';
+require_once __DIR__ . '/Database.php';
 
 class DashboardController {
     private $service;
@@ -22,14 +24,24 @@ class DashboardController {
     
     /**
      * Обработка массового обновления статуса при клике на кастомную карточку
-     * 
+     *
      * @return bool true если был обработан запрос и нужно сделать редирект
      */
     public function handleApplyStatus(): bool {
         if (!isset($_GET['apply_status']) || empty($_GET['apply_status'])) {
             return false;
         }
-        
+
+        // Проверка CSRF токена (массовое обновление требует защиты)
+        require_once __DIR__ . '/Validator.php';
+        $csrf = $_GET['csrf_token'] ?? '';
+        if (!Validator::validateCsrfToken($csrf)) {
+            require_once __DIR__ . '/Logger.php';
+            Logger::warning('APPLY_STATUS: CSRF validation failed');
+            $_SESSION['error_message'] = 'CSRF validation failed. Please try again.';
+            return false;
+        }
+
         try {
             $targetStatus = trim($_GET['apply_status']);
             
@@ -63,7 +75,13 @@ class DashboardController {
             // Убираем параметр apply_status из URL и перенаправляем
             unset($_GET['apply_status']);
             $redirectUrl = '?' . http_build_query($_GET);
-            header("Location: $redirectUrl");
+            // Валидируем URL: проверяем, что это относительный URL (начинается с ?)
+            if (strpos($redirectUrl, '?') === 0 || basename($redirectUrl) === $redirectUrl) {
+                header("Location: $redirectUrl");
+            } else {
+                // Fallback на главную страницу дашборда
+                header("Location: ?");
+            }
             return true; // Запрос обработан, нужен редирект
         } catch (Exception $e) {
             Logger::error('Error applying status', [
@@ -85,7 +103,7 @@ class DashboardController {
         
         try {
             if (isset($_SESSION['username'])) {
-                global $mysqli;
+                $mysqli = \Database::getInstance()->getConnection();
                 if ($mysqli instanceof mysqli) {
                     $stmt = $mysqli->prepare("SELECT setting_value FROM user_settings WHERE username = ? AND setting_type = 'custom_cards' LIMIT 1");
                     if ($stmt) {
@@ -150,9 +168,14 @@ class DashboardController {
         
         // Получаем статистику
         $stats = $this->service->getStatistics($filter);
-        
-        // Корректируем страницу
         $filteredTotal = $stats['filteredTotal'];
+
+        // Двухфазный поиск: если точный поиск (фаза 1) не дал результатов — откат на LIKE (фаза 2)
+        if ($filteredTotal === 0 && $filter->canFallbackToLikeSearch()) {
+            $filter->fallbackToLikeSearch();
+            $stats = $this->service->getStatistics($filter);
+            $filteredTotal = $stats['filteredTotal'];
+        }
         $pages = max(1, (int)ceil($filteredTotal / $perPage));
         
         if ($filteredTotal > 0) {
@@ -174,11 +197,12 @@ class DashboardController {
         $geosList = $uniqueFilterValues['geo'] ?? [];
         $statusRkList = $uniqueFilterValues['status_rk'] ?? [];
         
-        // Получаем количество пустых значений
-        $emptyMarketplaceStatusCount = $this->service->getEmptyMarketplaceStatusCount();
-        $emptyCurrencyCount = $this->service->getEmptyCurrencyCount();
-        $emptyGeoCount = $this->service->getEmptyGeoCount();
-        $emptyStatusRkCount = $this->service->getEmptyStatusRkCount();
+        // Получаем количество пустых значений одним запросом вместо четырёх
+        $emptyCounts = $this->service->getEmptyFilterCounts();
+        $emptyMarketplaceStatusCount = $emptyCounts['status_marketplace'];
+        $emptyCurrencyCount = $emptyCounts['currency'];
+        $emptyGeoCount = $emptyCounts['geo'];
+        $emptyStatusRkCount = $emptyCounts['status_rk'];
         
         // Дополняем список статусов целевыми статусами из кастомных карточек
         $customStatuses = $this->getCustomStatuses();
@@ -262,6 +286,9 @@ class DashboardController {
         $hasCoverParam = get_param('has_cover');
         $hasPasswordParam = get_param('has_password');
         $hasFanPageParam = get_param('has_fan_page');
+        $bmFrom = get_param('bm_from');
+        $bmTo = get_param('bm_to');
+        $bmStatus = get_param('bm_status'); // has_valid / has_ban / only_valid / any / ''
         $fullFilledParam = get_param('full_filled');
         $pharmaFrom = get_param('pharma_from');
         $pharmaTo = get_param('pharma_to');
@@ -276,7 +303,7 @@ class DashboardController {
             'meta' => $meta,
             'ALL_COLUMNS' => $meta['columns'],
             'NUMERIC_COLS' => $meta['numeric'],
-            'LONG_FIELDS' => ['cookies', 'token', 'user_agent', 'social_url'],
+            'LONG_FIELDS' => ['cookies', 'first_cookie', 'token', 'user_agent', 'social_url'],
             'statuses' => $statuses,
             'statusesMarketplace' => $statusesMarketplace,
             'currenciesList' => $currenciesList,
@@ -320,6 +347,9 @@ class DashboardController {
             'hasCoverParam' => $hasCoverParam,
             'hasPasswordParam' => $hasPasswordParam,
             'hasFanPageParam' => $hasFanPageParam,
+            'bmFrom' => $bmFrom,
+            'bmTo' => $bmTo,
+            'bmStatus' => $bmStatus,
             'fullFilledParam' => $fullFilledParam,
             'pharmaFrom' => $pharmaFrom,
             'pharmaTo' => $pharmaTo,
@@ -335,6 +365,12 @@ class DashboardController {
             'dir' => $dir,
             'offset' => $offset,
             'filteredTotal' => $filteredTotal,
+            // Мульти-таблица
+            'currentTable' => $this->service->getTableName(),
+            'availableTables' => TableResolver::getInstance(
+                Database::getInstance()->getConnection(),
+                Database::getInstance()->getConnection()->query("SELECT DATABASE()")->fetch_row()[0] ?? ''
+            )->getAvailableTables(),
         ];
     }
 }

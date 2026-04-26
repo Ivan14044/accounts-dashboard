@@ -16,18 +16,14 @@ require_once __DIR__ . '/Config.php';
 
 class AccountsRepository {
     private $db;
-    private $table = 'accounts';
+    private $table;
     private $metadata;
-    
-    public function __construct() {
-        global $mysqli;
-        
-        if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
-            throw new Exception('Database connection not initialized. Please check config.php');
-        }
-        
+
+    public function __construct(string $table = 'accounts') {
+        $this->table = $table;
         $this->db = Database::getInstance();
-        $this->metadata = ColumnMetadata::getInstance($mysqli);
+        $mysqli = $this->db->getConnection();
+        $this->metadata = ColumnMetadata::getInstance($mysqli, $this->table);
     }
     
     /**
@@ -43,7 +39,6 @@ class AccountsRepository {
     public function getAccounts(FilterBuilder $filter, string $orderBy, int $limit, int $offset, bool $includeDeleted = false): array {
         $meta = $this->metadata->getAllColumns();
         
-        // Формируем SQL - проверяем существование колонок перед использованием
         $validCols = [];
         foreach ($meta as $col) {
             if ($this->metadata->columnExists($col)) {
@@ -53,7 +48,6 @@ class AccountsRepository {
             }
         }
         
-        // Если нет валидных колонок, используем минимум
         if (empty($validCols)) {
             $validCols = ['`id`', '`login`', '`status`'];
             Logger::error("No valid columns found, using default columns");
@@ -63,11 +57,17 @@ class AccountsRepository {
         $where = $filter->getWhereClause($includeDeleted);
         $params = $filter->getParams();
         
-        $sql = "SELECT $selectCols FROM {$this->table} $where ORDER BY $orderBy LIMIT ? OFFSET ?";
+        // Deferred join: внутренний подзапрос выбирает только id — MySQL не читает тяжёлые
+        // TEXT/BLOB колонки (cookies, full_cookies, token и т.д.) при фильтрации и сортировке.
+        // Полные данные подтягиваются JOIN-ом только для финальных LIMIT строк.
+        $innerSql = "SELECT id FROM {$this->table} $where ORDER BY $orderBy LIMIT ? OFFSET ?";
         $params[] = (int)$limit;
         $params[] = (int)$offset;
+
+        $sql = "SELECT $selectCols FROM {$this->table} "
+             . "INNER JOIN ($innerSql) AS _page USING(id) "
+             . "ORDER BY $orderBy";
         
-        // Кэшируем запросы с фильтрами (кроме пагинации, которая меняется)
         $cacheKey = null;
         if (Config::FEATURE_STATS_CACHING && $limit <= 100) {
             $cacheKey = 'accounts_' . md5($sql . serialize($params));
@@ -119,6 +119,81 @@ class AccountsRepository {
     }
     
     /**
+     * Получение записей для проверки валидности (только id, login, id_soc_account, cookies)
+     * Используется для prepare перед вызовом getuid.live
+     *
+     * @param array $ids Массив ID записей
+     * @return array
+     */
+    public function getAccountsByIdsForValidation(array $ids): array {
+        if (empty($ids)) {
+            return [];
+        }
+        $ids = array_map('intval', array_unique(array_filter($ids)));
+        if (empty($ids)) {
+            return [];
+        }
+        $cols = ['id', 'login'];
+        if ($this->metadata->columnExists('id_soc_account')) {
+            $cols[] = 'id_soc_account';
+        }
+        if ($this->metadata->columnExists('social_url')) {
+            $cols[] = 'social_url';
+        }
+        if ($this->metadata->columnExists('cookies')) {
+            $cols[] = 'cookies';
+        }
+        $selectCols = '`' . implode('`, `', $cols) . '`';
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $deletedCond = $this->metadata->columnExists('deleted_at') ? ' AND (deleted_at IS NULL OR deleted_at = 0)' : '';
+        $sql = "SELECT $selectCols FROM {$this->table} WHERE id IN ($placeholders)" . $deletedCond;
+        $types = str_repeat('i', count($ids));
+        $stmt = $this->db->getConnection()->prepare($sql);
+        if (!$stmt) {
+            throw new Exception('Failed to prepare getAccountsByIdsForValidation');
+        }
+        $stmt->bind_param($types, ...$ids);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $rows = [];
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $stmt->close();
+        return $rows;
+    }
+    
+    /**
+     * Получение записей по фильтру для проверки валидности (только id, login, id_soc_account, cookies)
+     *
+     * @param FilterBuilder $filter
+     * @param string $orderBy
+     * @param int $limit
+     * @param int $offset
+     * @return array
+     */
+    public function getAccountsByFilterForValidation(FilterBuilder $filter, string $orderBy, int $limit, int $offset): array {
+        $cols = ['id', 'login'];
+        if ($this->metadata->columnExists('id_soc_account')) {
+            $cols[] = 'id_soc_account';
+        }
+        if ($this->metadata->columnExists('social_url')) {
+            $cols[] = 'social_url';
+        }
+        if ($this->metadata->columnExists('cookies')) {
+            $cols[] = 'cookies';
+        }
+        $selectCols = '`' . implode('`, `', $cols) . '`';
+        $where = $filter->getWhereClause(false);
+        $params = $filter->getParams();
+        $innerSql = "SELECT id FROM {$this->table} $where ORDER BY $orderBy LIMIT ? OFFSET ?";
+        $params[] = (int) $limit;
+        $params[] = (int) $offset;
+        $sql = "SELECT $selectCols FROM {$this->table} INNER JOIN ($innerSql) AS _page USING(id) ORDER BY $orderBy";
+        return $this->db->prepare($sql, $params);
+    }
+    
+    /**
      * Обновление статуса для выбранных аккаунтов
      * 
      * @param array $ids Массив ID
@@ -129,42 +204,44 @@ class AccountsRepository {
         if (empty($ids) || $status === '') {
             throw new InvalidArgumentException('IDs and status are required');
         }
-        
+
         // Валидация ID
         $ids = array_filter(array_map('intval', $ids));
         if (empty($ids)) {
             throw new InvalidArgumentException('Valid IDs are required');
         }
-        
+
         $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-        
+
         // Проверяем наличие поля updated_at
-        $updateTimestamp = $this->metadata->columnExists('updated_at') 
-            ? ', updated_at = CURRENT_TIMESTAMP' 
+        $updateTimestamp = $this->metadata->columnExists('updated_at')
+            ? ', updated_at = CURRENT_TIMESTAMP'
             : '';
-        
-        $sql = "UPDATE {$this->table} SET status = ? $updateTimestamp WHERE id IN ($placeholders)";
+
+        // Исключаем soft-deleted аккаунты из обновления статуса
+        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $sql = "UPDATE {$this->table} SET status = ? $updateTimestamp WHERE id IN ($placeholders)$softDeleteClause";
         $params = array_merge([$status], $ids);
-        
+
         $stmt = $this->db->getConnection()->prepare($sql);
         if (!$stmt) {
             throw new Exception('Failed to prepare update statement');
         }
-        
+
         $types = 's' . str_repeat('i', count($ids));
         $stmt->bind_param($types, ...$params);
-        
+
         if (!$stmt->execute()) {
             $stmt->close();
             throw new Exception('Failed to update status');
         }
-        
+
         $affectedRows = $stmt->affected_rows;
         $stmt->close();
-        
+
         // Очищаем кэш после изменений
         $this->db->clearCache();
-        
+
         return $affectedRows;
     }
     
@@ -366,22 +443,24 @@ class AccountsRepository {
         if ($id <= 0) {
             throw new InvalidArgumentException('Invalid ID');
         }
-        
+
         if (!$this->metadata->columnExists($field)) {
             throw new InvalidArgumentException('Invalid field');
         }
-        
+
         // Запрещенные поля
         if ($field === 'id') {
             throw new InvalidArgumentException('Field is read-only');
         }
-        
+
         // Нормализуем значение по типу колонки
         $normalized = $this->normalizeValueByColumnType($field, $value);
         $normalizedValue = $normalized['value'];
         $valueType = $normalized['type'];
         
-        $sql = "UPDATE {$this->table} SET `{$field}` = ? WHERE `id` = ?";
+        // Исключаем soft-deleted аккаунты из обновления поля
+        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $sql = "UPDATE {$this->table} SET `{$field}` = ? WHERE `id` = ?$softDeleteClause";
         $stmt = $this->db->getConnection()->prepare($sql);
         
         if (!$stmt) {
@@ -406,13 +485,16 @@ class AccountsRepository {
         
         $affectedRows = $stmt->affected_rows;
         $stmt->close();
-        
+
+        // Очищаем кэш после изменений
+        $this->db->clearCache();
+
         return $affectedRows;
     }
-    
+
     /**
      * Массовое обновление поля
-     * 
+     *
      * @param array $ids Массив ID
      * @param string $field Имя поля
      * @param mixed $value Значение
@@ -422,16 +504,16 @@ class AccountsRepository {
         if (empty($ids) || $field === '') {
             throw new InvalidArgumentException('IDs and field are required');
         }
-        
+
         if (!$this->metadata->columnExists($field)) {
             throw new InvalidArgumentException('Invalid field name');
         }
-        
+
         $ids = array_filter(array_map('intval', $ids));
         if (empty($ids)) {
             throw new InvalidArgumentException('Valid IDs are required');
         }
-        
+
         $placeholders = str_repeat('?,', count($ids) - 1) . '?';
         
         $updateTimestamp = $this->metadata->columnExists('updated_at')
@@ -443,7 +525,9 @@ class AccountsRepository {
         $normalizedValue = $normalized['value'];
         $valueType = $normalized['type'];
         
-        $sql = "UPDATE {$this->table} SET `$field` = ? $updateTimestamp WHERE id IN ($placeholders)";
+        // Исключаем soft-deleted аккаунты из массового обновления
+        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $sql = "UPDATE {$this->table} SET `$field` = ? $updateTimestamp WHERE id IN ($placeholders)$softDeleteClause";
         
         // Обработка NULL для массового обновления
         if ($normalizedValue === null) {
@@ -537,6 +621,11 @@ class AccountsRepository {
         } catch (Exception $e) {
             $conn->rollback();
             throw $e;
+        } finally {
+            // Ensure rollback if transaction is still active (in case of unexpected exit/errors)
+            if ($conn && $conn->in_transaction) {
+                $conn->rollback();
+            }
         }
     }
     
@@ -567,7 +656,9 @@ class AccountsRepository {
         $normalizedValue = $normalized['value'];
         $valueType = $normalized['type'];
 
-        $sql = "UPDATE {$this->table} SET `$field` = ? $updateTimestamp";
+        // Исключаем удалённые аккаунты из глобального обновления
+        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' WHERE deleted_at IS NULL' : '';
+        $sql = "UPDATE {$this->table} SET `$field` = ? $updateTimestamp$softDeleteClause";
         $stmt = $this->db->getConnection()->prepare($sql);
         if (!$stmt) {
             throw new Exception('Failed to prepare global update statement');
@@ -617,14 +708,14 @@ class AccountsRepository {
             return;
         }
         
-        global $mysqli;
+        $mysqli = $this->db->getConnection();
         if (!($mysqli instanceof mysqli)) {
             return;
         }
-        
+
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $types = str_repeat('i', count($ids));
-        
+
         // Удаляем из избранного
         $sql = "DELETE FROM account_favorites WHERE account_id IN ($placeholders)";
         $stmt = $mysqli->prepare($sql);
@@ -870,7 +961,7 @@ class AccountsRepository {
         
         $checkSql = "SELECT id FROM {$this->table} WHERE login = ?";
         if ($supportsSoftDelete) {
-            $checkSql .= " AND (deleted_at IS NULL OR deleted_at = '')";
+            $checkSql .= " AND deleted_at IS NULL";
         }
         $checkSql .= " LIMIT 1";
         
@@ -1002,8 +1093,15 @@ class AccountsRepository {
      * Массовое создание аккаунтов
      * 
      * @param array $accountsData Массив массивов данных аккаунтов
-     * @param string $duplicateAction Действие при дубликате: 'skip', 'error'
-     * @return array Статистика: ['created' => int, 'skipped' => int, 'errors' => array]
+     * @param string $duplicateAction Действие при дубликате: 'skip', 'error', 'update'
+     * @return array Статистика: [
+     *   'created' => int,
+     *   'updated' => int, 
+     *   'skipped' => int,
+     *   'skipped_details' => array, // Детали пропущенных: [{row, login, reason, message}]
+     *   'errors' => array,
+     *   'created_ids' => array
+     * ]
      * @throws Exception При ошибках БД
      */
     public function createAccountsBulk(array $accountsData, string $duplicateAction = 'skip'): array {
@@ -1011,20 +1109,51 @@ class AccountsRepository {
             throw new InvalidArgumentException('Accounts data is required');
         }
         
-        $duplicateAction = in_array($duplicateAction, ['skip', 'error'], true) ? $duplicateAction : 'skip';
+        // Поддержка нового режима 'update' для обновления существующих записей
+        $duplicateAction = in_array($duplicateAction, ['skip', 'error', 'update'], true) ? $duplicateAction : 'skip';
         
         $conn = $this->db->getConnection();
-        $conn->begin_transaction();
         
         $created = 0;
         $skipped = 0;
+        $updated = 0;
         $errors = [];
+        $skippedDetails = []; // НОВОЕ: Детали пропущенных строк
         $createdIds = [];
+        $updatedLogins = []; // Для audit log: логины обновлённых аккаунтов
         
         $supportsSoftDelete = $this->metadata->columnExists('deleted_at');
         
-        try {
-            foreach ($accountsData as $rowNum => $data) {
+        // ОПТИМИЗАЦИЯ: Получаем все существующие логины ОДНИМ запросом (вместо N запросов)
+        $existingLogins = $this->getExistingLogins($accountsData);
+        
+        Logger::info('CREATE ACCOUNTS BULK: Начало импорта', [
+            'total_rows' => count($accountsData),
+            'duplicate_action' => $duplicateAction,
+            'existing_logins_count' => count($existingLogins)
+        ]);
+        
+        // Батчевые транзакции: одна транзакция на IMPORT_BATCH_TX_SIZE строк.
+        // Внутри каждой транзакции используются savepoints для изоляции ошибок отдельных строк —
+        // ошибка в одной строке не откатывает весь батч.
+        $importBatchSize = 500;
+        $batchRowIdx = 0;      // счётчик строк от начала файла
+        $batchTxOpen = false;  // открыта ли сейчас транзакция
+        $batchSpName = '';     // имя текущего savepoint
+        
+        foreach ($accountsData as $rowNum => $data) {
+            // Открываем новую транзакцию в начале каждого батча
+            if ($batchRowIdx % $importBatchSize === 0) {
+                if ($batchTxOpen) {
+                    $conn->commit();
+                }
+                $conn->begin_transaction();
+                $batchTxOpen = true;
+            }
+            // Savepoint для изоляции ошибок отдельной строки внутри батча
+            $batchSpName = 'sp_row_' . $batchRowIdx;
+            $conn->savepoint($batchSpName);
+            $batchRowIdx++;
                 try {
                     Logger::debug('CREATE ACCOUNTS BULK: Обработка строки', [
                         'row_num' => $rowNum + 1,
@@ -1050,6 +1179,7 @@ class AccountsRepository {
                             'row' => $rowNum + 1,
                             'message' => 'Login is required'
                         ];
+                        $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                         continue;
                     }
                     
@@ -1059,63 +1189,11 @@ class AccountsRepository {
                             'row' => $rowNum + 1,
                             'message' => 'Status is required'
                         ];
+                        $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                         continue;
                     }
                     
-                    // Проверка дубликатов (проверяем все записи, так как login имеет UNIQUE индекс в БД)
-                    // Важно: даже если запись удалена (soft delete), login должен быть уникальным
-                    $checkSql = "SELECT id FROM {$this->table} WHERE login = ? LIMIT 1";
-                    
-                    Logger::debug('CREATE ACCOUNTS BULK: Проверка дубликатов', [
-                        'row' => $rowNum + 1,
-                        'login' => $loginValue,
-                        'sql' => $checkSql
-                    ]);
-                    
-                    $checkStmt = $conn->prepare($checkSql);
-                    if (!$checkStmt) {
-                        Logger::error('CREATE ACCOUNTS BULK: Ошибка подготовки проверки дубликатов', [
-                            'row' => $rowNum + 1,
-                            'error' => $conn->error
-                        ]);
-                        // Не прерываем выполнение, так как MySQL сам проверит дубликат при вставке
-                    } else {
-                        $checkStmt->bind_param('s', $loginValue);
-                        if ($checkStmt->execute()) {
-                            $result = $checkStmt->get_result();
-                            
-                            if ($result && $result->num_rows > 0) {
-                                $checkStmt->close();
-                                Logger::debug('CREATE ACCOUNTS BULK: Дубликат найден при проверке', [
-                                    'row' => $rowNum + 1,
-                                    'login' => $loginValue,
-                                    'duplicate_action' => $duplicateAction
-                                ]);
-                                
-                                if ($duplicateAction === 'error') {
-                                    $errors[] = [
-                                        'row' => $rowNum + 1,
-                                        'message' => "Account with login '{$loginValue}' already exists"
-                                    ];
-                                } else {
-                                    $skipped++;
-                                    Logger::debug('CREATE ACCOUNTS BULK: Дубликат пропущен (skip)', [
-                                        'row' => $rowNum + 1,
-                                        'login' => $loginValue
-                                    ]);
-                                }
-                                continue;
-                            }
-                        } else {
-                            Logger::warning('CREATE ACCOUNTS BULK: Ошибка выполнения проверки дубликатов', [
-                                'row' => $rowNum + 1,
-                                'error' => $checkStmt->error
-                            ]);
-                        }
-                        $checkStmt->close();
-                    }
-                    
-                    // Фильтруем и нормализуем данные (аналогично createAccount)
+                    // Фильтруем и нормализуем данные СНАЧАЛА (для использования в update)
                     $allowedFields = [];
                     $fieldData = [];
                     
@@ -1199,7 +1277,64 @@ class AccountsRepository {
                             'row' => $rowNum + 1,
                             'message' => 'No valid fields to insert'
                         ];
+                        $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                         continue;
+                    }
+                    
+                    // ОПТИМИЗАЦИЯ: Проверяем дубликаты в массиве (вместо SQL запроса для каждой строки)
+                    // Normalize login to lowercase for case-insensitive comparison
+                    $loginKey = strtolower($loginValue);
+                    $isDuplicate = isset($existingLogins[$loginKey]);
+                    
+                    if ($isDuplicate) {
+                        Logger::debug('CREATE ACCOUNTS BULK: Дубликат найден', [
+                            'row' => $rowNum + 1,
+                            'login' => $loginValue,
+                            'duplicate_action' => $duplicateAction
+                        ]);
+                        
+                        if ($duplicateAction === 'error') {
+                            $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
+                            $errors[] = [
+                                'row' => $rowNum + 1,
+                                'message' => "Account with login '{$loginValue}' already exists"
+                            ];
+                            continue;
+                        } elseif ($duplicateAction === 'update') {
+                            // Обновляем существующую запись
+                            try {
+                                $this->updateAccountByLogin($loginValue, $data, $allowedFields, $fieldData);
+                                $conn->release_savepoint($batchSpName);
+                                $updated++;
+                                $updatedLogins[] = $loginValue;
+                                Logger::info('CREATE ACCOUNTS BULK: Запись обновлена', [
+                                    'row' => $rowNum + 1,
+                                    'login' => $loginValue
+                                ]);
+                            } catch (Exception $updateError) {
+                                $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
+                                $errors[] = [
+                                    'row' => $rowNum + 1,
+                                    'message' => 'Failed to update: ' . $updateError->getMessage()
+                                ];
+                            }
+                            continue;
+                        } else {
+                            // skip mode - пропускаем дубликат
+                            $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
+                            $skipped++;
+                            $skippedDetails[] = [
+                                'row' => $rowNum + 1,
+                                'login' => $loginValue,
+                                'reason' => 'Duplicate login',
+                                'message' => "Аккаунт с логином '{$loginValue}' уже существует в базе данных"
+                            ];
+                            Logger::debug('CREATE ACCOUNTS BULK: Дубликат пропущен (skip)', [
+                                'row' => $rowNum + 1,
+                                'login' => $loginValue
+                            ]);
+                            continue;
+                        }
                     }
                     
                     // Формируем и выполняем INSERT
@@ -1213,6 +1348,7 @@ class AccountsRepository {
                             'row' => $rowNum + 1,
                             'message' => 'Failed to prepare insert statement: ' . $conn->error
                         ];
+                        $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                         continue;
                     }
                     
@@ -1234,20 +1370,35 @@ class AccountsRepository {
                     }
                     
                     if (count($paramValues) > 0) {
-                        $stmt->bind_param($paramTypes, ...$paramValues);
+                        if (!$stmt->bind_param($paramTypes, ...$paramValues)) {
+                            $error = $stmt->error;
+                            $errorCode = $stmt->errno;
+                            $stmt->close();
+                            $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
+                            Logger::error('CREATE ACCOUNTS BULK: Failed to bind parameters', [
+                                'row' => $rowNum + 1,
+                                'error_code' => $errorCode,
+                                'error' => $error
+                            ]);
+                            $errors[] = [
+                                'row' => $rowNum + 1,
+                                'message' => 'Failed to bind parameters: ' . $error
+                            ];
+                            continue;
+                        }
                     }
-                    
+
                     if (!$stmt->execute()) {
                         $error = $stmt->error;
                         $errorCode = $stmt->errno; // Исправлено: используем errno от statement, а не от connection
                         $stmt->close();
-                        
+
                         // Проверяем, является ли ошибка дубликатом уникального ключа (error code 1062)
                         // или нарушением уникального индекса (error code 1169)
-                        $isDuplicateError = ($errorCode === 1062 || $errorCode === 1169) || 
+                        $isDuplicateError = ($errorCode === 1062 || $errorCode === 1169) ||
                                            (stripos($error, 'Duplicate entry') !== false) ||
                                            (stripos($error, 'duplicate') !== false && stripos($error, 'login') !== false);
-                        
+
                         Logger::info('CREATE ACCOUNTS BULK: Ошибка при вставке', [
                             'row' => $rowNum + 1,
                             'login' => $loginValue,
@@ -1257,7 +1408,10 @@ class AccountsRepository {
                             'is_duplicate' => $isDuplicateError,
                             'duplicate_action' => $duplicateAction
                         ]);
-                        
+
+                        // откат только этой строки через savepoint
+                        $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
+
                         if ($isDuplicateError) {
                             // Это дубликат login - обрабатываем в зависимости от duplicateAction
                             if ($duplicateAction === 'error') {
@@ -1272,6 +1426,12 @@ class AccountsRepository {
                             } else {
                                 // Пропускаем дубликат
                                 $skipped++;
+                                $skippedDetails[] = [
+                                    'row' => $rowNum + 1,
+                                    'login' => $loginValue,
+                                    'reason' => 'Duplicate login (INSERT)',
+                                    'message' => "Аккаунт с логином '{$loginValue}' уже существует в базе данных"
+                                ];
                                 Logger::info('CREATE ACCOUNTS BULK: Дубликат пропущен (skip mode)', [
                                     'row' => $rowNum + 1,
                                     'login' => $loginValue
@@ -1294,11 +1454,26 @@ class AccountsRepository {
                     
                     $newId = (int)$conn->insert_id;
                     $stmt->close();
-                    
+
+                    // Фиксируем savepoint этой строки (данные войдут в батч-коммит)
+                    $conn->release_savepoint($batchSpName);
+
                     $created++;
                     $createdIds[] = $newId;
+
+                    // Обновляем кеш существующих логинов для корректной обработки дубликатов внутри файла
+                    $existingLogins[$loginKey] = true;
+                    
+                    Logger::debug('CREATE ACCOUNTS BULK: Строка успешно добавлена', [
+                        'row' => $rowNum + 1,
+                        'id' => $newId,
+                        'login' => $loginValue
+                    ]);
                     
                 } catch (Exception $e) {
+                    // Откатываем только эту строку, остальные в батче сохраняются
+                    $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
+                    
                     Logger::error('CREATE ACCOUNTS BULK: Исключение при обработке строки', [
                         'row' => $rowNum + 1,
                         'error' => $e->getMessage(),
@@ -1308,33 +1483,220 @@ class AccountsRepository {
                         'row' => $rowNum + 1,
                         'message' => $e->getMessage()
                     ];
-                    // Не прерываем выполнение, продолжаем обработку остальных строк
+                    // Продолжаем обработку остальных строк
                 }
             }
-            
-            // Коммитим транзакцию
+        
+        // Коммитим последний открытый батч
+        if ($batchTxOpen) {
             $conn->commit();
+        }
             
             // Очищаем кэш после создания
             $this->db->clearCache();
             
             Logger::info('Bulk account creation completed', [
                 'created' => $created,
+                'updated' => $updated,
                 'skipped' => $skipped,
+                'skipped_details_count' => count($skippedDetails),
                 'errors' => count($errors),
                 'total' => count($accountsData)
             ]);
             
             return [
                 'created' => $created,
+                'updated' => $updated,
                 'skipped' => $skipped,
+                'skipped_details' => $skippedDetails, // НОВОЕ: Детали пропущенных
                 'errors' => $errors,
-                'created_ids' => $createdIds
+                'created_ids' => $createdIds,
+                'updated_logins' => $updatedLogins
             ];
+    }
+    
+    /**
+     * Получает список существующих логинов для проверки дубликатов
+     * ОПТИМИЗАЦИЯ: Один запрос вместо N запросов
+     * 
+     * @param array $accountsData Массив данных аккаунтов
+     * @return array Ассоциативный массив [login => true] для быстрой проверки
+     */
+    private function getExistingLogins(array $accountsData): array {
+        if (empty($accountsData)) {
+            return [];
+        }
+        
+        $conn = $this->db->getConnection();
+        
+        // Собираем все логины из данных
+        $loginsToCheck = [];
+        foreach ($accountsData as $data) {
+            $login = isset($data['login']) ? trim((string)$data['login']) : '';
+            if (!empty($login)) {
+                $loginsToCheck[] = $login;
+            }
+        }
+        
+        if (empty($loginsToCheck)) {
+            return [];
+        }
+        
+        // Удаляем дубликаты из списка проверки
+        $loginsToCheck = array_unique($loginsToCheck);
+        
+        // Формируем SQL с IN (...)
+        $placeholders = implode(',', array_fill(0, count($loginsToCheck), '?'));
+        // Проверяем только среди активных (не удалённых) аккаунтов
+        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $sql = "SELECT login FROM {$this->table} WHERE login IN ($placeholders)$softDeleteClause";
+        
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) {
+            Logger::warning('GET EXISTING LOGINS: Ошибка подготовки запроса', [
+                'error' => $conn->error
+            ]);
+            return [];
+        }
+        
+        // Привязываем параметры
+        $types = str_repeat('s', count($loginsToCheck));
+        $stmt->bind_param($types, ...$loginsToCheck);
+        
+        if (!$stmt->execute()) {
+            Logger::warning('GET EXISTING LOGINS: Ошибка выполнения запроса', [
+                'error' => $stmt->error
+            ]);
+            $stmt->close();
+            return [];
+        }
+        
+        $result = $stmt->get_result();
+        $existingLogins = [];
+
+        while ($row = $result->fetch_assoc()) {
+            // Normalize to lowercase for case-insensitive comparison (MySQL collation is typically case-insensitive)
+            $loginKey = strtolower($row['login']);
+            $existingLogins[$loginKey] = true;
+        }
+        
+        $stmt->close();
+        
+        Logger::debug('GET EXISTING LOGINS: Найдено существующих логинов', [
+            'total_checked' => count($loginsToCheck),
+            'existing_count' => count($existingLogins)
+        ]);
+        
+        return $existingLogins;
+    }
+    
+    /**
+     * Обновляет существующий аккаунт по логину
+     * Используется при duplicate_action = 'update'
+     * 
+     * @param string $login Логин аккаунта для обновления
+     * @param array $data Исходные данные
+     * @param array $allowedFields Список полей для обновления
+     * @param array $fieldData Нормализованные данные полей
+     * @throws Exception При ошибках обновления
+     */
+    private function updateAccountByLogin(string $login, array $data, array &$allowedFields, array &$fieldData): void {
+        // Повторно фильтруем и нормализуем данные (на случай если это вызвано до основной обработки)
+        if (empty($allowedFields)) {
+            $allowedFields = [];
+            $fieldData = [];
             
-        } catch (Exception $e) {
-            $conn->rollback();
-            throw $e;
+            foreach ($data as $field => $value) {
+                if (in_array($field, ['id', 'created_at', 'updated_at', 'deleted_at'], true)) {
+                    continue;
+                }
+                
+                if (!$this->metadata->columnExists($field)) {
+                    continue;
+                }
+                
+                try {
+                    $normalized = $this->normalizeValueByColumnType($field, $value);
+                    $allowedFields[] = $field;
+                    $fieldData[$field] = $normalized;
+                } catch (InvalidArgumentException $e) {
+                    continue;
+                }
+            }
+        }
+        
+        if (empty($allowedFields)) {
+            throw new Exception('No valid fields to update');
+        }
+        
+        // Формируем SET часть запроса
+        $setParts = [];
+        foreach ($allowedFields as $field) {
+            if ($field === 'login') {
+                // Не обновляем login (это ключ для поиска)
+                continue;
+            }
+            $setParts[] = "`{$field}` = ?";
+        }
+        
+        if (empty($setParts)) {
+            throw new Exception('No fields to update (only login provided)');
+        }
+        
+        $setClause = implode(', ', $setParts);
+        // Обновляем только активные (не удалённые) аккаунты
+        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
+        $sql = "UPDATE {$this->table} SET {$setClause} WHERE login = ?$softDeleteClause";
+        
+        $conn = $this->db->getConnection();
+        $stmt = $conn->prepare($sql);
+        
+        if (!$stmt) {
+            throw new Exception('Failed to prepare update statement: ' . $conn->error);
+        }
+        
+        // Привязываем параметры
+        $paramTypes = '';
+        $paramValues = [];
+        
+        foreach ($allowedFields as $field) {
+            if ($field === 'login') {
+                continue;
+            }
+            
+            $normalized = $fieldData[$field];
+            $val = $normalized['value'];
+            
+            if ($val === null) {
+                $paramTypes .= 's';
+                $paramValues[] = null;
+            } else {
+                $paramTypes .= $normalized['type'];
+                $paramValues[] = $val;
+            }
+        }
+        
+        // Добавляем login в конец (для WHERE)
+        $paramTypes .= 's';
+        $paramValues[] = $login;
+        
+        if (count($paramValues) > 0) {
+            $stmt->bind_param($paramTypes, ...$paramValues);
+        }
+        
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new Exception('Failed to execute update: ' . $error);
+        }
+        
+        $affectedRows = $stmt->affected_rows;
+        $stmt->close();
+        
+        if ($affectedRows === 0) {
+            Logger::warning('UPDATE ACCOUNT BY LOGIN: No rows affected', [
+                'login' => $login
+            ]);
         }
     }
 }

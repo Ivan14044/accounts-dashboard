@@ -153,12 +153,17 @@ class DOMCache {
   }
   
   /**
-   * Очистка при уничтожении
+   * Очистка при уничтожении — останавливает TTL-интервал и MutationObserver,
+   * чтобы не было утечек при HMR/перезапуске контроллера.
    */
   destroy() {
     if (this._ttlInterval) {
       clearInterval(this._ttlInterval);
       this._ttlInterval = null;
+    }
+    if (this._mutationObserver) {
+      try { this._mutationObserver.disconnect(); } catch (_) {}
+      this._mutationObserver = null;
     }
     this.invalidate();
   }
@@ -178,7 +183,10 @@ if (typeof MutationObserver !== 'undefined') {
       domCache.collections.clear();
     }
   });
-  
+
+  // Сохраняем ссылку на экземпляре, чтобы destroy() мог её отключить.
+  domCache._mutationObserver = observer;
+
   // Наблюдаем только за основными изменениями структуры
   if (document.body) {
     observer.observe(document.body, {

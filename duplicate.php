@@ -8,17 +8,35 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/includes/AccountsService.php';
 require_once __DIR__ . '/includes/Utils.php';
 require_once __DIR__ . '/includes/Logger.php';
+require_once __DIR__ . '/includes/Database.php';
 
 try {
     requireAuth();
     checkSessionTimeout();
-    
+
     require_once __DIR__ . '/includes/Validator.php';
     require_once __DIR__ . '/includes/ErrorHandler.php';
+
+    // Только POST-запросы с CSRF-токеном
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        echo json_encode(['success' => false, 'error' => 'Method Not Allowed. Use POST.']);
+        exit;
+    }
+
+    // Читаем JSON body (с ограничением размера)
+    $input = read_json_input(1048576); // 1MB максимум
+    if (!is_array($input)) $input = [];
+    $csrfToken = $input['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!verifyCsrfToken($csrfToken)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Invalid CSRF token']);
+        exit;
+    }
+
+    $id = Validator::validateId($input['id'] ?? '0');
     
-    $id = Validator::validateId(get_param('id', '0'));
-    
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     $account = $service->getAccountById($id);
     
     if (!$account) {
@@ -40,15 +58,22 @@ try {
         }
     }
     
-    // Если есть поле login, добавляем суффикс "(копия)"
+    // Если есть поле login, добавляем суффикс "(копия)", не превышая лимит поля
     if (!empty($newAccount['login'])) {
-        $newAccount['login'] = $newAccount['login'] . ' (копия)';
+        $suffix = ' (копия)';
+        $maxLen = 255;
+        $login = $newAccount['login'];
+        // Убираем предыдущие суффиксы "(копия)" чтобы не накапливались
+        $login = preg_replace('/\s*\(копия\)(\s*\(копия\))*$/u', '', $login);
+        if (mb_strlen($login . $suffix, 'UTF-8') > $maxLen) {
+            $login = mb_substr($login, 0, $maxLen - mb_strlen($suffix, 'UTF-8'), 'UTF-8');
+        }
+        $newAccount['login'] = $login . $suffix;
     }
     
     // Вставляем новую запись
-    global $mysqli;
+    $mysqli = Database::getInstance()->getConnection();
     $columns = array_keys($newAccount);
-    $placeholders = array_map(function($col) { return '`' . $col . '` = ?'; }, $columns);
     $values = array_values($newAccount);
     
     $sql = "INSERT INTO `accounts` (`" . implode('`, `', $columns) . "`) VALUES (" . implode(', ', array_fill(0, count($values), '?')) . ")";
@@ -59,13 +84,18 @@ try {
     }
     
     // Определяем типы параметров на основе метаданных колонок
+    // NULL-значения всегда привязываем как 's' (строка) — mysqli корректно передаёт NULL для любого типа
     $types = '';
-    foreach ($columns as $col) {
-        if (!isset($columnMetadata[$col])) {
-            $types .= 's'; // По умолчанию строка
+    foreach ($columns as $idx => $col) {
+        if ($values[$idx] === null) {
+            $types .= 's';
             continue;
         }
-        
+        if (!isset($columnMetadata[$col])) {
+            $types .= 's';
+            continue;
+        }
+
         $colType = strtolower($columnMetadata[$col]['type'] ?? '');
         if (preg_match('/(int|tinyint|smallint|mediumint|bigint)/', $colType)) {
             $types .= 'i';
@@ -75,12 +105,13 @@ try {
             $types .= 's';
         }
     }
-    
+
     $stmt->bind_param($types, ...$values);
     
     if (!$stmt->execute()) {
+        $error = $stmt->error;
         $stmt->close();
-        throw new Exception('Failed to duplicate account: ' . $stmt->error);
+        throw new Exception('Failed to duplicate account: ' . $error);
     }
     
     $newId = $mysqli->insert_id;

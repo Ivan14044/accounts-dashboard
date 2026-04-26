@@ -4,6 +4,13 @@
  * Запускать: php build_assets.php
  */
 
+// Проверяем авторизацию (если запускается через веб)
+if (php_sapi_name() !== 'cli') {
+    require_once __DIR__ . '/config.php';
+    require_once __DIR__ . '/auth.php';
+    requireAuth();
+}
+
 // Создаем директорию для собранных файлов
 $buildDir = __DIR__ . '/assets/build';
 if (!is_dir($buildDir)) {
@@ -12,20 +19,11 @@ if (!is_dir($buildDir)) {
 
 // Порядок загрузки CSS файлов (важно для каскадности)
 $cssFiles = [
-    'assets/css/minimal-design-system.css',
-    'assets/css/minimal-components.css',
-    'assets/css/minimal-layout.css',
-    'assets/css/minimal-overrides.css',
-    'assets/css/minimal-performance.css',
-    'assets/css/design-system.css',
-    'assets/css/components-unified.css',
-    'assets/css/filters-modern.css',
-    'assets/css/toast.css',
-    'assets/css/modern-header.css',
-    'assets/css/sticky-scrollbar.css',
-    'assets/css/unified-theme.css',
-    'assets/css/table-core.css',
-    'assets/css/table-theme.css',
+    'assets/css/core-base.css',
+    'assets/css/core-components.css',
+    'assets/css/core-plugins.css',
+    'assets/css/core-theme.css',
+    'assets/css/core-tables.css',
 ];
 
 // Порядок загрузки JS файлов

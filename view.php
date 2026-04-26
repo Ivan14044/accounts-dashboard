@@ -13,7 +13,7 @@ $id = (int)get_param('id', '0');
 if ($id <= 0) { http_response_code(400); exit('Bad id'); }
 
 // Получаем всю строку через сервис
-$service = new AccountsService();
+$service = new AccountsService($tableName);
 $row = $service->getAccountById($id);
 
 if (!$row) { http_response_code(404); exit('Not found'); }
@@ -26,11 +26,11 @@ sort($rest, SORT_NATURAL|SORT_FLAG_CASE);
 $ordered = array_values(array_unique(array_merge($priority, $rest)));
 
 // Грубая попытка распознать "длинные" поля
-$longLike = ['token','cookies','user_agent','extra_info_1','extra_info_2','extra_info_3','extra_info_4','social_url'];
+$longLike = ['token','cookies','first_cookie','user_agent','extra_info_1','extra_info_2','extra_info_3','extra_info_4','social_url'];
 
 // Определяем класс статуса для бейджа
 function getStatusClass($status) {
-    $status = strtolower($status);
+    $status = strtolower((string)($status ?? ''));
     if (strpos($status, 'new') !== false) return 'bg-secondary';
     if (strpos($status, 'add_selphi_true') !== false) return 'bg-success';
     if (strpos($status, 'error') !== false) return 'bg-danger';
@@ -47,271 +47,268 @@ function getStatusClass($status) {
   <title>Account #<?= (int)$row['id'] ?> - Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-  <link href="assets/css/unified-theme.css?v=<?= time() ?>" rel="stylesheet">
+  <link href="assets/css/core-base.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
+  <link href="assets/css/core-components.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
+  <link href="assets/css/core-plugins.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
+  <link href="assets/css/core-theme.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <style>
-    :root {
-      --bs-primary-rgb: 13, 110, 253;
-      --bs-secondary-rgb: 108, 117, 125;
-      --bs-success-rgb: 25, 135, 84;
-      --bs-danger-rgb: 220, 53, 69;
-      --bs-warning-rgb: 255, 193, 7;
-      --bs-info-rgb: 13, 202, 240;
-    }
-    
+    /* Premium View Layout */
     body { 
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      background: var(--bg-body);
       min-height: 100vh;
     }
     
-    .navbar {
-      background: rgba(255, 255, 255, 0.95) !important;
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid rgba(0,0,0,0.1);
-      box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+    .account-header {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-2xl);
+      padding: var(--space-8);
+      margin-bottom: var(--space-6);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-xl);
     }
     
-         .card {
-       border: 1px solid #e9ecef;
-       border-radius: 8px;
-       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-       transition: box-shadow 0.2s ease;
-     }
-     
-     .card:hover {
-       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-     }
+    .account-header::before {
+      content: '';
+      position: absolute;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
     
-         .field-row {
-       display: grid;
-       grid-template-columns: 280px 1fr;
-       gap: 1rem;
-       padding: 1rem;
-       border-bottom: 1px solid #f1f3f4;
-       transition: background-color 0.2s ease;
-     }
-     
-     .field-row:hover {
-       background: rgba(13, 110, 253, 0.01);
-     }
+    .account-id {
+      position: relative;
+      z-index: 1;
+      font-size: 3.5rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: var(--space-2);
+      filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.2));
+    }
+    
+    .account-title {
+      position: relative;
+      z-index: 1;
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--gray-800);
+      margin-bottom: var(--space-2);
+    }
+    
+    .account-subtitle {
+      position: relative;
+      z-index: 1;
+      color: var(--gray-500);
+      font-size: 1.1rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-3);
+    }
+    
+    .toolbar-view {
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(12px);
+      border-radius: var(--radius-xl);
+      padding: var(--space-4) var(--space-6);
+      margin-bottom: var(--space-6);
+      border: 1px solid var(--border-light);
+      box-shadow: var(--shadow-md);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+    }
+    
+    .details-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-2xl);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+    }
+    
+    .field-row {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: var(--space-4);
+      padding: var(--space-4) var(--space-6);
+      border-bottom: 1px solid var(--border-light);
+      transition: all 0.2s ease;
+    }
+    
+    .field-row:hover {
+      background: var(--primary-50);
+    }
     
     .field-row:last-child {
       border-bottom: none;
     }
     
     .field-label {
-      color: #6c757d;
+      color: var(--gray-600);
       font-weight: 600;
-      font-size: 0.875rem;
+      font-size: 0.8125rem;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    
+    .field-label i {
+      color: var(--primary-400);
+      font-size: 1.1rem;
+      width: 20px;
+      text-align: center;
     }
     
     .field-value {
+      color: var(--gray-800);
+      font-weight: 500;
       word-break: break-word;
-      line-height: 1.5;
+      line-height: 1.6;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: var(--space-3);
     }
     
-         .field-value .mono {
-       font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-       background: #f8f9fa;
-       padding: 0.5rem;
-       border-radius: 8px;
-       border: 1px solid #e9ecef;
-       font-size: 0.875rem;
-       white-space: pre-wrap;
-       word-break: break-word;
-       max-width: 100%;
-       overflow-wrap: break-word;
-     }
-    
-    .btn {
-      border-radius: 12px;
-      font-weight: 600;
-      transition: all 0.3s ease;
-      padding: 0.5rem 1.25rem;
-    }
-    
-         .btn:hover {
-       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-     }
-    
-    .btn-primary {
-      background: linear-gradient(135deg, var(--bs-primary), #6366f1);
-      border: none;
-    }
-    
-    .btn-outline-primary {
-      border: 2px solid var(--bs-primary);
-      color: var(--bs-primary);
-    }
-    
-    .btn-outline-primary:hover {
-      background: linear-gradient(135deg, var(--bs-primary), #6366f1);
-      border-color: transparent;
+    .field-value .mono {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      background: rgba(244, 244, 245, 0.8);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-medium);
+      font-size: 0.85rem;
+      color: var(--gray-700);
+      white-space: pre-wrap;
+      word-break: break-all;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
     }
     
     .copy-btn {
-      border: none;
-      background: rgba(13, 110, 253, 0.1);
-      color: var(--bs-primary);
-      padding: 0.375rem 0.75rem;
-      border-radius: 8px;
-      font-size: 0.875rem;
+      border: 1px solid var(--primary-200);
+      background: var(--primary-50);
+      color: var(--primary-600);
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-md);
+      font-size: 0.8rem;
       cursor: pointer;
       transition: all 0.2s ease;
-      margin-left: 0.5rem;
-    }
-    
-         .copy-btn:hover {
-       background: rgba(13, 110, 253, 0.2);
-     }
-    
-    .pw-mask {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    
+    .copy-btn:hover {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 6px rgba(99, 102, 241, 0.2);
+    }
+    
+    .pw-mask {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
     }
     
     .pw-dots {
-      letter-spacing: 0.2em;
-      font-weight: 600;
-      color: #6c757d;
-      font-size: 1.1rem;
+      font-family: monospace;
+      letter-spacing: 3px;
+      font-size: 1.2rem;
+      margin-top: 4px;
+      color: var(--gray-500);
     }
     
     .pw-toggle {
       border: none;
       background: transparent;
-      padding: 0.5rem;
-      border-radius: 8px;
+      color: var(--gray-400);
       cursor: pointer;
-      transition: all 0.2s ease;
-      color: #6c757d;
+      padding: var(--space-1);
+      border-radius: var(--radius-sm);
+      transition: 0.2s;
     }
     
     .pw-toggle:hover {
-      background: rgba(0,0,0,0.1);
-      color: var(--bs-primary);
+      color: var(--primary);
+      background: var(--primary-50);
     }
     
     .status-badge {
-      font-size: 0.875rem;
-      font-weight: 600;
-      padding: 0.5rem 1rem;
-      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-full);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.05em;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     
     .empty-value {
-      color: #adb5bd;
+      color: var(--gray-400);
       font-style: italic;
     }
-    
-         .account-header {
-       background: #fff;
-       border-radius: 8px;
-       padding: 2rem;
-       margin-bottom: 2rem;
-       text-align: center;
-       border: 1px solid #e9ecef;
-       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-     }
-    
-    .account-id {
-      font-size: 3rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, var(--bs-primary), #6366f1);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      margin-bottom: 1rem;
-    }
-    
-    .account-title {
-      font-size: 1.5rem;
-      font-weight: 600;
-      color: #495057;
-      margin-bottom: 0.5rem;
-    }
-    
-    .account-subtitle {
-      color: #6c757d;
-      font-size: 1.1rem;
-    }
-    
-         .toolbar {
-       background: white;
-       border-radius: 8px;
-       padding: 1.5rem;
-       margin-bottom: 2rem;
-       border: 1px solid #e9ecef;
-       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-     }
-    
-    .toolbar .btn-group {
-      gap: 0.5rem;
-    }
-    
+
     @media (max-width: 768px) {
       .field-row {
         grid-template-columns: 1fr;
-        gap: 0.5rem;
+        gap: var(--space-2);
+        padding: var(--space-4);
       }
-      
-      .field-label {
-        font-size: 0.8rem;
-      }
-      
-      .account-header {
-        padding: 1.5rem;
-      }
-      
-      .account-id {
-        font-size: 2rem;
-      }
-      
-      .toolbar {
-        padding: 1rem;
-      }
-      
-      .toolbar .btn-group {
-        flex-direction: column;
-        width: 100%;
-      }
-      
-      .toolbar .btn {
-        width: 100%;
-        margin-bottom: 0.5rem;
-      }
+      .account-header { padding: var(--space-5) var(--space-4); }
+      .account-id { font-size: 2.5rem; }
+      .toolbar-view { flex-direction: column; align-items: stretch; text-align: center; }
+      .toolbar-view .btn-group { flex-direction: column; width: 100%; gap: var(--space-2); }
+      .toolbar-view .btn-group .btn { border-radius: var(--radius-lg) !important; width: 100%; }
     }
   </style>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-light">
-  <div class="container-fluid">
+<nav class="navbar navbar-expand bg-white border-bottom shadow-sm mb-4" style="height: 64px;">
+  <div class="container-fluid px-4">
     <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="index.php">
       <i class="fas fa-chart-line text-primary"></i>
       Dashboard
     </a>
-         <div class="ms-auto d-flex gap-2 align-items-center">
-       <span class="text-muted me-3">
-         <i class="fas fa-user me-1"></i><?= htmlspecialchars(getCurrentUser()) ?>
-       </span>
-       <button class="btn btn-outline-secondary" id="copyJsonBtn">
-         <i class="fas fa-copy me-2"></i>Скопировать JSON
-       </button>
-       <a class="btn btn-primary" id="downloadJsonBtn" download="account_<?= (int)$row['id'] ?>.json">
-         <i class="fas fa-download me-2"></i>Скачать JSON
-       </a>
-       <a class="btn btn-outline-danger" href="logout.php" title="Выйти из системы">
-         <i class="fas fa-sign-out-alt"></i>
-       </a>
-     </div>
+    <div class="ms-auto d-flex gap-2 gap-md-3 align-items-center">
+      <span class="text-muted small fw-medium d-none d-sm-inline-block">
+        <i class="fas fa-user-circle me-1 text-primary"></i>
+        <?= htmlspecialchars(getCurrentUser()) ?>
+      </span>
+      <div class="vr mx-1 d-none d-sm-block"></div>
+      <button class="btn btn-sm btn-outline-secondary rounded-pill" id="copyJsonBtn" title="Скопировать JSON">
+        <i class="fas fa-copy"></i>
+      </button>
+      <a class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm d-none d-sm-inline-flex align-items-center gap-1" id="downloadJsonBtn" download="account_<?= (int)$row['id'] ?>.json">
+        <i class="fas fa-download"></i> JSON
+      </a>
+      <div class="vr mx-1"></div>
+      <form method="POST" action="logout.php" style="margin:0;display:inline">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(getCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+        <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle" title="Выйти из системы" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fas fa-sign-out-alt"></i>
+        </button>
+      </form>
+    </div>
   </div>
 </nav>
 
@@ -346,36 +343,32 @@ function getStatusClass($status) {
   </div>
 
   <!-- Toolbar -->
-  <div class="toolbar">
-    <div class="row align-items-center">
-      <div class="col-md-6">
-        <h5 class="mb-0">
-          <i class="fas fa-info-circle me-2 text-primary"></i>
-          Детальная информация
-        </h5>
+  <div class="toolbar-view">
+    <div class="d-flex align-items-center gap-2">
+      <div style="width: 40px; height: 40px; border-radius: 12px; background: var(--primary-50); color: var(--primary); display: flex; align-items: center; justify-content: center;">
+        <i class="fas fa-info-circle fs-5"></i>
       </div>
-      <div class="col-md-6 text-end">
-        <div class="btn-group" role="group">
-          <a href="history.php?id=<?= (int)$row['id'] ?>" class="btn btn-outline-secondary">
-            <i class="fas fa-history me-2"></i>История
-          </a>
-          <button class="btn btn-outline-warning" id="duplicateAccountBtn" onclick="duplicateAccount()">
-            <i class="fas fa-copy me-2"></i>Дублировать
-          </button>
-          <button class="btn btn-outline-success" onclick="copyAllPasswords()">
-            <i class="fas fa-key me-2"></i>Копировать пароли
-          </button>
-          <button class="btn btn-outline-info" onclick="copyAllData()">
-            <i class="fas fa-copy me-2"></i>Копировать всё
-          </button>
-        </div>
-      </div>
+      <h5 class="mb-0 fw-bold" style="color: var(--gray-800);">Детальная информация</h5>
+    </div>
+    <div class="btn-group shadow-sm rounded-pill" role="group">
+      <a href="history.php?id=<?= (int)$row['id'] ?>" class="btn btn-sm btn-white border px-3 rounded-start-pill text-gray-700 hover-bg-gray-50">
+        <i class="fas fa-history me-1 text-gray-500"></i> История
+      </a>
+      <button class="btn btn-sm btn-white border-top border-bottom border-end-0 px-3 text-warning hover-bg-gray-50" id="duplicateAccountBtn" onclick="duplicateAccount()">
+        <i class="fas fa-copy me-1"></i> Дублировать
+      </button>
+      <button class="btn btn-sm btn-white border px-3 text-success hover-bg-gray-50" onclick="copyAllPasswords()">
+        <i class="fas fa-key me-1"></i> Все пароли
+      </button>
+      <button class="btn btn-sm btn-primary rounded-end-pill px-3 fw-semibold" onclick="copyAllData()">
+        <i class="fas fa-clipboard-list me-1"></i> Копировать всё
+      </button>
     </div>
   </div>
 
   <!-- Детали аккаунта -->
-  <div class="card">
-    <div class="card-body p-0">
+  <div class="details-card">
+    <div class="p-0">
       <?php foreach ($ordered as $k): if (!array_key_exists($k, $row)) continue;
           $v = $row[$k];
           $isLong = in_array($k, $longLike, true) || (is_string($v) && strlen($v) > 200);
@@ -632,18 +625,26 @@ document.addEventListener('DOMContentLoaded', function() {
 // Дублирование аккаунта
 async function duplicateAccount() {
   const accountId = <?= (int)$row['id'] ?>;
-  
+  const csrfToken = <?= json_encode(getCsrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+
   if (!confirm('Создать копию этого аккаунта?')) {
     return;
   }
-  
+
+  // Блокируем кнопку от повторных кликов
+  const btn = document.getElementById('duplicateAccountBtn');
+  if (btn) { btn.disabled = true; btn.classList.add('disabled'); }
+
   try {
-    const response = await fetch('duplicate.php?id=' + accountId, {
-      method: 'GET',
+    const response = await fetch('duplicate.php', {
+      method: 'POST',
       credentials: 'same-origin',
       headers: {
-        'X-Requested-With': 'XMLHttpRequest'
-      }
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Token': csrfToken
+      },
+      body: JSON.stringify({ id: accountId, csrf_token: csrfToken })
     });
     
     if (!response.ok) {
@@ -668,15 +669,14 @@ async function duplicateAccount() {
     }
   } catch (error) {
     console.error('Duplicate error:', error);
-    if (typeof showToast === 'function') {
-      showToast('Ошибка при копировании аккаунта: ' + error.message, 'error');
-    } else {
-      alert('Ошибка при копировании аккаунта: ' + error.message);
-    }
+    showToast('Ошибка при копировании аккаунта: ' + error.message, 'error');
+  } finally {
+    // Разблокируем кнопку
+    if (btn) { btn.disabled = false; btn.classList.remove('disabled'); }
   }
 }
 </script>
-<script src="assets/js/favorites.js?v=<?= time() ?>"></script>
+<script src="assets/js/favorites.js?v=<?= ASSETS_VERSION ?>"></script>
 </body>
 </html>
 

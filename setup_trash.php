@@ -6,6 +6,8 @@
 
 // Загружаем конфигурацию
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/auth.php';
+requireAuth();
 
 echo "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Настройка корзины</title>";
 echo "<style>body{font-family:Arial;max-width:800px;margin:50px auto;padding:20px;}";
@@ -14,9 +16,10 @@ echo "pre{background:#f5f5f5;padding:10px;border-radius:5px;}</style></head><bod
 echo "<h1>🔧 Настройка функционала корзины</h1>";
 
 try {
-    global $mysqli;
-    
-    if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
+    require_once __DIR__ . '/includes/Database.php';
+    $mysqli = Database::getInstance()->getConnection();
+
+    if (!($mysqli instanceof mysqli)) {
         throw new Exception('Подключение к БД не установлено');
     }
     

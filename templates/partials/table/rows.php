@@ -20,6 +20,7 @@
         <?php if ($k === 'id'): ?>
           <td class="ac-cell ac-cell--id" data-col="<?= e($k) ?>" data-column="<?= e($k) ?>">
             <span class="fw-bold text-primary">#<?= (int)$v ?></span>
+            <button type="button" class="copy-btn" data-copy-text="<?= (int)$v ?>" title="Копировать"><i class="fas fa-copy"></i></button>
           </td>
           <td class="ac-cell ac-cell--favorite favorite-cell text-center" data-column="favorite" data-account-id="<?= (int)$r['id'] ?>">
             <button 
@@ -44,6 +45,7 @@
               <button type="button" class="field-edit-btn" title="Редактировать">
                 <i class="fas fa-edit"></i>
               </button>
+              <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>
           <?php elseif ($k === 'email'): ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="text">
@@ -117,6 +119,7 @@
               <button type="button" class="field-edit-btn" title="Редактировать">
                 <i class="fas fa-edit"></i>
               </button>
+              <button type="button" class="copy-btn" data-copy-text="<?= e((string)$v) ?>" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>
           <?php elseif ($k === 'social_url' && preg_match('~^https?://~i', $v)): ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="text">
@@ -126,6 +129,7 @@
               <button type="button" class="field-edit-btn" title="Редактировать">
                 <i class="fas fa-edit"></i>
               </button>
+              <button type="button" class="copy-btn" data-copy-text="<?= e($v) ?>" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>
           <?php elseif ($isLong): ?>
             <?php $clip = mb_substr($v, 0, $CLIP_LEN, 'UTF-8') . '…'; ?>
@@ -136,6 +140,7 @@
               <button type="button" class="field-edit-btn" title="Редактировать">
                 <i class="fas fa-edit"></i>
               </button>
+              <button type="button" class="copy-btn" data-copy-text="<?= e($v) ?>" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>
           <?php else: ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="<?= e($fieldType) ?>">
@@ -143,13 +148,14 @@
               <button type="button" class="field-edit-btn" title="Редактировать">
                 <i class="fas fa-edit"></i>
               </button>
+              <button type="button" class="copy-btn" data-copy-text="<?= e((string)$v) ?>" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>
           <?php endif; ?>
         </td>
       <?php endforeach; ?>
       <td class="ac-cell ac-cell--actions text-end" data-column="actions">
-        <a class="btn btn-sm btn-outline-primary" href="view.php?id=<?= (int)$r['id'] ?>">
-          <i class="fas fa-eye me-1"></i>Открыть
+        <a class="btn-table-open" href="view.php?id=<?= (int)$r['id'] ?>">
+          <i class="fas fa-arrow-right"></i> Открыть
         </a>
       </td>
     </tr>

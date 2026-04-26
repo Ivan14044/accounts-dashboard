@@ -16,6 +16,9 @@ class Database {
     private $cacheTimeout = 300; // 5 минут
     private $maxCacheSize = 100; // Максимальное количество записей в кэше
     
+    /** @var bool Если true — подключение было создано нами, можно закрыть в __destruct */
+    private $ownsConnection = false;
+
     private function __construct() {
         // Используем уже созданное глобальное подключение из config.php, чтобы избежать дублирования соединений
         // и обеспечить единые настройки для всего приложения.
@@ -24,6 +27,7 @@ class Database {
 
         if (isset($mysqli) && $mysqli instanceof mysqli) {
             $this->mysqli = $mysqli;
+            // НЕ закрываем чужое подключение в __destruct
         } else {
             // Если глобальное подключение не установлено, проверяем параметры в сессии
             if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['db_config']) && is_array($_SESSION['db_config'])) {
@@ -42,6 +46,7 @@ class Database {
                     throw new Exception('Database connection failed');
                 }
                 $this->mysqli->set_charset($charset);
+                $this->ownsConnection = true;
             } else {
                 // Используем глобальные переменные (fallback)
                 $this->mysqli = new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME, $DB_PORT);
@@ -50,6 +55,7 @@ class Database {
                     Logger::error('DB connect failed', ['error' => $this->mysqli->connect_error]);
                     throw new Exception('Database connection failed');
                 }
+                $this->ownsConnection = true;
                 $this->mysqli->set_charset('utf8mb4');
             }
         }
@@ -59,9 +65,18 @@ class Database {
         if (!isset($this->mysqli->charset) || $this->mysqli->charset !== 'utf8mb4') {
             $this->mysqli->set_charset('utf8mb4');
         }
-        $this->mysqli->query("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'");
+        // STRICT_TRANS_TABLES убран намеренно: функциональный индекс (CAST(login AS UNSIGNED))
+        // бросает "Data truncated" в strict mode для строковых логинов ('user@email.com' etc.).
+        // Данные защищены prepared statements + PHP-валидацией в AccountsRepository.
+        // NO_ZERO_DATE и ERROR_FOR_DIVISION_BY_ZERO сохраняем для защиты дат и деления на 0.
+        $this->mysqli->query("SET SESSION sql_mode = 'NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'");
+        // innodb_lock_wait_timeout = 5 сек: если строка заблокирована другим запросом,
+        // быстро возвращаем ошибку вместо бесконечного ожидания
         $this->mysqli->query("SET SESSION innodb_lock_wait_timeout = 5");
-        $this->mysqli->query("SET SESSION max_execution_time = 30000");
+        // max_execution_time = 120 000 мс (2 мин): защита от зависших SELECT запросов.
+        // Только для SELECT — UPDATE/INSERT/DELETE этот параметр не ограничивает.
+        // Для mass_transfer.php отдельно вызывается set_time_limit(0).
+        $this->mysqli->query("SET SESSION max_execution_time = 120000");
     }
     
     /**
@@ -198,16 +213,20 @@ class Database {
     }
     
     private function setCache($key, $data, $ttl = null) {
-        // Ограничиваем размер кэша - удаляем самые старые записи
+        // Ограничиваем размер кэша - удаляем самые старые 10% записей
         if (count($this->queryCache) >= $this->maxCacheSize) {
-            // Сортируем по времени и удаляем самые старые
-            uasort($this->queryCache, function($a, $b) {
-                return $a['time'] <=> $b['time'];
+            // Удаляем самые старые 10% записей (более эффективно чем array_slice)
+            $keysToDelete = (int)ceil($this->maxCacheSize * 0.1);
+            $sortedKeys = array_keys($this->queryCache);
+            usort($sortedKeys, function($a, $b) {
+                return $this->queryCache[$a]['time'] <=> $this->queryCache[$b]['time'];
             });
-            // Оставляем только половину самых свежих
-            $this->queryCache = array_slice($this->queryCache, -($this->maxCacheSize / 2), null, true);
+            $keysToRemove = array_slice($sortedKeys, 0, $keysToDelete);
+            foreach ($keysToRemove as $k) {
+                unset($this->queryCache[$k]);
+            }
         }
-        
+
         $this->queryCache[$key] = [
             'data' => $data,
             'time' => time(),
@@ -241,14 +260,21 @@ class Database {
     }
     
     /**
-     * Проверка и создание индексов для производительности
-     * Автоматически создает необходимые индексы, если их нет
-     * 
+     * Проверка и создание индексов для производительности.
+     * Если флаг .optimization_applied есть (индексы уже применялись через apply_indexes_safe.php),
+     * проверка пропускается — иначе при каждом запросе выполняется 12+ запросов к INFORMATION_SCHEMA.
+     *
      * @return void
      */
     public function ensureIndexes(): void {
+        $flagFile = dirname(__DIR__) . '/.optimization_applied';
+        $fallbackFlag = sys_get_temp_dir() . '/dashboard_opt_' . md5(dirname(__DIR__)) . '.applied';
+        if (file_exists($flagFile) || file_exists($fallbackFlag)) {
+            return;
+        }
+
         require_once __DIR__ . '/Logger.php';
-        
+
         $indexes = [
             'accounts' => [
                 'idx_status' => 'status',
@@ -353,6 +379,12 @@ class Database {
             return false;
         }
         
+        // Кеш на уровне запроса — INFORMATION_SCHEMA не меняется между вызовами внутри одного PHP-скрипта
+        static $tableExistsCache = [];
+        if (isset($tableExistsCache[$tableName])) {
+            return $tableExistsCache[$tableName];
+        }
+        
         $dbName = $this->mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? '';
         $sql = "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.TABLES 
                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
@@ -364,7 +396,8 @@ class Database {
             $result = $stmt->get_result();
             $row = $result->fetch_assoc();
             $stmt->close();
-            return ($row['cnt'] ?? 0) > 0;
+            $tableExistsCache[$tableName] = ($row['cnt'] ?? 0) > 0;
+            return $tableExistsCache[$tableName];
         }
         
         // Fallback - используем prepared statement для безопасности
@@ -376,8 +409,10 @@ class Database {
             $result = $stmt->get_result();
             $exists = $result && $result->num_rows > 0;
             $stmt->close();
+            $tableExistsCache[$tableName] = $exists;
             return $exists;
         }
+        $tableExistsCache[$tableName] = false;
         return false;
     }
     
@@ -449,7 +484,8 @@ class Database {
     }
     
     public function __destruct() {
-        if ($this->mysqli) {
+        // Закрываем только собственное подключение; глобальный $mysqli не трогаем
+        if ($this->ownsConnection && $this->mysqli) {
             $this->mysqli->close();
         }
     }

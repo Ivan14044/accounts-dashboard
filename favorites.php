@@ -24,11 +24,12 @@ try {
     }
     
     // Создаем сервис
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     
     // Создаем фильтр с обязательным условием "только избранные"
+    // shouldFilter=true — обязательный второй аргумент, без него фильтр не применяется
     $filter = $service->createFilterFromRequest($_GET);
-    $filter->addFavoritesFilter($userId);
+    $filter->addFavoritesFilter($userId, true);
     
     // Получаем метаданные колонок
     $meta = $service->getColumnMetadata();
@@ -60,7 +61,7 @@ try {
     $offset = ($page - 1) * $perPage;
     
     // Получаем данные
-    $rows = $service->getAccounts($filter, $sort, $dir, $offset, $perPage);
+    $rows = $service->getAccounts($filter, $sort, $dir, $perPage, $offset);
     
     // Параметры для шаблона
     $q = get_param('q', '');

@@ -63,6 +63,56 @@ Dashboard - Account Management System для управления аккаунт
 - **ООП подход:** Использование ES6 классов
 - **Event delegation:** Предпочтительнее множественных обработчиков
 
+##### Frontend-модули дашборда
+- Весь функционал дашборда разбивается на *capabilities* (selection, filters, stats, modals, table и т.д.).
+- Для каждой capability существует **один JS‑модуль‑источник правды** в `assets/js/modules/` (`dashboard-selection.js`, `dashboard-filters.js`, `dashboard-stats.js`, `dashboard-modals.js`, `table-module.js` и т.п.).
+- Глобальный оркестратор `DashboardMain` (см. `dashboard-main.js`) отвечает только за вызов `init()` у модулей, но не содержит бизнес‑логики.
+- Каждый модуль экспортирует один глобальный объект через `window.*` (например, `window.DashboardSelection`, `window.DashboardFilters`) с чётким публичным API (`init`, `refresh`, `get*`, `set*`).
+- **Inline‑скрипты в PHP‑шаблонах (например, `init-script.php`) используются только для:**
+  - передачи серверных значений/токенов в JS (CSRF, счётчики и т.п.);
+  - вызова `init()`/настройки модулей.
+- Вся логика обработчиков событий (`addEventListener`, `fetch` на API, обработка ответов) должна находиться **только в модулях**, без дублирования в `init-script.php` или других файлах.
+
+###### Список основных frontend-capabilities
+- **selection**  
+  - JS: `assets/js/modules/dashboard-selection.js` (`window.DashboardSelection`)  
+  - DOM: чекбоксы `.row-checkbox`, `#selectAll`, баннер `#selectAllNotice`  
+  - Ответственность: выбор строк, режим \"все по фильтру\", счётчики выбора.
+- **status-update**  
+  - JS: `assets/js/modules/dashboard-modals.js` (`initStatusModal`)  
+  - PHP API: `status_update.php`  
+  - DOM: кнопка `#changeStatusSelected`, модалка `#statusModal`  
+  - Ответственность: массовая смена статуса (выбранные / все по фильтру).
+- **bulk-edit**  
+  - JS: `assets/js/modules/dashboard-modals.js` (`initBulkEditModal`)  
+  - PHP API: `update_field.php`  
+  - DOM: кнопка `#bulkEditFieldBtn`, модалка `#bulkFieldModal`  
+  - Ответственность: массовое изменение отдельного поля.
+- **transfer**  
+  - JS: модуль переносов (в `dashboard-modals.js` или отдельный `dashboard-transfer.js`)  
+  - PHP API: `mass_transfer.php` (или эквивалент)  
+  - DOM: кнопка `#transferAccountsBtn`, модалка `#transferAccountsModal`  
+  - Ответственность: массовый перенос аккаунтов между статусами.
+- **filters**  
+  - JS: `assets/js/modules/dashboard-filters.js`, `assets/js/filters-modern.js` (`window.DashboardFilters`)  
+  - PHP: `templates/partials/dashboard/filters.php`  
+  - DOM: форма фильтров, dropdown‑статусы, range‑inputs, быстрый поиск  
+  - Ответственность: применение фильтров, обновление URL, вызов `refreshDashboardData`.
+- **stats**  
+  - JS: `assets/js/modules/dashboard-stats.js` (`window.DashboardStats`)  
+  - PHP: `templates/partials/dashboard/stats-cards.php`, `api_custom_card.php`, `api_user_settings.php`  
+  - DOM: блок статистических карточек, модалка `#customCardModal`  
+  - Ответственность: отображение/скрытие карточек, кастомные карточки статистики.
+- **table**  
+  - JS: `assets/js/table-module.js` (`window.tableModule`)  
+  - PHP: `templates/partials/table/table.php`, `templates/partials/table/toolbar.php`  
+  - DOM: контейнер таблицы, sticky header, тулбар  
+  - Ответственность: отрисовка и поведение таблицы, сортировка, виртуализация.
+- **user-settings / favorites**  
+  - JS: `assets/js/saved-filters.js`, `assets/js/favorites.js`, части `dashboard-stats.js`  
+  - PHP API: `api_user_settings.php`, `api_saved_filters.php`, `api_favorites.php`  
+  - Ответственность: сохранённые фильтры, избранные записи, пользовательские настройки отображения.
+
 #### CSS
 - **Отступы:** 4 пробела
 - **Неймінг:** kebab-case (.filter-panel, .table-row)

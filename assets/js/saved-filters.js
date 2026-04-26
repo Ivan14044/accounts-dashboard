@@ -29,7 +29,7 @@ class SavedFiltersManager {
      */
     async loadFilters() {
         try {
-            const response = await fetch('api_saved_filters.php', {
+            const response = await fetch(window.getTableAwareUrl('/api/filters'), {
                 method: 'GET',
                 credentials: 'same-origin',
                 headers: {
@@ -48,7 +48,7 @@ class SavedFiltersManager {
                 this.renderFiltersDropdown();
             }
         } catch (error) {
-            console.error('Error loading saved filters:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error loading saved filters:', error);
         }
     }
     
@@ -69,7 +69,7 @@ class SavedFiltersManager {
                 filtersSection = document.querySelector('.filters-modern-header-actions');
             }
             if (!filtersSection) {
-                console.warn('SavedFilters: Cannot find container for dropdown');
+                (typeof logger !== 'undefined' ? logger.warn : console.warn)('SavedFilters: Cannot find container for dropdown');
                 // Пробуем создать контейнер, если его нет
                 const header = document.querySelector('.filters-modern-header');
                 if (header) {
@@ -144,22 +144,33 @@ class SavedFiltersManager {
             if (e.target.closest('#saveCurrentFilter')) {
                 e.preventDefault();
                 this.showSaveDialog();
+                return;
             }
-            
-            // Применение фильтра
-            const applyBtn = e.target.closest('.apply-filter-btn');
-            if (applyBtn) {
-                e.preventDefault();
-                const filterId = parseInt(applyBtn.dataset.filterId, 10);
-                this.applyFilter(filterId);
-            }
-            
-            // Удаление фильтра
+
+            // Удаление фильтра — проверяем первым, чтобы не конфликтовало с apply
             const deleteBtn = e.target.closest('.delete-filter-btn');
             if (deleteBtn) {
                 e.preventDefault();
                 const filterId = parseInt(deleteBtn.dataset.filterId, 10);
                 this.deleteFilter(filterId);
+                return;
+            }
+
+            // Применение фильтра — явная кнопка ✓
+            const applyBtn = e.target.closest('.apply-filter-btn');
+            if (applyBtn) {
+                e.preventDefault();
+                const filterId = parseInt(applyBtn.dataset.filterId, 10);
+                this.applyFilter(filterId);
+                return;
+            }
+
+            // Применение фильтра — клик по строке (имя фильтра, любое место кроме кнопок)
+            const dropdownItem = e.target.closest('.dropdown-item[data-filter-id]');
+            if (dropdownItem) {
+                e.preventDefault();
+                const filterId = parseInt(dropdownItem.dataset.filterId, 10);
+                this.applyFilter(filterId);
             }
         });
     }
@@ -174,14 +185,33 @@ class SavedFiltersManager {
         }
         
         // Получаем текущие параметры фильтров из URL
+        // Multi-value параметры (например status[]=A&status[]=B) собираем в массивы
         const params = new URLSearchParams(window.location.search);
         const filters = {};
         
         params.forEach((value, key) => {
-            if (key !== 'page') { // Исключаем параметр страницы
+            if (key === 'page') return; // страницу не сохраняем
+            if (Object.prototype.hasOwnProperty.call(filters, key)) {
+                // уже есть значение для этого ключа — конвертируем в массив
+                if (Array.isArray(filters[key])) {
+                    filters[key].push(value);
+                } else {
+                    filters[key] = [filters[key], value];
+                }
+            } else {
                 filters[key] = value;
             }
         });
+        
+        // Проверяем, что есть хоть один активный фильтр для сохранения
+        if (Object.keys(filters).length === 0) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('Нет активных фильтров для сохранения', 'warning');
+            } else {
+                alert('Нет активных фильтров для сохранения');
+            }
+            return;
+        }
         
         this.saveFilter(name.trim(), filters);
     }
@@ -191,7 +221,9 @@ class SavedFiltersManager {
      */
     async saveFilter(name, filters) {
         try {
-            const response = await fetch('api_saved_filters.php', {
+            // CSRF-токен обязателен для POST/PUT/DELETE — без него API возвращает 403
+            const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
+            const response = await fetch(window.getTableAwareUrl('/api/filters'), {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -200,7 +232,9 @@ class SavedFiltersManager {
                 },
                 body: JSON.stringify({
                     name: name,
-                    filters: filters
+                    filters: filters,
+                    csrf: csrfToken,
+                    table: (window.DashboardConfig && window.DashboardConfig.currentTable) || 'accounts'
                 })
             });
             
@@ -218,7 +252,7 @@ class SavedFiltersManager {
                 throw new Error(data.error || 'Ошибка сохранения');
             }
         } catch (error) {
-            console.error('Error saving filter:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error saving filter:', error);
             if (typeof window.showToast === 'function') {
                 window.showToast('Ошибка при сохранении фильтра: ' + error.message, 'error');
             }
@@ -234,29 +268,35 @@ class SavedFiltersManager {
             return;
         }
         
-        // Строим URL с параметрами фильтра
-        const params = new URLSearchParams(filter.filters);
+        // Строим URL с параметрами фильтра (поддержка массивов, например status[])
+        const params = new URLSearchParams();
+        Object.entries(filter.filters || {}).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach(v => params.append(key, v));
+            } else if (value !== null && value !== undefined && value !== '') {
+                params.set(key, value);
+            }
+        });
         params.set('page', '1'); // Сбрасываем страницу
         
         // Обновляем URL без перезагрузки страницы
-        const newUrl = 'index.php?' + params.toString();
+        // Используем текущий pathname вместо hardcoded 'index.php?' — на случай кастомных путей
+        const newUrl = window.location.pathname + '?' + params.toString();
         window.history.pushState({}, '', newUrl);
+        
+        // Синхронизируем DOM формы фильтров по новому URL
+        if (typeof window.syncFormFromUrl === 'function') {
+            window.syncFormFromUrl();
+        }
         
         // Обновляем данные через AJAX
         if (typeof refreshDashboardData === 'function') {
-            // Сбрасываем выделение
-            if (typeof selectedAllFiltered !== 'undefined') {
-                selectedAllFiltered = false;
-            }
-            if (typeof selectedIds !== 'undefined' && selectedIds instanceof Set) {
-                selectedIds.clear();
-            }
-            if (typeof updateSelectedCount === 'function') {
-                updateSelectedCount();
+            // Сбрасываем выделение через публичный API модуля selection
+            if (window.DashboardSelection && typeof window.DashboardSelection.clearSelection === 'function') {
+                window.DashboardSelection.clearSelection();
             }
             refreshDashboardData();
         } else {
-            // Fallback на перезагрузку, если функция недоступна
             window.location.href = newUrl;
         }
     }
@@ -270,7 +310,9 @@ class SavedFiltersManager {
         }
         
         try {
-            const response = await fetch('api_saved_filters.php', {
+            // CSRF-токен обязателен для DELETE — без него API возвращает 403
+            const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
+            const response = await fetch(window.getTableAwareUrl('/api/filters'), {
                 method: 'DELETE',
                 credentials: 'same-origin',
                 headers: {
@@ -278,7 +320,8 @@ class SavedFiltersManager {
                     'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: JSON.stringify({
-                    id: filterId
+                    id: filterId,
+                    csrf: csrfToken
                 })
             });
             
@@ -296,7 +339,7 @@ class SavedFiltersManager {
                 throw new Error(data.error || 'Ошибка удаления');
             }
         } catch (error) {
-            console.error('Error deleting filter:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error deleting filter:', error);
             if (typeof window.showToast === 'function') {
                 window.showToast('Ошибка при удалении фильтра: ' + error.message, 'error');
             }

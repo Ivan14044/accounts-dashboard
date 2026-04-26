@@ -245,7 +245,8 @@ class Logger {
             'api_key',
             'secret',
             'cookie',
-            'cookies'
+            'cookies',
+            'first_cookie'
         ];
         
         foreach ($sensitiveKeys as $key) {

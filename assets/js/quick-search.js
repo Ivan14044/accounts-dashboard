@@ -304,7 +304,7 @@ class QuickSearch {
                 limit: 10
             });
             
-            const response = await fetch(`api.php?${params.toString()}`, {
+            const response = await fetch(`/api/accounts/count?${params.toString()}`, {
                 credentials: 'same-origin',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'
@@ -345,7 +345,7 @@ class QuickSearch {
             
             this.showEmpty();
         } catch (error) {
-            console.error('Quick search error:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Quick search error:', error);
             this.showError('Ошибка при выполнении поиска');
         }
     }

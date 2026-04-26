@@ -3,10 +3,11 @@
  * Главный контроллер дашборда
  */
 
-// Включаем отображение ошибок для отладки (можно отключить в продакшене)
+// Настройки ошибок — вывод отключён, логирование в файл
 error_reporting(E_ALL);
-ini_set('display_errors', '0'); // Отключено для предотвращения вывода перед HTML
+ini_set('display_errors', '0');
 ini_set('log_errors', '1');
+ini_set('error_log', __DIR__ . '/php_errors.log');
 
 // Загружаем зависимости
 require_once __DIR__ . '/config.php';
@@ -41,9 +42,9 @@ try {
     exit;
 }
 
-// Создаем сервис
+// Создаем сервис (используем $tableName из config.php / TableResolver)
 try {
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
 } catch (Throwable $e) {
     require_once __DIR__ . '/includes/ErrorHandler.php';
     ErrorHandler::handleError($e, 'Service Creation');

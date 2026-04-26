@@ -1,0 +1,239 @@
+/* ==========================================================================
+   CORE COMPONENTS
+   
+   Специфичные UI-компоненты: лоадеры, бейджи расширенного типа, 
+   скелетоны для загрузки, пустые состояния, тултипы.
+   Используется только CSS-переменные из core-base.css.
+   ========================================================================== */
+
+/* ── 1. LOADER / SPINNER (Современные кольца) ── */
+.loader {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: inline-block;
+  border-top: 3px solid var(--primary-600);
+  border-right: 3px solid transparent;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+  /* filter:drop-shadow заменён на box-shadow — drop-shadow вызывает repaint каждый кадр анимации */
+}
+
+.loader-sm { width: 24px; height: 24px; border-width: 2px; }
+.loader-lg { width: 64px; height: 64px; border-width: 4px; }
+
+.loader-white {
+  border-top-color: white;
+}
+
+@keyframes rotation {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ── 2. PAGE LOADER (Оверлей загрузки страницы) ── */
+.page-loader {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: var(--glass-bg);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.page-loader.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* ── 3. SKELETON LOADING ── */
+.skeleton {
+  background: linear-gradient(90deg, 
+    var(--gray-200) 25%, 
+    var(--gray-300) 50%, 
+    var(--gray-200) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+.skeleton-text { height: 1rem; width: 100%; margin-bottom: 0.5rem; }
+.skeleton-text.short { width: 60%; }
+.skeleton-avatar { width: 40px; height: 40px; border-radius: 50%; }
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── 4. EMPTY STATES ── */
+.empty-state {
+  text-align: center;
+  padding: var(--space-12) var(--space-4);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: var(--space-4) 0;
+}
+
+.empty-state-icon {
+  font-size: 4rem;
+  background: linear-gradient(135deg, var(--gray-400), var(--gray-500));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: var(--space-4);
+  /* drop-shadow убран для FPS — не критичен визуально */
+}
+
+.empty-state-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: var(--space-2);
+}
+
+.empty-state-desc {
+  font-size: 0.875rem;
+  color: var(--gray-500);
+  max-width: 400px;
+  margin-bottom: var(--space-6);
+}
+
+/* ── 5. ADVANCED BADGES ── */
+.badge-glass {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: var(--gray-800);
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Пульсирующая точка (индикатор онлайна/статуса) */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
+}
+
+.status-dot.active {
+  background-color: var(--success);
+  /* GPU-анимация: transform вместо box-shadow (compositor-only, без repaint) */
+  animation: pulse-dot 2s infinite;
+  will-change: transform;
+}
+
+.status-dot.danger {
+  background-color: var(--danger);
+  animation: pulse-dot-danger 2s infinite;
+  will-change: transform;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(1); opacity: 1; }
+  70% { transform: scale(1.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+@keyframes pulse-dot-danger {
+  0% { transform: scale(1); opacity: 1; }
+  70% { transform: scale(1.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+/* ── 6. TOOLTIPS ── */
+.tooltip-modern {
+  position: absolute;
+  background: rgba(17, 24, 39, 0.9); /* gray-900 с прозрачностью */
+  color: white;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: translateY(4px);
+  z-index: 1070;
+}
+
+.tooltip-modern.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── 7. BREADCRUMBS ── */
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.875rem;
+  color: var(--gray-500);
+}
+
+.breadcrumbs a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.breadcrumbs a:hover {
+  text-decoration: underline;
+  color: var(--primary-dark);
+}
+
+.breadcrumbs .separator {
+  color: var(--gray-400);
+  font-size: 0.75rem;
+}
+
+/* ── 8. DIVIDERS ── */
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-light), transparent);
+  margin: var(--space-4) 0;
+}
+
+.divider-vertical {
+  width: 1px;
+  height: 100%;
+  min-height: 24px;
+  background: linear-gradient(180deg, transparent, var(--border-light), transparent);
+  margin: 0 var(--space-4);
+}
+
+/* ── 9. SCROLLBARS (Универсальные) ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5); /* gray-400 */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 114, 128, 0.8); /* gray-500 */
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+}

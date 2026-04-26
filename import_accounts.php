@@ -11,6 +11,7 @@ require_once __DIR__ . '/includes/Logger.php';
 require_once __DIR__ . '/includes/Config.php';
 require_once __DIR__ . '/includes/Validator.php';
 require_once __DIR__ . '/includes/ErrorHandler.php';
+require_once __DIR__ . '/includes/CsvParser.php';
 
 // Устанавливаем заголовки JSON для всех ответов API
 header('Content-Type: application/json; charset=utf-8');
@@ -28,6 +29,22 @@ try {
     requireAuth();
     checkSessionTimeout();
     Logger::debug('IMPORT ACCOUNTS: Авторизация успешна');
+    
+    // Rate limiting через файловый RateLimiter (работает без APCu)
+    $userId = $_SESSION['username'] ?? 'anonymous';
+    $limiter = new RateLimiter();
+    $importKeyMinute = 'import_minute_' . md5($userId);
+    $importKeyHour = 'import_hour_' . md5($userId);
+
+    if (!$limiter->checkLimit($importKeyMinute, Config::IMPORT_RATE_LIMIT_PER_MINUTE, 60)) {
+        Logger::warning('IMPORT ACCOUNTS: Превышен минутный лимит', ['user' => $userId]);
+        throw new InvalidArgumentException('Превышен лимит импортов (' . Config::IMPORT_RATE_LIMIT_PER_MINUTE . ' в минуту). Подождите и попробуйте снова.');
+    }
+    if (!$limiter->checkLimit($importKeyHour, Config::IMPORT_RATE_LIMIT_PER_HOUR, 3600)) {
+        Logger::warning('IMPORT ACCOUNTS: Превышен часовой лимит', ['user' => $userId]);
+        throw new InvalidArgumentException('Превышен лимит импортов (' . Config::IMPORT_RATE_LIMIT_PER_HOUR . ' в час). Попробуйте через час.');
+    }
+    Logger::debug('IMPORT ACCOUNTS: Rate limit проверен', ['user' => $userId]);
     
     // Проверка метода запроса
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -83,6 +100,12 @@ try {
     $format = $_POST['format'] ?? 'csv';
     $duplicateAction = $_POST['duplicate_action'] ?? 'skip';
     
+    // Проверка, что файл был загружен через HTTP POST (защита от LFI)
+    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        Logger::error('IMPORT ACCOUNTS: Файл не является загруженным через HTTP POST', ['tmp_name' => $file['tmp_name'] ?? 'n/a']);
+        throw new InvalidArgumentException('Недействительный файл загрузки');
+    }
+    
     Logger::debug('IMPORT ACCOUNTS: Информация о файле', [
         'name' => $file['name'] ?? 'unknown',
         'size' => $file['size'] ?? 0,
@@ -108,222 +131,97 @@ try {
     }
     
     Logger::debug('IMPORT ACCOUNTS: Инициализация сервиса...');
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     $meta = $service->getColumnMetadata();
     $allColumns = $meta['all'];
     Logger::debug('IMPORT ACCOUNTS: Метаданные колонок получены', ['columns_count' => count($allColumns)]);
     
-    // Парсим CSV
-    function parseCSVForImport($filePath) {
-        Logger::debug('PARSE CSV: Начало парсинга', ['file_path' => $filePath, 'file_exists' => file_exists($filePath)]);
-        
-        $handle = @fopen($filePath, 'r');
-        if ($handle === false) {
-            Logger::error('PARSE CSV: Не удалось открыть файл', ['file_path' => $filePath]);
-            throw new Exception('Не удалось открыть файл для чтения');
-        }
-        
-        // Определяем разделитель
-        $firstLine = fgets($handle);
-        if ($firstLine === false) {
-            Logger::warning('PARSE CSV: Не удалось прочитать первую строку');
-            fclose($handle);
-            return [];
-        }
-        
-        $delimiter = strpos($firstLine, ';') !== false ? ';' : ',';
-        Logger::debug('PARSE CSV: Определен разделитель', ['delimiter' => $delimiter, 'first_line_preview' => substr($firstLine, 0, 100)]);
-        rewind($handle);
-        
-        // Читаем заголовки
-        $headers = fgetcsv($handle, 0, $delimiter);
-        if ($headers === false || empty($headers)) {
-            Logger::warning('PARSE CSV: Не удалось прочитать заголовки', ['headers' => $headers]);
-            fclose($handle);
-            return [];
-        }
-        
-        $headers = array_map('trim', $headers);
-        Logger::debug('PARSE CSV: Заголовки прочитаны', ['headers_count' => count($headers), 'headers' => $headers]);
-        
-        // Нормализуем заголовки (убираем пробелы, приводим к нижнему регистру)
-        $normalizedHeaders = [];
-        foreach ($headers as $index => $header) {
-            $original = $header;
-            $normalized = mb_strtolower(trim($header), 'UTF-8');
-            
-            // Удаляем BOM (\xEF\xBB\xBF) и непечатаемые ASCII символы
-            $normalized = preg_replace('/^\xEF\xBB\xBF/', '', $normalized);
-            $normalized = preg_replace('/[\x00-\x1F\x7F]/', '', $normalized);
-            
-            // Заменяем пробелы и различные типы тире на подчеркивания
-            $normalized = str_replace([' ', '-', '—', '–'], '_', $normalized);
-            // Убираем множественные подчеркивания
-            $normalized = preg_replace('/_+/', '_', $normalized);
-            // Убираем подчеркивания в начале и конце
-            $normalized = trim($normalized, '_');
-            
-            Logger::debug("PARSE CSV: Нормализация заголовка #{$index}", [
-                'original' => $original,
-                'normalized' => $normalized
-            ]);
-            
-            $normalizedHeaders[] = $normalized;
-        }
-        
-        Logger::debug('PARSE CSV: Заголовки нормализованы', [
-            'normalized_headers' => $normalizedHeaders,
-            'original_headers' => $headers
-        ]);
-        
-        $data = [];
-        $lineNum = 0;
-        $maxRows = 10000; // Защита от слишком больших файлов
-        $skippedEmpty = 0;
-        $skippedMismatch = 0;
-        
-        // Читаем данные построчно
-        while (($values = fgetcsv($handle, 0, $delimiter)) !== false && $lineNum < $maxRows) {
-            $lineNum++;
-            
-            // Пропускаем пустые строки
-            if (empty(array_filter($values, function($v) { return trim($v) !== ''; }))) {
-                $skippedEmpty++;
-                continue;
-            }
-            
-            // Если количество колонок не совпадает, пропускаем строку
-            if (count($values) !== count($headers)) {
-                $skippedMismatch++;
-                if ($lineNum <= 3) { // Логируем только первые 3 несоответствия
-                    Logger::debug('PARSE CSV: Пропуск строки из-за несоответствия колонок', [
-                        'line' => $lineNum,
-                        'values_count' => count($values),
-                        'headers_count' => count($headers)
-                    ]);
-                }
-                continue;
-            }
-            
-            $row = [];
-            foreach ($normalizedHeaders as $index => $header) {
-                $row[$header] = isset($values[$index]) ? trim($values[$index]) : '';
-            }
-            
-            $data[] = $row;
-            
-            // Логируем первые 2 строки для отладки
-            if (count($data) <= 2) {
-                Logger::debug('PARSE CSV: Пример распарсенной строки', [
-                    'row_number' => count($data),
-                    'row_data' => $row
-                ]);
-            }
-        }
-        
-        fclose($handle);
-        
-        Logger::info('PARSE CSV: Парсинг завершен', [
-            'total_lines_read' => $lineNum,
-            'rows_parsed' => count($data),
-            'skipped_empty' => $skippedEmpty,
-            'skipped_mismatch' => $skippedMismatch,
-            'sample_keys' => !empty($data) ? array_keys($data[0] ?? []) : []
-        ]);
-        
-        return $data;
-    }
+    // РЕФАКТОРИНГ: Используем класс CsvParser вместо функции
+    // Старая функция parseCSVForImport() удалена, логика вынесена в CsvParser
     
-    Logger::debug('IMPORT ACCOUNTS: Начало парсинга CSV файла', ['tmp_name' => $file['tmp_name'] ?? 'not_set']);
-    $data = parseCSVForImport($file['tmp_name']);
+    Logger::debug('IMPORT ACCOUNTS: Начало парсинга CSV файла', [
+        'tmp_name' => $file['tmp_name'] ?? 'not_set',
+        'file_exists' => file_exists($file['tmp_name'] ?? ''),
+        'file_size' => filesize($file['tmp_name'] ?? '') ?: 0,
+        'php_version' => PHP_VERSION
+    ]);
+
+    $parser = new CsvParser(Config::MAX_IMPORT_ROWS);
+    $data = $parser->parse($file['tmp_name']);
     
+    // УДАЛЕНО: ~120 строк кода функции parseCSVForImport()
+    // Теперь используется CsvParser из includes/CsvParser.php (см. выше)
+    
+    // Старый код parseCSVForImport() был заменён на класс CsvParser
+    // Это даёт преимущества:
+    // 1. Переиспользование кода (можно использовать в других местах)
+    // 2. Легче тестировать
+    // 3. Соответствует принципу Single Responsibility
+    
+    // CSV-парсинг выполнен через CsvParser (строка ~172)
     Logger::debug('IMPORT ACCOUNTS: CSV файл распарсен', [
         'rows_count' => count($data),
         'first_row' => !empty($data) ? array_keys($data[0] ?? []) : []
     ]);
     
     if (empty($data)) {
-        Logger::warning('IMPORT ACCOUNTS: Файл не содержит данных после парсинга');
-        throw new InvalidArgumentException('Файл не содержит данных или имеет неверный формат');
+        Logger::warning('IMPORT ACCOUNTS: Файл не содержит данных после парсинга', [
+            'php_version' => PHP_VERSION,
+            'file_size' => $file['size'] ?? 0,
+            'tmp_exists' => file_exists($file['tmp_name'] ?? ''),
+            'tmp_size' => @filesize($file['tmp_name'] ?? '') ?: 0
+        ]);
+        throw new InvalidArgumentException(
+            'Файл не содержит данных или имеет неверный формат (PHP ' . PHP_VERSION . ', size=' . ($file['size'] ?? 0) . ')'
+        );
     }
     
     // Фильтруем данные - оставляем только существующие колонки
-        Logger::debug('IMPORT ACCOUNTS: Фильтрация данных по существующим колонкам...');
-    Logger::debug('IMPORT ACCOUNTS: Доступные колонки в БД', ['columns' => $allColumns, 'columns_count' => count($allColumns)]);
-    Logger::debug('IMPORT ACCOUNTS: Первая строка данных (ключи)', ['keys' => !empty($data) ? array_keys($data[0] ?? []) : []]);
-    Logger::debug('IMPORT ACCOUNTS: Все строки данных (первые 3)', [
+    Logger::debug('IMPORT ACCOUNTS: Начало фильтрации данных', [
         'total_rows' => count($data),
-        'sample_rows' => array_slice($data, 0, 3)
+        'available_columns' => count($allColumns)
     ]);
     
+    // ОДИН РАЗ создаём хеш-таблицу для O(1) поиска
+    $columnMapping = [];
+    foreach ($allColumns as $dbCol) {
+        $columnMapping[mb_strtolower($dbCol, 'UTF-8')] = $dbCol;
+    }
+    
+    Logger::debug('IMPORT ACCOUNTS: Маппинг колонок создан', [
+        'total_columns' => count($columnMapping)
+    ]);
+    
+    // Системные поля, которые нужно пропустить
+    $systemFields = ['id', 'created_at', 'updated_at', 'deleted_at'];
+    
     $filteredData = [];
+    $unknownCols = []; // Без static!
+    
     foreach ($data as $rowIndex => $row) {
         $filteredRow = [];
-        Logger::info("IMPORT ACCOUNTS: Обработка строки {$rowIndex}", [
-            'row_keys' => array_keys($row),
-            'row_data' => $row,
-            'has_login_key' => isset($row['login']),
-            'has_status_key' => isset($row['status']),
-            'login_in_row' => $row['login'] ?? 'NOT IN ROW',
-            'status_in_row' => $row['status'] ?? 'NOT IN ROW'
-        ]);
         
         foreach ($row as $key => $value) {
-            $keyTrimmed = trim($key);
-            $valueTrimmed = is_string($value) ? trim($value) : $value;
+            $keyLower = mb_strtolower(trim($key), 'UTF-8');
+            $foundKey = $columnMapping[$keyLower] ?? null;
             
-            // Проверяем существование колонки (без учета регистра для ключей из CSV)
-            // Используем mb_strtolower для корректной работы с UTF-8
-            $foundKey = false;
-            $keyLower = mb_strtolower($keyTrimmed, 'UTF-8');
-            foreach ($allColumns as $dbCol) {
-                if (mb_strtolower($dbCol, 'UTF-8') === $keyLower) {
-                    $foundKey = $dbCol;
-                    break;
-                }
-            }
-            
-            if ($foundKey) {
-                // Пропускаем системные поля
-                if (!in_array($foundKey, ['id', 'created_at', 'updated_at', 'deleted_at'], true)) {
-                    $filteredRow[$foundKey] = $valueTrimmed;
-                }
-            } else {
-                // Логируем только один раз для каждой неизвестной колонки
-                static $unknownCols = [];
-                if (!isset($unknownCols[$keyTrimmed])) {
-                    Logger::warning("IMPORT ACCOUNTS: Колонка '{$keyTrimmed}' из CSV не найдена в БД", [
-                        'csv_key' => $keyTrimmed,
-                        'db_columns' => $allColumns
-                    ]);
-                    $unknownCols[$keyTrimmed] = true;
-                }
+            if ($foundKey && !in_array($foundKey, $systemFields, true)) {
+                $filteredRow[$foundKey] = is_string($value) ? trim($value) : $value;
+            } elseif (!$foundKey && !isset($unknownCols[$key])) {
+                Logger::warning("IMPORT ACCOUNTS: Неизвестная колонка '{$key}'");
+                $unknownCols[$key] = true;
             }
         }
         
-        Logger::info("IMPORT ACCOUNTS: После фильтрации строки {$rowIndex}", [
-            'filtered_keys' => array_keys($filteredRow),
-            'filtered_data' => $filteredRow,
-            'has_login' => isset($filteredRow['login']),
-            'has_status' => isset($filteredRow['status']),
-            'login_value' => $filteredRow['login'] ?? 'NOT SET',
-            'status_value' => $filteredRow['status'] ?? 'NOT SET',
-            'filtered_empty' => empty($filteredRow)
-        ]);
-        
         if (!empty($filteredRow)) {
             $filteredData[] = $filteredRow;
-        } else {
-            Logger::warning("IMPORT ACCOUNTS: Строка {$rowIndex} отфильтрована (нет валидных полей)", [
-                'original_row' => $row
-            ]);
         }
     }
     
     Logger::debug('IMPORT ACCOUNTS: Фильтрация завершена', [
         'original_rows' => count($data),
         'filtered_rows' => count($filteredData),
-        'sample_row' => !empty($filteredData) ? array_keys($filteredData[0] ?? []) : []
+        'unknown_columns' => array_keys($unknownCols)
     ]);
     
     if (empty($filteredData)) {
@@ -360,13 +258,16 @@ try {
         
         json_success([
             'message' => sprintf(
-                'Создано: %d, Пропущено: %d, Ошибок: %d',
+                'Создано: %d, Обновлено: %d, Пропущено: %d, Ошибок: %d',
                 $result['created'],
+                $result['updated'] ?? 0,
                 $result['skipped'],
                 count($result['errors'])
             ),
             'created' => $result['created'],
+            'updated' => $result['updated'] ?? 0,
             'skipped' => $result['skipped'],
+            'skipped_details' => $result['skipped_details'] ?? [], // НОВОЕ: Детали пропущенных
             'errors' => $result['errors'],
             'total' => count($filteredData)
         ]);

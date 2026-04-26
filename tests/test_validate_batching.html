@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Тест: батчинг в dashboard-validate.js</title>
+<style>
+  body { font-family: monospace; padding: 20px; background: #1a1a2e; color: #e0e0e0; }
+  .pass { color: #0f0; }
+  .fail { color: #f00; font-weight: bold; }
+  .info { color: #888; }
+  h2 { color: #fff; border-bottom: 1px solid #333; padding-bottom: 8px; }
+  pre { background: #0d0d1a; padding: 12px; border-radius: 6px; overflow-x: auto; }
+  #summary { font-size: 16px; margin-top: 20px; padding: 12px; border-radius: 6px; }
+  #summary.ok { background: #0a2a0a; border: 1px solid #0f0; }
+  #summary.bad { background: #2a0a0a; border: 1px solid #f00; }
+</style>
+</head>
+<body>
+<h2>dashboard-validate.js — sendInBatches() тесты</h2>
+<pre id="log"></pre>
+<div id="summary"></div>
+
+<script>
+var passed = 0, failed = 0;
+var logEl = document.getElementById('log');
+
+function log(msg, cls) {
+  var line = document.createElement('span');
+  line.className = cls || '';
+  line.textContent = msg + '\n';
+  logEl.appendChild(line);
+}
+
+function assert(name, condition, msg) {
+  if (condition) { passed++; log('  [OK]   ' + name, 'pass'); }
+  else { failed++; log('  [FAIL] ' + name + (msg ? ' — ' + msg : ''), 'fail'); }
+}
+
+// ─── Мок fetch ───────────────────────────────────────────
+var fetchLog = [];
+var fetchResponses = [];
+
+function mockFetch(url, opts) {
+  var body = JSON.parse(opts.body);
+  fetchLog.push({ url: url, ids: body.ids, extra: Object.keys(body) });
+
+  var resp = fetchResponses.shift() || { success: true, affected: body.ids.length, deleted_count: body.ids.length };
+  return Promise.resolve({
+    json: function() { return Promise.resolve(resp); }
+  });
+}
+
+// ─── Воспроизводим sendInBatches из dashboard-validate.js ───
+var ACTION_BATCH = 1000;
+
+function sendInBatches(url, ids, extraFields) {
+  var totalAffected = 0;
+  var errors = [];
+  var i = 0;
+
+  function csrf() { return 'test-csrf'; }
+
+  function nextBatch() {
+    if (i >= ids.length) return Promise.resolve();
+    var batch = ids.slice(i, i + ACTION_BATCH);
+    i += batch.length;
+
+    var body = Object.assign({}, extraFields, { ids: batch, csrf: csrf() });
+    return mockFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) {
+        totalAffected += (d.affected || d.deleted_count || batch.length);
+      } else {
+        errors.push(d.error || 'Error');
+      }
+    })
+    .catch(function(err) { errors.push(err.message || 'Error'); })
+    .then(nextBatch);
+  }
+
+  return nextBatch().then(function() {
+    return { totalAffected: totalAffected, errors: errors };
+  });
+}
+
+// ─── Генератор массивов ID ───────────────────────────────
+function makeIds(n) {
+  var arr = [];
+  for (var i = 1; i <= n; i++) arr.push(i);
+  return arr;
+}
+
+// ─── Тесты ───────────────────────────────────────────────
+async function runTests() {
+
+  // === Тест 1: 500 ID — 1 батч ===
+  log('\n=== Тест 1: 500 ID → 1 батч ===', 'info');
+  fetchLog = []; fetchResponses = [];
+  var r = await sendInBatches('status_update.php', makeIds(500), { status: 'test' });
+  assert('500 ID: 1 fetch-вызов', fetchLog.length === 1, 'было ' + fetchLog.length);
+  assert('500 ID: все 500 в батче', fetchLog[0].ids.length === 500);
+  assert('500 ID: totalAffected=500', r.totalAffected === 500, 'было ' + r.totalAffected);
+  assert('500 ID: без ошибок', r.errors.length === 0);
+
+  // === Тест 2: Ровно 1000 ID — 1 батч ===
+  log('\n=== Тест 2: 1000 ID → 1 батч ===', 'info');
+  fetchLog = []; fetchResponses = [];
+  r = await sendInBatches('delete.php', makeIds(1000), {});
+  assert('1000 ID: 1 fetch-вызов', fetchLog.length === 1, 'было ' + fetchLog.length);
+  assert('1000 ID: все 1000 в батче', fetchLog[0].ids.length === 1000);
+
+  // === Тест 3: 1001 ID — 2 батча ===
+  log('\n=== Тест 3: 1001 ID → 2 батча ===', 'info');
+  fetchLog = []; fetchResponses = [];
+  r = await sendInBatches('status_update.php', makeIds(1001), { status: 'x' });
+  assert('1001 ID: 2 fetch-вызова', fetchLog.length === 2, 'было ' + fetchLog.length);
+  assert('1001 ID: первый батч = 1000', fetchLog[0].ids.length === 1000);
+  assert('1001 ID: второй батч = 1', fetchLog[1].ids.length === 1);
+  assert('1001 ID: totalAffected=1001', r.totalAffected === 1001);
+
+  // === Тест 4: 2550 ID (кейс из бага) — 3 батча ===
+  log('\n=== Тест 4: 2550 ID (кейс из бага) → 3 батча ===', 'info');
+  fetchLog = []; fetchResponses = [];
+  r = await sendInBatches('status_update.php', makeIds(2550), { status: 'invalid' });
+  assert('2550 ID: 3 fetch-вызова', fetchLog.length === 3, 'было ' + fetchLog.length);
+  assert('2550 ID: батч 1 = 1000', fetchLog[0].ids.length === 1000);
+  assert('2550 ID: батч 2 = 1000', fetchLog[1].ids.length === 1000);
+  assert('2550 ID: батч 3 = 550', fetchLog[2].ids.length === 550);
+  assert('2550 ID: totalAffected=2550', r.totalAffected === 2550);
+
+  // === Тест 5: extraFields передаются в каждый батч ===
+  log('\n=== Тест 5: extraFields в каждом батче ===', 'info');
+  fetchLog = []; fetchResponses = [];
+  r = await sendInBatches('status_update.php', makeIds(1500), { status: 'new', foo: 'bar' });
+  assert('extraFields: status в каждом', fetchLog.every(function(f) { return f.extra.indexOf('status') !== -1; }));
+  assert('extraFields: csrf в каждом', fetchLog.every(function(f) { return f.extra.indexOf('csrf') !== -1; }));
+
+  // === Тест 6: Один батч с ошибкой — остальные продолжают ===
+  log('\n=== Тест 6: ошибка в одном батче ===', 'info');
+  fetchLog = [];
+  fetchResponses = [
+    { success: true, affected: 1000 },
+    { success: false, error: 'DB error' },
+    { success: true, affected: 550 }
+  ];
+  r = await sendInBatches('status_update.php', makeIds(2550), { status: 'x' });
+  assert('Ошибка: 3 вызова сделаны', fetchLog.length === 3, 'было ' + fetchLog.length);
+  assert('Ошибка: totalAffected=1550', r.totalAffected === 1550, 'было ' + r.totalAffected);
+  assert('Ошибка: 1 ошибка собрана', r.errors.length === 1, 'было ' + r.errors.length);
+  assert('Ошибка: текст ошибки корректен', r.errors[0] === 'DB error');
+
+  // === Тест 7: Пустой массив — 0 вызовов ===
+  log('\n=== Тест 7: пустой массив ===', 'info');
+  fetchLog = []; fetchResponses = [];
+  r = await sendInBatches('delete.php', [], {});
+  assert('Пустой: 0 fetch-вызовов', fetchLog.length === 0);
+  assert('Пустой: totalAffected=0', r.totalAffected === 0);
+
+  // === Тест 8: Большой массив — 5000 ID ===
+  log('\n=== Тест 8: 5000 ID → 5 батчей ===', 'info');
+  fetchLog = []; fetchResponses = [];
+  r = await sendInBatches('delete.php', makeIds(5000), {});
+  assert('5000 ID: 5 fetch-вызовов', fetchLog.length === 5, 'было ' + fetchLog.length);
+  assert('5000 ID: totalAffected=5000', r.totalAffected === 5000);
+
+  // === Тест 9: URL корректно передаётся ===
+  log('\n=== Тест 9: URL корректен ===', 'info');
+  fetchLog = []; fetchResponses = [];
+  await sendInBatches('status_update.php', makeIds(100), { status: 'z' });
+  assert('URL: status_update.php', fetchLog[0].url === 'status_update.php');
+
+  fetchLog = []; fetchResponses = [];
+  await sendInBatches('delete.php', makeIds(100), {});
+  assert('URL: delete.php', fetchLog[0].url === 'delete.php');
+
+  // ─── Итог ──────────────────────────────────────────────
+  var summaryEl = document.getElementById('summary');
+  summaryEl.textContent = 'Результат: ' + passed + ' пройдено, ' + failed + ' провалено';
+  summaryEl.className = failed > 0 ? 'bad' : 'ok';
+  log('\n' + '─'.repeat(50));
+  log('Результат: ' + passed + ' пройдено, ' + failed + ' провалено', failed > 0 ? 'fail' : 'pass');
+}
+
+runTests();
+</script>
+</body>
+</html>

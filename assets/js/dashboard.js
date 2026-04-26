@@ -6,14 +6,16 @@
  */
 
 // ОЧЕНЬ ЗАМЕТНЫЙ ЛОГ для проверки, что файл загружается
-console.log('%c📜📜📜 DASHBOARD.JS ЗАГРУЖЕН (версия с логами) 📜📜📜', 'color: red; font-size: 20px; font-weight: bold; background: yellow; padding: 10px;');
-console.log('📜 [DASHBOARD.JS] Файл dashboard.js загружается...');
-console.log('📜 [DASHBOARD.JS] Текущее время:', new Date().toISOString());
-console.log('📜 [DASHBOARD.JS] URL файла:', document.currentScript ? document.currentScript.src : 'unknown');
+logger.debug('%c📜📜📜 DASHBOARD.JS ЗАГРУЖЕН (версия с логами) 📜📜📜', 'color: red; font-size: 20px; font-weight: bold; background: yellow; padding: 10px;');
+logger.debug('📜 [DASHBOARD.JS] Файл dashboard.js загружается...');
+logger.debug('📜 [DASHBOARD.JS] Текущее время:', new Date().toISOString());
+logger.debug('📜 [DASHBOARD.JS] URL файла:', document.currentScript ? document.currentScript.src : 'unknown');
 
 // Используем DOMCache для оптимизации DOM запросов (загружается через dom-cache.js)
-// Fallback на прямые вызовы, если domCache еще не загружен
-const domCache = (function() {
+// Fallback на прямые вызовы, если глобальный window.domCache еще не загружен.
+// ВАЖНО: используем отдельное имя `dashboardDomCache`, чтобы не конфликтовать
+// с глобальной константой `domCache`, создаваемой в `core/dom-cache.js`.
+const dashboardDomCache = (function() {
   if (window.domCache) {
     return window.domCache;
   }
@@ -31,29 +33,31 @@ const domCache = (function() {
 })();
 
 (function() {
-    console.log('📜 [DASHBOARD.JS] Проверка inline dashboard:', {
+    logger.debug('📜 [DASHBOARD.JS] Проверка inline dashboard:', {
         hasWindow: typeof window !== 'undefined',
         inlineActive: typeof window !== 'undefined' ? window.__INLINE_DASHBOARD_ACTIVE__ : 'no window'
     });
-    
-    // Глобальная функция для загрузки аккаунтов (работает независимо от класса Dashboard)
+
+    // Загрузка аккаунтов вынесена в assets/js/modules/dashboard-upload.js
+    // Fallback: определяем handleUploadAccountsGlobal только если модуль не загружен
+    if (typeof window.handleUploadAccountsGlobal !== 'function') {
     window.handleUploadAccountsGlobal = async function(e) {
-        console.log('🚨🚨🚨 === ГЛОБАЛЬНАЯ ФУНКЦИЯ ЗАГРУЗКИ АККАУНТОВ === 🚨🚨🚨');
-        console.log('🚨 [GLOBAL UPLOAD] Функция handleUploadAccountsGlobal вызвана!');
-        console.log('🚨 [GLOBAL UPLOAD] Событие:', e);
+        logger.debug('🚨🚨🚨 === ГЛОБАЛЬНАЯ ФУНКЦИЯ ЗАГРУЗКИ АККАУНТОВ === 🚨🚨🚨');
+        logger.debug('🚨 [GLOBAL UPLOAD] Функция handleUploadAccountsGlobal вызвана!');
+        logger.debug('🚨 [GLOBAL UPLOAD] Событие:', e);
         
         if (e && typeof e.preventDefault === 'function') {
             e.preventDefault();
-            console.log('🚨 [GLOBAL UPLOAD] preventDefault() вызван');
+            logger.debug('🚨 [GLOBAL UPLOAD] preventDefault() вызван');
         }
         
-        const form = domCache.getById('uploadAccountsForm');
-        const submitBtn = domCache.getById('uploadAccountsBtn');
-        const errorsDiv = domCache.getById('addAccountErrors');
-        const successDiv = domCache.getById('addAccountSuccess');
-        const fileInput = domCache.getById('accountsFile');
+        const form = dashboardDomCache.getById('uploadAccountsForm');
+        const submitBtn = dashboardDomCache.getById('uploadAccountsBtn');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
+        const fileInput = dashboardDomCache.getById('accountsFile');
         
-        console.log('🚨 [GLOBAL UPLOAD] Элементы формы:', {
+        logger.debug('🚨 [GLOBAL UPLOAD] Элементы формы:', {
             form: form ? 'найден' : 'не найден',
             submitBtn: submitBtn ? 'найден' : 'не найден',
             errorsDiv: errorsDiv ? 'найден' : 'не найден',
@@ -66,7 +70,7 @@ const domCache = (function() {
         
         // Проверка выбранного файла
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-            console.warn('⚠️ [GLOBAL UPLOAD] Файл не выбран');
+            logger.warn('⚠️ [GLOBAL UPLOAD] Файл не выбран');
             if (errorsDiv) {
                 errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки';
                 errorsDiv.classList.remove('d-none');
@@ -75,7 +79,7 @@ const domCache = (function() {
         }
         
         const file = fileInput.files[0];
-        console.log('📁 [GLOBAL UPLOAD] Информация о файле:', {
+        logger.debug('📁 [GLOBAL UPLOAD] Информация о файле:', {
             name: file.name,
             size: file.size,
             type: file.type,
@@ -85,7 +89,7 @@ const domCache = (function() {
         // Проверка размера файла (20MB)
         const maxSize = 20 * 1024 * 1024;
         if (file.size > maxSize) {
-            console.error('❌ [GLOBAL UPLOAD] Файл слишком большой:', file.size, 'байт (максимум:', maxSize, 'байт)');
+            logger.error('❌ [GLOBAL UPLOAD] Файл слишком большой:', file.size, 'байт (максимум:', maxSize, 'байт)');
             if (errorsDiv) {
                 errorsDiv.textContent = `Файл слишком большой. Максимальный размер: ${Math.round(maxSize / 1024 / 1024)} MB`;
                 errorsDiv.classList.remove('d-none');
@@ -97,14 +101,14 @@ const domCache = (function() {
         const allowedExtensions = ['.csv', '.txt'];
         const fileName = file.name.toLowerCase();
         const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
-        console.log('🔍 [GLOBAL UPLOAD] Проверка расширения файла:', {
+        logger.debug('🔍 [GLOBAL UPLOAD] Проверка расширения файла:', {
             fileName: fileName,
             hasValidExtension: hasValidExtension,
             allowedExtensions: allowedExtensions
         });
         
         if (!hasValidExtension) {
-            console.error('❌ [GLOBAL UPLOAD] Неподдерживаемое расширение файла:', fileName);
+            logger.error('❌ [GLOBAL UPLOAD] Неподдерживаемое расширение файла:', fileName);
             if (errorsDiv) {
                 errorsDiv.textContent = 'Поддерживаются только файлы CSV или TXT';
                 errorsDiv.classList.remove('d-none');
@@ -113,12 +117,12 @@ const domCache = (function() {
         }
         
         const formData = new FormData(form);
-        console.log('📦 [GLOBAL UPLOAD] Данные формы FormData:');
+        logger.debug('📦 [GLOBAL UPLOAD] Данные формы FormData:');
         for (let [key, value] of formData.entries()) {
             if (key === 'import_file') {
-                console.log(`  ${key}:`, '[File object]', value.name, value.size + ' bytes');
+                logger.debug(`  ${key}:`, '[File object]', value.name, value.size + ' bytes');
             } else {
-                console.log(`  ${key}:`, value);
+                logger.debug(`  ${key}:`, value);
             }
         }
         
@@ -128,8 +132,8 @@ const domCache = (function() {
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Загрузка...';
             
             try {
-                console.log('🚀 [GLOBAL UPLOAD] Отправка запроса на import_accounts.php...');
-                const response = await fetch('import_accounts.php', {
+                logger.debug('🚀 [GLOBAL UPLOAD] Отправка запроса на import_accounts.php...');
+                const response = await fetch(window.getTableAwareUrl('import_accounts.php'), {
                     method: 'POST',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'
@@ -137,7 +141,7 @@ const domCache = (function() {
                     body: formData
                 });
                 
-                console.log('📥 [GLOBAL UPLOAD] Ответ получен:', {
+                logger.debug('📥 [GLOBAL UPLOAD] Ответ получен:', {
                     status: response.status,
                     statusText: response.statusText,
                     ok: response.ok,
@@ -147,7 +151,7 @@ const domCache = (function() {
                 // Проверяем Content-Type ответа
                 const contentType = response.headers.get('content-type') || '';
                 const isJson = contentType.includes('application/json');
-                console.log('📋 [GLOBAL UPLOAD] Заголовки ответа:', {
+                logger.debug('📋 [GLOBAL UPLOAD] Заголовки ответа:', {
                     'content-type': contentType,
                     isJson: isJson,
                     allHeaders: Object.fromEntries(response.headers.entries())
@@ -156,15 +160,15 @@ const domCache = (function() {
                 let result;
                 
                 if (!response.ok) {
-                    console.error('❌ [GLOBAL UPLOAD] Ответ с ошибкой:', response.status, response.statusText);
+                    logger.error('❌ [GLOBAL UPLOAD] Ответ с ошибкой:', response.status, response.statusText);
                     // Пытаемся прочитать ошибку как JSON, если это возможно
                     if (isJson) {
                         try {
                             const errorData = await response.json();
-                            console.error('📄 [GLOBAL UPLOAD] Ошибка (JSON):', errorData);
+                            logger.error('📄 [GLOBAL UPLOAD] Ошибка (JSON):', errorData);
                             throw new Error(errorData.error || `Ошибка ${response.status}: ${response.statusText}`);
                         } catch (parseError) {
-                            console.error('❌ [GLOBAL UPLOAD] Ошибка парсинга JSON ошибки:', parseError);
+                            logger.error('❌ [GLOBAL UPLOAD] Ошибка парсинга JSON ошибки:', parseError);
                             if (parseError instanceof Error && parseError.message.includes('Ошибка')) {
                                 throw parseError;
                             }
@@ -173,7 +177,7 @@ const domCache = (function() {
                     } else {
                         // Если ответ не JSON, читаем как текст
                         const errorText = await response.text().catch(() => '');
-                        console.error('📄 [GLOBAL UPLOAD] Ошибка (текст):', errorText.substring(0, 500));
+                        logger.error('📄 [GLOBAL UPLOAD] Ошибка (текст):', errorText.substring(0, 500));
                         throw new Error(errorText || `Ошибка ${response.status}: ${response.statusText}`);
                     }
                 }
@@ -181,23 +185,23 @@ const domCache = (function() {
                 // Парсим успешный ответ
                 if (isJson) {
                     try {
-                        console.log('🔄 [GLOBAL UPLOAD] Парсинг JSON ответа...');
+                        logger.debug('🔄 [GLOBAL UPLOAD] Парсинг JSON ответа...');
                         result = await response.json();
-                        console.log('✅ [GLOBAL UPLOAD] JSON успешно распарсен:', result);
+                        logger.debug('✅ [GLOBAL UPLOAD] JSON успешно распарсен:', result);
                     } catch (parseError) {
-                        console.error('❌ [GLOBAL UPLOAD] Ошибка парсинга JSON ответа:', parseError);
-                        console.error('📄 [GLOBAL UPLOAD] Сырой ответ (первые 500 символов):', await response.clone().text().then(t => t.substring(0, 500)).catch(() => 'Не удалось прочитать'));
+                        logger.error('❌ [GLOBAL UPLOAD] Ошибка парсинга JSON ответа:', parseError);
+                        logger.error('📄 [GLOBAL UPLOAD] Сырой ответ (первые 500 символов):', await response.clone().text().then(t => t.substring(0, 500)).catch(() => 'Не удалось прочитать'));
                         throw new Error('Ошибка при обработке ответа от сервера. Проверьте формат файла и попробуйте снова.');
                     }
                 } else {
                     // Если ответ не JSON, это ошибка
-                    console.warn('⚠️ [GLOBAL UPLOAD] Ответ не является JSON, пытаемся прочитать как текст...');
+                    logger.warn('⚠️ [GLOBAL UPLOAD] Ответ не является JSON, пытаемся прочитать как текст...');
                     const textResponse = await response.text().catch(() => '');
-                    console.error('📄 [GLOBAL UPLOAD] Текстовый ответ (первые 500 символов):', textResponse.substring(0, 500));
+                    logger.error('📄 [GLOBAL UPLOAD] Текстовый ответ (первые 500 символов):', textResponse.substring(0, 500));
                     throw new Error(textResponse || 'Сервер вернул некорректный ответ. Попробуйте снова.');
                 }
                 
-                console.log('🔍 [GLOBAL UPLOAD] Результат импорта:', {
+                logger.debug('🔍 [GLOBAL UPLOAD] Результат импорта:', {
                     success: result.success,
                     created: result.created,
                     skipped: result.skipped,
@@ -207,7 +211,7 @@ const domCache = (function() {
                 });
                 
                 if (result.success) {
-                    console.log('✅ [GLOBAL UPLOAD] Импорт успешен!', {
+                    logger.debug('✅ [GLOBAL UPLOAD] Импорт успешен!', {
                         created: result.created || 0,
                         skipped: result.skipped || 0,
                         errors: result.errors ? result.errors.length : 0
@@ -231,10 +235,10 @@ const domCache = (function() {
                             }
                         });
                         
-                        console.warn('⚠️ [GLOBAL UPLOAD] Обнаружены ошибки при импорте!');
-                        console.warn('⚠️ [GLOBAL UPLOAD] Группировка ошибок:', errorGroups);
+                        logger.warn('⚠️ [GLOBAL UPLOAD] Обнаружены ошибки при импорте!');
+                        logger.warn('⚠️ [GLOBAL UPLOAD] Группировка ошибок:', errorGroups);
                         result.errors.forEach((err, index) => {
-                            console.error(`❌ [GLOBAL UPLOAD] Ошибка ${index + 1}:`, {
+                            logger.error(`❌ [GLOBAL UPLOAD] Ошибка ${index + 1}:`, {
                                 row: err.row,
                                 message: err.message,
                                 fullError: err
@@ -282,7 +286,7 @@ const domCache = (function() {
                             toastMsg = 'Импорт завершён';
                         }
 
-                        console.log('🔔 [GLOBAL UPLOAD] Показ toast уведомления:', {
+                        logger.debug('🔔 [GLOBAL UPLOAD] Показ toast уведомления:', {
                             message: toastMsg,
                             created,
                             duplicates,
@@ -293,7 +297,7 @@ const domCache = (function() {
                         const toastType = (errorsCount > 0 || duplicates > 0) ? 'warning' : 'success';
                         window.showToast(toastMsg, toastType);
                     } else {
-                        console.warn('⚠️ [GLOBAL UPLOAD] Функция window.showToast не найдена');
+                        logger.warn('⚠️ [GLOBAL UPLOAD] Функция window.showToast не найдена');
                     }
                     
                     // 2. Показываем детальную информацию об ошибках в errorsDiv
@@ -318,14 +322,14 @@ const domCache = (function() {
                                     errorTitle = 'Дубликат логина';
                                 }
                                 
-                                detailsHtml += `<div class="fw-semibold mb-1">${errorTitle} <span class="badge bg-danger">${group.count}</span></div>`;
-                                
+                                detailsHtml += `<div class="fw-semibold mb-1">${this.escapeHtml(errorTitle)} <span class="badge bg-danger">${group.count}</span></div>`;
+
                                 // Примеры строк
                                 if (group.examples.length > 0) {
                                     const examplesText = group.examples.length === group.count
-                                        ? `Строки: ${group.examples.join(', ')}`
-                                        : `Примеры строк: ${group.examples.join(', ')}${group.count > group.examples.length ? ` и ещё ${group.count - group.examples.length}` : ''}`;
-                                    detailsHtml += `<div class="text-muted small">${examplesText}</div>`;
+                                        ? `Строки: ${group.examples.map(e => this.escapeHtml(String(e))).join(', ')}`
+                                        : `Примеры строк: ${group.examples.map(e => this.escapeHtml(String(e))).join(', ')}${group.count > group.examples.length ? ` и ещё ${group.count - group.examples.length}` : ''}`;
+                                    detailsHtml += `<div class="text-muted small">${this.escapeHtml(examplesText)}</div>`;
                                 }
                                 
                                 detailsHtml += '</div>';
@@ -361,7 +365,7 @@ const domCache = (function() {
                     // 3. Очищаем форму
                     if (form) {
                         form.reset();
-                        console.log('🧹 [GLOBAL UPLOAD] Форма очищена');
+                        logger.debug('🧹 [GLOBAL UPLOAD] Форма очищена');
                     }
                     if (successDiv) {
                         successDiv.classList.add('d-none');
@@ -371,7 +375,7 @@ const domCache = (function() {
                     // 4. Закрываем модальное окно только если нет ошибок
                     // Если есть ошибки, оставляем модальное окно открытым, чтобы пользователь видел детали
                     if (errorsCount === 0) {
-                        const addAccountModal = domCache.getById('addAccountModal');
+                        const addAccountModal = dashboardDomCache.getById('addAccountModal');
                         if (addAccountModal) {
                             try {
                                 // Пробуем получить существующий инстанс
@@ -386,18 +390,18 @@ const domCache = (function() {
                                 
                                 // Закрываем модальное окно
                                 if (modalInstance) {
-                                    console.log('🔒 [GLOBAL UPLOAD] Закрытие модального окна через Bootstrap API...');
+                                    logger.debug('🔒 [GLOBAL UPLOAD] Закрытие модального окна через Bootstrap API...');
                                     modalInstance.hide();
                                 } else {
                                     // Fallback: используем data-атрибут
-                                    console.log('🔒 [GLOBAL UPLOAD] Fallback: закрытие через data-атрибут...');
+                                    logger.debug('🔒 [GLOBAL UPLOAD] Fallback: закрытие через data-атрибут...');
                                     const closeBtn = addAccountModal.querySelector('[data-bs-dismiss="modal"]');
                                     if (closeBtn) {
                                         closeBtn.click();
                                     }
                                 }
                             } catch (error) {
-                                console.error('❌ [GLOBAL UPLOAD] Ошибка при закрытии модального окна:', error);
+                                logger.error('❌ [GLOBAL UPLOAD] Ошибка при закрытии модального окна:', error);
                                 // Fallback: используем data-атрибут
                                 const closeBtn = addAccountModal.querySelector('[data-bs-dismiss="modal"]');
                                 if (closeBtn) {
@@ -406,7 +410,7 @@ const domCache = (function() {
                             }
                         }
                     } else {
-                        console.log('ℹ️ [GLOBAL UPLOAD] Модальное окно остаётся открытым для просмотра ошибок');
+                        logger.debug('ℹ️ [GLOBAL UPLOAD] Модальное окно остаётся открытым для просмотра ошибок');
                         // Прокручиваем к блоку с ошибками, чтобы пользователь сразу увидел детали
                         if (errorsDiv) {
                             setTimeout(() => {
@@ -417,29 +421,29 @@ const domCache = (function() {
                     
                     // 4. Обновляем таблицу после закрытия модального окна
                     setTimeout(() => {
-                        console.log('🔄 [GLOBAL UPLOAD] Обновление данных дашборда...');
+                        logger.debug('🔄 [GLOBAL UPLOAD] Обновление данных дашборда...');
                         if (typeof window.refreshDashboardData === 'function') {
                             window.refreshDashboardData().catch(error => {
-                                console.error('❌ [GLOBAL UPLOAD] Ошибка при обновлении дашборда:', error);
+                                logger.error('❌ [GLOBAL UPLOAD] Ошибка при обновлении дашборда:', error);
                                 // Если обновление не сработало, перезагружаем страницу
                                 if (error.name !== 'AbortError') {
-                                    console.warn('⚠️ [GLOBAL UPLOAD] Перезагрузка страницы из-за ошибки обновления...');
+                                    logger.warn('⚠️ [GLOBAL UPLOAD] Перезагрузка страницы из-за ошибки обновления...');
                                     window.location.reload();
                                 }
                             });
                         } else {
-                            console.warn('⚠️ [GLOBAL UPLOAD] Функция window.refreshDashboardData не найдена, перезагрузка страницы...');
+                            logger.warn('⚠️ [GLOBAL UPLOAD] Функция window.refreshDashboardData не найдена, перезагрузка страницы...');
                             window.location.reload();
                         }
                     }, 400); // Оптимальная задержка для закрытия модального окна
                     
                 } else {
-                    console.error('❌ [GLOBAL UPLOAD] Импорт не успешен, result.success = false:', result);
+                    logger.error('❌ [GLOBAL UPLOAD] Импорт не успешен, result.success = false:', result);
                     throw new Error(result.error || 'Ошибка при загрузке файла');
                 }
             } catch (error) {
-                console.error('❌ [GLOBAL UPLOAD] КРИТИЧЕСКАЯ ОШИБКА при загрузке аккаунтов:', error);
-                console.error('📊 [GLOBAL UPLOAD] Детали ошибки:', {
+                logger.error('❌ [GLOBAL UPLOAD] КРИТИЧЕСКАЯ ОШИБКА при загрузке аккаунтов:', error);
+                logger.error('📊 [GLOBAL UPLOAD] Детали ошибки:', {
                     name: error.name,
                     message: error.message,
                     stack: error.stack
@@ -455,101 +459,46 @@ const domCache = (function() {
                     errorMessage = tempDiv.textContent || errorMessage;
                 }
                 
-                console.log('📝 [GLOBAL UPLOAD] Отображение ошибки пользователю:', errorMessage);
+                logger.debug('📝 [GLOBAL UPLOAD] Отображение ошибки пользователю:', errorMessage);
                 
                 if (errorsDiv) {
                     errorsDiv.textContent = errorMessage;
                     errorsDiv.classList.remove('d-none');
                 } else {
-                    console.error('❌ [GLOBAL UPLOAD] errorsDiv не найден, не удалось отобразить ошибку!');
+                    logger.error('❌ [GLOBAL UPLOAD] errorsDiv не найден, не удалось отобразить ошибку!');
                 }
                 
                 if (typeof window.showToast === 'function') {
-                    console.log('🔔 [GLOBAL UPLOAD] Показ toast уведомления об ошибке');
+                    logger.debug('🔔 [GLOBAL UPLOAD] Показ toast уведомления об ошибке');
                     window.showToast(errorMessage, 'error');
                 } else {
-                    console.warn('⚠️ [GLOBAL UPLOAD] Функция window.showToast не найдена');
+                    logger.warn('⚠️ [GLOBAL UPLOAD] Функция window.showToast не найдена');
                 }
             } finally {
-                console.log('🏁 [GLOBAL UPLOAD] Завершение обработки запроса, восстановление кнопки');
+                logger.debug('🏁 [GLOBAL UPLOAD] Завершение обработки запроса, восстановление кнопки');
                 if (submitBtn) {
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalText;
                 }
-                console.log('=== КОНЕЦ ГЛОБАЛЬНОЙ ЗАГРУЗКИ АККАУНТОВ ===');
+                logger.debug('=== КОНЕЦ ГЛОБАЛЬНОЙ ЗАГРУЗКИ АККАУНТОВ ===');
             }
         } else {
-            console.error('❌ [GLOBAL UPLOAD] submitBtn не найден!');
+            logger.error('❌ [GLOBAL UPLOAD] submitBtn не найден!');
         }
     };
-    
+    } // конец fallback handleUploadAccountsGlobal
+
     if (typeof window !== 'undefined' && window.__INLINE_DASHBOARD_ACTIVE__) {
-        // Inline dashboard скрипт активен — пропускаем инициализацию класса Dashboard
-        console.warn('⚠️ [DASHBOARD.JS] Inline dashboard активен, пропускаем инициализацию класса Dashboard');
-        console.log('✅ [DASHBOARD.JS] Глобальная функция handleUploadAccountsGlobal создана и доступна');
-        
-        // Привязываем обработчик к форме при загрузке DOM
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('🔧 [GLOBAL] Инициализация глобального обработчика для формы загрузки...');
-            const uploadBtn = domCache.getById('uploadAccountsBtn');
-            const uploadForm = domCache.getById('uploadAccountsForm');
-            
-            console.log('🔧 [GLOBAL] Элементы:', {
-                uploadBtn: uploadBtn ? 'найден' : 'НЕ НАЙДЕН',
-                uploadForm: uploadForm ? 'найден' : 'НЕ НАЙДЕН'
-            });
-            
-            if (uploadForm) {
-                console.log('✅ [GLOBAL] Форма uploadAccountsForm найдена, привязываем обработчик submit...');
-                uploadForm.addEventListener('submit', function(e) {
-                    console.log('🚨🚨🚨 [GLOBAL FORM SUBMIT] Событие submit формы перехвачено!');
-                    window.handleUploadAccountsGlobal(e);
-                });
-            } else {
-                console.warn('⚠️ [GLOBAL] Форма uploadAccountsForm не найдена');
-            }
-            
-            if (uploadBtn) {
-                console.log('✅ [GLOBAL] Кнопка uploadAccountsBtn найдена, привязываем обработчик click...');
-                uploadBtn.addEventListener('click', function(e) {
-                    e.preventDefault(); // Предотвращаем стандартную отправку
-                    e.stopPropagation(); // Останавливаем всплытие
-                    console.log('🚨🚨🚨 [GLOBAL CLICK] Клик по кнопке загрузки аккаунтов!');
-                    const form = domCache.getById('uploadAccountsForm');
-                    if (form) {
-                        console.log('🚨 [GLOBAL CLICK] Форма найдена, проверяем файл...');
-                        const fileInput = domCache.getById('accountsFile');
-                        if (fileInput && fileInput.files && fileInput.files.length > 0) {
-                            console.log('🚨 [GLOBAL CLICK] Файл выбран:', fileInput.files[0].name);
-                            // Вызываем глобальную функцию загрузки напрямую
-                            const fakeEvent = { 
-                                preventDefault: () => {}, 
-                                target: form,
-                                stopPropagation: () => {}
-                            };
-                            window.handleUploadAccountsGlobal(fakeEvent);
-                        } else {
-                            console.warn('⚠️ [GLOBAL CLICK] Файл не выбран');
-                            const errorsDiv = domCache.getById('addAccountErrors');
-                            if (errorsDiv) {
-                                errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки';
-                                errorsDiv.classList.remove('d-none');
-                            }
-                        }
-                    }
-                });
-            } else {
-                console.warn('⚠️ [GLOBAL] Кнопка uploadAccountsBtn не найдена');
-            }
-        });
-        
+        // Inline dashboard скрипт активен — модуль dashboard-upload уже привязал форму
+        logger.debug('✅ [DASHBOARD.JS] Inline dashboard активен, модуль upload подключен');
+        // Модуль dashboard-upload уже привязал форму при DOMContentLoaded
         return;
     }
 
 class Dashboard {
     constructor() {
-        console.log('🏗️ [CONSTRUCTOR] Создание экземпляра Dashboard...');
-        console.log('🏗️ [CONSTRUCTOR] Время:', new Date().toISOString());
+        logger.debug('🏗️ [CONSTRUCTOR] Создание экземпляра Dashboard...');
+        logger.debug('🏗️ [CONSTRUCTOR] Время:', new Date().toISOString());
         
         this.selectedIds = new Set();
         this.selectedAllFiltered = false;
@@ -581,27 +530,27 @@ class Dashboard {
             CUSTOM_CARDS: 'dashboard_custom_cards_v1'
         };
         
-        console.log('🏗️ [CONSTRUCTOR] Вызов метода init()...');
+        logger.debug('🏗️ [CONSTRUCTOR] Вызов метода init()...');
         this.init();
-        console.log('✅ [CONSTRUCTOR] Dashboard успешно создан и инициализирован');
+        logger.debug('✅ [CONSTRUCTOR] Dashboard успешно создан и инициализирован');
     }
     
     init() {
-        console.log('🔧 [INIT] Метод init() вызван');
-        console.log('🔧 [INIT] Загрузка выбранных ID...');
+        logger.debug('🔧 [INIT] Метод init() вызван');
+        logger.debug('🔧 [INIT] Загрузка выбранных ID...');
         this.loadSelectedIds();
-        console.log('🔧 [INIT] Обновление счетчика выбранных...');
+        logger.debug('🔧 [INIT] Обновление счетчика выбранных...');
         this.updateSelectedCount();
-        console.log('🔧 [INIT] Загрузка настроек...');
+        logger.debug('🔧 [INIT] Загрузка настроек...');
         this.loadSettings();
-        console.log('🔧 [INIT] Привязка событий...');
+        logger.debug('🔧 [INIT] Привязка событий...');
         this.bindEvents();
-        console.log('🔧 [INIT] Инициализация компонентов...');
+        logger.debug('🔧 [INIT] Инициализация компонентов...');
         this.initializeComponents();
         
         // Автоочистка кэша каждые 5 минут (сохраняем ссылку для очистки)
         this.cleanupInterval = setInterval(() => this.cleanupMemory(), 5 * 60 * 1000);
-        console.log('✅ [INIT] Инициализация завершена');
+        logger.debug('✅ [INIT] Инициализация завершена');
     }
     
     loadSelectedIds() {
@@ -611,7 +560,7 @@ class Dashboard {
                 this.selectedIds = new Set(JSON.parse(saved));
             }
         } catch (e) {
-            console.error('Error loading selected IDs:', e);
+            logger.error('Error loading selected IDs:', e);
         }
     }
     
@@ -628,11 +577,11 @@ class Dashboard {
                 if (k) knownCols = JSON.parse(k) || [];
             } catch (_) {}
             
-            const allColKeys = Array.from(domCache.getAll('.column-toggle'))
+            const allColKeys = Array.from(dashboardDomCache.getAll('.column-toggle'))
                 .map(cb => cb.getAttribute('data-col'));
             const newCols = allColKeys.filter(c => !knownCols.includes(c));
             
-            domCache.getAll('.column-toggle').forEach(cb => {
+            dashboardDomCache.getAll('.column-toggle').forEach(cb => {
                 const colName = cb.getAttribute('data-col');
                 let isChecked = cb.checked;
                 if (visibleColumns) {
@@ -651,13 +600,13 @@ class Dashboard {
             const savedCards = localStorage.getItem(this.LS_KEYS.CARDS);
             if (savedCards) {
                 const visibleCards = JSON.parse(savedCards);
-                domCache.getAll('.card-toggle').forEach(cb => {
+                dashboardDomCache.getAll('.card-toggle').forEach(cb => {
                     const cardId = cb.getAttribute('data-card');
                     cb.checked = visibleCards.includes(cardId);
                 });
             }
         } catch (e) {
-            console.error('Error loading settings:', e);
+            logger.error('Error loading settings:', e);
         }
     }
     
@@ -679,22 +628,12 @@ class Dashboard {
         
         // Обработчики для селектов
         this.bindSelectEvents();
-        
-        // Пагинация
-        this.bindPaginationEvents();
-        
+
         // Предотвращение утечек памяти при закрытии страницы
         window.addEventListener('beforeunload', this.boundHandlers.beforeunload);
     }
     
     handleDocumentClick(e) {
-        // Пагинация
-        const pageLink = e.target.closest('ul.pagination a.page-link');
-        if (pageLink) {
-            this.handlePaginationClick(e, pageLink);
-            return;
-        }
-        
         // Переключение паролей
         const pwToggle = e.target.closest('.pw-toggle');
         if (pwToggle) {
@@ -776,17 +715,8 @@ class Dashboard {
             });
         }
         
-        // Селект страниц (пагинация) - оставляем автоприменение
-        const pageSelect = domCache.getById('pageSelect');
-        if (pageSelect) {
-            pageSelect.addEventListener('change', this.handlePageSelectChange.bind(this));
-        }
     }
-    
-    bindPaginationEvents() {
-        // Уже обрабатывается в handleDocumentClick
-    }
-    
+
     // Дебаунс функция для оптимизации
     debounce(func, wait) {
         let timeout;
@@ -844,27 +774,6 @@ class Dashboard {
         return;
     }
     
-    handlePageSelectChange() {
-        const pageSelect = domCache.getById('pageSelect');
-        const selectedPage = parseInt(pageSelect.value);
-        
-        if (selectedPage && selectedPage > 0) {
-            const url = new URL(window.location);
-            url.searchParams.set('page', String(selectedPage));
-            history.replaceState(null, '', url.toString());
-            
-            // Обновляем номер страницы немедленно
-            const pageNumEl = domCache.getById('pageNum');
-            if (pageNumEl) pageNumEl.textContent = String(selectedPage);
-            
-            // НЕ очищаем selectedIds при пагинации - выбранные строки должны сохраняться между страницами
-            // selectedAllFiltered сбрасываем, так как это относится к текущему фильтру
-            this.selectedAllFiltered = false;
-            this.updateSelectedCount();
-            this.debouncedRefresh();
-        }
-    }
-    
     updateUrlAndRefresh(param, value) {
         const url = new URL(window.location);
         if (value) {
@@ -879,42 +788,6 @@ class Dashboard {
         this.selectedIds.clear();
         this.updateSelectedCount();
         this.debouncedRefresh();
-    }
-    
-    handlePaginationClick(e, pageLink) {
-        e.preventDefault();
-        
-        const li = pageLink.closest('li');
-        if (li && li.classList.contains('disabled')) return;
-        
-        const href = pageLink.getAttribute('href') || '';
-        if (!href) return;
-        
-        try {
-            const url = new URL(href, window.location.origin);
-            const pageParam = parseInt(url.searchParams.get('page') || '1');
-            const current = new URL(window.location);
-            current.searchParams.set('page', String(pageParam));
-            history.replaceState(null, '', current.toString());
-            
-            // Обновляем UI немедленно
-            this.updatePageUI(pageParam);
-            
-            // НЕ сбрасываем выбор при смене страницы - сохраняем выбранные ID
-            // selectedAllFiltered сбрасываем, так как это относится к фильтру, а не к конкретным ID
-            this.selectedAllFiltered = false;
-            this.debouncedRefresh();
-        } catch (error) {
-            console.error('Pagination error:', error);
-        }
-    }
-    
-    updatePageUI(pageNum) {
-        const pageNumEl = domCache.getById('pageNum');
-        if (pageNumEl) pageNumEl.textContent = String(pageNum);
-        
-        const pageSelectEl = domCache.getById('pageSelect');
-        if (pageSelectEl) pageSelectEl.value = String(pageNum);
     }
     
     // Оптимизированное обновление данных
@@ -962,7 +835,7 @@ class Dashboard {
             
         } catch (error) {
             if (error.name !== 'AbortError') {
-                console.error('Refresh error:', error);
+                logger.error('Refresh error:', error);
                 this.showToast('Ошибка обновления данных', 'error');
             }
         } finally {
@@ -1019,23 +892,32 @@ class Dashboard {
     }
     
     updateTable(data) {
-        const tbody = domCache.get('#accountsTable tbody');
+        const tbody = dashboardDomCache.get('#accountsTable tbody');
         if (!tbody || !Array.isArray(data.rows)) return;
-        
+
         // Сохраняем позицию скролла
         const prevScrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        
+
         // Плавная анимация обновления
         tbody.style.opacity = '0.7';
         tbody.style.transition = 'opacity 0.2s ease';
-        
+
+        // Generation guard: если за 100ms пришёл более свежий updateTable(),
+        // отменяем перезапись содержимого, чтобы stale-ответ не затёр новый.
+        this._tableGen = (this._tableGen || 0) + 1;
+        const gen = this._tableGen;
+
         setTimeout(() => {
+            if (gen !== this._tableGen) {
+                // Пришёл более свежий апдейт — дропаем этот.
+                return;
+            }
             tbody.innerHTML = this.generateTableRows(data.rows);
             tbody.style.opacity = '1';
-            
+
             // Восстанавливаем позицию скролла
             window.scrollTo(0, prevScrollTop);
-            
+
             // Переинициализируем обработчики
             this.rebindTableEvents();
             this.applySavedColumnVisibility();
@@ -1045,13 +927,13 @@ class Dashboard {
     
     generateTableRows(rows) {
         if (!rows.length) {
-            const colCount = domCache.getAll('#accountsTable thead th').length;
+            const colCount = dashboardDomCache.getAll('#accountsTable thead th').length;
             return `<tr><td colspan="${colCount}" class="text-center text-muted py-5">
                 <i class="fas fa-search fa-2x mb-3"></i><div>Ничего не найдено</div>
             </td></tr>`;
         }
         
-        const headKeys = Array.from(domCache.getAll('#accountsTable thead th[data-col]'))
+        const headKeys = Array.from(dashboardDomCache.getAll('#accountsTable thead th[data-col]'))
             .map(th => th.getAttribute('data-col'));
         
         return rows.map(row => this.generateTableRow(row, headKeys)).join('');
@@ -1082,13 +964,15 @@ class Dashboard {
         const value = row[col];
         
         if (value === undefined || value === null || value === '') {
-            return '<span class="text-muted">—</span>';
+            return `<span class="text-muted">—</span>
+                <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>`;
         }
         
         // Специальная обработка для разных типов колонок
         switch (col) {
             case 'id':
-                return `<span class="fw-bold text-primary">#${this.escapeHtml(value)}</span>`;
+                return `<span class="fw-bold text-primary">#${this.escapeHtml(value)}</span>
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
                 
             case 'email':
                 return `<div class="d-flex align-items-center gap-2">
@@ -1114,10 +998,13 @@ class Dashboard {
                     <button type="button" class="pw-toggle" title="Показать пароль">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать пароль"><i class="fas fa-copy"></i></button>
                 </div>`;
                 
             case 'status':
-                return this.renderStatusBadge(value);
+                return `<div class="d-flex align-items-center gap-2">${this.renderStatusBadge(value)}
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+                </div>`;
                 
             default:
                 // Длинные поля
@@ -1126,10 +1013,12 @@ class Dashboard {
                     return `<span class="truncate mono" title="Нажмите для просмотра" 
                         data-full="${this.escapeHtml(value)}" data-title="${this.escapeHtml(col)}">
                         ${this.escapeHtml(clipped)}
-                    </span>`;
+                    </span>
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
                 }
                 
-                return `<span>${this.escapeHtml(value)}</span>`;
+                return `<span>${this.escapeHtml(value)}</span>
+                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
         }
     }
     
@@ -1153,7 +1042,7 @@ class Dashboard {
     // Очистка памяти и предотвращение утечек
     cleanupMemory() {
         // Очищаем старые обработчики событий
-        const oldElements = domCache.getAll('[data-cleanup]');
+        const oldElements = dashboardDomCache.getAll('[data-cleanup]');
         oldElements.forEach(el => {
             el.removeEventListener('click', el._clickHandler);
             el.removeEventListener('change', el._changeHandler);
@@ -1209,11 +1098,11 @@ class Dashboard {
     // Вспомогательные методы...
     showToast(message, type = 'info') {
         // Реализация уведомлений
-        console.log(`Toast [${type}]: ${message}`);
+        logger.debug(`Toast [${type}]: ${message}`);
     }
     
     showLoadingOverlay() {
-        const overlay = domCache.getById('tableLoading');
+        const overlay = dashboardDomCache.getById('tableLoading');
         if (overlay) {
             overlay.classList.add('show');
             this.overlayShownAt = Date.now();
@@ -1221,7 +1110,7 @@ class Dashboard {
     }
     
     hideLoadingOverlay() {
-        const overlay = domCache.getById('tableLoading');
+        const overlay = dashboardDomCache.getById('tableLoading');
         if (overlay) {
             const elapsed = Date.now() - (this.overlayShownAt || 0);
             const minMs = 300;
@@ -1281,31 +1170,59 @@ class Dashboard {
         const full = target.getAttribute('data-full') || '';
         const title = target.getAttribute('data-title') || 'Данные';
         if (!full) return;
-        
-        let modal = domCache.getById('fullDataModal');
+
+        let modal = dashboardDomCache.getById('fullDataModal');
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'fullDataModal';
-            modal.innerHTML = `
-                <div class="fdm-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:99999;">
-                  <div class="fdm-dialog" style="max-width:70vw;max-height:70vh;width:70vw;background:#fff;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;">
-                    <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;">
-                      <div style="font-weight:600">${this.escapeHtml(title)}</div>
-                      <button type="button" class="fdm-close" style="border:none;background:transparent;font-size:20px;line-height:1;cursor:pointer">&times;</button>
-                    </div>
-                    <div style="padding:16px;overflow:auto">
-                      <pre style="white-space:pre-wrap;word-wrap:break-word;font-family:monospace;margin:0">${this.escapeHtml(full)}</pre>
-                    </div>
-                  </div>
-                </div>
-            `;
+
+            // Build the modal structure safely using DOM methods instead of innerHTML
+            const backdrop = document.createElement('div');
+            backdrop.className = 'fdm-backdrop';
+            backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:99999;';
+
+            const dialog = document.createElement('div');
+            dialog.className = 'fdm-dialog';
+            dialog.style.cssText = 'max-width:70vw;max-height:70vh;width:70vw;background:#fff;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;';
+
+            const header = document.createElement('div');
+            header.style.cssText = 'padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;';
+
+            const titleDiv = document.createElement('div');
+            titleDiv.style.fontWeight = '600';
+            titleDiv.textContent = title;
+
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'fdm-close';
+            closeBtn.style.cssText = 'border:none;background:transparent;font-size:20px;line-height:1;cursor:pointer';
+            closeBtn.textContent = '×';
+
+            header.appendChild(titleDiv);
+            header.appendChild(closeBtn);
+
+            const content = document.createElement('div');
+            content.style.cssText = 'padding:16px;overflow:auto';
+
+            const pre = document.createElement('pre');
+            pre.style.cssText = 'white-space:pre-wrap;word-wrap:break-word;font-family:monospace;margin:0';
+            pre.textContent = full;
+
+            content.appendChild(pre);
+
+            dialog.appendChild(header);
+            dialog.appendChild(content);
+            backdrop.appendChild(dialog);
+            modal.appendChild(backdrop);
+
             document.body.appendChild(modal);
-            modal.querySelector('.fdm-backdrop').addEventListener('click', (e) => {
+
+            backdrop.addEventListener('click', (e) => {
                 if (e.target.classList.contains('fdm-backdrop')) {
                     modal.remove();
                 }
             });
-            modal.querySelector('.fdm-close').addEventListener('click', () => modal.remove());
+            closeBtn.addEventListener('click', () => modal.remove());
         }
     }
     
@@ -1322,7 +1239,7 @@ class Dashboard {
     
     // Обновление счётчиков выбранных записей и кнопок
     updateSelectedCount() {
-        const selectedCountEl = domCache.getById('selectedCount');
+        const selectedCountEl = dashboardDomCache.getById('selectedCount');
         if (selectedCountEl) {
             selectedCountEl.textContent = this.selectedAllFiltered ? 'Все по фильтру' : String(this.selectedIds.size);
         }
@@ -1341,7 +1258,7 @@ class Dashboard {
     
     // Обработка главного чекбокса
     handleSelectAllChange(master) {
-        const rows = domCache.getAll('#accountsTable tbody .row-checkbox');
+        const rows = dashboardDomCache.getAll('#accountsTable tbody .row-checkbox');
         rows.forEach(cb => {
             cb.checked = master.checked;
             const id = parseInt(cb.value, 10);
@@ -1372,56 +1289,56 @@ class Dashboard {
     
     // Инициализация формы добавления аккаунта
     initAddAccountForm() {
-        console.log('🔧 [INIT] Инициализация формы добавления аккаунта...');
-        const addAccountModal = domCache.getById('addAccountModal');
-        const uploadForm = domCache.getById('uploadAccountsForm');
-        const uploadBtn = domCache.getById('uploadAccountsBtn');
+        logger.debug('🔧 [INIT] Инициализация формы добавления аккаунта...');
+        const addAccountModal = dashboardDomCache.getById('addAccountModal');
+        const uploadForm = dashboardDomCache.getById('uploadAccountsForm');
+        const uploadBtn = dashboardDomCache.getById('uploadAccountsBtn');
         
-        console.log('🔧 [INIT] Элементы формы:', {
+        logger.debug('🔧 [INIT] Элементы формы:', {
             addAccountModal: addAccountModal ? 'найден' : 'НЕ НАЙДЕН',
             uploadForm: uploadForm ? 'найден' : 'НЕ НАЙДЕН',
             uploadBtn: uploadBtn ? 'найден' : 'НЕ НАЙДЕН'
         });
         
         if (!addAccountModal || !uploadForm) {
-            console.warn('⚠️ [INIT] Форма не найдена, возможно не на странице dashboard');
+            logger.warn('⚠️ [INIT] Форма не найдена, возможно не на странице dashboard');
             return; // Форма не найдена, возможно не на странице dashboard
         }
         
         // Обработка открытия модального окна
         addAccountModal.addEventListener('show.bs.modal', () => {
-            console.log('📂 [MODAL] Модальное окно открывается');
+            logger.debug('📂 [MODAL] Модальное окно открывается');
             this.clearAddAccountForm();
         });
         
         // Обработка отправки формы загрузки
-        console.log('🔧 [INIT] Привязка обработчика submit к форме...');
+        logger.debug('🔧 [INIT] Привязка обработчика submit к форме...');
         uploadForm.addEventListener('submit', (e) => {
-            console.log('🚨 [FORM] Событие submit формы перехвачено!');
+            logger.debug('🚨 [FORM] Событие submit формы перехвачено!');
             e.preventDefault();
-            console.log('🚨 [FORM] Вызов handleUploadAccounts...');
+            logger.debug('🚨 [FORM] Вызов handleUploadAccounts...');
             this.handleUploadAccounts(e);
         });
         
         // Дополнительно привязываем обработчик к кнопке (на случай если форма не работает)
         if (uploadBtn) {
-            console.log('🔧 [INIT] Привязка дополнительного обработчика к кнопке...');
+            logger.debug('🔧 [INIT] Привязка дополнительного обработчика к кнопке...');
             uploadBtn.addEventListener('click', (e) => {
                 e.preventDefault(); // Предотвращаем стандартную отправку формы
                 e.stopPropagation(); // Останавливаем всплытие события
-                console.log('🚨 [BUTTON] Клик по кнопке загрузки, проверяем форму...');
-                const form = domCache.getById('uploadAccountsForm');
+                logger.debug('🚨 [BUTTON] Клик по кнопке загрузки, проверяем форму...');
+                const form = dashboardDomCache.getById('uploadAccountsForm');
                 if (form) {
-                    const fileInput = domCache.getById('accountsFile');
+                    const fileInput = dashboardDomCache.getById('accountsFile');
                     if (fileInput && fileInput.files && fileInput.files.length > 0) {
-                        console.log('🚨 [BUTTON] Файл выбран, инициируем submit формы...');
+                        logger.debug('🚨 [BUTTON] Файл выбран, инициируем submit формы...');
                         // Создаем событие submit и вызываем обработчик напрямую
                         const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
                         submitEvent.preventDefault = () => {}; // Добавляем метод preventDefault
                         this.handleUploadAccounts(submitEvent);
                     } else {
-                        console.warn('⚠️ [BUTTON] Файл не выбран');
-                        const errorsDiv = domCache.getById('addAccountErrors');
+                        logger.warn('⚠️ [BUTTON] Файл не выбран');
+                        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
                         if (errorsDiv) {
                             errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки';
                             errorsDiv.classList.remove('d-none');
@@ -1433,15 +1350,15 @@ class Dashboard {
         
         // Сброс при закрытии модального окна (работает для ручного и программного закрытия)
         addAccountModal.addEventListener('hidden.bs.modal', () => {
-            console.log('📂 [MODAL] Модальное окно закрыто, полная очистка формы');
+            logger.debug('📂 [MODAL] Модальное окно закрыто, полная очистка формы');
             this.clearAddAccountForm();
             
             // Дополнительная очистка элементов (на случай если clearAddAccountForm не отработал)
-            const errorsDiv = domCache.getById('addAccountErrors');
-            const successDiv = domCache.getById('addAccountSuccess');
-            const form = domCache.getById('uploadAccountsForm');
-            const fileInput = domCache.getById('accountsFile');
-            const submitBtn = domCache.getById('uploadAccountsBtn');
+            const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+            const successDiv = dashboardDomCache.getById('addAccountSuccess');
+            const form = dashboardDomCache.getById('uploadAccountsForm');
+            const fileInput = dashboardDomCache.getById('accountsFile');
+            const submitBtn = dashboardDomCache.getById('uploadAccountsBtn');
             
             if (errorsDiv) {
                 errorsDiv.classList.add('d-none');
@@ -1466,7 +1383,7 @@ class Dashboard {
             }
         });
         
-        console.log('✅ [INIT] Форма добавления аккаунта инициализирована');
+        logger.debug('✅ [INIT] Форма добавления аккаунта инициализирована');
     }
     
     // Загрузка статусов для формы
@@ -1490,12 +1407,12 @@ class Dashboard {
     
     // Очистка формы добавления аккаунта
     clearAddAccountForm() {
-        const form = domCache.getById('uploadAccountsForm');
+        const form = dashboardDomCache.getById('uploadAccountsForm');
         if (form) {
             form.reset();
         }
-        const errorsDiv = domCache.getById('addAccountErrors');
-        const successDiv = domCache.getById('addAccountSuccess');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
         if (errorsDiv) {
             errorsDiv.classList.add('d-none');
             errorsDiv.textContent = '';
@@ -1508,23 +1425,23 @@ class Dashboard {
     
     // Обработка загрузки аккаунтов из CSV файла
     async handleUploadAccounts(e) {
-        console.log('🚨🚨🚨 === НАЧАЛО ЗАГРУЗКИ АККАУНТОВ === 🚨🚨🚨');
-        console.log('🚨 [UPLOAD] Функция handleUploadAccounts вызвана!');
-        console.log('🚨 [UPLOAD] Событие:', e);
+        logger.debug('🚨🚨🚨 === НАЧАЛО ЗАГРУЗКИ АККАУНТОВ === 🚨🚨🚨');
+        logger.debug('🚨 [UPLOAD] Функция handleUploadAccounts вызвана!');
+        logger.debug('🚨 [UPLOAD] Событие:', e);
         
         if (e && typeof e.preventDefault === 'function') {
             e.preventDefault();
-            console.log('🚨 [UPLOAD] preventDefault() вызван');
+            logger.debug('🚨 [UPLOAD] preventDefault() вызван');
         }
         
         // Получаем форму из события или находим по ID
-        const form = (e && e.target && e.target.tagName === 'FORM') ? e.target : domCache.getById('uploadAccountsForm');
-        const submitBtn = domCache.getById('uploadAccountsBtn');
-        const errorsDiv = domCache.getById('addAccountErrors');
-        const successDiv = domCache.getById('addAccountSuccess');
-        const fileInput = domCache.getById('accountsFile');
+        const form = (e && e.target && e.target.tagName === 'FORM') ? e.target : dashboardDomCache.getById('uploadAccountsForm');
+        const submitBtn = dashboardDomCache.getById('uploadAccountsBtn');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
+        const fileInput = dashboardDomCache.getById('accountsFile');
         
-        console.log('Элементы формы:', {
+        logger.debug('Элементы формы:', {
             form: form ? 'найден' : 'не найден',
             submitBtn: submitBtn ? 'найден' : 'не найден',
             errorsDiv: errorsDiv ? 'найден' : 'не найден',
@@ -1537,7 +1454,7 @@ class Dashboard {
         
         // Проверка выбранного файла
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-            console.warn('⚠️ Файл не выбран');
+            logger.warn('⚠️ Файл не выбран');
             if (errorsDiv) {
                 errorsDiv.textContent = 'Пожалуйста, выберите файл для загрузки';
                 errorsDiv.classList.remove('d-none');
@@ -1546,7 +1463,7 @@ class Dashboard {
         }
         
         const file = fileInput.files[0];
-        console.log('📁 Информация о файле:', {
+        logger.debug('📁 Информация о файле:', {
             name: file.name,
             size: file.size,
             type: file.type,
@@ -1556,7 +1473,7 @@ class Dashboard {
         // Проверка размера файла (20MB)
         const maxSize = 20 * 1024 * 1024;
         if (file.size > maxSize) {
-            console.error('❌ Файл слишком большой:', file.size, 'байт (максимум:', maxSize, 'байт)');
+            logger.error('❌ Файл слишком большой:', file.size, 'байт (максимум:', maxSize, 'байт)');
             if (errorsDiv) {
                 errorsDiv.textContent = `Файл слишком большой. Максимальный размер: ${Math.round(maxSize / 1024 / 1024)} MB`;
                 errorsDiv.classList.remove('d-none');
@@ -1568,14 +1485,14 @@ class Dashboard {
         const allowedExtensions = ['.csv', '.txt'];
         const fileName = file.name.toLowerCase();
         const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
-        console.log('🔍 Проверка расширения файла:', {
+        logger.debug('🔍 Проверка расширения файла:', {
             fileName: fileName,
             hasValidExtension: hasValidExtension,
             allowedExtensions: allowedExtensions
         });
         
         if (!hasValidExtension) {
-            console.error('❌ Неподдерживаемое расширение файла:', fileName);
+            logger.error('❌ Неподдерживаемое расширение файла:', fileName);
             if (errorsDiv) {
                 errorsDiv.textContent = 'Поддерживаются только файлы CSV или TXT';
                 errorsDiv.classList.remove('d-none');
@@ -1584,12 +1501,12 @@ class Dashboard {
         }
         
         const formData = new FormData(form);
-        console.log('📦 Данные формы FormData:');
+        logger.debug('📦 Данные формы FormData:');
         for (let [key, value] of formData.entries()) {
             if (key === 'import_file') {
-                console.log(`  ${key}:`, '[File object]', value.name, value.size + ' bytes');
+                logger.debug(`  ${key}:`, '[File object]', value.name, value.size + ' bytes');
             } else {
-                console.log(`  ${key}:`, value);
+                logger.debug(`  ${key}:`, value);
             }
         }
         
@@ -1599,8 +1516,8 @@ class Dashboard {
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Загрузка...';
             
             try {
-                console.log('🚀 Отправка запроса на import_accounts.php...');
-                const response = await fetch('import_accounts.php', {
+                logger.debug('🚀 Отправка запроса на import_accounts.php...');
+                const response = await fetch(window.getTableAwareUrl('import_accounts.php'), {
                     method: 'POST',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'
@@ -1608,7 +1525,7 @@ class Dashboard {
                     body: formData
                 });
                 
-                console.log('📥 Ответ получен:', {
+                logger.debug('📥 Ответ получен:', {
                     status: response.status,
                     statusText: response.statusText,
                     ok: response.ok,
@@ -1618,7 +1535,7 @@ class Dashboard {
                 // Проверяем Content-Type ответа
                 const contentType = response.headers.get('content-type') || '';
                 const isJson = contentType.includes('application/json');
-                console.log('📋 Заголовки ответа:', {
+                logger.debug('📋 Заголовки ответа:', {
                     'content-type': contentType,
                     isJson: isJson,
                     allHeaders: Object.fromEntries(response.headers.entries())
@@ -1627,15 +1544,15 @@ class Dashboard {
                 let result;
                 
                 if (!response.ok) {
-                    console.error('❌ Ответ с ошибкой:', response.status, response.statusText);
+                    logger.error('❌ Ответ с ошибкой:', response.status, response.statusText);
                     // Пытаемся прочитать ошибку как JSON, если это возможно
                     if (isJson) {
                         try {
                             const errorData = await response.json();
-                            console.error('📄 Ошибка (JSON):', errorData);
+                            logger.error('📄 Ошибка (JSON):', errorData);
                             throw new Error(errorData.error || `Ошибка ${response.status}: ${response.statusText}`);
                         } catch (parseError) {
-                            console.error('❌ Ошибка парсинга JSON ошибки:', parseError);
+                            logger.error('❌ Ошибка парсинга JSON ошибки:', parseError);
                             if (parseError instanceof Error && parseError.message.includes('Ошибка')) {
                                 throw parseError;
                             }
@@ -1644,7 +1561,7 @@ class Dashboard {
                     } else {
                         // Если ответ не JSON, читаем как текст
                         const errorText = await response.text().catch(() => '');
-                        console.error('📄 Ошибка (текст):', errorText.substring(0, 500));
+                        logger.error('📄 Ошибка (текст):', errorText.substring(0, 500));
                         throw new Error(errorText || `Ошибка ${response.status}: ${response.statusText}`);
                     }
                 }
@@ -1652,23 +1569,23 @@ class Dashboard {
                 // Парсим успешный ответ
                 if (isJson) {
                     try {
-                        console.log('🔄 Парсинг JSON ответа...');
+                        logger.debug('🔄 Парсинг JSON ответа...');
                         result = await response.json();
-                        console.log('✅ JSON успешно распарсен:', result);
+                        logger.debug('✅ JSON успешно распарсен:', result);
                     } catch (parseError) {
-                        console.error('❌ Ошибка парсинга JSON ответа:', parseError);
-                        console.error('📄 Сырой ответ (первые 500 символов):', await response.clone().text().then(t => t.substring(0, 500)).catch(() => 'Не удалось прочитать'));
+                        logger.error('❌ Ошибка парсинга JSON ответа:', parseError);
+                        logger.error('📄 Сырой ответ (первые 500 символов):', await response.clone().text().then(t => t.substring(0, 500)).catch(() => 'Не удалось прочитать'));
                         throw new Error('Ошибка при обработке ответа от сервера. Проверьте формат файла и попробуйте снова.');
                     }
                 } else {
                     // Если ответ не JSON, это ошибка
-                    console.warn('⚠️ Ответ не является JSON, пытаемся прочитать как текст...');
+                    logger.warn('⚠️ Ответ не является JSON, пытаемся прочитать как текст...');
                     const textResponse = await response.text().catch(() => '');
-                    console.error('📄 Текстовый ответ (первые 500 символов):', textResponse.substring(0, 500));
+                    logger.error('📄 Текстовый ответ (первые 500 символов):', textResponse.substring(0, 500));
                     throw new Error(textResponse || 'Сервер вернул некорректный ответ. Попробуйте снова.');
                 }
                 
-                console.log('🔍 Результат импорта:', {
+                logger.debug('🔍 Результат импорта:', {
                     success: result.success,
                     created: result.created,
                     skipped: result.skipped,
@@ -1678,7 +1595,7 @@ class Dashboard {
                 });
                 
                 if (result.success) {
-                    console.log('✅ Импорт успешен!', {
+                    logger.debug('✅ Импорт успешен!', {
                         created: result.created || 0,
                         skipped: result.skipped || 0,
                         errors: result.errors ? result.errors.length : 0
@@ -1686,49 +1603,58 @@ class Dashboard {
                     
                     // Успешная загрузка
                     let message = result.message || `Успешно обработано ${result.total || 0} строк(и)`;
-                    
+
                     if (result.errors && result.errors.length > 0) {
-                        console.warn('⚠️ Обнаружены ошибки при импорте:', result.errors.slice(0, 10));
+                        logger.warn('⚠️ Обнаружены ошибки при импорте:', result.errors.slice(0, 10));
                         message += `<br><strong>Ошибки (${result.errors.length}):</strong><ul class="mb-0 mt-2 small">`;
                         result.errors.slice(0, 10).forEach(err => { // Показываем только первые 10 ошибок
-                            message += `<li>Строка ${err.row}: ${err.message}</li>`;
+                            // Escape both row number and message from server
+                            const escapedRow = this.escapeHtml(String(err.row));
+                            const escapedMsg = this.escapeHtml(err.message);
+                            message += `<li>Строка ${escapedRow}: ${escapedMsg}</li>`;
                         });
                         if (result.errors.length > 10) {
                             message += `<li><em>... и еще ${result.errors.length - 10} ошибок</em></li>`;
                         }
                         message += '</ul>';
                     }
-                    
+
                     if (successDiv) {
-                        console.log('📝 Отображение сообщения об успехе в successDiv');
-                        successDiv.innerHTML = message;
+                        logger.debug('📝 Отображение сообщения об успехе в successDiv');
+                        // For messages with HTML structure (list), use innerHTML with properly escaped content
+                        // For plain text messages, use textContent
+                        if (message.includes('<')) {
+                            successDiv.innerHTML = message;
+                        } else {
+                            successDiv.textContent = message;
+                        }
                         successDiv.classList.remove('d-none');
                     } else {
-                        console.warn('⚠️ successDiv не найден, не удалось отобразить сообщение');
+                        logger.warn('⚠️ successDiv не найден, не удалось отобразить сообщение');
                     }
                     
                     if (typeof window.showToast === 'function') {
                         const toastMsg = `Создано: ${result.created || 0}, Пропущено: ${result.skipped || 0}`;
-                        console.log('🔔 Показ toast уведомления:', toastMsg);
+                        logger.debug('🔔 Показ toast уведомления:', toastMsg);
                         window.showToast(toastMsg, 'success');
                     } else {
-                        console.warn('⚠️ Функция window.showToast не найдена');
+                        logger.warn('⚠️ Функция window.showToast не найдена');
                     }
                     
                     // Обновляем таблицу на дашборде
                     if (this.refreshDashboardData) {
-                        console.log('🔄 Обновление данных дашборда через 1 секунду...');
+                        logger.debug('🔄 Обновление данных дашборда через 1 секунду...');
                         setTimeout(() => {
-                            console.log('🔄 Выполняем refreshDashboardData...');
+                            logger.debug('🔄 Выполняем refreshDashboardData...');
                             this.refreshDashboardData();
                         }, 1000);
                     } else {
-                        console.warn('⚠️ Метод refreshDashboardData не найден');
+                        logger.warn('⚠️ Метод refreshDashboardData не найден');
                     }
                     
                     // Очищаем форму через 3 секунды
                     setTimeout(() => {
-                        console.log('🧹 Очистка формы...');
+                        logger.debug('🧹 Очистка формы...');
                         form.reset();
                         if (successDiv) {
                             successDiv.classList.add('d-none');
@@ -1736,12 +1662,12 @@ class Dashboard {
                     }, 3000);
                     
                 } else {
-                    console.error('❌ Импорт не успешен, result.success = false:', result);
+                    logger.error('❌ Импорт не успешен, result.success = false:', result);
                     throw new Error(result.error || 'Ошибка при загрузке файла');
                 }
             } catch (error) {
-                console.error('❌ КРИТИЧЕСКАЯ ОШИБКА при загрузке аккаунтов:', error);
-                console.error('📊 Детали ошибки:', {
+                logger.error('❌ КРИТИЧЕСКАЯ ОШИБКА при загрузке аккаунтов:', error);
+                logger.error('📊 Детали ошибки:', {
                     name: error.name,
                     message: error.message,
                     stack: error.stack
@@ -1757,48 +1683,50 @@ class Dashboard {
                     errorMessage = tempDiv.textContent || errorMessage;
                 }
                 
-                console.log('📝 Отображение ошибки пользователю:', errorMessage);
+                logger.debug('📝 Отображение ошибки пользователю:', errorMessage);
                 
                 if (errorsDiv) {
                     errorsDiv.textContent = errorMessage;
                     errorsDiv.classList.remove('d-none');
                 } else {
-                    console.error('❌ errorsDiv не найден, не удалось отобразить ошибку!');
+                    logger.error('❌ errorsDiv не найден, не удалось отобразить ошибку!');
                 }
                 
                 if (typeof window.showToast === 'function') {
-                    console.log('🔔 Показ toast уведомления об ошибке');
+                    logger.debug('🔔 Показ toast уведомления об ошибке');
                     window.showToast(errorMessage, 'error');
                 } else {
-                    console.warn('⚠️ Функция window.showToast не найдена');
+                    logger.warn('⚠️ Функция window.showToast не найдена');
                 }
             } finally {
-                console.log('🏁 Завершение обработки запроса, восстановление кнопки');
+                logger.debug('🏁 Завершение обработки запроса, восстановление кнопки');
                 if (submitBtn) {
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalText;
                 }
-                console.log('=== КОНЕЦ ЗАГРУЗКИ АККАУНТОВ ===');
+                logger.debug('=== КОНЕЦ ЗАГРУЗКИ АККАУНТОВ ===');
             }
         } else {
-            console.error('❌ submitBtn не найден!');
+            logger.error('❌ submitBtn не найден!');
         }
     }
     
     // Добавление новой строки в таблицу
     addAccountRow() {
-        const tbody = domCache.getById('addAccountsTableBody');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
         if (!tbody) return;
         
         const rowCount = tbody.children.length;
         const row = document.createElement('tr');
         row.dataset.rowIndex = rowCount;
         
-        // Получаем список статусов
+        // Получаем список статусов (уже с экранированием)
         const statusOptions = this.getStatusOptionsHtml();
-        
+
+        // Build row safely with proper escaping of row number
+        const rowNumber = rowCount + 1;
         row.innerHTML = `
-            <td class="text-center">${rowCount + 1}</td>
+            <td class="text-center">${this.escapeHtml(String(rowNumber))}</td>
             <td>
                 <input type="text" class="form-control form-control-sm" name="login" maxlength="255" required>
                 <div class="invalid-feedback small">Обязательно</div>
@@ -1843,7 +1771,7 @@ class Dashboard {
     
     // Очистка таблицы
     clearAddAccountTable() {
-        const tbody = domCache.getById('addAccountsTableBody');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
         if (tbody) {
             tbody.innerHTML = '';
             this.addAccountRow(); // Добавляем одну пустую строку
@@ -1853,8 +1781,8 @@ class Dashboard {
     
     // Обновление счетчика строк
     updateRowCount() {
-        const tbody = domCache.getById('addAccountsTableBody');
-        const countEl = domCache.getById('accountsTableRowCount');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
+        const countEl = dashboardDomCache.getById('accountsTableRowCount');
         if (tbody && countEl) {
             const count = tbody.children.length;
             countEl.textContent = count;
@@ -1888,7 +1816,7 @@ class Dashboard {
         const lines = pastedData.split(/\r?\n/).filter(line => line.trim() !== '');
         if (lines.length === 0) return;
         
-        const tbody = domCache.getById('addAccountsTableBody');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
         if (!tbody) return;
         
         // Находим активную строку (где был клик) или последнюю
@@ -1985,7 +1913,7 @@ class Dashboard {
         }
         
         const selectedStatus = statuses[index];
-        const tbody = domCache.getById('addAccountsTableBody');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
         if (!tbody) return;
         
         const selects = tbody.querySelectorAll('select[name="status"]');
@@ -2008,7 +1936,7 @@ class Dashboard {
     
     // Валидация всех строк таблицы
     validateAccountsTable() {
-        const tbody = domCache.getById('addAccountsTableBody');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
         if (!tbody) return { valid: false, errors: [] };
         
         const rows = Array.from(tbody.children);
@@ -2074,7 +2002,7 @@ class Dashboard {
     
     // Сбор данных из таблицы
     collectAccountsData() {
-        const tbody = domCache.getById('addAccountsTableBody');
+        const tbody = dashboardDomCache.getById('addAccountsTableBody');
         if (!tbody) return [];
         
         const accounts = [];
@@ -2112,18 +2040,18 @@ class Dashboard {
     async handleAddAccountsBulkSubmit(e) {
         e.preventDefault();
         
-        const submitBtn = domCache.getById('submitAddAccount');
-        const errorsDiv = domCache.getById('addAccountErrors');
-        const successDiv = domCache.getById('addAccountSuccess');
+        const submitBtn = dashboardDomCache.getById('submitAddAccount');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
         
         // Валидация таблицы
         const validation = this.validateAccountsTable();
         if (!validation.valid) {
             let errorMsg = `Найдены ошибки валидации в ${validation.errors.length} строке(ах). `;
-            errorMsg += validation.errors.map(e => `Строка ${e.row}: ${e.errors.join(', ')}`).join('; ');
-            
+            errorMsg += validation.errors.map(e => `Строка ${this.escapeHtml(String(e.row))}: ${this.escapeHtml(e.errors.join(', '))}`).join('; ');
+
             if (errorsDiv) {
-                errorsDiv.innerHTML = errorMsg;
+                errorsDiv.textContent = errorMsg;
                 errorsDiv.classList.remove('d-none');
             }
             if (typeof window.showToast === 'function') {
@@ -2149,7 +2077,7 @@ class Dashboard {
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Создание...';
             
             try {
-                const csrfInput = domCache.getById('addAccountCsrf');
+                const csrfInput = dashboardDomCache.getById('addAccountCsrf');
                 const csrfToken = csrfInput ? csrfInput.value : '';
                 
                 // Отправляем bulk запрос
@@ -2180,7 +2108,7 @@ class Dashboard {
                     throw new Error(result.error || 'Ошибка при создании аккаунтов');
                 }
             } catch (error) {
-                console.error('Error creating accounts:', error);
+                logger.error('Error creating accounts:', error);
                 const errorMessage = error.message || 'Ошибка при создании аккаунтов';
                 
                 if (errorsDiv) {
@@ -2201,23 +2129,32 @@ class Dashboard {
     
     // Показ результата массового создания
     showAddAccountsBulkSuccess(result) {
-        const successDiv = domCache.getById('addAccountSuccess');
-        const errorsDiv = domCache.getById('addAccountErrors');
+        const successDiv = dashboardDomCache.getById('addAccountSuccess');
+        const errorsDiv = dashboardDomCache.getById('addAccountErrors');
         
         if (errorsDiv) errorsDiv.classList.add('d-none');
         
         let message = result.message || `Создано: ${result.created || 0}, Пропущено: ${result.skipped || 0}`;
-        
+
         if (result.errors && result.errors.length > 0) {
             message += `<br><strong>Ошибки (${result.errors.length}):</strong><ul class="mb-0 mt-2">`;
             result.errors.forEach(err => {
-                message += `<li>Строка ${err.row}: ${err.message}</li>`;
+                // Escape both row number and message from server
+                const escapedRow = this.escapeHtml(String(err.row));
+                const escapedMsg = this.escapeHtml(err.message);
+                message += `<li>Строка ${escapedRow}: ${escapedMsg}</li>`;
             });
             message += '</ul>';
         }
-        
+
         if (successDiv) {
-            successDiv.innerHTML = message;
+            // For messages with HTML structure (list), use innerHTML with properly escaped content
+            // For plain text messages, use textContent
+            if (message.includes('<')) {
+                successDiv.innerHTML = message;
+            } else {
+                successDiv.textContent = message;
+            }
             successDiv.classList.remove('d-none');
         }
         
@@ -2262,41 +2199,41 @@ class Dashboard {
 }
 
 // Инициализация при загрузке DOM
-console.log('📜 [DASHBOARD.JS] Регистрация обработчика DOMContentLoaded...');
+logger.debug('📜 [DASHBOARD.JS] Регистрация обработчика DOMContentLoaded...');
 
 // Проверяем состояние DOM
-console.log('📜 [DASHBOARD.JS] Состояние документа:', document.readyState);
+logger.debug('📜 [DASHBOARD.JS] Состояние документа:', document.readyState);
 
 if (document.readyState === 'loading') {
-    console.log('📜 [DASHBOARD.JS] Документ еще загружается, ждем DOMContentLoaded...');
+    logger.debug('📜 [DASHBOARD.JS] Документ еще загружается, ждем DOMContentLoaded...');
 } else {
-    console.log('📜 [DASHBOARD.JS] Документ уже загружен, инициализируем немедленно...');
+    logger.debug('📜 [DASHBOARD.JS] Документ уже загружен, инициализируем немедленно...');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('%c🚀 [DOMContentLoaded] Событие DOMContentLoaded сработало!', 'color: green; font-size: 16px; font-weight: bold;');
-    console.log('🚀 [DOMContentLoaded] Создаем экземпляр Dashboard...');
+    logger.debug('%c🚀 [DOMContentLoaded] Событие DOMContentLoaded сработало!', 'color: green; font-size: 16px; font-weight: bold;');
+    logger.debug('🚀 [DOMContentLoaded] Создаем экземпляр Dashboard...');
     
     try {
         window.dashboard = new Dashboard();
-        console.log('%c✅ [DOMContentLoaded] Dashboard успешно создан!', 'color: green; font-size: 14px;');
-        console.log('✅ [DOMContentLoaded] Dashboard сохранен в window.dashboard:', window.dashboard);
+        logger.debug('%c✅ [DOMContentLoaded] Dashboard успешно создан!', 'color: green; font-size: 14px;');
+        logger.debug('✅ [DOMContentLoaded] Dashboard сохранен в window.dashboard:', window.dashboard);
     } catch (error) {
-        console.error('%c❌ [DOMContentLoaded] КРИТИЧЕСКАЯ ОШИБКА при создании Dashboard!', 'color: red; font-size: 18px; font-weight: bold;');
-        console.error('❌ [DOMContentLoaded] Ошибка:', error);
-        console.error('❌ [DOMContentLoaded] Сообщение:', error.message);
-        console.error('❌ [DOMContentLoaded] Стек ошибки:', error.stack);
+        logger.error('%c❌ [DOMContentLoaded] КРИТИЧЕСКАЯ ОШИБКА при создании Dashboard!', 'color: red; font-size: 18px; font-weight: bold;');
+        logger.error('❌ [DOMContentLoaded] Ошибка:', error);
+        logger.error('❌ [DOMContentLoaded] Сообщение:', error.message);
+        logger.error('❌ [DOMContentLoaded] Стек ошибки:', error.stack);
         alert('Ошибка инициализации Dashboard! Проверьте консоль для деталей.');
     }
     
     // Дополнительная проверка элементов формы через некоторое время
     setTimeout(() => {
-        console.log('🔍 [DELAYED CHECK] Проверка элементов формы через 500ms...');
-        const uploadBtn = domCache.getById('uploadAccountsBtn');
-        const uploadForm = domCache.getById('uploadAccountsForm');
-        const addAccountModal = domCache.getById('addAccountModal');
+        logger.debug('🔍 [DELAYED CHECK] Проверка элементов формы через 500ms...');
+        const uploadBtn = dashboardDomCache.getById('uploadAccountsBtn');
+        const uploadForm = dashboardDomCache.getById('uploadAccountsForm');
+        const addAccountModal = dashboardDomCache.getById('addAccountModal');
         
-        console.log('🔍 [DELAYED CHECK] Элементы:', {
+        logger.debug('🔍 [DELAYED CHECK] Элементы:', {
             uploadBtn: uploadBtn ? 'найден' : 'НЕ НАЙДЕН',
             uploadForm: uploadForm ? 'найден' : 'НЕ НАЙДЕН',
             addAccountModal: addAccountModal ? 'найден' : 'НЕ НАЙДЕН',
@@ -2305,29 +2242,29 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Добавляем глобальный обработчик как резервный
         if (uploadBtn && !uploadBtn.hasAttribute('data-global-handler-attached')) {
-            console.log('🔧 [GLOBAL FALLBACK] Добавление глобального обработчика к кнопке...');
+            logger.debug('🔧 [GLOBAL FALLBACK] Добавление глобального обработчика к кнопке...');
             uploadBtn.setAttribute('data-global-handler-attached', 'true');
             uploadBtn.addEventListener('click', function(e) {
-                console.log('🚨🚨🚨 [GLOBAL FALLBACK CLICK] Клик по кнопке загрузки (глобальный обработчик)!');
+                logger.debug('🚨🚨🚨 [GLOBAL FALLBACK CLICK] Клик по кнопке загрузки (глобальный обработчик)!');
                 
                 if (!uploadForm) {
-                    console.error('❌ [GLOBAL FALLBACK] Форма не найдена!');
+                    logger.error('❌ [GLOBAL FALLBACK] Форма не найдена!');
                     return;
                 }
                 
-                const fileInput = domCache.getById('accountsFile');
+                const fileInput = dashboardDomCache.getById('accountsFile');
                 if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-                    console.warn('⚠️ [GLOBAL FALLBACK] Файл не выбран');
+                    logger.warn('⚠️ [GLOBAL FALLBACK] Файл не выбран');
                     alert('Пожалуйста, выберите файл для загрузки');
                     return;
                 }
                 
-                console.log('🚨 [GLOBAL FALLBACK] Вызываем handleUploadAccounts через window.dashboard...');
+                logger.debug('🚨 [GLOBAL FALLBACK] Вызываем handleUploadAccounts через window.dashboard...');
                 if (window.dashboard && typeof window.dashboard.handleUploadAccounts === 'function') {
                     const fakeEvent = { preventDefault: () => {}, target: uploadForm };
                     window.dashboard.handleUploadAccounts(fakeEvent);
                 } else {
-                    console.error('❌ [GLOBAL FALLBACK] window.dashboard.handleUploadAccounts не найден!');
+                    logger.error('❌ [GLOBAL FALLBACK] window.dashboard.handleUploadAccounts не найден!');
                     alert('Ошибка: функция загрузки не инициализирована. Проверьте консоль.');
                 }
             });

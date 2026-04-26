@@ -15,28 +15,40 @@ require_once __DIR__ . '/StatisticsService.php';
 
 class AccountsService {
     private $db;
-    private $table = 'accounts';
+    private $table;
     private $metadata;
     private $repository;
     private $statistics;
-    
-    public function __construct() {
-        global $mysqli;
-        
-        // Проверяем, что подключение к БД установлено
-        if (!isset($mysqli) || !($mysqli instanceof mysqli)) {
-            throw new Exception('Database connection not initialized. Please check config.php');
-        }
-        
+
+    public function __construct(string $table = 'accounts') {
+        $this->table = $table;
         $this->db = Database::getInstance();
-        $this->metadata = ColumnMetadata::getInstance($mysqli);
-        $this->db->ensureIndexes();
-        
-        // Инициализируем репозиторий и сервис статистики
-        $this->repository = new AccountsRepository();
-        $this->statistics = new StatisticsService();
+        $mysqli = $this->db->getConnection();
+        $this->metadata = ColumnMetadata::getInstance($mysqli, $this->table);
+        if ($this->table === 'accounts') {
+            $this->db->ensureIndexes();
+        }
+
+        $this->repository = new AccountsRepository($this->table);
+        $this->statistics = new StatisticsService($this->table);
+    }
+
+    public function getTableName(): string {
+        return $this->table;
     }
     
+    /**
+     * Список колонок, хранящихся как строка, но используемых как число (для FilterBuilder — без TRIM/CAST).
+     * Единый источник для createFilterFromRequest и для мест, где FilterBuilder создаётся вручную (api/index.php и т.д.).
+     */
+    public static function getNumericLikeColumns(): array {
+        return [
+            'limit_rk', 'scenario_pharma', 'quantity_friends', 'quantity_fp',
+            'quantity_bm', 'quantity_photo', 'year_created',
+            'birth_day', 'birth_month', 'birth_year'
+        ];
+    }
+
     /**
      * Получение метаданных колонок
      */
@@ -54,7 +66,7 @@ class AccountsService {
      */
     public function createFilterFromRequest(array $params): FilterBuilder {
         $meta = $this->getColumnMetadata();
-        $filter = new FilterBuilder($meta['columns'], $meta['numeric']);
+        $filter = new FilterBuilder($meta['columns'], $meta['numeric'], self::getNumericLikeColumns());
         
         // Фильтр по конкретным ID (приоритетный для экспорта выбранных записей)
         if (!empty($params['ids']) && is_array($params['ids'])) {
@@ -122,13 +134,14 @@ class AccountsService {
             );
         }
         
-        // Булевы фильтры "не пустое"
-        $filter->addNotEmptyFilter('email', !empty($params['has_email']));
+        // Email: проверяет колонку email + extra_info_2 (если содержит @)
+        $filter->addEmailPresentFilter(!empty($params['has_email']));
         $filter->addNotEmptyFilter('two_fa', !empty($params['has_two_fa']));
         $filter->addNotEmptyFilter('token', !empty($params['has_token']));
         $filter->addNotEmptyFilter('avatar', !empty($params['has_avatar']));
         $filter->addNotEmptyFilter('cover', !empty($params['has_cover']));
         $filter->addNotEmptyFilter('password', !empty($params['has_password']));
+
         
         // Фильтр "Fan Page" (quantity_fp > 0)
         $filter->addGreaterThanZeroFilter('quantity_fp', !empty($params['has_fan_page']));
@@ -159,6 +172,20 @@ class AccountsService {
                 $params['friends_to'] ?? null
             );
         }
+
+        // Диапазон по количеству БМ
+        if ($this->metadata->columnExists('bm')) {
+            $filter->addRangeFilter('bm',
+                $params['bm_from'] ?? null,
+                $params['bm_to'] ?? null
+            );
+        }
+
+        // Фильтр по статусу БМ (has_valid / has_ban / only_valid)
+        $bmStatus = $params['bm_status'] ?? '';
+        if ($bmStatus !== '' && $bmStatus !== 'any') {
+            $filter->addBmStatusFilter($bmStatus);
+        }
         
         // Год создания
         $filter->addYearCreatedFilter(
@@ -169,14 +196,7 @@ class AccountsService {
         return $filter;
     }
     
-    /**
-     * Создание фильтра из массива параметров (для кастомных карточек)
-     * Аналогично createFilterFromRequest, но принимает массив напрямую
-     */
-    public function createFilterFromArray(array $params): FilterBuilder {
-        // Используем ту же логику, что и createFilterFromRequest
-        return $this->createFilterFromRequest($params);
-    }
+
     
     /**
      * Построение ORDER BY выражения с правильной обработкой NULL значений
@@ -195,38 +215,28 @@ class AccountsService {
         }
         $dir = strtoupper($dir) === 'DESC' ? 'DESC' : 'ASC';
         
-        // Список колонок, которые должны сортироваться как числа (даже если хранятся как строки)
-        $numericLikeColumns = [
-            'limit_rk', 'scenario_pharma', 'quantity_friends', 'quantity_fp', 
-            'quantity_bm', 'quantity_photo', 'year_created', 
-            'birth_day', 'birth_month', 'birth_year'
-        ];
+        // Сортировка по id — всегда простая, чтобы использовать индекс (избегаем filesort на 90k+ строк).
+        if ($sort === 'id') {
+            return "`id` $dir";
+        }
         
-        $isNumeric = in_array($sort, $meta['numeric'], true) 
-            || in_array($sort, $numericLikeColumns, true);
+        // Колонки с числовым типом в БД (INT и т.д.) — простая сортировка для использования индекса.
+        if (in_array($sort, $meta['numeric'], true)) {
+            return "`$sort` $dir";
+        }
         
-        if ($isNumeric) {
-            // Для числовых полей: улучшенная обработка пустых значений и нечисловых данных
-            // Используем COALESCE и NULLIF для корректной обработки пустых строк
-            // TRIM убирает пробелы, CAST конвертирует в число
+        // Колонки, которые хранятся как строки, но сортируются как числа (TRIM/CAST по строкам, индекс не используется)
+        $isNumericLike = in_array($sort, self::getNumericLikeColumns(), true);
+        
+        if ($isNumericLike) {
             $numericExpr = "CAST(COALESCE(NULLIF(TRIM(`$sort`), ''), '0') AS UNSIGNED)";
-            
             if ($dir === 'ASC') {
-                // NULL и пустые значения идут в конец при ASC
-                return "CASE 
-                            WHEN `$sort` IS NULL OR TRIM(`$sort`) = '' THEN 1 
-                            ELSE 0 
-                        END,
-                        $numericExpr ASC";
-            } else {
-                // NULL и пустые значения идут в начало при DESC
-                return "CASE 
-                            WHEN `$sort` IS NULL OR TRIM(`$sort`) = '' THEN 1 
-                            ELSE 0 
-                        END DESC,
-                        $numericExpr DESC";
+                return "CASE WHEN `$sort` IS NULL OR TRIM(`$sort`) = '' THEN 1 ELSE 0 END, $numericExpr ASC";
             }
-        } else {
+            return "CASE WHEN `$sort` IS NULL OR TRIM(`$sort`) = '' THEN 1 ELSE 0 END DESC, $numericExpr DESC";
+        }
+        
+        {
             // Для текстовых полей: NULL и пустые значения идут в конец при ASC, в начало при DESC
             if ($dir === 'ASC') {
                 return "(`$sort` IS NULL OR `$sort` = ''), `$sort` ASC";
@@ -322,6 +332,14 @@ class AccountsService {
     }
     
     /**
+     * Получение всех счётчиков пустых значений фильтров одним запросом.
+     * Ключи: status_marketplace, currency, geo, status_rk.
+     */
+    public function getEmptyFilterCounts(): array {
+        return $this->statistics->getEmptyFilterCounts();
+    }
+    
+    /**
      * Получение количества записей с пустым статусом marketplace
      * Делегирует работу в StatisticsService
      */
@@ -378,29 +396,91 @@ class AccountsService {
     }
     
     /**
+     * Получение записей для проверки валидности (id, login, id_soc_account, cookies)
+     * scope: selected|page — по ids; filter — по query с пагинацией
+     *
+     * @param string $scope selected|page|filter
+     * @param array $ids Массив ID (для selected/page)
+     * @param string $query Строка query-параметров (для filter)
+     * @param int $limit
+     * @param int $offset
+     * @return array ['rows' => [...], 'total' => int] total только для filter
+     */
+    public function getAccountsForValidation(string $scope, array $ids, string $query, int $limit = 2000, int $offset = 0): array {
+        if ($scope === 'filter') {
+            parse_str($query, $params);
+            $filter = $this->createFilterFromRequest($params);
+            // Пустой фильтр = все аккаунты (пользователь сознательно выбрал "Все")
+            $total = $this->repository->getAccountsCount($filter, false);
+            $rows = $this->repository->getAccountsByFilterForValidation($filter, 'id ASC', $limit, $offset);
+            return ['rows' => $rows, 'total' => $total];
+        }
+        // selected | page
+        $ids = array_filter(array_map('intval', $ids));
+        if (empty($ids)) {
+            return ['rows' => [], 'total' => 0];
+        }
+        $rows = $this->repository->getAccountsByIdsForValidation($ids);
+        return ['rows' => $rows, 'total' => count($rows)];
+    }
+    
+    /**
      * Обновление статуса для выбранных аккаунтов
      * Делегирует работу в AccountsRepository с логированием в audit log
      */
     public function updateStatus(array $ids, string $status): int {
-        // Логируем изменения в audit log
+        // Логируем изменения в audit log ДО обновления (чтобы сохранить старые значения)
         try {
             $auditLogger = AuditLogger::getInstance();
             if ($auditLogger->isEnabled()) {
                 $auditLogger->logBulkChange($ids, 'status', null, $status);
             }
         } catch (Exception $e) {
-            // Игнорируем ошибки audit log
+            Logger::warning('Audit log failed for updateStatus', ['error' => $e->getMessage()]);
         }
-        
+
         // Делегируем в репозиторий
         return $this->repository->updateStatus($ids, $status);
     }
     
     /**
      * Обновление статуса для всех записей по фильтру
-     * Делегирует работу в AccountsRepository
+     * Делегирует работу в AccountsRepository с логированием в audit log
      */
     public function updateStatusByFilter(FilterBuilder $filter, string $status): int {
+        // Получаем ID аккаунтов, которые будут обновлены, для audit log
+        try {
+            $auditLogger = AuditLogger::getInstance();
+            if ($auditLogger->isEnabled()) {
+                // Находим ID аккаунтов, попадающих под фильтр, со старыми статусами
+                $where = $filter->getWhereClause();
+                $params = $filter->getParams();
+                $sql = "SELECT id FROM {$this->table} " . ($where ?: '');
+                $mysqli = $this->db->getConnection();
+                $stmt = $mysqli->prepare($sql);
+                if ($stmt) {
+                    if (!empty($params)) {
+                        $types = $filter->getParamTypes();
+                        $stmt->bind_param($types, ...$params);
+                    }
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $ids = [];
+                    while ($row = $result->fetch_assoc()) {
+                        $ids[] = (int)$row['id'];
+                    }
+                    $stmt->close();
+
+                    if (!empty($ids)) {
+                        $auditLogger->logBulkChange($ids, 'status', null, $status);
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            Logger::warning('Audit log failed for updateStatusByFilter', ['error' => $e->getMessage()]);
+        }
+
+        // Делегируем в репозиторий
         return $this->repository->updateStatusByFilter($filter, $status);
     }
     
@@ -559,9 +639,44 @@ class AccountsService {
     
     /**
      * Массовое обновление произвольного поля по фильтру
-     * Делегирует работу в AccountsRepository
+     * Делегирует работу в AccountsRepository, предварительно фиксируя старые значения в audit log.
      */
     public function updateFieldByFilter(FilterBuilder $filter, string $field, $value): int {
+        // AUDIT: зеркалит схему updateStatusByFilter — сначала собираем ID по фильтру,
+        // потом logBulkChange (который сам прочитает старые значения через $field),
+        // потом основной UPDATE.
+        try {
+            $auditLogger = AuditLogger::getInstance();
+            if ($auditLogger->isEnabled()) {
+                $where = $filter->getWhereClause();
+                $params = $filter->getParams();
+                $sql = "SELECT id FROM {$this->table} " . ($where ?: '');
+                $mysqli = $this->db->getConnection();
+                $stmt = $mysqli->prepare($sql);
+                if ($stmt) {
+                    if (!empty($params)) {
+                        $stmt->bind_param($filter->getParamTypes(), ...$params);
+                    }
+                    $stmt->execute();
+                    $result = $stmt->get_result();
+                    $ids = [];
+                    while ($row = $result->fetch_assoc()) {
+                        $ids[] = (int)$row['id'];
+                    }
+                    $stmt->close();
+
+                    if (!empty($ids)) {
+                        $auditLogger->logBulkChange($ids, $field, null, $value);
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            Logger::warning('Audit log failed for updateFieldByFilter', [
+                'field' => $field,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         return $this->repository->updateFieldByFilter($filter, $field, $value);
     }
 
@@ -703,8 +818,8 @@ class AccountsService {
         
         // Делегируем создание в репозиторий
         $result = $this->repository->createAccountsBulk($accountsData, $duplicateAction);
-        
-        // Логируем массовое создание (без получения каждого аккаунта для производительности)
+
+        // Логируем массовое создание в общий лог
         try {
             Logger::info('Bulk accounts created', [
                 'created' => $result['created'],
@@ -716,9 +831,188 @@ class AccountsService {
         } catch (Exception $e) {
             // Игнорируем ошибки логирования
         }
-        
+
+        // Логируем каждый созданный аккаунт в audit log (история изменений)
+        $createdIds = $result['created_ids'] ?? [];
+        if (!empty($createdIds)) {
+            try {
+                $auditLogger = AuditLogger::getInstance();
+                if ($auditLogger->isEnabled()) {
+                    $changedBy = $_SESSION['username'] ?? 'system';
+                    $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+                    $meta = $this->getColumnMetadata();
+                    $conn = Database::getInstance()->getConnection();
+
+                    // Собираем все audit записи батчем (одна INSERT вставка)
+                    $insertValues = [];
+                    $insertParams = [];
+                    $insertTypes = '';
+
+                    // Строим маппинг login → data из входного массива
+                    $dataByLogin = [];
+                    foreach ($accountsData as $data) {
+                        $login = trim((string)($data['login'] ?? ''));
+                        if ($login !== '') {
+                            $dataByLogin[$login] = $data;
+                        }
+                    }
+
+                    // Получаем login для каждого created_id из БД
+                    if (!empty($createdIds)) {
+                        $placeholders = implode(',', array_fill(0, count($createdIds), '?'));
+                        $stmt = $conn->prepare("SELECT id, login FROM accounts WHERE id IN ($placeholders)");
+                        if ($stmt) {
+                            $stmt->bind_param(str_repeat('i', count($createdIds)), ...$createdIds);
+                            $stmt->execute();
+                            $res = $stmt->get_result();
+                            $idToLogin = [];
+                            while ($row = $res->fetch_assoc()) {
+                                $idToLogin[(int)$row['id']] = $row['login'];
+                            }
+                            $stmt->close();
+
+                            foreach ($createdIds as $newId) {
+                                $login = $idToLogin[$newId] ?? '';
+                                $accountData = $dataByLogin[$login] ?? [];
+
+                                // Логируем событие создания аккаунта
+                                $insertValues[] = "(?, 'account_created', NULL, ?, ?, ?)";
+                                $insertParams[] = $newId;
+                                $insertParams[] = 'Импорт: ' . ($login ?: "ID#$newId");
+                                $insertParams[] = $changedBy;
+                                $insertParams[] = $ipAddress;
+                                $insertTypes .= 'issss';
+
+                                // Логируем ключевые поля (login, status)
+                                foreach (['login', 'status'] as $keyField) {
+                                    $val = $accountData[$keyField] ?? null;
+                                    if ($val !== null && $val !== '') {
+                                        $insertValues[] = "(?, ?, NULL, ?, ?, ?)";
+                                        $insertParams[] = $newId;
+                                        $insertParams[] = $keyField;
+                                        $insertParams[] = (string)$val;
+                                        $insertParams[] = $changedBy;
+                                        $insertParams[] = $ipAddress;
+                                        $insertTypes .= 'issss';
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Массовая вставка всех audit записей
+                    if (!empty($insertValues)) {
+                        $sql = "INSERT INTO account_history (account_id, field_name, old_value, new_value, changed_by, ip_address) VALUES "
+                             . implode(', ', $insertValues);
+                        $insertStmt = $conn->prepare($sql);
+                        if ($insertStmt) {
+                            $insertStmt->bind_param($insertTypes, ...$insertParams);
+                            $insertStmt->execute();
+                            $insertStmt->close();
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                // Audit log ошибки не должны ломать импорт
+                Logger::warning('Audit logging failed for bulk create', [
+                    'error' => $e->getMessage(),
+                    'created_count' => count($createdIds)
+                ]);
+            }
+        }
+
+        // Логируем обновлённые аккаунты (duplicateAction === 'update') в audit log
+        $updatedLogins = $result['updated_logins'] ?? [];
+        if (!empty($updatedLogins)) {
+            try {
+                $auditLogger = AuditLogger::getInstance();
+                if ($auditLogger->isEnabled()) {
+                    $changedBy = $_SESSION['username'] ?? 'system';
+                    $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+                    $conn = Database::getInstance()->getConnection();
+
+                    // Строим маппинг login → data из входного массива
+                    $dataByLogin = [];
+                    foreach ($accountsData as $data) {
+                        $login = trim((string)($data['login'] ?? ''));
+                        if ($login !== '') {
+                            $dataByLogin[$login] = $data;
+                        }
+                    }
+
+                    // Получаем id для каждого обновлённого логина
+                    $placeholders = implode(',', array_fill(0, count($updatedLogins), '?'));
+                    $stmt = $conn->prepare("SELECT id, login FROM accounts WHERE login IN ($placeholders)");
+                    if ($stmt) {
+                        $stmt->bind_param(str_repeat('s', count($updatedLogins)), ...$updatedLogins);
+                        $stmt->execute();
+                        $res = $stmt->get_result();
+                        $loginToId = [];
+                        while ($row = $res->fetch_assoc()) {
+                            $loginToId[$row['login']] = (int)$row['id'];
+                        }
+                        $stmt->close();
+
+                        $insertValues = [];
+                        $insertParams = [];
+                        $insertTypes = '';
+
+                        foreach ($updatedLogins as $login) {
+                            $accountId = $loginToId[$login] ?? null;
+                            if (!$accountId) continue;
+
+                            $accountData = $dataByLogin[$login] ?? [];
+
+                            // Логируем событие обновления
+                            $insertValues[] = "(?, 'bulk_update', NULL, ?, ?, ?)";
+                            $insertParams[] = $accountId;
+                            $insertParams[] = 'Импорт (обновление): ' . $login;
+                            $insertParams[] = $changedBy;
+                            $insertParams[] = $ipAddress;
+                            $insertTypes .= 'issss';
+
+                            // Логируем каждое изменённое поле (кроме login — он ключ поиска)
+                            foreach ($accountData as $field => $val) {
+                                if ($field === 'login') continue;
+                                if ($val === null || $val === '') continue;
+                                if (in_array($field, ['id', 'created_at', 'updated_at', 'deleted_at'], true)) continue;
+
+                                // Для чувствительных полей скрываем значение
+                                $sensitiveFields = ['password', 'email_password', 'token', 'cookies'];
+                                $newVal = in_array($field, $sensitiveFields, true) ? '[СКРЫТО]' : (string)$val;
+
+                                $insertValues[] = "(?, ?, NULL, ?, ?, ?)";
+                                $insertParams[] = $accountId;
+                                $insertParams[] = $field;
+                                $insertParams[] = $newVal;
+                                $insertParams[] = $changedBy;
+                                $insertParams[] = $ipAddress;
+                                $insertTypes .= 'issss';
+                            }
+                        }
+
+                        // Массовая вставка audit записей для обновлённых аккаунтов
+                        if (!empty($insertValues)) {
+                            $sql = "INSERT INTO account_history (account_id, field_name, old_value, new_value, changed_by, ip_address) VALUES "
+                                 . implode(', ', $insertValues);
+                            $insertStmt = $conn->prepare($sql);
+                            if ($insertStmt) {
+                                $insertStmt->bind_param($insertTypes, ...$insertParams);
+                                $insertStmt->execute();
+                                $insertStmt->close();
+                            }
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                Logger::warning('Audit logging failed for bulk update', [
+                    'error' => $e->getMessage(),
+                    'updated_count' => count($updatedLogins)
+                ]);
+            }
+        }
+
         return $result;
     }
 }
-
 

@@ -1,0 +1,144 @@
+# Автодеплой по FTPS на оба домена (panel + dashboard) при пуше в main или
+# feature/dashboard-load-optimization. Оба таргета используют один и тот же
+# FTP-аккаунт, но разные server-dir.
+#
+# Секреты: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD.
+
+name: Deploy to FTP
+
+on:
+  push:
+    branches:
+      - main
+      - feature/dashboard-load-optimization
+  workflow_dispatch:
+
+env:
+  # Убирает предупреждение о Node.js 20 (actions переходят на Node 24)
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  deploy:
+    name: Deploy ${{ matrix.target.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # Sequential, not parallel: shared-hosting FTP throttles concurrent
+      # connections from the same account and dropped the second target.
+      max-parallel: 1
+      matrix:
+        target:
+          # FTP login приземляет в /home/if592995/panel.account-factory.site/www/,
+          # поэтому panel — текущая папка, а dashboard — соседняя через ../.
+          - name: panel
+            host: panel.account-factory.site
+            server_dir: ./
+          - name: dashboard
+            host: dashboard.account-factory.site
+            server_dir: ../dashboard.account-factory.site/www/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Пишем SHA коммита в файл — видно на домене, какая версия реально залита.
+      # Открой https://${{ matrix.target.host }}/deployed-version.txt после деплоя.
+      - name: Write deployed version marker
+        run: |
+          {
+            echo "commit: ${{ github.sha }}"
+            echo "short:  $(echo ${{ github.sha }} | cut -c1-7)"
+            echo "branch: ${{ github.ref_name }}"
+            echo "target: ${{ matrix.target.name }}"
+            echo "run:    ${{ github.run_number }}"
+            echo "time:   $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > deployed-version.txt
+          cat deployed-version.txt
+
+      # Хостинг периодически рвёт FTPS-соединение (FIN / ECONNRESET на data-сокете),
+      # поэтому деплой запускается до 3 раз подряд. Sync-state сохраняется на сервере
+      # между попытками — каждая следующая только дозаливает недоехавшие файлы.
+      - name: Deploy via FTPS — attempt 1
+        id: deploy1
+        continue-on-error: true
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ matrix.target.server_dir }}
+          local-dir: ./
+          protocol: ftps
+          security: loose
+          timeout: 120000
+          log-level: verbose
+          state-name: .ftp-deploy-sync-state-${{ matrix.target.name }}.json
+          exclude: |
+            - **/.git*
+            - **/.github
+            - **/node_modules
+            - **/.env
+            - **/.cursor
+            - **/*.log
+            - **/Thumbs.db
+            - **/.DS_Store
+            - **/.optimization_applied
+
+      - name: Pause before retry 2
+        if: steps.deploy1.outcome == 'failure'
+        run: sleep 15
+
+      - name: Deploy via FTPS — attempt 2
+        id: deploy2
+        if: steps.deploy1.outcome == 'failure'
+        continue-on-error: true
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ matrix.target.server_dir }}
+          local-dir: ./
+          protocol: ftps
+          security: loose
+          timeout: 120000
+          log-level: verbose
+          state-name: .ftp-deploy-sync-state-${{ matrix.target.name }}.json
+          exclude: |
+            - **/.git*
+            - **/.github
+            - **/node_modules
+            - **/.env
+            - **/.cursor
+            - **/*.log
+            - **/Thumbs.db
+            - **/.DS_Store
+            - **/.optimization_applied
+
+      - name: Pause before retry 3
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy via FTPS — attempt 3 (final)
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ matrix.target.server_dir }}
+          local-dir: ./
+          protocol: ftps
+          security: loose
+          timeout: 120000
+          log-level: verbose
+          state-name: .ftp-deploy-sync-state-${{ matrix.target.name }}.json
+          exclude: |
+            - **/.git*
+            - **/.github
+            - **/node_modules
+            - **/.env
+            - **/.cursor
+            - **/*.log
+            - **/Thumbs.db
+            - **/.DS_Store
+            - **/.optimization_applied

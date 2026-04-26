@@ -4,7 +4,7 @@
  */
 ?>
 <section class="dashboard-table card" id="accountsTableSection" data-module="accounts-table">
-  <div class="dashboard-table__inner card-body p-0">
+  <div class="dashboard-table__inner">
     <?php include __DIR__ . '/toolbar.php'; ?>
     <?php include __DIR__ . '/header.php'; ?>
     <div class="dashboard-table__body" role="region" aria-label="Список аккаунтов">

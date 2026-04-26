@@ -1,0 +1,349 @@
+/* ==========================================================================
+   CORE TABLES (Premium Design)
+   
+   Стиль таблиц: Glassmorphism, мягкие тени, отзывчивый hover.
+   Все цвета интегрированы через токены из core-base.css.
+   ========================================================================== */
+
+/* Блок таблицы: изоляция layout/paint и content-visibility для FPS при скролле */
+#accountsTableSection {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 600px;
+  contain: layout paint;
+}
+
+/* ── КОНТЕЙНЕР ТАБЛИЦЫ ── */
+.dashboard-table {
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  margin-bottom: var(--space-6);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.dashboard-table__inner {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── TOOLBAR (Верхняя панель над таблицей) ── */
+.dashboard-table__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--gray-100);
+  background: #ffffff;
+}
+
+.dashboard-table__toolbar-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.dashboard-table__counter {
+  font-size: 0.875rem;
+  color: var(--gray-600);
+}
+
+.dashboard-table__counter-value {
+  font-weight: 600;
+  color: var(--gray-800);
+  font-size: 1rem;
+}
+
+/* ── HEADER РОЛЬ (Под тулбаром) ── */
+.dashboard-table__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--gray-100);
+  background: #ffffff;
+}
+
+/* ── SCROLL КОНТЕЙНЕР ──
+   Отдельный композитный слой (translateZ(0)) — скролл таблицы без просадки FPS в секции. */
+.dashboard-table__scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: clamp(500px, 65vh, 800px);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: scroll-position;
+  /* Кастомный сколлбар */
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-300) transparent;
+}
+
+.dashboard-table__scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dashboard-table__scroll::-webkit-scrollbar-thumb {
+  background-color: var(--gray-300);
+  border-radius: 4px;
+}
+
+/* Контейнер скролла: containment для FPS (ограничить влияние layout/paint при скролле) */
+#tableWrap {
+  contain: layout paint;
+  /* Изоляция стилей внутри скролла — меньше перерасчётов снаружи */
+  isolation: isolate;
+  /* Отдельный compositor layer — GPU-скролл без перерасчёта остальной страницы */
+  will-change: transform;
+}
+
+/* ── САМА ТАБЛИЦА ── */
+.ac-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
+}
+
+/* ЗАГОЛОВКИ ТАБЛИЦЫ (Sticky — GPU-слой для FPS при скролле) */
+.ac-table thead th {
+  padding: var(--space-4) var(--space-5);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gray-400);
+  background: var(--gray-50) !important;
+  border-bottom: 1px solid var(--gray-200);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  white-space: nowrap;
+  /* GPU compositor layer — sticky header не вызывает repaint остальных строк */
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* ── СТРОКИ (узкий transition — не «all», меньше просадка FPS при скролле/наведении) ── */
+.ac-table tbody tr {
+  background: transparent;
+}
+
+.ac-table tbody tr:hover {
+  background: var(--gray-50);
+}
+
+.ac-table tbody tr.row-selected {
+  background: var(--gray-100) !important;
+  border-left: 3px solid var(--gray-400);
+}
+
+.ac-table tbody tr.row-selected:hover {
+  background: var(--gray-100) !important;
+}
+
+/* ── ЯЧЕЙКИ ── */
+.ac-table td {
+  padding: var(--space-4) var(--space-5);
+  font-size: 0.8125rem;
+  color: var(--gray-700);
+  border-bottom: 1px solid var(--gray-100);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* ── ФИКСИРОВАННЫЕ КОЛОНКИ (Чекбоксы, Actions) ── */
+.ac-cell--checkbox {
+  width: 60px;
+  min-width: 60px;
+  text-align: center !important;
+  position: sticky;
+  left: 0;
+  z-index: 40;
+  background: inherit; /* Наследует фон строки (hover работает идеально) */
+}
+
+.ac-table thead th.ac-cell--checkbox {
+  z-index: 51; /* Выше обычного заголовка */
+}
+
+/* Sticky-ячейки: position:sticky уже создаёт compositor layer.
+   will-change убран — 200 GPU-слоёв (2 ячейки × 100 строк) убивали FPS и память. */
+.ac-table td.ac-cell--checkbox,
+.ac-table td.ac-cell--actions {
+  background: #ffffff;
+}
+.ac-table tbody tr:hover .ac-cell--checkbox,
+.ac-table tbody tr:hover .ac-cell--actions {
+  background: var(--gray-50);
+}
+.ac-table tr.row-selected .ac-cell--checkbox,
+.ac-table tr.row-selected .ac-cell--actions {
+  background: var(--gray-100);
+}
+
+.ac-cell--actions {
+  width: 150px;
+  min-width: 150px;
+  text-align: right;
+  position: sticky;
+  right: 0;
+  z-index: 40;
+}
+
+.ac-table thead th.ac-cell--actions {
+  z-index: 51;
+}
+
+.ac-table td.ac-cell--actions {
+  background: #ffffff;
+}
+.ac-table tbody tr:hover .ac-cell--actions {
+  background: var(--gray-50);
+}
+.ac-table tr.row-selected .ac-cell--actions {
+  background: var(--gray-100);
+}
+
+/* ── РЕДАКТИРУЕМЫЕ ПОЛЯ (JS Logic) ── */
+.editable-field-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.editable-field-wrap[data-editing="true"] {
+  position: relative;
+  z-index: 60;
+  background: white;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-medium);
+  display: inline-flex;
+}
+
+.editable-field-wrap input,
+.editable-field-wrap textarea {
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.875rem;
+}
+
+.editable-field-wrap input:focus,
+.editable-field-wrap textarea:focus {
+  border-color: var(--gray-400);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--gray-100);
+}
+
+.field-edit-btn, .copy-btn, .pw-toggle, .pw-edit {
+  background: transparent;
+  border: none;
+  color: var(--gray-300);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.field-edit-btn:hover, .copy-btn:hover, .pw-toggle:hover, .pw-edit:hover {
+  background: transparent;
+  color: var(--gray-600);
+}
+
+/* ── ЧЕКБОКСЫ ДОПОЛНИТЕЛЬНАЯ ЦЕНТРОВКА ── */
+#accountsTable .form-check {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  margin: 0; padding: 0;
+}
+#accountsTable .form-check-input {
+  margin: 0 !important;
+  cursor: pointer;
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* ── КНОПКА «ОТКРЫТЬ» В СТРОКЕ ── */
+.btn-table-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--gray-400);
+  text-decoration: none;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--gray-200);
+  background: transparent;
+  transition: color 150ms ease, border-color 150ms ease;
+  white-space: nowrap;
+}
+.btn-table-open:hover {
+  color: var(--gray-700);
+  border-color: var(--gray-300);
+  text-decoration: none;
+}
+.btn-table-open i {
+  font-size: 0.6875rem;
+}
+
+/* ── FOOTER ТАБЛИЦЫ (Пагинация) ── */
+.dashboard-table__footer {
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--gray-200);
+  background: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.dashboard-table__footer-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* ── LOADER В ТАБЛИЦЕ ── */
+.dashboard-table__loader {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.92);
+  z-index: 100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-table__loader.show {
+  display: flex;
+}
+
+/* ── АДАПТИВНОСТЬ ── */
+@media (max-width: 992px) {
+  .ac-cell--checkbox, .ac-cell--actions {
+    position: static; /* Отключаем sticky на мобилках */
+    background: transparent !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-table {
+    border-radius: var(--radius-md);
+  }
+  .ac-table td, .ac-table thead th {
+    padding: var(--space-3) var(--space-3);
+  }
+  .dashboard-table__toolbar, .dashboard-table__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

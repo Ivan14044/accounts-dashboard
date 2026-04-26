@@ -41,7 +41,7 @@ class Validator {
      * @return array Массив валидированных ID
      * @throws InvalidArgumentException
      */
-    public static function validateIds($ids, int $maxCount = 1000): array {
+    public static function validateIds($ids, int $maxCount = 50000): array {
         if (empty($ids)) {
             throw new InvalidArgumentException('IDs are required');
         }
@@ -194,22 +194,27 @@ class Validator {
     
     /**
      * Валидация CSRF токена
-     * 
+     *
      * @param string $token CSRF токен
      * @return bool true если токен валиден
-     * @throws InvalidArgumentException
+     * @throws InvalidArgumentException При пустом или невалидном токене
      */
     public static function validateCsrfToken(string $token): bool {
         if (empty($token)) {
             throw new InvalidArgumentException('CSRF token is required');
         }
-        
+
         if (!function_exists('verifyCsrfToken')) {
             Logger::warning('verifyCsrfToken function not found');
-            return false;
+            throw new InvalidArgumentException('CSRF validation unavailable');
         }
-        
-        return verifyCsrfToken($token);
+
+        $isValid = verifyCsrfToken($token);
+        if (!$isValid) {
+            throw new InvalidArgumentException('CSRF token validation failed');
+        }
+
+        return true;
     }
     
     /**

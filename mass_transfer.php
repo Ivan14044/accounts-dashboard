@@ -36,6 +36,9 @@
  * }
  */
 
+// Большие переносы (10k+ строк) могут занимать > 30 сек — снимаем лимит PHP
+set_time_limit(0);
+
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/includes/MassTransferService.php';
@@ -88,14 +91,19 @@ try {
     $text = isset($input['text']) ? trim((string)$input['text']) : '';
     $status = isset($input['status']) ? trim((string)$input['status']) : '';
     $csrf = isset($input['csrf']) ? (string)$input['csrf'] : '';
-    $options = isset($input['options']) && is_array($input['options']) ? $input['options'] : [];
+    // enable_like может приходить как в корне, так и внутри options (совместимость)
+    $enableLikeRoot = !empty($input['enable_like']);
+    $enableLikeOpts = !empty($input['options']['enable_like']);
+    $options = [
+        'enable_like' => $enableLikeRoot || $enableLikeOpts
+    ];
     
     Logger::debug('MASS TRANSFER: Извлечены параметры', [
         'text_length' => strlen($text),
         'status' => $status,
         'csrf_present' => !empty($csrf),
         'csrf_length' => strlen($csrf),
-        'options' => $options
+        'enable_like' => $options['enable_like']
     ]);
     
     // Валидация обязательных полей
@@ -121,7 +129,7 @@ try {
     // Обработка массового переноса
     Logger::debug('MASS TRANSFER: Started', ['text_length' => strlen($text), 'status' => $status]);
     
-    $service = new MassTransferService();
+    $service = new MassTransferService($tableName);
     $result = $service->processTransfer($text, $status, $options);
     
     Logger::info('MASS TRANSFER: Completed', [

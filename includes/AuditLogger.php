@@ -3,17 +3,42 @@
  * Класс для логирования изменений аккаунтов (Audit Log)
  * Записывает все изменения в таблицу account_history
  */
+require_once __DIR__ . '/Database.php';
+
 class AuditLogger {
     private static $instance = null;
     private $mysqli;
     private $enabled = true;
-    
+
     private function __construct() {
-        global $mysqli;
-        if (!($mysqli instanceof mysqli)) {
-            throw new Exception('Database connection not available');
+        $this->mysqli = Database::getInstance()->getConnection();
+        $this->ensureTableExists();
+    }
+
+    /**
+     * Автоматическое создание таблицы account_history, если она не существует
+     */
+    private function ensureTableExists(): void {
+        static $checked = false;
+        if ($checked) return;
+        $checked = true;
+
+        $result = $this->mysqli->query("SHOW TABLES LIKE 'account_history'");
+        if ($result && $result->num_rows === 0) {
+            $sql = "CREATE TABLE IF NOT EXISTS `account_history` (
+                `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `account_id` INT NOT NULL,
+                `field_name` VARCHAR(255) NOT NULL,
+                `old_value` TEXT,
+                `new_value` TEXT,
+                `changed_by` VARCHAR(255) NOT NULL,
+                `changed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                `ip_address` VARCHAR(45),
+                INDEX `idx_account_id` (`account_id`),
+                INDEX `idx_changed_at` (`changed_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            $this->mysqli->query($sql);
         }
-        $this->mysqli = $mysqli;
     }
     
     public static function getInstance() {
@@ -32,7 +57,13 @@ class AuditLogger {
             'email_password',
             'token',
             'cookies',
-            'two_fa'
+            'first_cookie',
+            'two_fa',
+            'api_key',
+            'secret',
+            'auth_token',
+            'access_token',
+            'private_key'
         ];
     }
     
@@ -116,6 +147,11 @@ class AuditLogger {
         if (!$this->enabled || empty($accountIds)) {
             return 0;
         }
+
+        // Защита от SQL injection через имя колонки
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $fieldName)) {
+            return 0;
+        }
         
         $count = 0;
         $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
@@ -159,49 +195,70 @@ class AuditLogger {
             $stmt->close();
         }
         
-        $insertSql = "INSERT INTO account_history (account_id, field_name, old_value, new_value, changed_by, ip_address) VALUES ";
-        $insertValues = [];
-        $insertParams = [];
-        $insertTypes = '';
-        
+        // Собираем «нормализованные» строки. Для нечувствительных полей пропускаем
+        // записи без фактического изменения.
+        $rowsToInsert = [];
         foreach ($accountIds as $accountId) {
             if (!$isSensitive) {
-                // Для нечувствительных полей проверяем изменение
                 $accountOldValue = $oldValues[$accountId] ?? '';
                 if ($accountOldValue === $newValueStr) {
-                    continue; // Пропускаем, если значение не изменилось
+                    continue;
                 }
-                $oldValueStr = $accountOldValue;
+                $rowOldValue = $accountOldValue;
+            } else {
+                $rowOldValue = $oldValueStr; // уже '[СКРЫТО]'
             }
-            
-            // Для чувствительных полей всегда логируем факт изменения
-            
-            $insertValues[] = "(?, ?, ?, ?, ?, ?)";
-            $insertParams[] = $accountId;
-            $insertParams[] = $fieldName;
-            $insertParams[] = $oldValueStr;
-            $insertParams[] = $newValueStr;
-            $insertParams[] = $changedBy;
-            $insertParams[] = $ipAddress;
-            $insertTypes .= 'isssss';
+            $rowsToInsert[] = [$accountId, $fieldName, $rowOldValue, $newValueStr, $changedBy, $ipAddress];
         }
-        
-        if (empty($insertValues)) {
+
+        if (empty($rowsToInsert)) {
             return 0;
         }
-        
-        // Массовая вставка
-        $fullSql = $insertSql . implode(', ', $insertValues);
-        $insertStmt = $this->mysqli->prepare($fullSql);
-        if (!$insertStmt) {
-            return 0;
+
+        // Чанкуем INSERT, чтобы не упереться в max_allowed_packet
+        // при массовых операциях на 10k+ записей.
+        $CHUNK = 500;
+        $insertSql = "INSERT INTO account_history (account_id, field_name, old_value, new_value, changed_by, ip_address) VALUES ";
+        $count = 0;
+
+        foreach (array_chunk($rowsToInsert, $CHUNK) as $chunk) {
+            $placeholders = [];
+            $params       = [];
+            $types        = '';
+            foreach ($chunk as $row) {
+                $placeholders[] = '(?, ?, ?, ?, ?, ?)';
+                $params[] = $row[0]; // account_id
+                $params[] = $row[1]; // field_name
+                $params[] = $row[2]; // old_value
+                $params[] = $row[3]; // new_value
+                $params[] = $row[4]; // changed_by
+                $params[] = $row[5]; // ip_address
+                $types   .= 'isssss';
+            }
+
+            $stmt = $this->mysqli->prepare($insertSql . implode(', ', $placeholders));
+            if (!$stmt) {
+                // Не прерываем — логируем и пробуем следующий чанк.
+                require_once __DIR__ . '/Logger.php';
+                Logger::error('Audit log: failed to prepare chunked INSERT', [
+                    'error' => $this->mysqli->error,
+                    'chunk_size' => count($chunk),
+                ]);
+                continue;
+            }
+            $stmt->bind_param($types, ...$params);
+            if ($stmt->execute()) {
+                $count += $stmt->affected_rows;
+            } else {
+                require_once __DIR__ . '/Logger.php';
+                Logger::error('Audit log: chunked INSERT failed', [
+                    'error' => $stmt->error,
+                    'chunk_size' => count($chunk),
+                ]);
+            }
+            $stmt->close();
         }
-        
-        $insertStmt->bind_param($insertTypes, ...$insertParams);
-        $insertStmt->execute();
-        $count = $insertStmt->affected_rows;
-        $insertStmt->close();
-        
+
         return $count;
     }
     

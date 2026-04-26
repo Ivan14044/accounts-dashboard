@@ -37,7 +37,7 @@ class FavoritesManager {
      */
     async loadFavorites() {
         try {
-            const response = await fetch('api_favorites.php', {
+            const response = await fetch('/api/favorites', {
                 method: 'GET',
                 credentials: 'same-origin',
                 headers: {
@@ -61,7 +61,7 @@ class FavoritesManager {
                 const text = await response.text();
                 data = JSON.parse(text);
             } catch (e) {
-                console.error('JSON parse error when loading favorites:', e);
+                (typeof logger !== 'undefined' ? logger.error : console.error)('JSON parse error when loading favorites:', e);
                 throw new Error('Некорректный ответ сервера');
             }
             
@@ -70,13 +70,13 @@ class FavoritesManager {
                 this.updateFavoritesUI();
                 this.loaded = true;
             } else {
-                console.warn('Invalid favorites response:', data);
+                (typeof logger !== 'undefined' ? logger.warn : console.warn)('Invalid favorites response:', data);
                 // Устанавливаем пустой список, чтобы не блокировать работу
                 this.favorites = new Set();
                 this.loaded = true;
             }
         } catch (error) {
-            console.error('Error loading favorites:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error loading favorites:', error);
             // Устанавливаем пустой список, чтобы не блокировать работу
             this.favorites = new Set();
             this.loaded = true;
@@ -89,7 +89,7 @@ class FavoritesManager {
     async toggleFavorite(accountId) {
         // Защита от множественных кликов
         if (this.processingIds.has(accountId)) {
-            console.log('Favorite toggle already in progress for account:', accountId);
+            if (typeof logger !== 'undefined') logger.debug('Favorite toggle already in progress for account:', accountId);
             return;
         }
         
@@ -107,14 +107,16 @@ class FavoritesManager {
         
         try {
             const method = isFavorite ? 'DELETE' : 'POST';
-            const response = await fetch('api_favorites.php', {
+            // CSRF-токен обязателен для POST/DELETE — без него /api/favorites вернёт 403
+            const csrfToken = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
+            const response = await fetch('/api/favorites', {
                 method: method,
                 credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest'
                 },
-                body: JSON.stringify({ account_id: accountId })
+                body: JSON.stringify({ account_id: accountId, csrf: csrfToken })
             });
             
             // Проверяем статус ответа
@@ -135,7 +137,7 @@ class FavoritesManager {
                 const text = await response.text();
                 data = JSON.parse(text);
             } catch (e) {
-                console.error('JSON parse error:', e, 'Response:', text);
+                (typeof logger !== 'undefined' ? logger.error : console.error)('JSON parse error:', e, 'Response:', text);
                 throw new Error('Некорректный ответ сервера');
             }
             
@@ -152,15 +154,31 @@ class FavoritesManager {
             }
             
             // Состояние уже обновлено оптимистично, только показываем уведомление
-            // Показываем уведомление
             if (typeof window.showToast === 'function') {
                 window.showToast(
                     originalState ? 'Удалено из избранного' : 'Добавлено в избранное',
                     'success'
                 );
             }
+
+            // На странице избранного: убираем строку из таблицы при снятии звёздочки
+            if (originalState && document.body.classList.contains('favorites-page')) {
+                const row = document.querySelector(`#accountsTable tbody tr[data-id="${accountId}"]`);
+                if (row) {
+                    row.style.transition = 'opacity 0.3s';
+                    row.style.opacity = '0';
+                    setTimeout(() => {
+                        row.remove();
+                        // Если таблица опустела — показываем заглушку
+                        const tbody = document.querySelector('#accountsTable tbody');
+                        if (tbody && tbody.querySelectorAll('tr').length === 0) {
+                            window.location.reload();
+                        }
+                    }, 300);
+                }
+            }
         } catch (error) {
-            console.error('Error toggling favorite:', error);
+            (typeof logger !== 'undefined' ? logger.error : console.error)('Error toggling favorite:', error);
             
             // Откатываем оптимистичное обновление при ошибке
             if (originalState) {

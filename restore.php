@@ -35,14 +35,14 @@ try {
     }
     
     // Валидация ID
-    $ids = Validator::validateIds($ids, 1000);
+    $ids = Validator::validateIds($ids);
     
     // Проверка на пустой массив ID
     if (empty($ids)) {
         throw new InvalidArgumentException('IDs are required');
     }
     
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     
     // Проверяем, поддерживается ли Soft Delete
     $meta = $service->getColumnMetadata();

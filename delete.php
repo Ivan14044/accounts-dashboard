@@ -43,7 +43,7 @@ try {
         throw new InvalidArgumentException('CSRF validation failed');
     }
     
-    $service = new AccountsService();
+    $service = new AccountsService($tableName);
     
     if ($selectAll) {
         // Удаление всех по фильтру
@@ -62,7 +62,7 @@ try {
         ]);
     } else {
         // Удаление выбранных записей
-        $validIds = Validator::validateIds($ids, 1000);
+        $validIds = Validator::validateIds($ids);
         
         Logger::debug('DELETE: Attempting to delete accounts', ['count' => count($validIds)]);
         $deleted = $service->deleteAccounts($validIds);

@@ -215,6 +215,15 @@ php build_assets.php
 - **Минификация ресурсов** - объединенные CSS/JS файлы
 - **HTTP кэширование** - ETag и условные запросы
 
+## 🏗️ Архитектура для разработчиков
+
+- **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)** - структура проекта, модули, работа с БД
+- **[REFACTORING_REPORT.md](REFACTORING_REPORT.md)** - отчет по рефакторингу и фазам
+
+**Ключевые модули JS:** `dashboard-main.js`, `dashboard-selection.js`, `dashboard-filters.js`, `dashboard-stats.js`, `dashboard-refresh.js`, `table-module.js`, `dom-cache.js`, `performance.js`, `logger.js`.
+
+**БД:** Доступ через `Database::getInstance()->getConnection()` (см. DEVELOPER_GUIDE.md).
+
 ## 📚 Документация
 
 - **[DEPLOYMENT_INSTRUCTIONS.md](DEPLOYMENT_INSTRUCTIONS.md)** - подробная инструкция по развертыванию
