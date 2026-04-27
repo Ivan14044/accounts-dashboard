@@ -68,11 +68,46 @@ class AccountValidationService
         }
 
         $cookies = (string)($row['cookies'] ?? '');
-        if ($cookies !== '' && preg_match('/(?:^|[\s;])c_user=([0-9]{8,23})\b/i', $cookies, $cm)) {
-            $ids[$cm[1]] = true;
+        if ($cookies !== '') {
+            $cUser = self::extractCUserFromCookies($cookies);
+            if ($cUser !== null) {
+                $ids[$cUser] = true;
+            }
         }
 
         return array_keys($ids);
+    }
+
+    /**
+     * Extract c_user from cookies. Supports two formats:
+     *   1. JSON array: [{"name":"c_user","value":"123..."}, ...]
+     *   2. Cookie-string: "c_user=123...; xs=...; ..."
+     */
+    private static function extractCUserFromCookies(string $cookies): ?string
+    {
+        $trim = ltrim($cookies);
+        if ($trim !== '' && ($trim[0] === '[' || $trim[0] === '{')) {
+            $decoded = json_decode($cookies, true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $cookie) {
+                    if (is_array($cookie)
+                        && isset($cookie['name'], $cookie['value'])
+                        && strcasecmp((string)$cookie['name'], 'c_user') === 0
+                    ) {
+                        $val = (string)$cookie['value'];
+                        if (preg_match('/^[0-9]{8,23}$/', $val)) {
+                            return $val;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (preg_match('/(?:^|[\s;])c_user=([0-9]{8,23})\b/i', $cookies, $m)) {
+            return $m[1];
+        }
+
+        return null;
     }
 
     // ────────────────────────────────────────────────────────
