@@ -119,8 +119,8 @@ class AccountsRepository {
     }
     
     /**
-     * Получение записей для проверки валидности (только id, login, id_soc_account, cookies)
-     * Используется для prepare перед вызовом getuid.live
+     * Получение записей для проверки валидности (id, login, id_soc_account, social_url, cookies)
+     * Используется для prepare перед вызовом acctool.top checker.
      *
      * @param array $ids Массив ID записей
      * @return array
@@ -133,17 +133,7 @@ class AccountsRepository {
         if (empty($ids)) {
             return [];
         }
-        $cols = ['id', 'login'];
-        if ($this->metadata->columnExists('id_soc_account')) {
-            $cols[] = 'id_soc_account';
-        }
-        if ($this->metadata->columnExists('social_url')) {
-            $cols[] = 'social_url';
-        }
-        if ($this->metadata->columnExists('cookies')) {
-            $cols[] = 'cookies';
-        }
-        $selectCols = '`' . implode('`, `', $cols) . '`';
+        $selectCols = $this->buildValidationSelectColumns();
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $deletedCond = $this->metadata->columnExists('deleted_at') ? ' AND (deleted_at IS NULL OR deleted_at = 0)' : '';
         $sql = "SELECT $selectCols FROM {$this->table} WHERE id IN ($placeholders)" . $deletedCond;
@@ -162,6 +152,25 @@ class AccountsRepository {
         $stmt->close();
         return $rows;
     }
+
+    /**
+     * SELECT-выражения для validation-запросов.
+     * cookies — LONGTEXT, на FB-аккаунтах это 5–10KB JSON. Нам нужен только c_user,
+     * который всегда в первых ~4KB. Обрезаем в БД, чтобы не таскать мегабайты данных.
+     */
+    private function buildValidationSelectColumns(): string {
+        $cols = ['`id`', '`login`'];
+        if ($this->metadata->columnExists('id_soc_account')) {
+            $cols[] = '`id_soc_account`';
+        }
+        if ($this->metadata->columnExists('social_url')) {
+            $cols[] = '`social_url`';
+        }
+        if ($this->metadata->columnExists('cookies')) {
+            $cols[] = 'SUBSTRING(`cookies`, 1, ' . (int)Config::VALIDATE_COOKIES_TRUNCATE . ') AS `cookies`';
+        }
+        return implode(', ', $cols);
+    }
     
     /**
      * Получение записей по фильтру для проверки валидности (только id, login, id_soc_account, cookies)
@@ -173,17 +182,7 @@ class AccountsRepository {
      * @return array
      */
     public function getAccountsByFilterForValidation(FilterBuilder $filter, string $orderBy, int $limit, int $offset): array {
-        $cols = ['id', 'login'];
-        if ($this->metadata->columnExists('id_soc_account')) {
-            $cols[] = 'id_soc_account';
-        }
-        if ($this->metadata->columnExists('social_url')) {
-            $cols[] = 'social_url';
-        }
-        if ($this->metadata->columnExists('cookies')) {
-            $cols[] = 'cookies';
-        }
-        $selectCols = '`' . implode('`, `', $cols) . '`';
+        $selectCols = $this->buildValidationSelectColumns();
         $where = $filter->getWhereClause(false);
         $params = $filter->getParams();
         $innerSql = "SELECT id FROM {$this->table} $where ORDER BY $orderBy LIMIT ? OFFSET ?";

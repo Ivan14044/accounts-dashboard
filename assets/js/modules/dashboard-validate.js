@@ -1,21 +1,21 @@
 /**
  * dashboard-validate.js
- * Модуль проверки аккаунтов на валидность (NPPR fbchecker)
+ * Модуль проверки аккаунтов на валидность через acctool.top
  *
  * ВАЖНО: параллельные запросы к нашему API блокируются nginx rate limiter'ом (429).
  * Поэтому отправляем СТРОГО ОДИН запрос за раз (CONCURRENCY=1),
  * а параллельность обеспечивает бэкенд: AccountValidationService раскидывает
- * суб-батчи к NPPR через curl_multi.
+ * суб-батчи к acctool через curl_multi.
  *
- * BATCH_SIZE=500 (= VALIDATE_CHECK_MAX_ITEMS) → бэкенд делит их на суб-батчи
- * по NPPR_BATCH_SIZE=100 и обращается к NPPR одновременно.
+ * BATCH_SIZE=200 (= VALIDATE_CHECK_MAX_ITEMS) → бэкенд делит их на суб-батчи
+ * по ACCTOOL_BATCH_SIZE=100 и обращается к acctool одновременно.
  * UI обновляется после каждого большого батча. Ошибки не крашат процесс.
  */
 (function () {
   'use strict';
 
   // ─── Константы ─────────────────────────────────────────
-  var BATCH_SIZE  = 500;   // элементов за один /check запрос (= VALIDATE_CHECK_MAX_ITEMS)
+  var BATCH_SIZE  = 200;   // элементов за один /check запрос (= VALIDATE_CHECK_MAX_ITEMS)
   var CONCURRENCY = 1;     // СТРОГО 1 — иначе nginx отдаёт 429!
   var PREP_LIMIT  = 2000;  // лимит prepare за одну страницу
   var ACTION_BATCH = 1000; // лимит ID за один запрос действия
@@ -121,6 +121,9 @@
     addClass('vldResSkippedCard', 'd-none');
     addClass('vldActionsBlock', 'd-none');
 
+    // Reset stepper
+    setStep('count');
+
     var startBtn = $('vldStartBtn');
     if (startBtn) { startBtn.disabled = false; startBtn.innerHTML = '<i class="fas fa-play me-2"></i>Запустить проверку'; }
   }
@@ -183,6 +186,17 @@
   }
 
   // ─── API ───────────────────────────────────────────────
+  function apiPreview(scope, ids, query) {
+    var opts = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ scope: scope, ids: ids, query: query, csrf: csrf() })
+    };
+    if (state.abortCtrl) opts.signal = state.abortCtrl.signal;
+    return fetch(window.getTableAwareUrl('/api/accounts/validate/preview'), opts)
+      .then(function (r) { return r.json(); });
+  }
+
   function apiPrepare(scope, ids, query, offset) {
     var opts = {
       method: 'POST',
@@ -292,38 +306,46 @@
     if (startBtn) { startBtn.disabled = true; startBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Подготовка…'; }
 
     showPane('vldProgressPane');
-    setPreparing(true);
+    setPreflight();
 
-    // ── Шаг 1: Prepare (может быть многостраничным) ──
-    function fetchAll(offset) {
-      if (state.cancelled) return Promise.resolve();
-      return apiPrepare(data.scope, data.ids, data.query, offset).then(function (res) {
-        if (!res.success) throw new Error(res.error || 'Ошибка подготовки');
-        (res.items || []).forEach(function (it) { state.items.push(it); });
-        (res.skipped || []).forEach(function (s) { state.skipped.push(s); });
-        state.totalAll = res.total || (state.items.length + state.skipped.length);
-        state.total = res.total || state.items.length;
-        var prepLabel = 'Подготовка… загружено ' + state.items.length + ' из ' + state.totalAll;
-        if (state.skipped.length > 0) {
-          prepLabel += ' (пропущено ' + state.skipped.length + ' — нет FB ID)';
+    // ── Шаг 0: Preview (быстрый COUNT) ──
+    // Сразу даёт пользователю масштаб ("Будет проверено: N аккаунтов") до тяжёлого prepare.
+    // Если упадёт — flow продолжается без него (fallback на prepare).
+    apiPreview(data.scope, data.ids, data.query)
+      .then(function (res) {
+        if (state.cancelled) return;
+        if (res && res.success && typeof res.total === 'number') {
+          state.totalAll = res.total;
+          state.total    = res.total;
+          if (res.total === 0) {
+            toast('Нет записей для проверки', 'info');
+            finish();
+            throw new Error('__empty__');
+          }
+          setPreflightCount(res.total);
         }
-        setText('vldProgressLabel', prepLabel);
-        if (res.has_more && res.next_offset != null) {
-          return fetchAll(res.next_offset);
-        }
-      });
-    }
-
-    fetchAll(0)
+      })
+      .catch(function (err) {
+        if (err && err.message === '__empty__') throw err;
+        // Преview не критичен — игнорируем ошибку и идём в prepare
+      })
+      .then(function () {
+        if (state.cancelled) { finish(); return; }
+        return fetchAllPrepare(data, 0);
+      })
       .then(function () {
         if (state.cancelled) { finish(); return; }
 
         if (state.items.length === 0) {
-          toast('Нет записей с FB ID для проверки' + (state.skipped.length > 0 ? ' (все ' + state.skipped.length + ' без FB ID)' : ''), 'info');
-          finish(); return;
+          var msg = state.skipped.length > 0
+            ? 'Нет записей с FB ID (все ' + state.skipped.length + ' без FB ID)'
+            : 'Нет записей с FB ID для проверки';
+          toast(msg, 'info');
+          finish();
+          return;
         }
 
-        setPreparing(false);
+        setChecking();
         state.total     = state.items.length;
         state.startTime = Date.now();
         refreshProgress();
@@ -362,31 +384,115 @@
         if (state.running) showResult();
       })
       .catch(function (err) {
-        toast(err.message || 'Ошибка', 'error');
+        if (err && err.message === '__empty__') return;
+        if (err && err.name === 'AbortError') {
+          // Cancel во время активного запроса: если что-то уже проверили —
+          // показываем частичный результат; иначе возвращаемся к выбору scope.
+          if (state.checked > 0) showResult();
+          else finish();
+          return;
+        }
+        toast((err && err.message) || 'Ошибка', 'error');
         finish();
       });
   }
 
-  // ─── Preparing UI ──────────────────────────────────────
-  function setPreparing(on) {
-    toggle('vldProgressWrap', 'vld-indeterminate', on);
-    toggle('vldSpinner', 'd-none', !on);
+  // Многостраничный prepare — отдельная функция, чтобы run() читался линейно
+  function fetchAllPrepare(data, offset) {
+    if (state.cancelled) return Promise.resolve();
+    return apiPrepare(data.scope, data.ids, data.query, offset).then(function (res) {
+      if (!res.success) throw new Error(res.error || 'Ошибка подготовки');
+
+      (res.items || []).forEach(function (it) { state.items.push(it); });
+      (res.skipped || []).forEach(function (s) { state.skipped.push(s); });
+
+      // Если preview не отработал — узнаём total из первого ответа prepare
+      if (state.totalAll === 0 && res.total != null) {
+        state.totalAll = res.total;
+        state.total    = res.total;
+      }
+
+      var loaded   = state.items.length + state.skipped.length;
+      var totalAll = state.totalAll || loaded;
+      var pct      = totalAll > 0 ? Math.min(99, Math.round((loaded / totalAll) * 100)) : 0;
+      setPreparingProgress(loaded, totalAll, pct);
+
+      if (res.has_more && res.next_offset != null) {
+        return fetchAllPrepare(data, res.next_offset);
+      }
+    });
+  }
+
+  // ─── UI фазы ───────────────────────────────────────────
+  // Stepper: визуально показывает на каком шаге pipeline сейчас находимся.
+  // current — какой шаг сейчас активен ('count'|'load'|'check'|null=все done)
+  function setStep(current) {
+    var order = ['count', 'load', 'check'];
+    var currentIdx = current === null ? order.length : order.indexOf(current);
+
+    order.forEach(function (name, idx) {
+      var el = document.querySelector('#vldProgressPane .vld-step[data-step="' + name + '"]');
+      if (!el) return;
+      var num = el.querySelector('.vld-step-num');
+      el.classList.remove('active', 'done');
+      if (idx < currentIdx) {
+        el.classList.add('done');
+        if (num) num.textContent = '✓';
+      } else if (idx === currentIdx) {
+        el.classList.add('active');
+        if (num) num.textContent = String(idx + 1);
+      } else {
+        if (num) num.textContent = String(idx + 1);
+      }
+    });
+  }
+
+  // Phase 0: preflight — быстрый COUNT, очень короткий шаг (200-500мс)
+  function setPreflight() {
+    setStep('count');
+    toggle('vldProgressWrap', 'vld-indeterminate', true);
+    toggle('vldSpinner', 'd-none', false);
     toggle('vldRatioWrap', 'd-none', true);
     addClass('vldEta', 'd-none');
+    setWidth('vldProgressBar', '100%');
+    setText('vldProgressBar', '');
+    setText('vldProgressLabel', 'Считаем количество записей…');
+  }
 
-    if (on) {
-      setWidth('vldProgressBar', '100%');
-      setText('vldProgressBar', '');
-      setText('vldProgressLabel', 'Подготовка списка…');
-    } else {
-      setWidth('vldProgressBar', '0%');
-      setText('vldProgressBar', '0%');
+  // После preview мы знаем total — показываем масштаб пользователю и
+  // переходим в шаг "Загрузка списка"
+  function setPreflightCount(total) {
+    setStep('load');
+    setText('vldProgressLabel', 'Найдено ' + total + ' аккаунтов · загружаю список…');
+  }
+
+  // Phase 1: prepare — реальный progress по загрузке items постранично
+  function setPreparingProgress(loaded, totalAll, pct) {
+    setStep('load');
+    removeClass('vldProgressWrap', 'vld-indeterminate');
+    setWidth('vldProgressBar', pct + '%');
+    setText('vldProgressBar', pct + '%');
+    var label = 'Загружаю список: ' + loaded + ' из ' + totalAll;
+    if (state.skipped.length > 0) {
+      label += ' (без FB ID: ' + state.skipped.length + ')';
     }
+    setText('vldProgressLabel', label);
+  }
+
+  // Phase 2: check — старт фактической проверки
+  function setChecking() {
+    setStep('check');
+    removeClass('vldProgressWrap', 'vld-indeterminate');
+    addClass('vldSpinner', 'd-none');
+    setWidth('vldProgressBar', '0%');
+    setText('vldProgressBar', '0%');
+    setText('vldProgressLabel', 'Запускаю проверку…');
   }
 
   // ─── Результат с анимированными счётчиками ─────────────
   function showResult() {
     state.running = false;
+    setStep(null); // все шаги done
     showPane('vldResultPane');
 
     var v     = state.valid.length;
@@ -555,8 +661,16 @@
 
     on('vldStartBtn',           'click', run);
     on('vldCancelBtn',          'click', function () {
+      if (!state.running || state.cancelled) return;
       state.cancelled = true;
       if (state.abortCtrl) { state.abortCtrl.abort(); }
+      // Если уже была хоть какая-то проверка — покажем частичный результат.
+      // Если ещё на этапе preview/prepare — вернёмся к выбору scope.
+      if (state.checked > 0) {
+        toast('Проверка остановлена · показаны частичные результаты', 'info');
+      } else {
+        toast('Проверка отменена', 'info');
+      }
     });
     on('vldActionSetStatusBtn', 'click', applyStatus);
     on('vldActionDeleteBtn',    'click', deleteInvalid);

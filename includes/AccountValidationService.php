@@ -82,9 +82,17 @@ class AccountValidationService
      * Extract c_user from cookies. Supports two formats:
      *   1. JSON array: [{"name":"c_user","value":"123..."}, ...]
      *   2. Cookie-string: "c_user=123...; xs=...; ..."
+     *
+     * Hot-path optimization: stripos() ранний return для всех cookies без c_user
+     * (например, гугловые/трекерные cookies). На больших батчах это экономит
+     * мегабайты regex-сканирования и сотни json_decode вызовов.
      */
     private static function extractCUserFromCookies(string $cookies): ?string
     {
+        if ($cookies === '' || stripos($cookies, 'c_user') === false) {
+            return null;
+        }
+
         $trim = ltrim($cookies);
         if ($trim !== '' && ($trim[0] === '[' || $trim[0] === '{')) {
             $decoded = json_decode($cookies, true);
@@ -176,7 +184,11 @@ class AccountValidationService
         }
 
         for ($attempt = 1; $attempt <= 2 && !empty($failedIdx); $attempt++) {
-            sleep($attempt);
+            // 300ms / 600ms — короткая пауза перед retry. Раньше было sleep(1)/sleep(2),
+            // но это «мёртвая» задержка для пользователя: 30с timeout + 1с sleep + retry...
+            // Большинство сетевых сбоев восстанавливаются мгновенно, секундная пауза не
+            // даёт реального преимущества, только ухудшает UX.
+            usleep($attempt * 300000);
             Logger::debug('acctool checker retry', ['attempt' => $attempt, 'batches' => count($failedIdx)]);
 
             $retryBatches = [];

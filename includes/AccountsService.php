@@ -423,6 +423,21 @@ class AccountsService {
         $rows = $this->repository->getAccountsByIdsForValidation($ids);
         return ['rows' => $rows, 'total' => count($rows)];
     }
+
+    /**
+     * Быстрый COUNT для validate/preview — возвращает только число записей
+     * без тяжёлой выборки cookies. Для selected/page — count(ids), для filter
+     * — SQL COUNT с использованием существующих индексов.
+     */
+    public function getValidationCount(string $scope, array $ids, string $query): int {
+        if ($scope === 'filter') {
+            parse_str($query, $params);
+            $filter = $this->createFilterFromRequest($params);
+            return $this->repository->getAccountsCount($filter, false);
+        }
+        $ids = array_filter(array_map('intval', $ids));
+        return count($ids);
+    }
     
     /**
      * Обновление статуса для выбранных аккаунтов

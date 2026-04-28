@@ -293,9 +293,38 @@ $router->post('/accounts/custom-card', function() use ($tableName) {
 });
 
 // ────────────────────────────────────────────────────────────
-// Проверка аккаунтов на валидность (getuid.live)
+// Проверка аккаунтов на валидность (acctool.top)
 // ────────────────────────────────────────────────────────────
 require_once __DIR__ . '/../includes/AccountValidationService.php';
+
+/**
+ * POST /accounts/validate/preview
+ * Pre-flight COUNT: возвращает только число записей в выбранном scope,
+ * без выборки cookies/regex-парсинга. Нужен для мгновенной обратной связи
+ * пользователю ("Будет проверено: 1234 аккаунта") до старта тяжёлого prepare.
+ */
+$router->post('/accounts/validate/preview', function() use ($tableName) {
+    $input = read_json_input(1048576);
+    if (!is_array($input)) throw new InvalidArgumentException('Invalid input');
+
+    $csrf = (string)($input['csrf'] ?? '');
+    if (!Validator::validateCsrfToken($csrf)) {
+        throw new InvalidArgumentException('CSRF validation failed');
+    }
+
+    $scope = (string)($input['scope'] ?? 'selected');
+    if (!in_array($scope, ['selected', 'page', 'filter'], true)) {
+        throw new InvalidArgumentException('Invalid scope');
+    }
+
+    $ids   = isset($input['ids']) && is_array($input['ids']) ? array_filter(array_map('intval', $input['ids'])) : [];
+    $query = (string)($input['query'] ?? '');
+
+    $service = new AccountsService($tableName);
+    $total   = $service->getValidationCount($scope, $ids, $query);
+
+    json_success(['total' => $total, 'scope' => $scope]);
+});
 
 /**
  * POST /accounts/validate/prepare
@@ -320,12 +349,34 @@ $router->post('/accounts/validate/prepare', function() use ($tableName) {
     $limit  = min(max((int)($input['limit'] ?? Config::VALIDATE_PREPARE_LIMIT), 1), Config::VALIDATE_PREPARE_LIMIT);
     $offset = max(0, (int)($input['offset'] ?? 0));
 
+    $tStart = microtime(true);
     $service  = new AccountsService($tableName);
     $data     = $service->getAccountsForValidation($scope, $ids, $query, $limit, $offset);
+    $tSql     = microtime(true);
     $prepared = AccountValidationService::prepareItems($data['rows']);
+    $tEnd     = microtime(true);
 
     $rowCount = count($data['rows']);
     $nextOffset = $offset + $rowCount;
+    $sqlMs    = (int)(($tSql - $tStart) * 1000);
+    $extractMs = (int)(($tEnd - $tSql) * 1000);
+    $totalMs  = $sqlMs + $extractMs;
+
+    Logger::debug('validate/prepare timing', [
+        'scope'      => $scope,
+        'rows'       => $rowCount,
+        'items'      => count($prepared['items']),
+        'skipped'    => count($prepared['skipped']),
+        'sql_ms'     => $sqlMs,
+        'extract_ms' => $extractMs,
+        'total_ms'   => $totalMs,
+    ]);
+    if ($totalMs > 3000) {
+        Logger::warning('validate/prepare slow', [
+            'scope' => $scope, 'rows' => $rowCount,
+            'sql_ms' => $sqlMs, 'extract_ms' => $extractMs,
+        ]);
+    }
 
     json_success([
         'items'       => $prepared['items'],
@@ -338,7 +389,7 @@ $router->post('/accounts/validate/prepare', function() use ($tableName) {
 
 /**
  * POST /accounts/validate/check
- * Проверка батча через NPPR fbchecker (curl_multi, параллельно внутри запроса).
+ * Проверка батча через acctool.top (curl_multi, параллельно внутри запроса).
  * Сессия закрывается до начала — чтобы не блокировать другие запросы.
  */
 $router->post('/accounts/validate/check', function() use ($tableName) {
@@ -359,7 +410,23 @@ $router->post('/accounts/validate/check', function() use ($tableName) {
     session_write_close();
     set_time_limit(120);
 
+    $tStart = microtime(true);
     $result = AccountValidationService::checkItems($items);
+    $totalMs = (int)((microtime(true) - $tStart) * 1000);
+
+    Logger::debug('validate/check timing', [
+        'items'    => count($items),
+        'valid'    => count($result['valid']   ?? []),
+        'invalid'  => count($result['invalid'] ?? []),
+        'skipped'  => count($result['skipped'] ?? []),
+        'total_ms' => $totalMs,
+    ]);
+    if ($totalMs > 15000) {
+        Logger::warning('validate/check slow', [
+            'items' => count($items), 'total_ms' => $totalMs,
+        ]);
+    }
+
     json_success($result);
 });
 

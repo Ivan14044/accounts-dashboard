@@ -325,7 +325,7 @@
         <button class="btn btn-sm btn-primary" id="addAccountBtn" data-bs-toggle="modal" data-bs-target="#addAccountModal">
           <i class="fas fa-plus"></i> Добавить аккаунт
         </button>
-        <button class="btn btn-sm btn-outline-primary" id="validateAccountsBtn" disabled title="Проверка аккаунтов на валидность (getuid.live)">
+        <button class="btn btn-sm btn-outline-primary" id="validateAccountsBtn" disabled title="Проверка аккаунтов на валидность (acctool.top)">
           <i class="fas fa-check-double"></i> Проверка на валидность
         </button>
         <button class="btn btn-sm btn-outline-secondary" id="transferAccountsBtn">
@@ -802,6 +802,52 @@
       0%   { background-position: 200% 0; }
       100% { background-position: -200% 0; }
     }
+    /* ── Stepper: pipeline indicator ── */
+    .vld-steps {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .82rem;
+    }
+    .vld-step {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #adb5bd;
+      transition: color .25s ease;
+      flex-shrink: 0;
+    }
+    .vld-step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #e9ecef;
+      color: #adb5bd;
+      font-weight: 600;
+      font-size: .75rem;
+      transition: background .25s ease, color .25s ease;
+    }
+    .vld-step.active .vld-step-num {
+      background: #0d6efd;
+      color: #fff;
+      box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.18);
+    }
+    .vld-step.active { color: #0d6efd; font-weight: 600; }
+    .vld-step.done .vld-step-num {
+      background: #198754;
+      color: #fff;
+    }
+    .vld-step.done { color: #198754; }
+    .vld-step-line {
+      flex: 1;
+      height: 2px;
+      background: #e9ecef;
+      border-radius: 1px;
+      min-width: 12px;
+    }
     .vld-ratio-track {
       height: 8px;
       border-radius: 8px;
@@ -865,7 +911,7 @@
         <!-- Шаг 1: Выбор scope -->
         <div id="vldScopePane">
           <p class="text-muted mb-3 small">
-            Проверка аккаунтов через <strong>NPPR Services</strong> — определяет, активен аккаунт или заблокирован.
+            Проверка аккаунтов через <strong>acctool.top</strong> — определяет, активен аккаунт или заблокирован.
           </p>
           <div class="mb-3">
             <label class="form-label fw-semibold small" for="vldScopeSelect">Что проверяем</label>
@@ -882,16 +928,34 @@
 
         <!-- ═══ Шаг 2: Прогресс ═══ -->
         <div id="vldProgressPane" class="d-none">
+          <!-- Stepper: visual pipeline → видно где сейчас процесс -->
+          <div class="vld-steps mb-3">
+            <div class="vld-step" data-step="count">
+              <span class="vld-step-num">1</span>
+              <span class="vld-step-label">Подсчёт</span>
+            </div>
+            <div class="vld-step-line"></div>
+            <div class="vld-step" data-step="load">
+              <span class="vld-step-num">2</span>
+              <span class="vld-step-label">Загрузка списка</span>
+            </div>
+            <div class="vld-step-line"></div>
+            <div class="vld-step" data-step="check">
+              <span class="vld-step-num">3</span>
+              <span class="vld-step-label">Проверка</span>
+            </div>
+          </div>
+
           <!-- Spinner + label -->
           <div class="d-flex align-items-center gap-2 mb-3">
             <span id="vldSpinner"><i class="fas fa-spinner fa-spin text-primary" style="font-size: 1.1rem;"></i></span>
-            <span id="vldProgressLabel" class="fw-semibold" style="font-size: .95rem;">Подготовка списка…</span>
+            <span id="vldProgressLabel" class="fw-semibold" style="font-size: .95rem;">Считаем количество записей…</span>
             <span id="vldEta" class="ms-auto text-muted small d-none"></span>
           </div>
 
           <!-- Progress bar -->
           <div class="progress mb-3" style="height: 10px; border-radius: 10px;" id="vldProgressWrap">
-            <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+            <div class="progress-bar bg-primary"
                  id="vldProgressBar" role="progressbar"
                  style="width: 0%; border-radius: 10px; transition: width .5s cubic-bezier(.4,0,.2,1);">0%</div>
           </div>

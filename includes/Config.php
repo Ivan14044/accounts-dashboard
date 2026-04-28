@@ -136,24 +136,38 @@ class Config {
     const ACCTOOL_CHECK_URL = 'https://checker.acctool.top/check';
 
     /**
-     * Размер батча FB ID за один запрос
+     * Размер батча FB ID за один запрос к acctool.top
      */
     const ACCTOOL_BATCH_SIZE = 100;
 
     /**
-     * Таймаут запроса (секунд)
+     * Таймаут запроса к acctool.top (секунд).
+     * 15 сек — компромисс: достаточно для нормального ответа (acctool обычно
+     * отвечает за 3-8 сек), но при сбое быстрее проваливаемся в retry,
+     * не блокируя UI на полминуты.
      */
-    const ACCTOOL_TIMEOUT = 30;
+    const ACCTOOL_TIMEOUT = 15;
 
     /**
-     * Максимум записей за один запрос validate/check
+     * Максимум записей за один запрос validate/check.
+     * 200 (вместо 500) — балансируем число запросов и отзывчивость UI:
+     * один запрос ≈ 2 параллельных curl к acctool ≈ 5-10 сек.
+     * Прогресс на фронте обновляется в 2.5 раза чаще.
      */
-    const VALIDATE_CHECK_MAX_ITEMS = 500;
+    const VALIDATE_CHECK_MAX_ITEMS = 200;
 
     /**
      * Максимум записей за один запрос validate/prepare (по фильтру)
      */
     const VALIDATE_PREPARE_LIMIT = 2000;
+
+    /**
+     * Сколько байт cookies тянуть из БД для validation prepare.
+     * cookies — LONGTEXT (5–10KB на FB-аккаунт), но c_user всегда в первых
+     * нескольких КБ. SUBSTRING в БД снижает трафик в 5–10 раз и ускоряет
+     * парсинг в PHP. 4096 покрывает любую реалистичную FB cookie-структуру.
+     */
+    const VALIDATE_COOKIES_TRUNCATE = 4096;
     
     // ========================================
     // БЕЗОПАСНОСТЬ
