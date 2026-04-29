@@ -325,7 +325,7 @@
         <button class="btn btn-sm btn-primary" id="addAccountBtn" data-bs-toggle="modal" data-bs-target="#addAccountModal">
           <i class="fas fa-plus"></i> Добавить аккаунт
         </button>
-        <button class="btn btn-sm btn-outline-primary" id="validateAccountsBtn" disabled title="Проверка аккаунтов на валидность (acctool.top)">
+        <button class="btn btn-sm btn-outline-primary" id="validateAccountsBtn" disabled title="Проверка аккаунтов на валидность (NPPR Services)">
           <i class="fas fa-check-double"></i> Проверка на валидность
         </button>
         <button class="btn btn-sm btn-outline-secondary" id="transferAccountsBtn">
@@ -911,7 +911,7 @@
         <!-- Шаг 1: Выбор scope -->
         <div id="vldScopePane">
           <p class="text-muted mb-3 small">
-            Проверка аккаунтов через <strong>acctool.top</strong> — определяет, активен аккаунт или заблокирован.
+            Проверка аккаунтов через <strong>NPPR Services</strong> — определяет, активен аккаунт или заблокирован.
           </p>
           <div class="mb-3">
             <label class="form-label fw-semibold small" for="vldScopeSelect">Что проверяем</label>

@@ -120,7 +120,7 @@ class AccountsRepository {
     
     /**
      * Получение записей для проверки валидности (id, login, id_soc_account, social_url, cookies)
-     * Используется для prepare перед вызовом acctool.top checker.
+     * Используется для prepare перед вызовом NPPR fbchecker.
      *
      * @param array $ids Массив ID записей
      * @return array

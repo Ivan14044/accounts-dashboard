@@ -24,7 +24,7 @@
     <button class="btn btn-sm btn-primary" id="addAccountBtn" data-bs-toggle="modal" data-bs-target="#addAccountModal">
       <i class="fas fa-plus"></i> Добавить аккаунт
     </button>
-    <button class="btn btn-sm btn-outline-primary" id="validateAccountsBtn" disabled title="Проверка аккаунтов на валидность (acctool.top)">
+    <button class="btn btn-sm btn-outline-primary" id="validateAccountsBtn" disabled title="Проверка аккаунтов на валидность (NPPR Services)">
       <i class="fas fa-check-double"></i> Проверка на валидность
     </button>
     <button class="btn btn-sm btn-outline-secondary" id="transferAccountsBtn">

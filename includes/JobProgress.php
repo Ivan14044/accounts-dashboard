@@ -3,7 +3,7 @@
  * JobProgress — файловое хранилище для streaming прогресса долгих операций.
  *
  * Используется в validate/check: сервер инкрементально пишет прогресс
- * после каждого sub-batch acctool, фронт читает через polling /progress.
+ * после каждого sub-batch NPPR, фронт читает через polling /progress.
  *
  * На shared FTP-хостинге нет Redis/Memcached. Атомарность гарантируется
  * записью во временный файл с последующим rename — на POSIX rename атомарен,

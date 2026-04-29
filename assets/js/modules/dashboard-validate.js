@@ -1,15 +1,16 @@
 /**
  * dashboard-validate.js
- * Модуль проверки аккаунтов на валидность через acctool.top
+ * Модуль проверки аккаунтов на валидность через NPPR Services API
  *
  * ВАЖНО: параллельные запросы к нашему API блокируются nginx rate limiter'ом (429).
  * Поэтому отправляем СТРОГО ОДИН запрос за раз (CONCURRENCY=1),
  * а параллельность обеспечивает бэкенд: AccountValidationService раскидывает
- * суб-батчи к acctool через curl_multi.
+ * суб-батчи к NPPR через curl_multi.
  *
  * BATCH_SIZE=200 (= VALIDATE_CHECK_MAX_ITEMS) → бэкенд делит их на суб-батчи
- * по ACCTOOL_BATCH_SIZE=100 и обращается к acctool одновременно.
- * UI обновляется после каждого большого батча. Ошибки не крашат процесс.
+ * по NPPR_BATCH_SIZE=100 и обращается к NPPR одновременно.
+ * Streaming прогресс: после каждого sub-batch сервер пишет в JobProgress,
+ * фронт читает через polling /progress — UI движется внутри батча.
  */
 (function () {
   'use strict';
@@ -309,7 +310,7 @@
   // ─── Streaming progress polling ────────────────────────
   // Пока /check выполняется на сервере (5–15 сек на батч), без polling
   // прогресс-бар стоит на 0%. Сервер пишет инкрементальные апдейты в
-  // JobProgress после каждого sub-batch acctool, мы их подтягиваем сюда.
+  // JobProgress после каждого sub-batch NPPR, мы их подтягиваем сюда.
   function startPolling() {
     if (state.pollTimer || !state.jobId) return;
 

@@ -127,31 +127,39 @@ class Config {
     const LOGIN_BLOCK_TIME = 300; // 5 минут
     
     // ========================================
-    // ПРОВЕРКА ВАЛИДНОСТИ АККАУНТОВ (acctool.top checker API)
+    // ПРОВЕРКА ВАЛИДНОСТИ АККАУНТОВ (NPPR Services API)
+    // https://npprservices.pro/apidoc
     // ========================================
 
     /**
-     * URL checker API — токен не требуется
+     * URL для проверки FB аккаунтов (NPPR fbchecker)
      */
-    const ACCTOOL_CHECK_URL = 'https://checker.acctool.top/check';
+    const NPPR_FBCHECK_URL = 'https://npprservices.pro/api/services/fbchecker';
 
     /**
-     * Размер батча FB ID за один запрос к acctool.top
+     * Размер батча FB ID за один запрос к NPPR
      */
-    const ACCTOOL_BATCH_SIZE = 100;
+    const NPPR_BATCH_SIZE = 100;
 
     /**
-     * Таймаут запроса к acctool.top (секунд).
-     * 15 сек — компромисс: достаточно для нормального ответа (acctool обычно
-     * отвечает за 3-8 сек), но при сбое быстрее проваливаемся в retry,
-     * не блокируя UI на полминуты.
+     * Таймаут запроса к NPPR (секунд).
+     * 15 сек — компромисс: достаточно для нормального ответа, но при сбое
+     * быстрее проваливаемся в retry, не блокируя UI.
      */
-    const ACCTOOL_TIMEOUT = 15;
+    const NPPR_TIMEOUT = 15;
+
+    /**
+     * ENV-переменная и fallback файл с токеном NPPR API.
+     * При деплое (.github/workflows/deploy.yml) GitHub Secret NPPR_API_TOKEN
+     * материализуется в файл .nppr_token в корне проекта (gitignored).
+     */
+    const NPPR_TOKEN_ENV  = 'NPPR_API_TOKEN';
+    const NPPR_TOKEN_FILE = '.nppr_token';
 
     /**
      * Максимум записей за один запрос validate/check.
      * 200 (вместо 500) — балансируем число запросов и отзывчивость UI:
-     * один запрос ≈ 2 параллельных curl к acctool ≈ 5-10 сек.
+     * один запрос ≈ 2 параллельных curl к NPPR ≈ 5-10 сек.
      * Прогресс на фронте обновляется в 2.5 раза чаще.
      */
     const VALIDATE_CHECK_MAX_ITEMS = 200;
@@ -428,13 +436,29 @@ class Config {
     
     /**
      * Получить чувствительные поля (пароли, cookies и т.п.)
-     * 
+     *
      * @return array
      */
     public static function getSensitiveCsvFields(): array {
         return array_keys(array_filter(self::CSV_STRUCTURE, function($field) {
             return $field['sensitive'] ?? false;
         }));
+    }
+
+    /**
+     * Получить токен NPPR API.
+     * Приоритет: переменная окружения NPPR_API_TOKEN → файл .nppr_token в корне проекта.
+     * Возвращает пустую строку, если токен не задан.
+     */
+    public static function getNpprToken(): string {
+        $token = (string)getenv(self::NPPR_TOKEN_ENV);
+        if ($token === '' && defined('PROJECT_ROOT')) {
+            $tokenFile = PROJECT_ROOT . DIRECTORY_SEPARATOR . self::NPPR_TOKEN_FILE;
+            if (is_file($tokenFile) && is_readable($tokenFile)) {
+                $token = trim((string)@file_get_contents($tokenFile));
+            }
+        }
+        return preg_replace('/[^A-Za-z0-9]/', '', $token);
     }
 }
 

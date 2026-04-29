@@ -293,7 +293,7 @@ $router->post('/accounts/custom-card', function() use ($tableName) {
 });
 
 // ────────────────────────────────────────────────────────────
-// Проверка аккаунтов на валидность (acctool.top)
+// Проверка аккаунтов на валидность (NPPR Services)
 // ────────────────────────────────────────────────────────────
 require_once __DIR__ . '/../includes/AccountValidationService.php';
 
@@ -389,10 +389,10 @@ $router->post('/accounts/validate/prepare', function() use ($tableName) {
 
 /**
  * POST /accounts/validate/check
- * Проверка батча через acctool.top (curl_multi, параллельно внутри запроса).
+ * Проверка батча через NPPR fbchecker (curl_multi, параллельно внутри запроса).
  * Сессия закрывается до начала — чтобы не блокировать другие запросы.
  *
- * Если передан job_id — после каждого sub-batch acctool пишем инкрементальный
+ * Если передан job_id — после каждого sub-batch NPPR пишем инкрементальный
  * прогресс в JobProgress. Фронт читает его через polling /progress, что даёт
  * движение % ВНУТРИ одного /check (без этого UI стоит на 0% по 5–15 сек).
  */
