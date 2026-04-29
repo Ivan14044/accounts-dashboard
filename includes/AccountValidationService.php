@@ -10,6 +10,7 @@
 
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Logger.php';
+require_once __DIR__ . '/JobProgress.php';
 
 class AccountValidationService
 {
@@ -124,8 +125,13 @@ class AccountValidationService
 
     /**
      * Check items. An account is valid if at least one of its FB IDs is active.
+     *
+     * Если передан $jobId — после каждого sub-batch acctool (curl_multi_info_read)
+     * пишем инкрементальный прогресс в JobProgress. Фронт читает его через
+     * polling /progress, поэтому ползунок «Проверено N/M» движется ВНУТРИ
+     * одного /check запроса, а не только между ними.
      */
-    public static function checkItems(array $items): array
+    public static function checkItems(array $items, ?string $jobId = null): array
     {
         $valid   = [];
         $invalid = [];
@@ -143,7 +149,26 @@ class AccountValidationService
             }
         }
 
-        $results = self::checkFbIdsBulk(array_keys($allFbIds));
+        // Готовим callback прогресса: каждое завершение sub-batch продвигает
+        // счётчик checked на пропорциональную долю items. Используем
+        // накопительный расчёт, чтобы сумма точно равнялась count($items).
+        $progressCb = null;
+        if ($jobId !== null && $jobId !== '' && !empty($allFbIds)) {
+            $totalItems  = count($items);
+            $batchCount  = (int)ceil(count($allFbIds) / Config::ACCTOOL_BATCH_SIZE);
+            $completed   = 0;
+            $progressCb  = function () use (&$completed, $totalItems, $batchCount, $jobId) {
+                $completed++;
+                $totalAfter   = (int)round($completed * $totalItems / max(1, $batchCount));
+                $totalBefore  = (int)round(($completed - 1) * $totalItems / max(1, $batchCount));
+                $delta        = $totalAfter - $totalBefore;
+                if ($delta > 0) {
+                    JobProgress::update($jobId, ['checked' => $delta]);
+                }
+            };
+        }
+
+        $results = self::checkFbIdsBulk(array_keys($allFbIds), $progressCb);
 
         foreach ($items as $item) {
             $fbIds = $item['fb_ids'] ?? [];
@@ -161,6 +186,16 @@ class AccountValidationService
             $isValid ? ($valid[] = $entry) : ($invalid[] = $entry);
         }
 
+        // Также пишем accumulated valid/invalid — фронт может их использовать
+        // для живого ratio-бара (опционально).
+        if ($jobId !== null && $jobId !== '') {
+            JobProgress::update($jobId, [
+                'valid'   => count($valid),
+                'invalid' => count($invalid),
+                'skipped' => count($skipped),
+            ]);
+        }
+
         return ['valid' => $valid, 'invalid' => $invalid, 'skipped' => $skipped];
     }
 
@@ -168,15 +203,17 @@ class AccountValidationService
      * Check FB IDs in batches via acctool.top bulk API.
      * Sub-batches run in parallel via curl_multi. Failed batches are retried.
      *
+     * @param callable|null $onSubBatchDone Вызывается каждый раз когда sub-batch
+     *   завершается (curl_multi_info_read). Используется для streaming прогресса.
      * @return array [fb_id => bool]
      */
-    private static function checkFbIdsBulk(array $fbIds): array
+    private static function checkFbIdsBulk(array $fbIds, ?callable $onSubBatchDone = null): array
     {
         $fbIds = array_values(array_unique(array_filter(array_map('strval', $fbIds))));
         if (empty($fbIds)) return [];
 
         $batches      = array_chunk($fbIds, Config::ACCTOOL_BATCH_SIZE);
-        $batchResults = self::runParallel($batches);
+        $batchResults = self::runParallel($batches, $onSubBatchDone);
 
         $failedIdx = [];
         foreach ($batchResults as $idx => $res) {
@@ -194,7 +231,8 @@ class AccountValidationService
             $retryBatches = [];
             foreach ($failedIdx as $idx) $retryBatches[$idx] = $batches[$idx];
 
-            $retryResults = self::runParallel($retryBatches);
+            // На retry callback не вызываем — прогресс уже учтён при первой попытке
+            $retryResults = self::runParallel($retryBatches, null);
             $newFailed    = [];
             foreach ($retryResults as $originalIdx => $res) {
                 if ($res !== null) {
@@ -226,10 +264,16 @@ class AccountValidationService
     /**
      * Run batches in parallel via curl_multi.
      *
+     * Парсит каждый sub-batch ПО МЕРЕ завершения (curl_multi_info_read) и
+     * вызывает $onSubBatchDone — это даёт streaming прогресс пользователю
+     * вместо ожидания всех sub-batches сразу.
+     *
      * @param array $batches [idx => array<string>]
+     * @param callable|null $onSubBatchDone Вызывается без аргументов после каждого
+     *   завершившегося sub-batch (успех или провал — оба считаются «обработанными»).
      * @return array [idx => array<fb_id, bool>|null]
      */
-    private static function runParallel(array $batches): array
+    private static function runParallel(array $batches, ?callable $onSubBatchDone = null): array
     {
         if (empty($batches)) return [];
 
@@ -259,9 +303,36 @@ class AccountValidationService
             $handles[$idx] = $ch;
         }
 
+        $results    = [];
+        $processed  = []; // idx → true когда уже обработали (защита от двойного вызова callback)
+
+        $drainCompleted = function () use ($mh, &$handles, &$batches, &$results, &$processed, $onSubBatchDone) {
+            while (($info = curl_multi_info_read($mh)) !== false) {
+                if (!isset($info['handle'])) continue;
+                $handle = $info['handle'];
+
+                // Найти idx по handle
+                $foundIdx = null;
+                foreach ($handles as $idx => $ch) {
+                    if ($ch === $handle) { $foundIdx = $idx; break; }
+                }
+                if ($foundIdx === null || isset($processed[$foundIdx])) continue;
+                $processed[$foundIdx] = true;
+
+                $results[$foundIdx] = self::parseHandleResult($handle, $batches[$foundIdx], $foundIdx);
+
+                if ($onSubBatchDone !== null) {
+                    try { $onSubBatchDone(); } catch (\Throwable $e) {
+                        Logger::warning('progress callback threw', ['err' => $e->getMessage()]);
+                    }
+                }
+            }
+        };
+
         $running = null;
         do {
             $status = curl_multi_exec($mh, $running);
+            $drainCompleted();
         } while ($status === CURLM_CALL_MULTI_PERFORM);
 
         while ($running && $status === CURLM_OK) {
@@ -270,62 +341,75 @@ class AccountValidationService
             }
             do {
                 $status = curl_multi_exec($mh, $running);
+                $drainCompleted();
             } while ($status === CURLM_CALL_MULTI_PERFORM);
         }
 
-        $results = [];
-
+        // Подбираем хвост (на случай если какой-то handle не был замечен через info_read)
         foreach ($handles as $idx => $ch) {
-            $body     = curl_multi_getcontent($ch);
-            $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $error    = curl_error($ch);
-
+            if (!isset($processed[$idx])) {
+                $results[$idx] = self::parseHandleResult($ch, $batches[$idx], $idx);
+                if ($onSubBatchDone !== null) {
+                    try { $onSubBatchDone(); } catch (\Throwable $e) {}
+                }
+            }
             curl_multi_remove_handle($mh, $ch);
             curl_close($ch);
-
-            if ($error || $httpCode !== 200 || $body === false || $body === '') {
-                Logger::warning('acctool checker request failed', [
-                    'http_code' => $httpCode,
-                    'error'     => $error,
-                    'batch_idx' => $idx,
-                    'body'      => is_string($body) ? substr($body, 0, 500) : '',
-                ]);
-                $results[$idx] = null;
-                continue;
-            }
-
-            $json = @json_decode($body, true);
-            if (!is_array($json) || !isset($json['results']) || !is_array($json['results'])) {
-                Logger::warning('acctool checker invalid response', [
-                    'body'      => substr((string)$body, 0, 500),
-                    'batch_idx' => $idx,
-                ]);
-                $results[$idx] = null;
-                continue;
-            }
-
-            $batchResult = [];
-            foreach ($json['results'] as $item) {
-                $line   = (string)($item['full_line'] ?? '');
-                $status = (string)($item['status']    ?? '');
-                if ($line !== '') {
-                    $batchResult[$line] = (strtolower($status) === 'active');
-                }
-            }
-
-            // IDs absent from response → false
-            foreach ($batches[$idx] as $fbId) {
-                $key = (string)$fbId;
-                if (!isset($batchResult[$key])) {
-                    $batchResult[$key] = false;
-                }
-            }
-
-            $results[$idx] = $batchResult;
         }
 
         curl_multi_close($mh);
 
         return $results;
+    }
+
+    /**
+     * Парсит ответ одного curl handle. Вынесено из runParallel чтобы можно было
+     * вызывать ПО МЕРЕ завершения каждого sub-batch.
+     *
+     * @return array|null [fb_id => bool] или null при сетевой/парс ошибке
+     */
+    private static function parseHandleResult($ch, array $batch, $batchIdx): ?array
+    {
+        $body     = curl_multi_getcontent($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error    = curl_error($ch);
+
+        if ($error || $httpCode !== 200 || $body === false || $body === '') {
+            Logger::warning('acctool checker request failed', [
+                'http_code' => $httpCode,
+                'error'     => $error,
+                'batch_idx' => $batchIdx,
+                'body'      => is_string($body) ? substr($body, 0, 500) : '',
+            ]);
+            return null;
+        }
+
+        $json = @json_decode($body, true);
+        if (!is_array($json) || !isset($json['results']) || !is_array($json['results'])) {
+            Logger::warning('acctool checker invalid response', [
+                'body'      => substr((string)$body, 0, 500),
+                'batch_idx' => $batchIdx,
+            ]);
+            return null;
+        }
+
+        $batchResult = [];
+        foreach ($json['results'] as $item) {
+            $line   = (string)($item['full_line'] ?? '');
+            $status = (string)($item['status']    ?? '');
+            if ($line !== '') {
+                $batchResult[$line] = (strtolower($status) === 'active');
+            }
+        }
+
+        // IDs absent from response → false
+        foreach ($batch as $fbId) {
+            $key = (string)$fbId;
+            if (!isset($batchResult[$key])) {
+                $batchResult[$key] = false;
+            }
+        }
+
+        return $batchResult;
     }
 }

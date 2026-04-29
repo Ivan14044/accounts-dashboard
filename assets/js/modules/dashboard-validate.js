@@ -35,9 +35,25 @@
     errors     : [],
     total      : 0,
     totalAll   : 0,
-    checked    : 0,
-    startTime  : 0
+    checked    : 0,         // подтверждённый счётчик (из ответов /check)
+    checkedLive: 0,         // live-счётчик из polling /progress (отстаёт на 1.5с)
+    startTime  : 0,
+    jobId      : '',
+    pollTimer  : null
   };
+
+  // ─── Job ID ────────────────────────────────────────────
+  // Идентификатор текущей проверки. Используется для streaming прогресса:
+  // /check пишет инкрементальные апдейты в server-side файл, фронт читает
+  // через polling /progress — UI движется ВНУТРИ батча, а не только между.
+  function newJobId() {
+    if (window.crypto && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    // Fallback: timestamp + случайная компонента, формат [a-zA-Z0-9-]
+    return 'job-' + Date.now().toString(36) + '-' +
+      Math.random().toString(36).slice(2, 10);
+  }
 
   // ─── Анимация: плавные счётчики ────────────────────────
   var anim = {
@@ -84,19 +100,22 @@
 
   function resetState() {
     if (state.abortCtrl) { state.abortCtrl.abort(); state.abortCtrl = null; }
+    if (state.pollTimer) { clearTimeout(state.pollTimer); state.pollTimer = null; }
     anim.cancelAll();
-    state.cancelled  = false;
-    state.running    = false;
-    state.abortCtrl  = null;
-    state.items      = [];
-    state.skipped    = [];
-    state.valid      = [];
-    state.invalid    = [];
-    state.errors     = [];
-    state.total      = 0;
-    state.totalAll   = 0;
-    state.checked    = 0;
-    state.startTime  = 0;
+    state.cancelled   = false;
+    state.running     = false;
+    state.abortCtrl   = null;
+    state.items       = [];
+    state.skipped     = [];
+    state.valid       = [];
+    state.invalid     = [];
+    state.errors      = [];
+    state.total       = 0;
+    state.totalAll    = 0;
+    state.checked     = 0;
+    state.checkedLive = 0;
+    state.startTime   = 0;
+    state.jobId       = '';
   }
 
   /** Полный сброс всех DOM-элементов */
@@ -208,15 +227,23 @@
       .then(function (r) { return r.json(); });
   }
 
-  function apiCheck(items) {
+  function apiCheck(items, jobId) {
     var opts = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-      body: JSON.stringify({ items: items, csrf: csrf() })
+      body: JSON.stringify({ items: items, csrf: csrf(), job_id: jobId || '' })
     };
     if (state.abortCtrl) opts.signal = state.abortCtrl.signal;
     return fetch(window.getTableAwareUrl('/api/accounts/validate/check'), opts)
       .then(function (r) { return r.json(); });
+  }
+
+  function apiProgress(jobId) {
+    // Без abort signal — мы хотим чтобы polling пережил cancel и спокойно завершился
+    return fetch(window.getTableAwareUrl('/api/accounts/validate/progress?job_id=' + encodeURIComponent(jobId)), {
+      method: 'GET',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function (r) { return r.json(); });
   }
 
   // ─── ETA ───────────────────────────────────────────────
@@ -230,7 +257,12 @@
 
   // ─── Плавное обновление прогресса ─────────────────────
   function refreshProgress() {
-    var done    = state.checked;
+    // Берём максимум из двух источников: подтверждённый счётчик (state.checked,
+    // обновляется по ответу /check) и live-счётчик из polling (state.checkedLive,
+    // приходит с сервера во время выполнения /check).
+    // Polling никогда не покажет больше реального — мы инкрементируем счётчик
+    // на каждый sub-batch только после его реального завершения.
+    var done    = Math.max(state.checked, state.checkedLive);
     var total   = state.total;
     var vCount  = state.valid.length;
     var iCount  = state.invalid.length;
@@ -272,6 +304,48 @@
     } else if (done >= total) {
       addClass('vldEta', 'd-none');
     }
+  }
+
+  // ─── Streaming progress polling ────────────────────────
+  // Пока /check выполняется на сервере (5–15 сек на батч), без polling
+  // прогресс-бар стоит на 0%. Сервер пишет инкрементальные апдейты в
+  // JobProgress после каждого sub-batch acctool, мы их подтягиваем сюда.
+  function startPolling() {
+    if (state.pollTimer || !state.jobId) return;
+
+    function tick() {
+      if (!state.running || state.cancelled) {
+        state.pollTimer = null;
+        return;
+      }
+      apiProgress(state.jobId)
+        .then(function (res) {
+          if (!state.running || state.cancelled) return;
+          if (res && res.success && typeof res.checked === 'number') {
+            // Никогда не откатываемся назад — берём максимум
+            if (res.checked > state.checkedLive) {
+              state.checkedLive = res.checked;
+              refreshProgress();
+            }
+          }
+        })
+        .catch(function () { /* polling errors не фатальны */ })
+        .then(function () {
+          // Reschedule только если всё ещё бежим
+          if (state.running && !state.cancelled) {
+            state.pollTimer = setTimeout(tick, 1500);
+          } else {
+            state.pollTimer = null;
+          }
+        });
+    }
+
+    // Первый тик через 700ms — сервер успеет начать писать прогресс
+    state.pollTimer = setTimeout(tick, 700);
+  }
+
+  function stopPolling() {
+    if (state.pollTimer) { clearTimeout(state.pollTimer); state.pollTimer = null; }
   }
 
   // ─── Worker Pool ──────────────────────────────────────
@@ -348,13 +422,15 @@
         setChecking();
         state.total     = state.items.length;
         state.startTime = Date.now();
+        state.jobId     = newJobId();
         refreshProgress();
+        startPolling();
 
         // ── Шаг 2: Check через worker pool ──
         return workerPool(state.items, BATCH_SIZE, CONCURRENCY, function (batch) {
           if (state.cancelled) return Promise.resolve();
 
-          return apiCheck(batch)
+          return apiCheck(batch, state.jobId)
             .then(function (res) {
               if (!res.success) {
                 console.warn('Validate batch error:', res.error);
@@ -479,19 +555,23 @@
     setText('vldProgressLabel', label);
   }
 
-  // Phase 2: check — старт фактической проверки
+  // Phase 2: check — старт фактической проверки.
+  // Spinner оставляем видимым: даже при streaming прогрессе бывают «затишья»
+  // между sub-batch завершениями, и крутящийся spinner даёт визуальный сигнал
+  // «процесс идёт». Скрывается только когда done > 0 в refreshProgress.
   function setChecking() {
     setStep('check');
     removeClass('vldProgressWrap', 'vld-indeterminate');
-    addClass('vldSpinner', 'd-none');
+    toggle('vldSpinner', 'd-none', false);
     setWidth('vldProgressBar', '0%');
     setText('vldProgressBar', '0%');
-    setText('vldProgressLabel', 'Запускаю проверку…');
+    setText('vldProgressLabel', 'Проверяю аккаунты…');
   }
 
   // ─── Результат с анимированными счётчиками ─────────────
   function showResult() {
     state.running = false;
+    stopPolling();
     setStep(null); // все шаги done
     showPane('vldResultPane');
 
@@ -545,6 +625,7 @@
 
   function finish() {
     state.running = false;
+    stopPolling();
     showPane('vldScopePane');
     var btn = $('vldStartBtn');
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-play me-2"></i>Запустить проверку'; }

@@ -391,7 +391,13 @@ $router->post('/accounts/validate/prepare', function() use ($tableName) {
  * POST /accounts/validate/check
  * Проверка батча через acctool.top (curl_multi, параллельно внутри запроса).
  * Сессия закрывается до начала — чтобы не блокировать другие запросы.
+ *
+ * Если передан job_id — после каждого sub-batch acctool пишем инкрементальный
+ * прогресс в JobProgress. Фронт читает его через polling /progress, что даёт
+ * движение % ВНУТРИ одного /check (без этого UI стоит на 0% по 5–15 сек).
  */
+require_once __DIR__ . '/../includes/JobProgress.php';
+
 $router->post('/accounts/validate/check', function() use ($tableName) {
     $input = read_json_input(1048576);
     if (!is_array($input)) throw new InvalidArgumentException('Invalid input');
@@ -406,12 +412,23 @@ $router->post('/accounts/validate/check', function() use ($tableName) {
         throw new InvalidArgumentException('Too many items, max ' . Config::VALIDATE_CHECK_MAX_ITEMS);
     }
 
+    $jobId = (string)($input['job_id'] ?? '');
+    if ($jobId !== '' && !JobProgress::isValidId($jobId)) {
+        $jobId = ''; // невалидный — игнорируем, но не падаем
+    }
+
+    // Cleanup старых job-файлов: на shared нет cron, делаем оппортунистически.
+    // Дешёвая операция (glob + filemtime), 1 раз на /check некритично.
+    if ($jobId !== '') {
+        JobProgress::cleanup();
+    }
+
     // Отпускаем сессию — длинная операция не должна блокировать UI
     session_write_close();
     set_time_limit(120);
 
     $tStart = microtime(true);
-    $result = AccountValidationService::checkItems($items);
+    $result = AccountValidationService::checkItems($items, $jobId !== '' ? $jobId : null);
     $totalMs = (int)((microtime(true) - $tStart) * 1000);
 
     Logger::debug('validate/check timing', [
@@ -420,6 +437,7 @@ $router->post('/accounts/validate/check', function() use ($tableName) {
         'invalid'  => count($result['invalid'] ?? []),
         'skipped'  => count($result['skipped'] ?? []),
         'total_ms' => $totalMs,
+        'job_id'   => $jobId,
     ]);
     if ($totalMs > 15000) {
         Logger::warning('validate/check slow', [
@@ -428,6 +446,27 @@ $router->post('/accounts/validate/check', function() use ($tableName) {
     }
 
     json_success($result);
+});
+
+/**
+ * GET /accounts/validate/progress?job_id=X
+ * Возвращает текущий прогресс задачи валидации. Фронт делает polling
+ * каждые 1.5 сек чтобы UI двигался во время /check.
+ */
+$router->get('/accounts/validate/progress', function() {
+    $jobId = (string)($_GET['job_id'] ?? '');
+    if (!JobProgress::isValidId($jobId)) {
+        throw new InvalidArgumentException('Invalid job_id');
+    }
+
+    // Polling может прилететь до того как сервер начал писать — это не ошибка
+    $data = JobProgress::read($jobId);
+    if ($data === null) {
+        json_success(['exists' => false, 'checked' => 0]);
+        return;
+    }
+
+    json_success(array_merge(['exists' => true], $data));
 });
 
 $router->post('/status/register', function() use ($tableName) {
