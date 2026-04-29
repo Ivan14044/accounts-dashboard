@@ -23,19 +23,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      # Sequential, not parallel: shared-hosting FTP throttles concurrent
-      # connections from the same account and dropped the second target.
       max-parallel: 1
       matrix:
         target:
-          # FTP login приземляет в /home/if592995/panel.account-factory.site/www/,
-          # поэтому panel — текущая папка, а dashboard — соседняя через ../.
+          # FTP login приземляет в /home/if592995/panel.account-factory.site/www/.
+          # Это единственный live домен (dashboard.account-factory.site больше
+          # не используется — там лежит замороженная копия, не подвязанная к FTP).
           - name: panel
             host: panel.account-factory.site
             server_dir: ./
-          - name: dashboard
-            host: dashboard.account-factory.site
-            server_dir: ../dashboard.account-factory.site/www/
     steps:
       - name: Checkout
         uses: actions/checkout@v4
