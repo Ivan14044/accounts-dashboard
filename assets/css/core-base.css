@@ -1187,6 +1187,36 @@ input[type="radio"]:checked::after {
   color: var(--warning-600);
 }
 
+/* ── Account status badges (used in dashboard table cells) ──
+   Bootstrap 5 defaults .badge color to #fff; without explicit colors here,
+   custom status classes render as white text on white background. */
+.badge-default {
+  background: #e2e8f0;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+}
+.badge-empty-status {
+  background: rgba(253, 186, 116, 0.22);
+  color: #92400e;
+  font-style: italic;
+  border: 1px solid rgba(253, 186, 116, 0.6);
+}
+.badge-new {
+  background: rgba(16, 185, 129, 0.18);
+  color: #065f46;
+  border: 1px solid rgba(16, 185, 129, 0.45);
+}
+.badge-add_selphi_true {
+  background: rgba(59, 130, 246, 0.15);
+  color: #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, 0.45);
+}
+.badge-error_login {
+  background: rgba(248, 113, 113, 0.2);
+  color: #991b1b;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+}
+
 /* ========================================
    PAGINATION — Modern
    ======================================== */
