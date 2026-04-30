@@ -2362,18 +2362,18 @@ async function handleCardSwipe(card) {
   } else if (cardType === 'status') {
     // Фильтровать по статусу - БЕЗ перезагрузки страницы
     const url = new URL(window.location);
-    // Удаляем все старые статусы
-    const keysToDelete = [];
-    for (const key of url.searchParams.keys()) {
-      if (key === 'status[]' || key === 'status') {
-        keysToDelete.push(key);
+    // Удаляем все старые статусы (включая индексированные status[N] от http_build_query)
+    if (typeof window.deleteAllStatusKeys === 'function') {
+      window.deleteAllStatusKeys(url);
+    } else {
+      const keysToDelete = [];
+      for (const key of url.searchParams.keys()) {
+        if (key === 'status' || key === 'status[]' || /^status\[\d+\]$/.test(key)) {
+          keysToDelete.push(key);
+        }
       }
+      keysToDelete.forEach(key => url.searchParams.delete(key));
     }
-    keysToDelete.forEach(key => {
-      while (url.searchParams.has(key)) {
-        url.searchParams.delete(key);
-      }
-    });
     // Добавляем новый статус
     url.searchParams.append('status[]', status);
     url.searchParams.set('page', '1');
@@ -3210,19 +3210,20 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Обновляем URL и данные
     const url = new URL(window.location);
-    // Удаляем все старые параметры status и empty_status
-    const keysToDelete = [];
-    for (const key of url.searchParams.keys()) {
-      if (key === 'status[]' || key === 'status' || key === 'empty_status') {
-        keysToDelete.push(key);
+    // Удаляем все старые параметры status (включая индексированные status[N]) и empty_status
+    if (typeof window.deleteAllStatusKeys === 'function') {
+      window.deleteAllStatusKeys(url);
+      url.searchParams.delete('empty_status');
+    } else {
+      const keysToDelete = [];
+      for (const key of url.searchParams.keys()) {
+        if (key === 'status' || key === 'status[]' || /^status\[\d+\]$/.test(key) || key === 'empty_status') {
+          keysToDelete.push(key);
+        }
       }
+      keysToDelete.forEach(key => url.searchParams.delete(key));
     }
-    keysToDelete.forEach(key => {
-      while (url.searchParams.has(key)) {
-        url.searchParams.delete(key);
-      }
-    });
-    
+
     // Добавляем выбранные статусы
     if (selectedCount > 0) {
       checkedBoxes.forEach(cb => {
