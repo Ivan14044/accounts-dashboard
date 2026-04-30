@@ -50,6 +50,19 @@ jobs:
           } > deployed-version.txt
           cat deployed-version.txt
 
+      # Авто-bump ASSETS_VERSION на короткий SHA коммита. Это cache-buster для JS/CSS:
+      # `<script src="assets/js/foo.js?v=<?= ASSETS_VERSION ?>">` → `?v=aafad0d`.
+      # Браузер видит новую URL и тянет свежий ассет, минуя кэш.
+      # Раньше константу нужно было обновлять руками в config.php — забывали,
+      # старый JS оставался в кэше юзеров и Phase 1 lazy-load молча не работал.
+      - name: Bump ASSETS_VERSION to commit SHA
+        run: |
+          SHA_SHORT=$(echo "${{ github.sha }}" | cut -c1-7)
+          # sed in-place: заменяем содержимое строки define('ASSETS_VERSION', '...')
+          sed -i -E "s|define\('ASSETS_VERSION', '[^']*'\)|define('ASSETS_VERSION', '${SHA_SHORT}')|" config.php
+          echo "ASSETS_VERSION → ${SHA_SHORT}"
+          grep "ASSETS_VERSION" config.php | head -3
+
       # Материализуем токен NPPR из GitHub Secret в файл, который заберёт FTPS-upload.
       # Имя начинается с точки → блокируется правилом .htaccess для скрытых файлов.
       # Файл в .gitignore (не коммитится). Если секрет не задан — файл не создаётся,

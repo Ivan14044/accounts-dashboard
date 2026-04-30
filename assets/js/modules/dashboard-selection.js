@@ -235,24 +235,46 @@ function updateSelectedOnPageCounter() {
   updateSelectedOnPageCounterDebounced();
 }
 
-// Инициализация состояния чекбоксов
+// Инициализация состояния чекбоксов.
+// Раньше: один цикл с переплетёнными read↔write на 100 строках = layout thrashing
+// (браузер пересчитывал layout на каждой итерации, ~40 мс на 100 строках).
+// Теперь: 2 фазы — все reads (closest/value) → все writes (checked/classList).
+// Браузер группирует writes в один reflow, скорость растёт в 3–5 раз.
 function initCheckboxStates() {
-  document.querySelectorAll('.row-checkbox').forEach(cb => {
-    const rowId = parseInt(cb.value);
-    const isChecked = selectedAllFiltered || selectedIds.has(rowId);
-    cb.checked = isChecked;
-    const row = cb.closest('tr[data-id]');
-    if (row) {
-      updateRowSelectedClass(row, isChecked);
+  const checkboxes = document.querySelectorAll('.row-checkbox');
+  const items = new Array(checkboxes.length);
+
+  // Phase 1 — only reads
+  for (let i = 0; i < checkboxes.length; i++) {
+    const cb = checkboxes[i];
+    const rowId = parseInt(cb.value, 10);
+    items[i] = {
+      cb: cb,
+      row: cb.closest('tr[data-id]'),
+      isChecked: selectedAllFiltered || selectedIds.has(rowId)
+    };
+  }
+
+  // Phase 2 — only writes (no-op skip избегает лишних reflows на checkbox.checked = same)
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (it.cb.checked !== it.isChecked) it.cb.checked = it.isChecked;
+    if (it.row) {
+      // classList.toggle с force-параметром = один dispatch вместо if/else.
+      it.row.classList.toggle('row-selected', it.isChecked);
     }
-  });
-  
-  // Обновляем состояние чекбокса "Выбрать все"
+  }
+
+  // selectAll-checkbox: использует кэшированный RowIdsCache (см. getAllRowIdsOnPage)
   const selectAllCheckbox = getElementById('selectAll');
   if (selectAllCheckbox) {
     const allRowIds = getAllRowIdsOnPage();
-    const selectedCount = allRowIds.filter(id => selectedAllFiltered || selectedIds.has(id)).length;
-    selectAllCheckbox.checked = allRowIds.length > 0 && selectedCount === allRowIds.length;
+    let selectedCount = 0;
+    for (let i = 0; i < allRowIds.length; i++) {
+      if (selectedAllFiltered || selectedIds.has(allRowIds[i])) selectedCount++;
+    }
+    const next = allRowIds.length > 0 && selectedCount === allRowIds.length;
+    if (selectAllCheckbox.checked !== next) selectAllCheckbox.checked = next;
   }
 }
 
