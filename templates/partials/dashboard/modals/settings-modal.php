@@ -111,21 +111,21 @@
         <div class="row mt-4">
           <div class="col-12">
             <h6 class="mb-3">
-              <i data-lucide="layout-grid" class="me-2" aria-hidden="true"></i>Внешний вид
+              <i class="fas fa-th-list me-2" aria-hidden="true"></i>Внешний вид
             </h6>
             <div class="settings-density">
               <label class="form-label fw-medium d-block mb-2">Плотность строк таблицы</label>
               <div class="density-toggle density-toggle--lg" role="group" aria-label="Плотность строк">
                 <button type="button" class="density-toggle__btn" data-density="comfortable" aria-pressed="true">
-                  <i data-lucide="rows-3" aria-hidden="true"></i>
+                  <i class="fas fa-grip-lines" aria-hidden="true"></i>
                   <span class="density-toggle__label">Просторно</span>
                 </button>
                 <button type="button" class="density-toggle__btn" data-density="cozy" aria-pressed="false">
-                  <i data-lucide="menu" aria-hidden="true"></i>
+                  <i class="fas fa-bars" aria-hidden="true"></i>
                   <span class="density-toggle__label">Средне</span>
                 </button>
                 <button type="button" class="density-toggle__btn" data-density="compact" aria-pressed="false">
-                  <i data-lucide="align-justify" aria-hidden="true"></i>
+                  <i class="fas fa-align-justify" aria-hidden="true"></i>
                   <span class="density-toggle__label">Компактно</span>
                 </button>
               </div>

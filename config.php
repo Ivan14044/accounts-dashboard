@@ -200,7 +200,7 @@ if (!defined('ASSETS_VERSION')) {
     if ($v !== false && $v !== '') {
         define('ASSETS_VERSION', $v);
     } else {
-        define('ASSETS_VERSION', '2026-04-30-design-v2');
+        define('ASSETS_VERSION', '2026-04-30-design-v2.1');
     }
 }
 

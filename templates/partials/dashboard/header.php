@@ -4,26 +4,26 @@
     <!-- Профиль пользователя -->
     <div class="user-profile" id="userProfileDropdown" data-bs-toggle="dropdown" aria-expanded="false">
       <div class="user-avatar">
-        <?php 
+        <?php
         $username = getCurrentUser();
         $initial = mb_strtoupper(mb_substr($username, 0, 1, 'UTF-8'), 'UTF-8');
         echo e($initial);
         ?>
       </div>
       <span class="user-name"><?= e($username) ?></span>
-      <i data-lucide="chevron-down" class="user-dropdown-icon" aria-hidden="true"></i>
+      <i class="fas fa-chevron-down user-dropdown-icon" aria-hidden="true"></i>
     </div>
 
     <!-- Dropdown меню профиля -->
     <ul class="dropdown-menu" aria-labelledby="userProfileDropdown">
-      <li><a class="dropdown-item" href="index.php"><i data-lucide="home" class="me-2" aria-hidden="true"></i>Главная</a></li>
-      <li><a class="dropdown-item" href="admin_logs.php"><i data-lucide="shield" class="me-2" aria-hidden="true"></i>Журнал действий</a></li>
-      <li><a class="dropdown-item" href="log.php"><i data-lucide="file-text" class="me-2" aria-hidden="true"></i>Системные логи</a></li>
+      <li><a class="dropdown-item" href="index.php"><i class="fas fa-home me-2" aria-hidden="true"></i>Главная</a></li>
+      <li><a class="dropdown-item" href="admin_logs.php"><i class="fas fa-shield-alt me-2" aria-hidden="true"></i>Журнал действий</a></li>
+      <li><a class="dropdown-item" href="log.php"><i class="fas fa-file-alt me-2" aria-hidden="true"></i>Системные логи</a></li>
       <li><hr class="dropdown-divider"></li>
       <li>
         <form method="POST" action="logout.php" style="margin:0">
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(getCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
-          <button type="submit" class="dropdown-item"><i data-lucide="log-out" class="me-2" aria-hidden="true"></i>Выйти</button>
+          <button type="submit" class="dropdown-item"><i class="fas fa-sign-out-alt me-2" aria-hidden="true"></i>Выйти</button>
         </form>
       </li>
     </ul>
@@ -32,14 +32,14 @@
     <?php if (!empty($availableTables) && count($availableTables) > 1): ?>
     <div class="table-selector dropdown">
       <button class="btn btn-sm btn-ghost dropdown-toggle" id="tableSelector" data-bs-toggle="dropdown" aria-expanded="false" title="Выбор таблицы">
-        <i data-lucide="database" class="me-1" aria-hidden="true"></i><?= e($currentTable ?? 'accounts') ?>
+        <i class="fas fa-database me-1" aria-hidden="true"></i><?= e($currentTable ?? 'accounts') ?>
       </button>
       <ul class="dropdown-menu" aria-labelledby="tableSelector" style="max-height:300px;overflow-y:auto">
         <?php foreach ($availableTables as $t): ?>
         <li>
           <a class="dropdown-item<?= ($t === ($currentTable ?? 'accounts')) ? ' active' : '' ?>"
              href="?table=<?= urlencode($t) ?>">
-            <i data-lucide="table-2" class="me-2 text-muted" aria-hidden="true"></i><?= e($t) ?>
+            <i class="fas fa-table me-2 text-muted" aria-hidden="true"></i><?= e($t) ?>
           </a>
         </li>
         <?php endforeach; ?>
@@ -50,17 +50,17 @@
     <!-- Иконки действий -->
     <div class="header-actions">
       <button class="header-action-btn" id="autoRefreshToggle" title="Автообновление">
-        <i data-lucide="refresh-cw" aria-hidden="true"></i>
+        <i class="fas fa-sync-alt" aria-hidden="true"></i>
       </button>
       <button class="header-action-btn" data-bs-toggle="modal" data-bs-target="#settingsModal" title="Настройки">
-        <i data-lucide="settings" aria-hidden="true"></i>
+        <i class="fas fa-cog" aria-hidden="true"></i>
       </button>
       <a href="trash.php<?= !empty($currentTable) && $currentTable !== 'accounts' ? '?table=' . urlencode($currentTable) : '' ?>" class="header-action-btn" title="Корзина">
-        <i data-lucide="trash-2" aria-hidden="true"></i>
+        <i class="fas fa-trash-alt" aria-hidden="true"></i>
       </a>
     </div>
   </div>
-  
+
   <!-- Правая часть: индикатор БД -->
   <div class="modern-header-right">
     <div class="db-status-indicator">

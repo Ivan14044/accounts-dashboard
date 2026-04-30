@@ -1241,27 +1241,8 @@
 <script src="assets/js/favorites.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 <script src="assets/js/modules/cards-hide-sync.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 
-<!-- Lucide icons (auto-replace <i data-lucide="…"> with SVG) + density toggle -->
-<script src="https://unpkg.com/lucide@0.475.0/dist/umd/lucide.min.js" defer></script>
+<!-- Density toggle (применяется мгновенно, persist в localStorage) -->
 <script src="assets/js/density-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
-<script>
-  // Init Lucide as soon as the library is ready, then re-run on dynamic table updates
-  (function () {
-    function go() {
-      if (window.lucide && typeof window.lucide.createIcons === 'function') {
-        window.lucide.createIcons();
-      }
-    }
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', go);
-    } else {
-      go();
-    }
-    window.addEventListener('load', go);
-    // Хук для перерисованной таблицы / переключённой плотности
-    document.addEventListener('table:refreshed', go);
-  })();
-</script>
 </body>
 </html>
 
