@@ -312,6 +312,10 @@ class DashboardController {
             'ALL_COLUMNS' => $meta['columns'],
             'NUMERIC_COLS' => $meta['numeric'],
             'LONG_FIELDS' => ['cookies', 'first_cookie', 'token', 'user_agent', 'social_url'],
+            // Поля, чьё значение в основном SELECT обрезано до Config::TABLE_HEAVY_FIELD_PREVIEW
+            // (см. AccountsRepository::getAccounts). В шаблоне их не выводим в data-full /
+            // data-copy-text целиком — фронт лениво подгружает через GET /api/accounts/field.
+            'HEAVY_FIELDS' => Config::TABLE_HEAVY_FIELDS,
             'statuses' => $statuses,
             'statusesMarketplace' => $statusesMarketplace,
             'currenciesList' => $currenciesList,

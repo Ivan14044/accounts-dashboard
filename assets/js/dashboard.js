@@ -641,16 +641,17 @@ class Dashboard {
             return;
         }
         
-        // Модальные окна для полного содержимого
-        const fullDataTarget = e.target.closest('[data-full]');
+        // Модальные окна для полного содержимого. Захватываем data-full ИЛИ data-truncated
+        // (для heavy-полей значение лежит не в DOM, а лениво грузится через AJAX)
+        const fullDataTarget = e.target.closest('[data-full],[data-truncated]');
         if (fullDataTarget) {
             this.showFullDataModal(fullDataTarget);
             return;
         }
-        
+
         // Редактирование ячеек таблицы
         const editableCell = e.target.closest('#accountsTable td[data-col]');
-        if (editableCell && !e.target.closest('a,button,.pw-toggle,[data-full]')) {
+        if (editableCell && !e.target.closest('a,button,.pw-toggle,[data-full],[data-truncated]')) {
             this.handleCellEdit(editableCell);
             return;
         }
@@ -1165,65 +1166,93 @@ class Dashboard {
         }
     }
     
-    // Показ полного содержимого длинных полей
+    // Показ полного содержимого длинных полей. Поддерживает два режима:
+    //  - data-full: значение уже в DOM (обычные long-fields).
+    //  - data-truncated: heavy-поле, в DOM лежит обрезанное preview, полный текст
+    //    лениво грузим через window.fetchAccountField().
     showFullDataModal(target) {
-        const full = target.getAttribute('data-full') || '';
         const title = target.getAttribute('data-title') || 'Данные';
-        if (!full) return;
-
-        let modal = dashboardDomCache.getById('fullDataModal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'fullDataModal';
-
-            // Build the modal structure safely using DOM methods instead of innerHTML
-            const backdrop = document.createElement('div');
-            backdrop.className = 'fdm-backdrop';
-            backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:99999;';
-
-            const dialog = document.createElement('div');
-            dialog.className = 'fdm-dialog';
-            dialog.style.cssText = 'max-width:70vw;max-height:70vh;width:70vw;background:#fff;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;';
-
-            const header = document.createElement('div');
-            header.style.cssText = 'padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;';
-
-            const titleDiv = document.createElement('div');
-            titleDiv.style.fontWeight = '600';
-            titleDiv.textContent = title;
-
-            const closeBtn = document.createElement('button');
-            closeBtn.type = 'button';
-            closeBtn.className = 'fdm-close';
-            closeBtn.style.cssText = 'border:none;background:transparent;font-size:20px;line-height:1;cursor:pointer';
-            closeBtn.textContent = '×';
-
-            header.appendChild(titleDiv);
-            header.appendChild(closeBtn);
-
-            const content = document.createElement('div');
-            content.style.cssText = 'padding:16px;overflow:auto';
-
-            const pre = document.createElement('pre');
-            pre.style.cssText = 'white-space:pre-wrap;word-wrap:break-word;font-family:monospace;margin:0';
-            pre.textContent = full;
-
-            content.appendChild(pre);
-
-            dialog.appendChild(header);
-            dialog.appendChild(content);
-            backdrop.appendChild(dialog);
-            modal.appendChild(backdrop);
-
-            document.body.appendChild(modal);
-
-            backdrop.addEventListener('click', (e) => {
-                if (e.target.classList.contains('fdm-backdrop')) {
-                    modal.remove();
-                }
-            });
-            closeBtn.addEventListener('click', () => modal.remove());
+        if (target.hasAttribute('data-truncated')) {
+            const t = (typeof window._resolveTruncatedTarget === 'function')
+                ? window._resolveTruncatedTarget(target)
+                : { rowId: null, field: null };
+            if (!t.rowId || !t.field) return;
+            // Сначала покажем placeholder, чтобы пользователь видел что грузим
+            this._renderFullDataModal(title, 'Загружаю…');
+            if (typeof window.fetchAccountField === 'function') {
+                window.fetchAccountField(t.rowId, t.field).then((value) => {
+                    this._renderFullDataModal(title, value || '(пусто)');
+                });
+            }
+            return;
         }
+        const full = target.getAttribute('data-full') || '';
+        if (!full) return;
+        this._renderFullDataModal(title, full);
+    }
+
+    _renderFullDataModal(title, full) {
+        let modal = document.getElementById('fullDataModal');
+        // Если предыдущий instance ещё на странице — обновим title/body in-place
+        // (нужно для AJAX-кейса: сначала показываем "Загружаю…", потом ответ).
+        if (modal) {
+            const titleDiv = modal.querySelector('.fdm-title');
+            const pre = modal.querySelector('pre');
+            if (titleDiv) titleDiv.textContent = title;
+            if (pre) pre.textContent = full;
+            return;
+        }
+
+        modal = document.createElement('div');
+        modal.id = 'fullDataModal';
+
+        const backdrop = document.createElement('div');
+        backdrop.className = 'fdm-backdrop';
+        backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:99999;';
+
+        const dialog = document.createElement('div');
+        dialog.className = 'fdm-dialog';
+        dialog.style.cssText = 'max-width:70vw;max-height:70vh;width:70vw;background:#fff;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;';
+
+        const header = document.createElement('div');
+        header.style.cssText = 'padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;';
+
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'fdm-title';
+        titleDiv.style.fontWeight = '600';
+        titleDiv.textContent = title;
+
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'fdm-close';
+        closeBtn.style.cssText = 'border:none;background:transparent;font-size:20px;line-height:1;cursor:pointer';
+        closeBtn.textContent = '×';
+
+        header.appendChild(titleDiv);
+        header.appendChild(closeBtn);
+
+        const content = document.createElement('div');
+        content.style.cssText = 'padding:16px;overflow:auto';
+
+        const pre = document.createElement('pre');
+        pre.style.cssText = 'white-space:pre-wrap;word-wrap:break-word;font-family:monospace;margin:0';
+        pre.textContent = full;
+
+        content.appendChild(pre);
+
+        dialog.appendChild(header);
+        dialog.appendChild(content);
+        backdrop.appendChild(dialog);
+        modal.appendChild(backdrop);
+
+        document.body.appendChild(modal);
+
+        backdrop.addEventListener('click', (e) => {
+            if (e.target.classList.contains('fdm-backdrop')) {
+                modal.remove();
+            }
+        });
+        closeBtn.addEventListener('click', () => modal.remove());
     }
     
     // Переинициализация обработчиков для динамически обновлённой таблицы (заглушка)

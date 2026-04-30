@@ -38,21 +38,31 @@ class AccountsRepository {
      */
     public function getAccounts(FilterBuilder $filter, string $orderBy, int $limit, int $offset, bool $includeDeleted = false): array {
         $meta = $this->metadata->getAllColumns();
-        
+
+        $heavy   = Config::TABLE_HEAVY_FIELDS;
+        $preview = (int)Config::TABLE_HEAVY_FIELD_PREVIEW;
+
         $validCols = [];
         foreach ($meta as $col) {
-            if ($this->metadata->columnExists($col)) {
-                $validCols[] = '`' . $col . '`';
-            } else {
+            if (!$this->metadata->columnExists($col)) {
                 Logger::warning("Column '$col' does not exist in table '{$this->table}', skipping");
+                continue;
+            }
+            // Heavy fields (cookies, full_cookies, first_cookie, token, user_agent) —
+            // обрезаем в БД до preview-размера. В таблице всё равно показывается truncated,
+            // полное значение лениво грузится через GET /api/accounts/field.
+            if (in_array($col, $heavy, true)) {
+                $validCols[] = "SUBSTRING(`$col`, 1, $preview) AS `$col`";
+            } else {
+                $validCols[] = '`' . $col . '`';
             }
         }
-        
+
         if (empty($validCols)) {
             $validCols = ['`id`', '`login`', '`status`'];
             Logger::error("No valid columns found, using default columns");
         }
-        
+
         $selectCols = implode(', ', $validCols);
         $where = $filter->getWhereClause($includeDeleted);
         $params = $filter->getParams();
@@ -116,6 +126,34 @@ class AccountsRepository {
         $row = $result ? $result->fetch_assoc() : null;
         $stmt->close();
         return $row ?: null;
+    }
+
+    /**
+     * Получение полного значения одного поля (для lazy-load heavy fields в таблице).
+     * В основной таблице эти поля приходят обрезанными (SUBSTRING ... 256), но при
+     * клике на ячейку или копировании нужен полный текст — этот метод его возвращает.
+     *
+     * Имя поля валидируется ВНЕ метода (allowlist в endpoint), чтобы избежать SQL-injection.
+     */
+    public function getAccountField(int $id, string $field): ?string {
+        if ($id <= 0 || $field === '' || !$this->metadata->columnExists($field)) {
+            return null;
+        }
+        $sql = "SELECT `$field` AS val FROM {$this->table} WHERE id = ? LIMIT 1";
+        $conn = $this->db->getConnection();
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) {
+            throw new Exception('Failed to prepare getAccountField');
+        }
+        $stmt->bind_param('i', $id);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new Exception('Failed to execute getAccountField');
+        }
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        $stmt->close();
+        return $row && isset($row['val']) ? (string)$row['val'] : null;
     }
     
     /**

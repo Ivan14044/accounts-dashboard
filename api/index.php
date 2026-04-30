@@ -96,6 +96,39 @@ $router->get('/accounts/count', function() use ($tableName) {
     }
 });
 
+/**
+ * GET /accounts/field?id=X&name=cookies
+ * Lazy-load полного значения heavy-поля (cookies/full_cookies/first_cookie/token/user_agent).
+ * В основной таблице эти поля приходят обрезанными (preview 256 байт), при клике на ячейку
+ * или копировании клиент дёргает этот endpoint за полным текстом.
+ *
+ * Allowlist полей (Config::TABLE_HEAVY_FIELDS) защищает от SQL-injection через name.
+ */
+$router->get('/accounts/field', function() use ($tableName) {
+    if (!isset($_SESSION['username']) || !$_SESSION['username']) {
+        throw new Exception('Not authenticated');
+    }
+
+    $id   = (int)($_GET['id'] ?? 0);
+    $name = trim((string)($_GET['name'] ?? ''));
+
+    if ($id <= 0) {
+        throw new InvalidArgumentException('Invalid id');
+    }
+    if (!in_array($name, Config::TABLE_HEAVY_FIELDS, true)) {
+        throw new InvalidArgumentException('Field not allowed: ' . $name);
+    }
+
+    $service = new AccountsService($tableName);
+    $value   = $service->getAccountField($id, $name);
+
+    json_success([
+        'id'    => $id,
+        'name'  => $name,
+        'value' => $value, // null если запись/поле не найдены
+    ]);
+});
+
 $router->post('/accounts', function() use ($tableName) {
     $input = read_json_input(1048576); // 1MB максимум
     if (!is_array($input)) {

@@ -109,13 +109,21 @@ if (!function_exists('resolveStatusTone')) {
               </button>
             </div>
           <?php elseif ($k === 'token'): ?>
-            <?php $clip = mb_substr($v, 0, $TOKEN_CLIP, 'UTF-8') . '…'; ?>
+            <?php
+              $clip = mb_substr((string)$v, 0, $TOKEN_CLIP, 'UTF-8') . '…';
+              // token — heavy: значение из БД уже обрезано preview-лимитом, полное берём AJAX'ом
+              $isHeavy = isset($HEAVY_FIELDS) && in_array($k, $HEAVY_FIELDS, true);
+            ?>
             <div class="d-flex align-items-center gap-2">
-              <span class="truncate mono" title="Нажмите для просмотра" 
-                    data-full="<?= e($v) ?>" data-title="Token">
+              <span class="truncate mono" title="Нажмите для просмотра"
+                    <?php if (!$isHeavy): ?>data-full="<?= e($v) ?>" <?php endif; ?>
+                    <?php if ($isHeavy): ?>data-truncated="1" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" <?php endif; ?>
+                    data-title="Token">
                 <?= e($clip) ?>
               </span>
-              <button class="copy-btn" type="button" data-copy-text="<?= e($v) ?>" title="Копировать">
+              <button class="copy-btn" type="button"
+                      <?php if (!$isHeavy): ?>data-copy-text="<?= e($v) ?>"<?php else: ?>data-truncated="1" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>"<?php endif; ?>
+                      title="Копировать">
                 <i class="fas fa-copy"></i>
               </button>
             </div>
@@ -154,15 +162,25 @@ if (!function_exists('resolveStatusTone')) {
               <button type="button" class="copy-btn" data-copy-text="<?= e($v) ?>" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>
           <?php elseif ($isLong): ?>
-            <?php $clip = mb_substr($v, 0, $CLIP_LEN, 'UTF-8') . '…'; ?>
+            <?php
+              $clip = mb_substr((string)$v, 0, $CLIP_LEN, 'UTF-8') . '…';
+              // Heavy fields (cookies/full_cookies/first_cookie/user_agent) приходят из БД уже
+              // обрезанными до preview-лимита. Полное значение берём лениво через AJAX —
+              // не дублируем обрезанную preview в data-full / data-copy-text.
+              $isHeavy = isset($HEAVY_FIELDS) && in_array($k, $HEAVY_FIELDS, true);
+            ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="<?= e($fieldType) ?>">
-              <span class="truncate mono field-value" data-full="<?= e($v) ?>" data-title="<?= e($title) ?>">
+              <span class="truncate mono field-value"
+                    <?php if (!$isHeavy): ?>data-full="<?= e($v) ?>"<?php else: ?>data-truncated="1"<?php endif; ?>
+                    data-title="<?= e($title) ?>">
                 <?= e($clip) ?>
               </span>
               <button type="button" class="field-edit-btn" title="Редактировать">
                 <i class="fas fa-edit"></i>
               </button>
-              <button type="button" class="copy-btn" data-copy-text="<?= e($v) ?>" title="Копировать"><i class="fas fa-copy"></i></button>
+              <button type="button" class="copy-btn"
+                      <?php if (!$isHeavy): ?>data-copy-text="<?= e($v) ?>"<?php else: ?>data-truncated="1"<?php endif; ?>
+                      title="Копировать"><i class="fas fa-copy"></i></button>
             </div>
           <?php else: ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="<?= e($fieldType) ?>">

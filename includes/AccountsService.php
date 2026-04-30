@@ -718,7 +718,15 @@ class AccountsService {
     public function getAccountById(int $id): ?array {
         return $this->repository->getAccountById($id);
     }
-    
+
+    /**
+     * Получение полного значения одного поля (lazy-load для heavy полей в таблице).
+     */
+    public function getAccountField(int $id, string $field): ?string {
+        return $this->repository->getAccountField($id, $field);
+    }
+
+
     /**
      * Создание нового аккаунта
      * Делегирует работу в AccountsRepository с логированием в audit log
