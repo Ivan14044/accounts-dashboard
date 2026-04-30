@@ -18,6 +18,7 @@
   <link href="assets/css/core-theme.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-tables.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-mobile.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
+  <link href="assets/css/core-design-v2.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link rel="preload" href="assets/css/core-base.css?v=<?= ASSETS_VERSION ?>" as="style">
   <link rel="preload" href="assets/js/dashboard-init.js?v=<?= ASSETS_VERSION ?>" as="script">
 
@@ -1239,6 +1240,28 @@
 <script src="assets/js/saved-filters.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 <script src="assets/js/favorites.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 <script src="assets/js/modules/cards-hide-sync.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
+
+<!-- Lucide icons (auto-replace <i data-lucide="…"> with SVG) + density toggle -->
+<script src="https://unpkg.com/lucide@0.475.0/dist/umd/lucide.min.js" defer></script>
+<script src="assets/js/density-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
+<script>
+  // Init Lucide as soon as the library is ready, then re-run on dynamic table updates
+  (function () {
+    function go() {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', go);
+    } else {
+      go();
+    }
+    window.addEventListener('load', go);
+    // Хук для перерисованной таблицы / переключённой плотности
+    document.addEventListener('table:refreshed', go);
+  })();
+</script>
 </body>
 </html>
 

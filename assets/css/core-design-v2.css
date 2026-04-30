@@ -1,0 +1,559 @@
+/* ==========================================================================
+   CORE-DESIGN-V2.CSS — Visual polish layer
+   Подключается ПОСЛЕ всех core-* файлов (включая core-mobile), но
+   разбит на модули, каждый из которых можно подавить через `:root` overrides.
+
+   Содержит:
+     1. Tabular numbers — числа в колонках перестают «прыгать»
+     2. Density toggle — comfortable / cozy / compact
+     3. Status ribbon — цветная полоска слева у строки таблицы
+     4. Sparkline — стили для inline-SVG в stat-card
+     5. Lucide icons — sizing/stroke
+     6. Btn-ghost + унифицированный CTA
+     7. Семантика статусов — единый mapping цветов для статус-бейджей
+     8. Контраст — исправление WCAG AA для подписей
+   ========================================================================== */
+
+
+/* ============================================================
+   1. TABULAR NUMBERS
+   Цифры одинаковой ширины — числа в колонках/счётчиках выравниваются.
+   ============================================================ */
+.stat-value,
+.stat-change,
+.dashboard-table__counter,
+.dashboard-table__counter-value,
+.dashboard-table__counter-total,
+.toolbar-selected__count,
+.ac-table td,
+.ac-table th,
+.pagination,
+.history-item,
+.log-line {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+
+/* ============================================================
+   2. DENSITY TOGGLE
+   Класс `.density-{comfortable|cozy|compact}` ставится на контейнер
+   `.dashboard-table` (включая sticky cells через каскад).
+   Default = comfortable (без класса). UI-переключатель в toolbar.
+   ============================================================ */
+
+/* COZY — средний (баланс между плотностью и читаемостью) */
+.dashboard-table.density-cozy .ac-table thead th {
+  padding: 10px 14px;
+  font-size: 0.7rem;
+}
+.dashboard-table.density-cozy .ac-table td {
+  padding: 8px 14px;
+  font-size: 0.8125rem;
+}
+.dashboard-table.density-cozy #accountsTable .form-check-input {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* COMPACT — максимальная плотность для опытных пользователей */
+.dashboard-table.density-compact .ac-table thead th {
+  padding: 6px 10px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+}
+.dashboard-table.density-compact .ac-table td {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+.dashboard-table.density-compact .editable-field-wrap {
+  gap: 4px;
+}
+.dashboard-table.density-compact .field-edit-btn,
+.dashboard-table.density-compact .copy-btn,
+.dashboard-table.density-compact .pw-toggle,
+.dashboard-table.density-compact .pw-edit {
+  padding: 2px;
+  font-size: 0.6875rem;
+}
+.dashboard-table.density-compact .btn-table-open {
+  padding: 3px 8px;
+  font-size: 0.6875rem;
+}
+.dashboard-table.density-compact #accountsTable .form-check-input {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+.dashboard-table.density-compact .badge {
+  padding: 2px 6px;
+  font-size: 0.6875rem;
+}
+
+/* ── Density toggle UI (3 button group в toolbar таблицы) ── */
+.density-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 2px;
+  background: var(--gray-100);
+  border-radius: 8px;
+  border: 1px solid var(--gray-200);
+}
+
+.density-toggle__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--gray-500);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.density-toggle__btn:hover {
+  color: var(--gray-700);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.density-toggle__btn[aria-pressed="true"] {
+  background: #ffffff;
+  color: var(--primary-600);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.density-toggle__btn svg,
+.density-toggle__btn i {
+  width: 14px;
+  height: 14px;
+  font-size: 12px;
+}
+
+
+/* ============================================================
+   3. STATUS RIBBON — цветная полоска слева у строки
+   Реализовано через box-shadow inset на первой ячейке (.ac-cell--checkbox).
+   Преимущество: не ломает sticky-позицию первой колонки и
+   не создаёт сдвиги колонок. На мобильных (когда sticky отключается)
+   ribbon просто остаётся на первой ячейке.
+   ============================================================ */
+
+.ac-table tbody tr {
+  --ribbon-color: transparent;
+}
+
+.ac-table tbody tr .ac-cell--checkbox {
+  box-shadow: inset 3px 0 0 var(--ribbon-color);
+  transition: box-shadow 120ms ease;
+}
+
+/* Семантика — case-insensitive не поддерживается в [data-status*=],
+   потому в PHP-шаблоне data-status уже приводится к lowercase. */
+
+/* RED — критично/ошибка/блок */
+.ac-table tbody tr[data-status*="invalid"]      { --ribbon-color: var(--danger-500); }
+.ac-table tbody tr[data-status*="error"]        { --ribbon-color: var(--danger-500); }
+.ac-table tbody tr[data-status*="banned"]       { --ribbon-color: var(--danger-500); }
+.ac-table tbody tr[data-status*="ban"]          { --ribbon-color: var(--danger-500); }
+.ac-table tbody tr[data-status*="block"]        { --ribbon-color: var(--danger-500); }
+.ac-table tbody tr[data-status*="fraud"]        { --ribbon-color: var(--danger-500); }
+.ac-table tbody tr[data-status*="dead"]         { --ribbon-color: var(--danger-500); }
+.ac-table tbody tr[data-status*="reject"]       { --ribbon-color: var(--danger-500); }
+
+/* GREEN — успех/новый/валидный */
+.ac-table tbody tr[data-status*="new"]          { --ribbon-color: var(--success-500); }
+.ac-table tbody tr[data-status*="valid"]:not([data-status*="invalid"]) {
+  --ribbon-color: var(--success-500);
+}
+.ac-table tbody tr[data-status*="active"]       { --ribbon-color: var(--success-500); }
+.ac-table tbody tr[data-status*="ready"]        { --ribbon-color: var(--success-500); }
+.ac-table tbody tr[data-status*="ok"]           { --ribbon-color: var(--success-500); }
+
+/* AMBER — внимание/в работе */
+.ac-table tbody tr[data-status*="add_selphi"]   { --ribbon-color: var(--warning-500); }
+.ac-table tbody tr[data-status*="check"]        { --ribbon-color: var(--warning-500); }
+.ac-table tbody tr[data-status*="pending"]      { --ribbon-color: var(--warning-500); }
+.ac-table tbody tr[data-status*="wait"]         { --ribbon-color: var(--warning-500); }
+.ac-table tbody tr[data-status*="progress"]     { --ribbon-color: var(--warning-500); }
+.ac-table tbody tr[data-status*="warm"]         { --ribbon-color: var(--warning-500); }
+
+/* GRAY — пустой/неизвестно */
+.ac-table tbody tr[data-status=""]              { --ribbon-color: var(--gray-300); }
+.ac-table tbody tr:not([data-status])           { --ribbon-color: var(--gray-300); }
+.ac-table tbody tr[data-status*="empty"]        { --ribbon-color: var(--gray-300); }
+
+
+/* ============================================================
+   4. SPARKLINE — мини-график 7 дней внутри stat-card
+   Inline-SVG, без библиотек. Стили задают gradient + анимацию входа.
+   ============================================================ */
+
+.sparkline {
+  display: block;
+  width: 100%;
+  height: 36px;
+  margin-top: 6px;
+  overflow: visible;
+  pointer-events: none; /* не мешает клику по карточке */
+}
+
+.sparkline__path {
+  fill: none;
+  stroke: var(--primary-500);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 2px rgba(99, 102, 241, 0.25));
+  /* анимация прорисовки */
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: sparkline-draw 800ms ease-out 100ms forwards;
+}
+
+.sparkline__area {
+  fill: url(#sparkline-gradient);
+  opacity: 0;
+  animation: sparkline-fade 600ms ease-out 600ms forwards;
+}
+
+.sparkline__dot {
+  fill: var(--primary-600);
+  stroke: #ffffff;
+  stroke-width: 2;
+  opacity: 0;
+  animation: sparkline-fade 400ms ease-out 900ms forwards;
+}
+
+@keyframes sparkline-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes sparkline-fade {
+  to { opacity: 1; }
+}
+
+/* На мобильном — sparkline компактнее */
+@media (max-width: 479px) {
+  .sparkline {
+    height: 28px;
+    margin-top: 4px;
+  }
+}
+
+
+/* ============================================================
+   5. LUCIDE ICONS — sizing & stroke harmonization
+   Lucide рендерит <svg> через <i data-lucide="…">. Задаём дефолтные
+   размеры для consistency с FA-иконками рядом.
+   ============================================================ */
+
+[data-lucide] {
+  width: 1em;
+  height: 1em;
+  stroke-width: 1.75;
+  vertical-align: -0.125em;
+}
+
+/* В кнопках header — одинаковый размер */
+.header-action-btn [data-lucide],
+.header-action-btn svg.lucide {
+  width: 18px;
+  height: 18px;
+}
+
+/* В тулбаре — чуть меньше */
+.toolbar .btn [data-lucide],
+.toolbar .btn svg.lucide {
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  vertical-align: -0.15em;
+}
+
+/* В hide-button stat-card */
+.stat-card-hide-btn [data-lucide],
+.stat-card-hide-btn svg.lucide {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2;
+}
+
+
+/* ============================================================
+   6. BTN-GHOST + унифицированный CTA
+   Одна страница = один primary CTA. Остальные — ghost (transparent).
+   На hover: подсвечиваем фон (не border, как у outline).
+   ============================================================ */
+
+.btn-ghost {
+  --btn-ghost-color: var(--gray-700);
+  --btn-ghost-bg-hover: var(--gray-100);
+  --btn-ghost-border: var(--gray-200);
+
+  background: transparent;
+  color: var(--btn-ghost-color);
+  border: 1px solid var(--btn-ghost-border);
+  font-weight: 500;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.btn-ghost:hover,
+.btn-ghost:focus-visible {
+  background: var(--btn-ghost-bg-hover);
+  color: var(--gray-900);
+  border-color: var(--gray-300);
+}
+
+.btn-ghost:active {
+  background: var(--gray-200);
+}
+
+.btn-ghost:disabled,
+.btn-ghost.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--gray-400);
+}
+
+.btn-ghost--danger {
+  --btn-ghost-color: var(--danger-600);
+  --btn-ghost-bg-hover: var(--danger-50);
+  --btn-ghost-border: var(--danger-100);
+}
+
+.btn-ghost--danger:hover,
+.btn-ghost--danger:focus-visible {
+  color: var(--danger-700);
+  border-color: var(--danger-200);
+}
+
+.btn-ghost--primary {
+  --btn-ghost-color: var(--primary-600);
+  --btn-ghost-bg-hover: var(--primary-50);
+  --btn-ghost-border: var(--primary-100);
+}
+
+.btn-ghost--primary:hover,
+.btn-ghost--primary:focus-visible {
+  color: var(--primary-700);
+  border-color: var(--primary-200);
+}
+
+/* Усиление primary CTA — единственная filled кнопка на экране */
+.toolbar .btn-primary,
+.btn-cta {
+  background: var(--primary-600);
+  border-color: var(--primary-600);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.18), 0 1px 3px rgba(37, 99, 235, 0.12);
+}
+
+.toolbar .btn-primary:hover,
+.btn-cta:hover {
+  background: var(--primary-700);
+  border-color: var(--primary-700);
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.24), 0 1px 3px rgba(37, 99, 235, 0.16);
+  transform: translateY(-1px);
+}
+
+.toolbar .btn-primary:active,
+.btn-cta:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.18);
+}
+
+
+/* ============================================================
+   7. СТАТУС-БЕЙДЖИ — единый семантический mapping
+   Решает баг «белым по белому»: дефолтный класс всегда виден.
+   Раньше: точечные стили под конкретные строки → новые статусы
+   падали в дефолт Bootstrap (white-on-white).
+   Теперь: атрибут data-tone определяет окраску.
+   Также сохраняем backward-compat со старыми классами badge-*.
+   ============================================================ */
+
+/* Дефолт для ВСЕХ .badge — серый, чтобы новые статусы не «исчезали» */
+.badge:not([class*="bg-"]):not([class*="badge-"]) {
+  background: var(--gray-100);
+  color: var(--gray-700);
+  border: 1px solid var(--gray-200);
+  font-weight: 500;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  border-radius: 6px;
+}
+
+/* Семантический бейдж по data-tone */
+.badge[data-tone="danger"] {
+  background: var(--danger-50);
+  color: var(--danger-700);
+  border: 1px solid var(--danger-100);
+}
+.badge[data-tone="success"] {
+  background: var(--success-50);
+  color: var(--success-700);
+  border: 1px solid var(--success-100);
+}
+.badge[data-tone="warning"] {
+  background: var(--warning-50);
+  color: var(--warning-600);
+  border: 1px solid var(--warning-100);
+}
+.badge[data-tone="info"] {
+  background: var(--primary-50);
+  color: var(--primary-700);
+  border: 1px solid var(--primary-100);
+}
+.badge[data-tone="muted"] {
+  background: var(--gray-50);
+  color: var(--gray-600);
+  border: 1px solid var(--gray-200);
+  font-style: italic;
+}
+
+/* Старые именованные классы — синхронизируем с data-tone */
+.badge-error_login,
+.badge.badge-error_login {
+  background: var(--danger-50);
+  color: var(--danger-700);
+  border: 1px solid var(--danger-100);
+}
+.badge-new,
+.badge.badge-new {
+  background: var(--success-50);
+  color: var(--success-700);
+  border: 1px solid var(--success-100);
+}
+.badge-empty-status,
+.badge.badge-empty-status {
+  background: var(--warning-50);
+  color: var(--warning-600);
+  border: 1px solid var(--warning-100);
+  font-style: italic;
+}
+.badge-add_selphi_true,
+.badge.badge-add_selphi_true {
+  background: var(--primary-50);
+  color: var(--primary-700);
+  border: 1px solid var(--primary-100);
+}
+.badge-default,
+.badge.badge-default {
+  background: var(--gray-100);
+  color: var(--gray-700);
+  border: 1px solid var(--gray-200);
+}
+
+
+/* ============================================================
+   8. КОНТРАСТ — WCAG AA для small text
+   --gray-400 (#9ca3af) на белом = 3.4:1 (FAIL для < 18px).
+   Поднимаем до --gray-500 (#6b7280) = 4.6:1 (PASS).
+   Применяем к подписям, мелким лейблам, плейсхолдерам.
+   ============================================================ */
+
+/* Глобально — text-muted */
+.text-muted,
+.dashboard-table__counter .text-muted {
+  color: var(--gray-500) !important;
+}
+
+/* Toolbar lable */
+.toolbar-selected__label {
+  color: var(--gray-500);
+}
+
+/* Header user-dropdown chevron */
+.user-dropdown-icon {
+  color: var(--gray-500);
+}
+
+/* Toolbar title (мелкий 17px - всё ок 4.5+ был) — оставляем */
+
+/* Сами числа в карточках уже dark — не трогаем */
+
+/* Placeholder в инпутах — приподнимаем */
+::placeholder {
+  color: var(--gray-500);
+  opacity: 1;
+}
+
+.header-search-input::placeholder,
+.search-input-modern::placeholder,
+.form-control::placeholder {
+  color: var(--gray-500);
+}
+
+/* Иконки внутри полей — тоже подкрашиваем */
+.header-search-icon,
+.search-icon-modern {
+  color: var(--gray-500);
+}
+
+/* Иконка стрелки "Открыть" в строке — она на gray-400 fontаsize 0.6875 */
+.btn-table-open {
+  color: var(--gray-600);
+}
+.btn-table-open i {
+  color: var(--gray-500);
+}
+
+/* th — заголовок таблицы (uppercase 12px, был gray-400 — слабо читаем) */
+.ac-table thead th {
+  color: var(--gray-500);
+}
+
+
+/* ============================================================
+   9. STAT-CARD — улучшенная вертикальная иерархия
+   Сейчас value жирный 24px и title тонкий 14px — но gap небольшой.
+   Подкручиваем breathing space.
+   ============================================================ */
+
+.stat-card .stat-title {
+  color: var(--gray-600);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.stat-card .stat-change {
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-card .stat-change.positive {
+  color: var(--success-600);
+}
+
+.stat-card .stat-change.negative {
+  color: var(--danger-600);
+}
+
+
+/* ============================================================
+   10. FOCUS-VISIBLE — единый стиль фокуса (a11y)
+   Без этого keyboard users не видят, что в фокусе.
+   ============================================================ */
+
+.btn:focus-visible,
+.btn-ghost:focus-visible,
+.density-toggle__btn:focus-visible,
+.header-action-btn:focus-visible,
+.user-profile:focus-visible,
+.field-edit-btn:focus-visible,
+.copy-btn:focus-visible,
+.dropdown-item:focus-visible {
+  outline: 2px solid var(--primary-500);
+  outline-offset: 2px;
+}

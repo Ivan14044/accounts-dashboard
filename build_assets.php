@@ -24,7 +24,8 @@ $cssFiles = [
     'assets/css/core-plugins.css',
     'assets/css/core-theme.css',
     'assets/css/core-tables.css',
-    'assets/css/core-mobile.css', // ВАЖНО: должен идти последним — содержит mobile-overrides
+    'assets/css/core-mobile.css', // mobile-overrides — после всех базовых
+    'assets/css/core-design-v2.css', // design polish layer — должен быть последним
 ];
 
 // Порядок загрузки JS файлов
@@ -38,6 +39,7 @@ $jsFiles = [
     'assets/js/quick-search.js',
     'assets/js/favorites.js',
     'assets/js/trash.js',
+    'assets/js/density-toggle.js',
     'assets/js/dashboard.js',
 ];
 

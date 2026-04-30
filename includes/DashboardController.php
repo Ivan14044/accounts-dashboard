@@ -267,6 +267,13 @@ class DashboardController {
         $recentAll = null;
         $byStatus = $stats['byStatus'];
         $countEmailTwoFa = $stats['emailTwoFa'] ?? 0;
+
+        // 7-day sparkline data for "Всего аккаунтов" stat-card
+        try {
+            $dailyTotals = $this->service->getDailyTotals(7);
+        } catch (Throwable $e) {
+            $dailyTotals = [];
+        }
         
         // Константы для обрезки длинных полей
         $CLIP_LEN = 80;
@@ -332,6 +339,7 @@ class DashboardController {
             'recentAll' => $recentAll,
             'byStatus' => $byStatus,
             'countEmailTwoFa' => $countEmailTwoFa,
+            'dailyTotals' => $dailyTotals,
             'CLIP_LEN' => $CLIP_LEN,
             'TOKEN_CLIP' => $TOKEN_CLIP,
             'statusMarketplace' => $statusMarketplace,

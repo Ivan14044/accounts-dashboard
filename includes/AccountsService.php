@@ -304,6 +304,14 @@ class AccountsService {
     public function getStatistics(FilterBuilder $filter = null): array {
         return $this->statistics->getStatistics($filter);
     }
+
+    /**
+     * Кумулятивный total по дням для sparkline на дашборде.
+     * Делегирует работу в StatisticsService
+     */
+    public function getDailyTotals(int $days = 7): array {
+        return $this->statistics->getDailyTotals($days);
+    }
     
     /**
      * Получение всех уникальных значений фильтров одним запросом
