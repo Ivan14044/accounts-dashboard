@@ -35,9 +35,21 @@ $__ppQs = $__ppQs ?: [];
 
   <div class="dashboard-table__footer-info text-muted small">
     Найдено: <span id="foundTotal"><?= number_format((int)$filteredTotal) ?></span>
-    • Стр. <span id="pageNum"><?= (int)$page ?></span>
-    из <span id="pagesCount"><?= (int)$pages ?></span>
-    • Показывается: <span id="showingCount"><?= count($rows) ?></span>
+    <?php if ((int)$pages > 1): ?>
+      • Стр. <span id="pageNum"><?= (int)$page ?></span>
+      из <span id="pagesCount"><?= (int)$pages ?></span>
+    <?php endif; ?>
+    <?php
+      // Показываем "Показывается: N" только если оно != Найдено
+      // (на 1 странице с pages=1 они равны → дублирование).
+      $showingCount = count($rows);
+      $showShowing  = (int)$pages > 1 || $showingCount !== (int)$filteredTotal;
+    ?>
+    <?php if ($showShowing): ?>
+      • Показывается: <span id="showingCount"><?= $showingCount ?></span>
+    <?php else: ?>
+      <span id="showingCount" class="d-none"><?= $showingCount ?></span>
+    <?php endif; ?>
     <span id="virtualizationHint" class="ms-2 d-none">
       <i class="fas fa-info-circle text-info" title="Виртуализация активна"></i>
       <span id="virtualizationStats">Видно <span id="visibleRowsCount">0</span> из <span id="totalRowsOnPage">0</span> строк</span>
@@ -51,8 +63,8 @@ $__ppQs = $__ppQs ?: [];
 
     <!-- Per-page селектор (URL-based: смена сбрасывает page → 1) -->
     <div class="dashboard-table__per-page" data-base-qs="<?= e(http_build_query($__ppQs)) ?>">
-      <label class="form-label mb-0 small text-muted" for="perPageSelect">
-        <i class="fas fa-list-ol me-1" aria-hidden="true"></i>Строк на странице:
+      <label class="form-label mb-0 small text-muted" for="perPageSelect" title="Строк на странице">
+        <i class="fas fa-list-ol me-1" aria-hidden="true"></i>Строк:
       </label>
       <select class="form-select form-select-sm" id="perPageSelect" aria-label="Записей на странице">
         <?php foreach ($__allowedPerPage as $pp): ?>
@@ -61,13 +73,14 @@ $__ppQs = $__ppQs ?: [];
       </select>
     </div>
 
+    <?php if ((int)$pages > 1): ?>
     <span class="dashboard-table__footer-divider" aria-hidden="true"></span>
 
     <div class="dashboard-table__footer-nav">
 
-    <!-- Поле быстрого перехода -->
+    <!-- Поле быстрого перехода — только когда есть куда переходить -->
     <div class="dashboard-table__footer-select d-flex align-items-center gap-2">
-      <label class="form-label mb-0 small" for="pageJumpInput">Перейти на стр.:</label>
+      <label class="form-label mb-0 small" for="pageJumpInput" title="Перейти на страницу">Стр.:</label>
       <input
         type="number"
         class="form-control form-control-sm dashboard-table__footer-page-input"
@@ -86,8 +99,7 @@ $__ppQs = $__ppQs ?: [];
       >Перейти</button>
     </div>
 
-    <!-- Кнопки пагинации (только если страниц > 1) -->
-    <?php if ($pages > 1): ?>
+    <!-- Кнопки пагинации -->
     <nav aria-label="Навигация по страницам" class="dashboard-table__pagination" id="paginationNav">
       <ul class="pagination m-0">
 
@@ -170,8 +182,9 @@ $__ppQs = $__ppQs ?: [];
 
       </ul>
     </nav>
-    <?php endif; ?>
 
     </div>
+    <?php endif; ?>
+
   </div>
 </footer>
