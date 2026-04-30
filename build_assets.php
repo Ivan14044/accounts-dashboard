@@ -40,6 +40,7 @@ $jsFiles = [
     'assets/js/favorites.js',
     'assets/js/trash.js',
     'assets/js/density-toggle.js',
+    'assets/js/per-page.js',
     'assets/js/dashboard.js',
 ];
 

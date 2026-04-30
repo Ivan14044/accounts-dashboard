@@ -20,6 +20,16 @@ if (!function_exists('pgHref')) {
         return '?' . http_build_query(array_merge($qs, ['page' => $p]));
     }
 }
+
+// Допустимый набор значений per_page (на случай если контроллер не пробросил)
+$__allowedPerPage = isset($allowedPerPage) && is_array($allowedPerPage) && $allowedPerPage
+    ? $allowedPerPage
+    : [25, 50, 100, 200];
+
+// Базовые GET-параметры без page и per_page (для построения URL смены per_page)
+$__ppQs = $_GET;
+unset($__ppQs['page'], $__ppQs['per_page']);
+$__ppQs = $__ppQs ?: [];
 ?>
 <footer class="dashboard-table__footer">
 
@@ -32,6 +42,18 @@ if (!function_exists('pgHref')) {
       <i class="fas fa-info-circle text-info" title="Виртуализация активна"></i>
       <span id="virtualizationStats">Видно <span id="visibleRowsCount">0</span> из <span id="totalRowsOnPage">0</span> строк</span>
     </span>
+  </div>
+
+  <!-- Per-page селектор (URL-based: смена сбрасывает page → 1) -->
+  <div class="dashboard-table__per-page" data-base-qs="<?= e(http_build_query($__ppQs)) ?>">
+    <label class="form-label mb-0 small text-muted" for="perPageSelect">
+      <i class="fas fa-list-ol me-1" aria-hidden="true"></i>Строк на странице:
+    </label>
+    <select class="form-select form-select-sm" id="perPageSelect" aria-label="Записей на странице">
+      <?php foreach ($__allowedPerPage as $pp): ?>
+        <option value="<?= (int)$pp ?>" <?= (int)$perPage === (int)$pp ? 'selected' : '' ?>><?= (int)$pp ?></option>
+      <?php endforeach; ?>
+    </select>
   </div>
 
   <div class="dashboard-table__footer-nav">

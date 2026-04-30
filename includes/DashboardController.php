@@ -154,6 +154,7 @@ class DashboardController {
         $paginationParams = RequestHandler::getPaginationParams();
         $page = $paginationParams['page'];
         $perPage = $paginationParams['perPage'];
+        $allowedPerPage = $paginationParams['allowedPerPage'] ?? [25, 50, 100, 200];
         
         // Сортировка
         if (isset($meta['all']) && is_array($meta['all'])) {
@@ -331,6 +332,7 @@ class DashboardController {
             'page' => $page,
             'pages' => $pages,
             'perPage' => $perPage,
+            'allowedPerPage' => $allowedPerPage,
             'prev' => $prev,
             'next' => $next,
             'pageNumbers' => $pageNumbers,

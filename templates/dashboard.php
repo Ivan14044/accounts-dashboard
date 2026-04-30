@@ -1243,6 +1243,8 @@
 
 <!-- Density toggle (применяется мгновенно, persist в localStorage) -->
 <script src="assets/js/density-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
+<!-- Per-page selector (URL-based, сбрасывает page=1) -->
+<script src="assets/js/per-page.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 </body>
 </html>
 
