@@ -134,6 +134,49 @@
   font-size: 12px;
 }
 
+/* ── Density toggle LG — для Settings modal (с лейблами рядом с иконкой) ── */
+.density-toggle--lg {
+  padding: 4px;
+  gap: 2px;
+  display: inline-flex;
+  width: 100%;
+  max-width: 480px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+}
+
+.density-toggle--lg .density-toggle__btn {
+  width: auto;
+  height: 40px;
+  flex: 1 1 0;
+  padding: 0 14px;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.density-toggle--lg .density-toggle__btn svg,
+.density-toggle--lg .density-toggle__btn i[data-lucide] {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.density-toggle--lg .density-toggle__label {
+  display: inline;
+}
+
+@media (max-width: 479px) {
+  .density-toggle--lg .density-toggle__btn {
+    padding: 0 8px;
+    font-size: 12px;
+  }
+  .density-toggle--lg .density-toggle__label {
+    display: none; /* на узком экране — только иконки */
+  }
+}
+
 
 /* ============================================================
    3. STATUS RIBBON — цветная полоска слева у строки

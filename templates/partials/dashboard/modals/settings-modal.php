@@ -107,12 +107,36 @@
           </div>
         </div>
         
-        <!-- Секция управления названиями блоков -->
+        <!-- Секция: Внешний вид → Плотность строк -->
         <div class="row mt-4">
-          
+          <div class="col-12">
+            <h6 class="mb-3">
+              <i data-lucide="layout-grid" class="me-2" aria-hidden="true"></i>Внешний вид
+            </h6>
+            <div class="settings-density">
+              <label class="form-label fw-medium d-block mb-2">Плотность строк таблицы</label>
+              <div class="density-toggle density-toggle--lg" role="group" aria-label="Плотность строк">
+                <button type="button" class="density-toggle__btn" data-density="comfortable" aria-pressed="true">
+                  <i data-lucide="rows-3" aria-hidden="true"></i>
+                  <span class="density-toggle__label">Просторно</span>
+                </button>
+                <button type="button" class="density-toggle__btn" data-density="cozy" aria-pressed="false">
+                  <i data-lucide="menu" aria-hidden="true"></i>
+                  <span class="density-toggle__label">Средне</span>
+                </button>
+                <button type="button" class="density-toggle__btn" data-density="compact" aria-pressed="false">
+                  <i data-lucide="align-justify" aria-hidden="true"></i>
+                  <span class="density-toggle__label">Компактно</span>
+                </button>
+              </div>
+              <p class="text-muted small mt-2 mb-0">
+                Применяется сразу. Запоминается для этого устройства — кнопка «Сохранить» для этой настройки не нужна.
+              </p>
+            </div>
+          </div>
         </div>
 
-        
+
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
