@@ -51,6 +51,7 @@ function getStatusClass($status) {
   <link href="assets/css/core-components.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-plugins.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-theme.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
+  <link href="assets/css/core-mobile.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <style>
     /* Premium View Layout */
     body { 

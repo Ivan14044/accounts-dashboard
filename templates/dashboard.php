@@ -17,6 +17,7 @@
   <link href="assets/css/core-plugins.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-theme.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-tables.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
+  <link href="assets/css/core-mobile.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link rel="preload" href="assets/css/core-base.css?v=<?= ASSETS_VERSION ?>" as="style">
   <link rel="preload" href="assets/js/dashboard-init.js?v=<?= ASSETS_VERSION ?>" as="script">
 

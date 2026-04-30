@@ -24,6 +24,7 @@ $cssFiles = [
     'assets/css/core-plugins.css',
     'assets/css/core-theme.css',
     'assets/css/core-tables.css',
+    'assets/css/core-mobile.css', // ВАЖНО: должен идти последним — содержит mobile-overrides
 ];
 
 // Порядок загрузки JS файлов

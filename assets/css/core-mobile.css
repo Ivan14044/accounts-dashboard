@@ -1,0 +1,778 @@
+/* ==========================================================================
+   CORE-MOBILE.CSS — Responsive layer
+   Подключается ПОСЛЕДНИМ (после core-base, components, plugins, theme, tables),
+   чтобы переопределять десктопные размеры/раскладку.
+
+   Брейкпойнты:
+     - 1199px : ноутбуки/маленький десктоп
+     -  991px : планшеты-ландшафт
+     -  767px : планшеты-портрет / большие телефоны
+     -  599px : телефоны (XL)
+     -  479px : основной телефон (iPhone 13/14, Galaxy S)
+     -  360px : компактный телефон
+
+   Touch-таргеты: минимум 40-44 px (Apple HIG: 44 / Google Material: 48).
+   Anti-zoom iOS: размер шрифта инпутов >= 16 px на мобильных.
+   ========================================================================== */
+
+
+/* ============================================================
+   0. БАЗОВЫЕ ПРАВИЛА — не зависят от ширины экрана
+   ============================================================ */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  /* Не даём горизонтальному переполнению ломать layout на мобильных */
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iPhone notch / safe area */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* На touch-устройствах убираем :hover-стили, оставленные за десктопом */
+@media (hover: none) and (pointer: coarse) {
+  .btn:hover,
+  .stat-card:hover,
+  .header-action-btn:hover,
+  .user-profile:hover,
+  .ac-table tbody tr:hover {
+    /* Возвращаем неактивный вид: hover на тач — ловушка */
+    transition: none;
+  }
+}
+
+
+/* ============================================================
+   1. БРЕЙКПОЙНТ ≤ 1199 px — десктоп / большой планшет
+   ============================================================ */
+@media (max-width: 1199px) {
+  .toolbar {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .toolbar-actions__main {
+    margin-left: 0;
+  }
+}
+
+
+/* ============================================================
+   2. БРЕЙКПОЙНТ ≤ 991 px — планшет-ландшафт
+   ============================================================ */
+@media (max-width: 991px) {
+
+  /* --- Sticky колонки в таблице ломают мобильную раскладку --- */
+  .ac-table td.ac-cell--checkbox,
+  .ac-table td.ac-cell--actions,
+  .ac-table thead th.ac-cell--checkbox,
+  .ac-table thead th.ac-cell--actions {
+    position: static !important;
+  }
+
+  /* --- Тулбар таблицы переходит в колонку --- */
+  .dashboard-table__toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  /* --- Sticky-скроллбар над таблицей не нужен на тач-девайсах --- */
+  .sticky-scrollbar-wrapper {
+    display: none !important;
+  }
+
+  /* --- Header на 991: всё в одну строку, БД-индикатор без текста --- */
+  .modern-header-right .db-status-text {
+    display: none;
+  }
+
+  .db-status-indicator {
+    padding: 6px 10px;
+  }
+}
+
+
+/* ============================================================
+   3. БРЕЙКПОЙНТ ≤ 767 px — планшет-портрет / большой телефон
+   ============================================================ */
+@media (max-width: 767px) {
+
+  /* === Контейнер и базовые отступы === */
+  .container-fluid,
+  .container {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* === HEADER === */
+  .modern-header {
+    margin: 10px;
+    padding: 10px 12px;
+    gap: 10px;
+    min-height: 56px;
+    flex-wrap: wrap;
+  }
+
+  .modern-header-left {
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0; /* чтобы flex-children могли усохнуть */
+  }
+
+  .modern-header-right {
+    flex: 0 0 auto;
+  }
+
+  .user-profile {
+    padding: 4px 8px;
+    gap: 8px;
+  }
+
+  .user-name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .table-selector .btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .header-actions {
+    gap: 4px;
+  }
+
+  /* === ГЛАВНЫЙ TOOLBAR === */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+    gap: 10px;
+    border-radius: 12px;
+  }
+
+  .toolbar-title {
+    font-size: 16px;
+    text-align: left;
+  }
+
+  .toolbar-actions__bulk,
+  .toolbar-actions__main {
+    width: 100%;
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .toolbar-actions__bulk {
+    padding-top: 10px;
+    border-top: 1px solid var(--gray-200);
+  }
+
+  .toolbar .btn {
+    flex: 1 1 calc(50% - 4px); /* по 2 кнопки в ряд */
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 13px;
+    justify-content: center;
+  }
+
+  .toolbar-selected {
+    width: 100%;
+    padding-left: 0;
+    border-left: none;
+    border-top: 1px solid var(--gray-200);
+    padding-top: 10px;
+    justify-content: space-between;
+  }
+
+  /* === STATS CARDS === */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+    margin-bottom: 12px;
+    /* Снимаем contain: layout — на мобильных карточки могут менять высоту */
+    contain-intrinsic-size: auto;
+  }
+
+  .stat-card {
+    padding: 14px 12px;
+    border-radius: 12px;
+  }
+
+  .stat-card .stat-value {
+    font-size: 1.5rem !important;
+  }
+
+  .stat-card .stat-title {
+    font-size: 0.75rem !important;
+  }
+
+  .stat-card-hide-btn {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  /* === ФИЛЬТРЫ === */
+  .filters-modern {
+    margin: 0 0 12px 0 !important;
+    border-radius: 12px;
+  }
+
+  .filters-modern-header {
+    padding: 10px 12px !important;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .filters-modern-body {
+    padding: 12px !important;
+  }
+
+  .filters-modern-btn {
+    min-height: 40px;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+
+  .quick-filters-grid,
+  .range-filters-grid,
+  .quick-filters-toggles,
+  .toggle-filters-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  /* Активные чипы фильтров */
+  .active-filters-section,
+  .filters-modern-active {
+    padding: 10px 12px !important;
+  }
+
+  .filter-chip,
+  .filters-modern-chip {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .filter-chip-remove,
+  .filters-modern-chip__remove {
+    width: 22px;
+    height: 22px;
+    margin-left: 4px;
+  }
+
+  /* === ТАБЛИЦА === */
+  .dashboard-table {
+    margin: 0 0 12px 0;
+    border-radius: 12px;
+  }
+
+  .dashboard-table__inner {
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  /* Тулбар таблицы — колонка, без вертикальных разделителей */
+  .dashboard-table__toolbar {
+    padding: 10px 12px;
+  }
+
+  .dashboard-table__toolbar-main {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  /* Скролл — тач-friendly */
+  .dashboard-table__scroll {
+    -webkit-overflow-scrolling: touch;
+    max-height: 70vh;
+  }
+
+  /* Сами ячейки и хедер — компактнее */
+  .ac-table thead th {
+    padding: 10px 8px;
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+  }
+
+  .ac-table td {
+    padding: 10px 8px;
+    font-size: 0.8125rem;
+  }
+
+  .ac-cell--checkbox,
+  .ac-table thead th.ac-cell--checkbox {
+    width: 44px !important;
+    min-width: 44px !important;
+  }
+
+  .ac-cell--actions,
+  .ac-table thead th.ac-cell--actions {
+    width: auto !important;
+    min-width: 96px !important;
+  }
+
+  /* Чекбоксы крупнее на тач-девайсах */
+  #accountsTable .form-check-input {
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+  }
+
+  .btn-table-open {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+  }
+
+  /* Футер таблицы — стек */
+  .dashboard-table__footer {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .dashboard-table__footer-nav {
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  /* === МОДАЛКИ === */
+  .modal-dialog {
+    margin: 8px !important;
+    max-width: calc(100vw - 16px) !important;
+  }
+
+  .modal-content {
+    border-radius: 14px !important;
+  }
+
+  .modal-header {
+    padding: 14px 16px !important;
+  }
+
+  .modal-title {
+    font-size: 1rem !important;
+  }
+
+  .modal-body {
+    padding: 14px 16px !important;
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+  }
+
+  .modal-footer {
+    padding: 12px 16px !important;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .modal-footer .btn {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* === FORMS === */
+  /* iOS Safari зумит при focus, если font-size < 16px. Защищаемся. */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="date"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Анти-зум применяется только к полям ввода. Сами кнопки/лейблы остаются прежнего размера. */
+
+  .form-control,
+  .form-select {
+    min-height: 40px;
+    padding: 8px 12px;
+  }
+
+  /* === DROPDOWNS === */
+  .dropdown-menu {
+    max-width: calc(100vw - 24px);
+    border-radius: 10px;
+  }
+
+  .dropdown-item {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  /* === LOGIN === */
+  .login-container,
+  .login-wrapper {
+    padding: 16px !important;
+  }
+}
+
+
+/* ============================================================
+   4. БРЕЙКПОЙНТ ≤ 599 px — телефон XL (iPhone Plus / Pro Max)
+   ============================================================ */
+@media (max-width: 599px) {
+
+  /* HEADER: убираем имя пользователя, оставляя аватарку */
+  .user-name {
+    display: none;
+  }
+
+  /* Селектор таблицы — иконка + имя короткое */
+  .table-selector .btn {
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* DB-индикатор: только пульсирующая точка, без бейджа */
+  .db-status-indicator {
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+
+  .db-status-text {
+    display: none;
+  }
+
+  /* Активные фильтры скроллим горизонтально (а не переносим) */
+  .active-filters-section,
+  .filters-modern-active {
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .active-filters-section::-webkit-scrollbar,
+  .filters-modern-active::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Stats — 2 колонки остаются, но карточки тоньше */
+  .stat-card {
+    padding: 12px 10px;
+  }
+
+  .stat-card .stat-value {
+    font-size: 1.375rem !important;
+  }
+}
+
+
+/* ============================================================
+   5. БРЕЙКПОЙНТ ≤ 479 px — основной телефон
+   ============================================================ */
+@media (max-width: 479px) {
+
+  /* HEADER: совсем компактный */
+  .modern-header {
+    margin: 8px;
+    padding: 8px 10px;
+    min-height: 52px;
+    border-radius: 10px;
+  }
+
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+
+  .header-action-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .header-action-btn i {
+    font-size: 15px;
+  }
+
+  /* TOOLBAR: кнопки становятся в одну колонку — full-width */
+  .toolbar {
+    padding: 10px;
+  }
+
+  .toolbar .btn {
+    flex: 1 1 100%;
+    font-size: 13px;
+  }
+
+  /* Кнопки массовых операций — иконка + текст центрированно */
+  .toolbar-actions__bulk .btn,
+  .toolbar-actions__main .btn {
+    justify-content: center;
+  }
+
+  /* STATS: одна колонка */
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px;
+  }
+
+  .stat-card {
+    padding: 14px 16px;
+    text-align: left;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .stat-card .stat-header {
+    flex: 1 1 auto;
+    margin: 0;
+    text-align: left;
+  }
+
+  .stat-card .stat-title {
+    margin: 0;
+  }
+
+  .stat-card .stat-value {
+    font-size: 1.5rem !important;
+    flex: 0 0 auto;
+  }
+
+  .stat-card .stat-change {
+    display: none; /* "+X за 24ч" — экономим место */
+  }
+
+  /* ФИЛЬТРЫ: кнопка-toggle во всю ширину, заголовок видимым */
+  .filters-modern-header {
+    padding: 10px !important;
+  }
+
+  .filters-modern-title {
+    font-size: 13px !important;
+  }
+
+  .filters-modern-toggle,
+  .filters-modern-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* ТАБЛИЦА: ещё компактнее */
+  .ac-table thead th {
+    padding: 8px 6px;
+  }
+
+  .ac-table td {
+    padding: 8px 6px;
+    font-size: 0.75rem;
+  }
+
+  .btn-table-open {
+    padding: 5px 8px;
+    font-size: 0.6875rem;
+  }
+
+  .btn-table-open i {
+    font-size: 0.625rem;
+  }
+
+  /* Скрываем "Показано" / "Отмечено" — оставляем только цифры */
+  .dashboard-table__counter .text-muted {
+    display: none;
+  }
+
+  .dashboard-table__counter {
+    display: inline-flex;
+    gap: 4px;
+    align-items: baseline;
+  }
+
+  .dashboard-table__counter::after {
+    content: '/';
+    color: var(--gray-300);
+    margin: 0 4px;
+  }
+
+  .dashboard-table__counter:last-child::after {
+    content: '';
+    margin: 0;
+  }
+
+  /* МОДАЛКИ: на весь экран */
+  .modal-dialog {
+    margin: 0 !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+  }
+
+  .modal-content {
+    height: 100% !important;
+    border-radius: 0 !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-body {
+    flex: 1 1 auto;
+    max-height: none;
+  }
+
+  .modal-footer .btn {
+    flex: 1 1 100%;
+  }
+}
+
+
+/* ============================================================
+   6. БРЕЙКПОЙНТ ≤ 360 px — компактный телефон (Galaxy Fold portrait)
+   ============================================================ */
+@media (max-width: 360px) {
+
+  .modern-header {
+    margin: 6px;
+    padding: 6px 8px;
+    gap: 6px;
+  }
+
+  .header-action-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  /* Один из header-action-btn менее важен — скроем "автообновление" */
+  #autoRefreshToggle {
+    display: none;
+  }
+
+  .toolbar-title {
+    font-size: 15px;
+  }
+
+  .stat-card {
+    padding: 12px 14px;
+  }
+
+  .stat-card .stat-value {
+    font-size: 1.25rem !important;
+  }
+}
+
+
+/* ============================================================
+   7. ALL TOUCH DEVICES — гарантия минимальных таргетов
+   ============================================================ */
+@media (hover: none) and (pointer: coarse) {
+
+  /* Минимум для тапов: 40 px (компромисс — Apple/Google советуют 44/48,
+     но в плотных интерфейсах 40 уже комфортно для большого пальца) */
+  .btn-sm,
+  .btn,
+  .header-action-btn,
+  .filters-modern-btn,
+  .dropdown-item,
+  .field-edit-btn,
+  .copy-btn,
+  .pw-toggle,
+  .pw-edit {
+    min-height: 36px;
+    min-width: 36px;
+  }
+
+  /* Hit area для иконочных кнопок ::before расширяет область клика */
+  .stat-card-hide-btn,
+  .filter-chip-remove,
+  .filters-modern-chip__remove {
+    position: relative;
+  }
+
+  .stat-card-hide-btn::before,
+  .filter-chip-remove::before,
+  .filters-modern-chip__remove::before {
+    content: '';
+    position: absolute;
+    inset: -8px; /* расширяем вокруг */
+  }
+
+  /* Inline-edit поля — побольше padding для тапа */
+  .editable-field-wrap input,
+  .editable-field-wrap textarea {
+    min-height: 36px;
+    padding: 6px 10px !important;
+  }
+}
+
+
+/* ============================================================
+   8. LANDSCAPE PHONE — короткая высота, не нужно лишнего вертикали
+   ============================================================ */
+@media (max-height: 500px) and (orientation: landscape) and (max-width: 991px) {
+
+  .modern-header {
+    margin: 6px;
+    padding: 6px 12px;
+    min-height: 48px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 6px;
+  }
+
+  .stat-card {
+    padding: 8px 10px;
+  }
+
+  .stat-card .stat-value {
+    font-size: 1.125rem !important;
+  }
+
+  .modal-body {
+    max-height: calc(100vh - 120px) !important;
+  }
+
+  .dashboard-table__scroll {
+    max-height: calc(100vh - 200px);
+  }
+}
+
+
+/* ============================================================
+   9. PRINT — пере-проверка после mobile rules
+   ============================================================ */
+@media print {
+  .filters-modern,
+  .toolbar,
+  .modern-header,
+  .dashboard-table__toolbar,
+  .dashboard-table__footer,
+  .toast-container {
+    display: none !important;
+  }
+
+  .ac-table {
+    font-size: 10pt;
+  }
+
+  .ac-cell--actions {
+    display: none;
+  }
+}

@@ -200,7 +200,7 @@ if (!defined('ASSETS_VERSION')) {
     if ($v !== false && $v !== '') {
         define('ASSETS_VERSION', $v);
     } else {
-        define('ASSETS_VERSION', '2026-04-29-v16');
+        define('ASSETS_VERSION', '2026-04-30-mobile-v1');
     }
 }
 
