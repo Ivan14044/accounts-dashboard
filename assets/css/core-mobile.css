@@ -345,6 +345,18 @@ body {
     gap: 10px;
   }
 
+  /* Group тоже стек на узких экранах — каждый control на своей строке */
+  .dashboard-table__footer-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  /* Divider не нужен в вертикальной раскладке */
+  .dashboard-table__footer-divider {
+    display: none;
+  }
+
   .dashboard-table__footer-nav {
     justify-content: space-between;
     flex-wrap: wrap;

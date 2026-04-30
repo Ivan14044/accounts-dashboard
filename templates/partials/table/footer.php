@@ -44,19 +44,26 @@ $__ppQs = $__ppQs ?: [];
     </span>
   </div>
 
-  <!-- Per-page селектор (URL-based: смена сбрасывает page → 1) -->
-  <div class="dashboard-table__per-page" data-base-qs="<?= e(http_build_query($__ppQs)) ?>">
-    <label class="form-label mb-0 small text-muted" for="perPageSelect">
-      <i class="fas fa-list-ol me-1" aria-hidden="true"></i>Строк на странице:
-    </label>
-    <select class="form-select form-select-sm" id="perPageSelect" aria-label="Записей на странице">
-      <?php foreach ($__allowedPerPage as $pp): ?>
-        <option value="<?= (int)$pp ?>" <?= (int)$perPage === (int)$pp ? 'selected' : '' ?>><?= (int)$pp ?></option>
-      <?php endforeach; ?>
-    </select>
-  </div>
+  <!-- Все controls в одной правой группе: per-page → page jump → pagination buttons.
+       Объединение нужно, чтобы footer был flex space-between на двух блоках
+       (info ↔ controls) — без бесхозного per-page в центре. -->
+  <div class="dashboard-table__footer-controls">
 
-  <div class="dashboard-table__footer-nav">
+    <!-- Per-page селектор (URL-based: смена сбрасывает page → 1) -->
+    <div class="dashboard-table__per-page" data-base-qs="<?= e(http_build_query($__ppQs)) ?>">
+      <label class="form-label mb-0 small text-muted" for="perPageSelect">
+        <i class="fas fa-list-ol me-1" aria-hidden="true"></i>Строк на странице:
+      </label>
+      <select class="form-select form-select-sm" id="perPageSelect" aria-label="Записей на странице">
+        <?php foreach ($__allowedPerPage as $pp): ?>
+          <option value="<?= (int)$pp ?>" <?= (int)$perPage === (int)$pp ? 'selected' : '' ?>><?= (int)$pp ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+
+    <span class="dashboard-table__footer-divider" aria-hidden="true"></span>
+
+    <div class="dashboard-table__footer-nav">
 
     <!-- Поле быстрого перехода -->
     <div class="dashboard-table__footer-select d-flex align-items-center gap-2">
@@ -165,5 +172,6 @@ $__ppQs = $__ppQs ?: [];
     </nav>
     <?php endif; ?>
 
+    </div>
   </div>
 </footer>
