@@ -1397,24 +1397,9 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
   
   // Редактирование названий статистических блоков отключено
 
-  // Отключаем JavaScript обработчик пагинации - пусть работают обычные ссылки
-  // document.addEventListener('click', function(e){
-  //   const a = e.target.closest('.pagination a.page-link');
-  //   if (!a) return;
-  //   // если пункт disabled — игнорируем
-  //   const li = a.closest('li');
-  //   if (li && li.classList.contains('disabled')) { 
-  //     e.preventDefault(); 
-  //     return; 
-  //   }
-  //   // Обычный переход по href - это должно работать
-  //   logger.debug('Pagination click:', a.getAttribute('href'), 'data-page:', a.getAttribute('data-page'));
-  // });
-  
-  // Select All и Individual checkboxes теперь обрабатываются через делегирование событий ниже
-  // Удалён дублирующийся код (см. строки 4778+ и 5315+)
-  
-  // Password toggle / Password edit / Cell modal — в handleDocumentClick
+  // Pagination клики обрабатываются обычным href-переходом (без JS).
+  // Select All и individual checkbox-ы — через делегирование в handleDocumentChange.
+  // Password toggle / cell modal — в handleDocumentClick.
   
   // Copy cell content
   const cellCopyBtn = getElementById('cellCopyBtn');

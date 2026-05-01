@@ -20,6 +20,16 @@ if (!function_exists('resolveStatusTone')) {
         return 'muted';
     }
 }
+
+// Защита от undefined-переменных при включённом error_reporting=E_ALL.
+// custom set_error_handler конвертирует undefined в ErrorException и обрывает рендер,
+// что в Phase 1 могло ломать рендер строки на середине (cookies без data-truncated).
+$ALL_COLUMNS  = isset($ALL_COLUMNS)  && is_array($ALL_COLUMNS)  ? $ALL_COLUMNS  : [];
+$LONG_FIELDS  = isset($LONG_FIELDS)  && is_array($LONG_FIELDS)  ? $LONG_FIELDS  : [];
+$HEAVY_FIELDS = isset($HEAVY_FIELDS) && is_array($HEAVY_FIELDS) ? $HEAVY_FIELDS : [];
+$NUMERIC_COLS = isset($NUMERIC_COLS) && is_array($NUMERIC_COLS) ? $NUMERIC_COLS : [];
+$CLIP_LEN     = isset($CLIP_LEN)     ? (int)$CLIP_LEN     : 80;
+$TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
 ?>
 <tbody id="accountsTableBody">
 <?php if (!$rows): ?>

@@ -340,6 +340,11 @@ class DashboardController {
             'prev' => $prev,
             'next' => $next,
             'pageNumbers' => $pageNumbers,
+            // Окно номеров страниц — нужны для footer.php, иначе при error_reporting=E_ALL
+            // обращение к undefined переменной триггерит set_error_handler → ErrorException →
+            // renderErrorPage → exit, и pagination обрывается посередине рендера.
+            'startPage' => $startPage,
+            'endPage'   => $endPage,
             'emptyStatusCount' => $emptyStatusCount,
             'totals' => $totals,
             'recentAll' => $recentAll,

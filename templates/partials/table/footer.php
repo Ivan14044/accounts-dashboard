@@ -30,6 +30,17 @@ $__allowedPerPage = isset($allowedPerPage) && is_array($allowedPerPage) && $allo
 $__ppQs = $_GET;
 unset($__ppQs['page'], $__ppQs['per_page']);
 $__ppQs = $__ppQs ?: [];
+
+// Защита от undefined-переменных. error_reporting=E_ALL + custom set_error_handler
+// конвертирует любой E_NOTICE в ErrorException, прерывая рендер. Если контроллер
+// не передал startPage/endPage/pageNumbers — берём sane defaults.
+$startPage   = isset($startPage)   ? (int)$startPage   : 1;
+$endPage     = isset($endPage)     ? (int)$endPage     : (isset($pages) ? (int)$pages : 1);
+$pageNumbers = isset($pageNumbers) && is_array($pageNumbers) ? $pageNumbers : [];
+$prev        = isset($prev) ? (int)$prev : 1;
+$next        = isset($next) ? (int)$next : 1;
+$pages       = isset($pages) ? (int)$pages : 1;
+$page        = isset($page)  ? (int)$page  : 1;
 ?>
 <footer class="dashboard-table__footer">
 
