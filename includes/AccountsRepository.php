@@ -34,12 +34,16 @@ class AccountsRepository {
      * @param int $limit Лимит записей
      * @param int $offset Смещение
      * @param bool $includeDeleted Включать ли удалённые записи
+     * @param bool $truncateHeavy Обрезать ли heavy-поля (cookies/full_cookies/token/...).
+     *   true (default) — для рендера таблицы: возвращаем preview, полное значение
+     *   подгружается лениво через /api/accounts/field. Экономит payload.
+     *   false — для экспорта/полной выгрузки: тянем поля целиком.
      * @return array
      */
-    public function getAccounts(FilterBuilder $filter, string $orderBy, int $limit, int $offset, bool $includeDeleted = false): array {
+    public function getAccounts(FilterBuilder $filter, string $orderBy, int $limit, int $offset, bool $includeDeleted = false, bool $truncateHeavy = true): array {
         $meta = $this->metadata->getAllColumns();
 
-        $heavy   = Config::TABLE_HEAVY_FIELDS;
+        $heavy   = $truncateHeavy ? Config::TABLE_HEAVY_FIELDS : [];
         $preview = (int)Config::TABLE_HEAVY_FIELD_PREVIEW;
 
         $validCols = [];
@@ -49,8 +53,8 @@ class AccountsRepository {
                 continue;
             }
             // Heavy fields (cookies, full_cookies, first_cookie, token, user_agent) —
-            // обрезаем в БД до preview-размера. В таблице всё равно показывается truncated,
-            // полное значение лениво грузится через GET /api/accounts/field.
+            // обрезаем в БД только при $truncateHeavy=true (table view). Для экспорта
+            // ($truncateHeavy=false) грузим полные значения.
             if (in_array($col, $heavy, true)) {
                 $validCols[] = "SUBSTRING(`$col`, 1, $preview) AS `$col`";
             } else {
