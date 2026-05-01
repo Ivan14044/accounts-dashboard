@@ -17,49 +17,6 @@ window.getTableAwareUrl = function(url) {
   return url + sep + 'table=' + encodeURIComponent(table);
 };
 
-/**
- * Lazy-load полного значения "тяжёлого" поля (cookies/full_cookies/first_cookie/token/user_agent).
- * В таблице эти поля приходят обрезанными (preview 256 байт) — экономим payload HTML.
- * При клике "Полный текст" / "Копировать" клиент дёргает этот endpoint за полным значением.
- *
- * Возвращает Promise<string> (пустая строка при ошибке/null).
- */
-window.fetchAccountField = function(rowId, fieldName) {
-  if (!rowId || !fieldName) return Promise.resolve('');
-  var url = window.getTableAwareUrl(
-    '/api/accounts/field?id=' + encodeURIComponent(rowId) + '&name=' + encodeURIComponent(fieldName)
-  );
-  return fetch(url, {
-    method: 'GET',
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    credentials: 'same-origin'
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d && d.success && typeof d.value === 'string') return d.value;
-      return '';
-    })
-    .catch(function() { return ''; });
-};
-
-/**
- * Извлекает {rowId, field} для truncated-элемента — атрибуты могут быть на самом
- * элементе (token-кейс) или на ближайшем родителе .editable-field-wrap (общий long-field).
- */
-window._resolveTruncatedTarget = function(el) {
-  if (!el) return { rowId: null, field: null };
-  var rowId = el.getAttribute('data-row-id');
-  var field = el.getAttribute('data-field');
-  if (!rowId || !field) {
-    var parent = el.closest('[data-row-id][data-field]');
-    if (parent) {
-      if (!rowId) rowId = parent.getAttribute('data-row-id');
-      if (!field) field = parent.getAttribute('data-field');
-    }
-  }
-  return { rowId: rowId, field: field };
-};
-
 // ===== Основные функции =====
 // Переведены в assets/js/dashboard.js; ниже — защитные определения на случай отсутствия глобальных версий
 if (typeof window.copyToClipboard !== 'function') {
@@ -735,19 +692,6 @@ function handleDocumentClick(e) {
   // все клики на странице.
   var copyBtn = t.closest && t.closest('.copy-btn');
   if (copyBtn) {
-    // Heavy field — не было data-copy-text в HTML, грузим полное значение через AJAX
-    if (copyBtn.hasAttribute('data-truncated')) {
-      var t2 = window._resolveTruncatedTarget(copyBtn);
-      if (t2.rowId && t2.field) {
-        window.fetchAccountField(t2.rowId, t2.field).then(function(val) {
-          if (val) copyToClipboard(val);
-          else if (typeof window.showToast === 'function') window.showToast('Поле пустое', 'warning');
-        });
-      } else if (typeof logger !== 'undefined') {
-        logger.warn('copy-btn data-truncated: не удалось определить rowId/field', copyBtn);
-      }
-      return;
-    }
     var textToCopy = copyBtn.getAttribute('data-copy-text');
     if (!textToCopy) {
       var pwMask = copyBtn.closest('.pw-mask');

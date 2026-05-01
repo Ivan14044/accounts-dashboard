@@ -28,23 +28,16 @@ class AccountsRepository {
     
     /**
      * Получение списка аккаунтов с фильтрами и пагинацией
-     * 
+     *
      * @param FilterBuilder $filter Фильтр
      * @param string $orderBy SQL выражение для ORDER BY
      * @param int $limit Лимит записей
      * @param int $offset Смещение
      * @param bool $includeDeleted Включать ли удалённые записи
-     * @param bool $truncateHeavy Обрезать ли heavy-поля (cookies/full_cookies/token/...).
-     *   true (default) — для рендера таблицы: возвращаем preview, полное значение
-     *   подгружается лениво через /api/accounts/field. Экономит payload.
-     *   false — для экспорта/полной выгрузки: тянем поля целиком.
      * @return array
      */
-    public function getAccounts(FilterBuilder $filter, string $orderBy, int $limit, int $offset, bool $includeDeleted = false, bool $truncateHeavy = true): array {
+    public function getAccounts(FilterBuilder $filter, string $orderBy, int $limit, int $offset, bool $includeDeleted = false): array {
         $meta = $this->metadata->getAllColumns();
-
-        $heavy   = $truncateHeavy ? Config::TABLE_HEAVY_FIELDS : [];
-        $preview = (int)Config::TABLE_HEAVY_FIELD_PREVIEW;
 
         $validCols = [];
         foreach ($meta as $col) {
@@ -52,14 +45,7 @@ class AccountsRepository {
                 Logger::warning("Column '$col' does not exist in table '{$this->table}', skipping");
                 continue;
             }
-            // Heavy fields (cookies, full_cookies, first_cookie, token, user_agent) —
-            // обрезаем в БД только при $truncateHeavy=true (table view). Для экспорта
-            // ($truncateHeavy=false) грузим полные значения.
-            if (in_array($col, $heavy, true)) {
-                $validCols[] = "SUBSTRING(`$col`, 1, $preview) AS `$col`";
-            } else {
-                $validCols[] = '`' . $col . '`';
-            }
+            $validCols[] = '`' . $col . '`';
         }
 
         if (empty($validCols)) {
@@ -132,34 +118,6 @@ class AccountsRepository {
         return $row ?: null;
     }
 
-    /**
-     * Получение полного значения одного поля (для lazy-load heavy fields в таблице).
-     * В основной таблице эти поля приходят обрезанными (SUBSTRING ... 256), но при
-     * клике на ячейку или копировании нужен полный текст — этот метод его возвращает.
-     *
-     * Имя поля валидируется ВНЕ метода (allowlist в endpoint), чтобы избежать SQL-injection.
-     */
-    public function getAccountField(int $id, string $field): ?string {
-        if ($id <= 0 || $field === '' || !$this->metadata->columnExists($field)) {
-            return null;
-        }
-        $sql = "SELECT `$field` AS val FROM {$this->table} WHERE id = ? LIMIT 1";
-        $conn = $this->db->getConnection();
-        $stmt = $conn->prepare($sql);
-        if (!$stmt) {
-            throw new Exception('Failed to prepare getAccountField');
-        }
-        $stmt->bind_param('i', $id);
-        if (!$stmt->execute()) {
-            $stmt->close();
-            throw new Exception('Failed to execute getAccountField');
-        }
-        $result = $stmt->get_result();
-        $row = $result ? $result->fetch_assoc() : null;
-        $stmt->close();
-        return $row && isset($row['val']) ? (string)$row['val'] : null;
-    }
-    
     /**
      * Получение записей для проверки валидности (id, login, id_soc_account, social_url, cookies)
      * Используется для prepare перед вызовом NPPR fbchecker.

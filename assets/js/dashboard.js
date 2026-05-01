@@ -641,12 +641,8 @@ class Dashboard {
             return;
         }
         
-        // Модальные окна для полного содержимого. Захватываем data-full ИЛИ data-truncated
-        // (для heavy-полей значение лежит не в DOM, а лениво грузится через AJAX).
-        // ВАЖНО: исключаем .copy-btn — у неё тоже стоит data-truncated, чтобы copy-handler
-        // ниже мог отличить heavy-поле и сходить за полным значением через AJAX перед
-        // копированием. Без этого фильтра клик "Копировать" открывал модалку вместо копирования.
-        const fullDataTarget = e.target.closest('[data-full],[data-truncated]');
+        // Модальные окна для полного содержимого. Значение всегда в DOM (data-full).
+        const fullDataTarget = e.target.closest('[data-full]');
         if (fullDataTarget && !fullDataTarget.classList.contains('copy-btn')) {
             this.showFullDataModal(fullDataTarget);
             return;
@@ -654,7 +650,7 @@ class Dashboard {
 
         // Редактирование ячеек таблицы
         const editableCell = e.target.closest('#accountsTable td[data-col]');
-        if (editableCell && !e.target.closest('a,button,.pw-toggle,[data-full],[data-truncated]')) {
+        if (editableCell && !e.target.closest('a,button,.pw-toggle,[data-full]')) {
             this.handleCellEdit(editableCell);
             return;
         }
@@ -965,26 +961,17 @@ class Dashboard {
     }
     
     // Рендер ячейки строки таблицы — зеркало серверного templates/partials/table/rows.php.
-    //
-    // КРИТИЧНО: heavy-поля (cookies/full_cookies/first_cookie/token/user_agent) приходят
-    // из refresh.php обрезанными до preview (256 байт) — это Phase 1 оптимизация payload.
-    // Поэтому для них НЕЛЬЗЯ класть значение в data-copy-text / data-full — иначе клик
-    // "Копировать" вернёт обрезанный preview. Вместо этого ставим data-truncated="1" +
-    // data-row-id + data-field; copy-handler в dashboard-init.js увидит флаг и сходит
-    // за полным значением через GET /api/accounts/field.
+    // Полные значения всегда в data-full / data-copy-text — никаких lazy-load.
     renderCell(col, row) {
         const value = row[col];
         const id = row.id;
         const cfg = window.__DASHBOARD_CONFIG__ || {};
-        const heavyFields = Array.isArray(cfg.heavyFields) ? cfg.heavyFields
-            : ['cookies', 'full_cookies', 'first_cookie', 'token', 'user_agent'];
         const longFields = Array.isArray(cfg.longFields) ? cfg.longFields
             : ['cookies', 'first_cookie', 'token', 'user_agent', 'social_url'];
         const numericCols = Array.isArray(cfg.numericCols) ? cfg.numericCols : [];
         const CLIP_LEN   = Number.isInteger(cfg.clipLen)   ? cfg.clipLen   : 80;
         const TOKEN_CLIP = Number.isInteger(cfg.tokenClip) ? cfg.tokenClip : 20;
 
-        const isHeavy = heavyFields.indexOf(col) !== -1;
         const fieldType = numericCols.indexOf(col) !== -1 ? 'numeric' : 'text';
         const e = (s) => this.escapeHtml(s);
 
@@ -1041,19 +1028,13 @@ class Dashboard {
             </div>`;
         }
 
-        // token: спец-клип TOKEN_CLIP. heavy → AJAX за полным значением.
+        // token: спец-клип TOKEN_CLIP, полное значение в data-full / data-copy-text.
         if (col === 'token') {
             const sval = String(value);
             const clipped = sval.length > TOKEN_CLIP ? sval.substring(0, TOKEN_CLIP) + '…' : sval;
-            const spanAttrs = isHeavy
-                ? `data-truncated="1" data-row-id="${id}" data-field="token"`
-                : `data-full="${e(value)}"`;
-            const copyAttrs = isHeavy
-                ? `data-truncated="1" data-row-id="${id}" data-field="token"`
-                : `data-copy-text="${e(value)}"`;
             return `<div class="d-flex align-items-center gap-2">
-                <span class="truncate mono" title="Нажмите для просмотра" ${spanAttrs} data-title="Token">${e(clipped)}</span>
-                <button class="copy-btn" type="button" ${copyAttrs} title="Копировать"><i class="fas fa-copy"></i></button>
+                <span class="truncate mono" title="Нажмите для просмотра" data-full="${e(value)}" data-title="Token">${e(clipped)}</span>
+                <button class="copy-btn" type="button" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>`;
         }
 
@@ -1075,17 +1056,15 @@ class Dashboard {
             </div>`;
         }
 
-        // Длинное / heavy поле: clip до CLIP_LEN, для heavy не кладём значение в DOM.
+        // Длинное поле: clip до CLIP_LEN, полное значение в data-full / data-copy-text.
         const sval = typeof value === 'string' ? value : String(value);
         const isLong = sval.length > CLIP_LEN || longFields.indexOf(col) !== -1;
         if (isLong) {
             const clipped = sval.length > CLIP_LEN ? sval.substring(0, CLIP_LEN) + '…' : sval;
-            const spanAttrs = isHeavy ? `data-truncated="1"` : `data-full="${e(value)}"`;
-            const copyAttrs = isHeavy ? `data-truncated="1"` : `data-copy-text="${e(value)}"`;
             return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
-                <span class="truncate mono field-value" ${spanAttrs} data-title="${e(col)}">${e(clipped)}</span>
+                <span class="truncate mono field-value" data-full="${e(value)}" data-title="${e(col)}">${e(clipped)}</span>
                 <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-                <button type="button" class="copy-btn" ${copyAttrs} title="Копировать"><i class="fas fa-copy"></i></button>
+                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>`;
         }
 
@@ -1240,26 +1219,9 @@ class Dashboard {
         }
     }
     
-    // Показ полного содержимого длинных полей. Поддерживает два режима:
-    //  - data-full: значение уже в DOM (обычные long-fields).
-    //  - data-truncated: heavy-поле, в DOM лежит обрезанное preview, полный текст
-    //    лениво грузим через window.fetchAccountField().
+    // Показ полного содержимого длинных полей. Значение всегда в data-full.
     showFullDataModal(target) {
         const title = target.getAttribute('data-title') || 'Данные';
-        if (target.hasAttribute('data-truncated')) {
-            const t = (typeof window._resolveTruncatedTarget === 'function')
-                ? window._resolveTruncatedTarget(target)
-                : { rowId: null, field: null };
-            if (!t.rowId || !t.field) return;
-            // Сначала покажем placeholder, чтобы пользователь видел что грузим
-            this._renderFullDataModal(title, 'Загружаю…');
-            if (typeof window.fetchAccountField === 'function') {
-                window.fetchAccountField(t.rowId, t.field).then((value) => {
-                    this._renderFullDataModal(title, value || '(пусто)');
-                });
-            }
-            return;
-        }
         const full = target.getAttribute('data-full') || '';
         if (!full) return;
         this._renderFullDataModal(title, full);

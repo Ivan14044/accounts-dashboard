@@ -256,11 +256,8 @@ class AccountsService {
      * @param int $limit Лимит записей
      * @param int $offset Смещение
      * @param bool|null $includeDeleted Включать ли удалённые записи (для корзины)
-     * @param bool $truncateHeavy Обрезать heavy-поля до preview (cookies/full_cookies/token/user_agent).
-     *   true (default) — для table view, экономит payload.
-     *   false — для экспорта и других мест, где нужны полные значения.
      */
-    public function getAccounts(FilterBuilder $filter, string $sort = 'id', string $dir = 'ASC', int $limit = 100, int $offset = 0, $includeDeleted = false, bool $truncateHeavy = true): array {
+    public function getAccounts(FilterBuilder $filter, string $sort = 'id', string $dir = 'ASC', int $limit = 100, int $offset = 0, $includeDeleted = false): array {
         $meta = $this->getColumnMetadata();
 
         // Валидация сортировки
@@ -279,7 +276,7 @@ class AccountsService {
         $includeDeleted = (bool)$includeDeleted;
 
         // Делегируем в репозиторий
-        return $this->repository->getAccounts($filter, $orderBy, $limit, $offset, $includeDeleted, $truncateHeavy);
+        return $this->repository->getAccounts($filter, $orderBy, $limit, $offset, $includeDeleted);
     }
     
     /**
@@ -721,14 +718,6 @@ class AccountsService {
     public function getAccountById(int $id): ?array {
         return $this->repository->getAccountById($id);
     }
-
-    /**
-     * Получение полного значения одного поля (lazy-load для heavy полей в таблице).
-     */
-    public function getAccountField(int $id, string $field): ?string {
-        return $this->repository->getAccountField($id, $field);
-    }
-
 
     /**
      * Создание нового аккаунта

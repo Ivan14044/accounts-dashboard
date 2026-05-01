@@ -525,7 +525,7 @@ if ($format === 'txt') {
                 'total_rows' => $totalRows
             ]);
             try {
-                $accounts = $service->getAccounts($filter, $sort, $dir, $totalRows, 0, false, false);
+                $accounts = $service->getAccounts($filter, $sort, $dir, $totalRows, 0);
                 Logger::info('EXPORT: Accounts loaded', [
                     'accounts_count' => count($accounts ?? []),
                     'selected_cols_count' => count($selectedCols)
@@ -576,7 +576,7 @@ if ($format === 'txt') {
                         'total_batches' => ceil($totalRows / $batchSize)
                     ]);
                     
-                    $accounts = $service->getAccounts($filter, $sort, $dir, $currentLimit, $offset, false, false);
+                    $accounts = $service->getAccounts($filter, $sort, $dir, $currentLimit, $offset);
                     
                     Logger::info('EXPORT: Batch fetched', [
                         'accounts_in_batch' => count($accounts ?? []),
@@ -645,7 +645,7 @@ if ($format === 'txt') {
         if (!$useStreaming && !empty($idArray)) {
             // Для конкретных ID загружаем все сразу
             try {
-                $accounts = $service->getAccounts($filter, $sort, $dir, $totalRows, 0, false, false);
+                $accounts = $service->getAccounts($filter, $sort, $dir, $totalRows, 0);
                 
                 foreach ($accounts as $row) {
                     fwrite($output, "ACCOUNT #{$row['id']}" . $EOL);
@@ -682,7 +682,7 @@ if ($format === 'txt') {
                 
                 try {
                     // Получаем порцию данных
-                    $accounts = $service->getAccounts($filter, $sort, $dir, $currentLimit, $offset, false, false);
+                    $accounts = $service->getAccounts($filter, $sort, $dir, $currentLimit, $offset);
                     
                     if (empty($accounts)) {
                         break; // Больше нет данных
@@ -798,7 +798,7 @@ if ($format === 'txt') {
         $currentLimit = min($batchSize, $totalRows - $offset);
         
         // Получаем порцию данных
-        $accounts = $service->getAccounts($filter, $sort, $dir, $currentLimit, $offset, false, false);
+        $accounts = $service->getAccounts($filter, $sort, $dir, $currentLimit, $offset);
         
         if (empty($accounts)) {
             break; // Больше нет данных
