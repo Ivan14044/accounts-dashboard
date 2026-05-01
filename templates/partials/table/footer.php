@@ -46,10 +46,16 @@ $page        = isset($page)  ? (int)$page  : 1;
 
   <div class="dashboard-table__footer-info text-muted small">
     Найдено: <span id="foundTotal"><?= number_format((int)$filteredTotal) ?></span>
-    <?php if ((int)$pages > 1): ?>
+    <?php
+      // Спаны pageNum/pagesCount всегда в DOM, чтобы AJAX-refresh мог их обновить
+      // при переходе из state pages=1 → pages>1 (иначе getElementById вернёт null
+      // и счётчик «Стр. X из Y» зависнет в скрытом виде после смены фильтра).
+      $__multiPage = (int)$pages > 1;
+    ?>
+    <span class="dashboard-table__footer-pageinfo"<?= $__multiPage ? '' : ' style="display:none"' ?>>
       • Стр. <span id="pageNum"><?= (int)$page ?></span>
       из <span id="pagesCount"><?= (int)$pages ?></span>
-    <?php endif; ?>
+    </span>
     <?php
       // Показываем "Показывается: N" только если оно != Найдено
       // (на 1 странице с pages=1 они равны → дублирование).
@@ -84,10 +90,18 @@ $page        = isset($page)  ? (int)$page  : 1;
       </select>
     </div>
 
-    <?php if ((int)$pages > 1): ?>
-    <span class="dashboard-table__footer-divider" aria-hidden="true"></span>
+    <?php
+      // ВАЖНО: footer-nav рендерим ВСЕГДА, даже при pages=1, иначе AJAX-refresh
+      // не сможет вставить пагинацию при переходе из pages=1 → pages>1
+      // (dashboard-refresh.js ищет #paginationNav и .dashboard-table__footer-nav,
+      // и если оба отсутствуют — молча ничего не делает). Скрываем визуально через
+      // style="display:none" — это согласовано с refresh.php, который возвращает
+      // скрытый <nav> при pages<=1.
+      $__navHidden = $__multiPage ? '' : ' style="display:none"';
+    ?>
+    <span class="dashboard-table__footer-divider" aria-hidden="true"<?= $__navHidden ?>></span>
 
-    <div class="dashboard-table__footer-nav">
+    <div class="dashboard-table__footer-nav"<?= $__navHidden ?>>
 
     <!-- Поле быстрого перехода — только когда есть куда переходить -->
     <div class="dashboard-table__footer-select d-flex align-items-center gap-2">
@@ -111,7 +125,8 @@ $page        = isset($page)  ? (int)$page  : 1;
     </div>
 
     <!-- Кнопки пагинации -->
-    <nav aria-label="Навигация по страницам" class="dashboard-table__pagination" id="paginationNav">
+    <nav aria-label="Навигация по страницам" class="dashboard-table__pagination" id="paginationNav"<?= $__navHidden ?>>
+      <?php if ($__multiPage): ?>
       <ul class="pagination m-0">
 
         <!-- Первая страница -->
@@ -192,10 +207,10 @@ $page        = isset($page)  ? (int)$page  : 1;
         </li>
 
       </ul>
+      <?php endif; ?>
     </nav>
 
     </div>
-    <?php endif; ?>
 
   </div>
 </footer>

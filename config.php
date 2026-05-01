@@ -200,7 +200,7 @@ if (!defined('ASSETS_VERSION')) {
     if ($v !== false && $v !== '') {
         define('ASSETS_VERSION', $v);
     } else {
-        define('ASSETS_VERSION', '2026-05-01-kill-truncation-v2');
+        define('ASSETS_VERSION', '2026-05-01-pagination-fix-v3');
     }
 }
 
