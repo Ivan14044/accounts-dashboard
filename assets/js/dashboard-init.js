@@ -727,38 +727,12 @@ function handleDocumentClick(e) {
     });
     return;
   }
-  // Popup полного значения. Ищем элемент с data-full ИЛИ data-truncated:
-  // - data-full: значение уже в DOM (обычные поля)
-  // - data-truncated: heavy-поле, грузим лениво через AJAX
-  var dataFullEl = t.closest && t.closest('[data-full],[data-truncated]');
-  if (dataFullEl) {
-    var title = dataFullEl.getAttribute('data-title') || 'Полное значение';
-    var cellModalTitle = getElementById('cellModalTitle');
-    var cellModalBody  = getElementById('cellModalBody');
-    var cellModal      = getElementById('cellModal');
-
-    function showCellModal(text) {
-      if (cellModalTitle) cellModalTitle.textContent = title;
-      if (cellModalBody)  cellModalBody.textContent = text;
-      if (cellModal) new bootstrap.Modal(cellModal).show();
-    }
-
-    if (dataFullEl.hasAttribute('data-truncated')) {
-      // Heavy field — значение в БД обрезано до preview, грузим полное
-      showCellModal('Загружаю…');
-      var t1 = window._resolveTruncatedTarget(dataFullEl);
-      if (!t1.rowId || !t1.field) {
-        showCellModal('Не удалось определить поле');
-        return;
-      }
-      window.fetchAccountField(t1.rowId, t1.field).then(function(val) {
-        showCellModal(val || '(пусто)');
-      });
-    } else {
-      showCellModal(dataFullEl.getAttribute('data-full') || '');
-    }
-    return;
-  }
+  // Popup полного значения управляется единственным handler'ом в dashboard.js
+  // (метод showFullDataModal класса DashboardManager). Дубликат удалён — раньше
+  // и dashboard-init.js, и dashboard.js оба ловили клик на [data-full] и
+  // открывали ДВЕ модалки одновременно (Bootstrap cellModal + кастомная
+  // fullDataModal). Backdrop Bootstrap'а застревал после закрытия и блокировал
+  // все клики на странице.
   var copyBtn = t.closest && t.closest('.copy-btn');
   if (copyBtn) {
     // Heavy field — не было data-copy-text в HTML, грузим полное значение через AJAX

@@ -642,9 +642,12 @@ class Dashboard {
         }
         
         // Модальные окна для полного содержимого. Захватываем data-full ИЛИ data-truncated
-        // (для heavy-полей значение лежит не в DOM, а лениво грузится через AJAX)
+        // (для heavy-полей значение лежит не в DOM, а лениво грузится через AJAX).
+        // ВАЖНО: исключаем .copy-btn — у неё тоже стоит data-truncated, чтобы copy-handler
+        // ниже мог отличить heavy-поле и сходить за полным значением через AJAX перед
+        // копированием. Без этого фильтра клик "Копировать" открывал модалку вместо копирования.
         const fullDataTarget = e.target.closest('[data-full],[data-truncated]');
-        if (fullDataTarget) {
+        if (fullDataTarget && !fullDataTarget.classList.contains('copy-btn')) {
             this.showFullDataModal(fullDataTarget);
             return;
         }
