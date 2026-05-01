@@ -177,28 +177,6 @@ class Database {
         return $result[0]['count'] ?? 0;
     }
     
-    /**
-     * Оптимизированная пагинация записей
-     * 
-     * @param string $table Имя таблицы
-     * @param string $columns Список колонок для выборки
-     * @param string $where Условие WHERE (без ключевого слова WHERE)
-     * @param array $params Параметры для подстановки
-     * @param string $orderBy Условие ORDER BY
-     * @param int $limit Количество записей
-     * @param int $offset Смещение
-     * @return array Массив записей
-     */
-    public function getPaginated(string $table, string $columns = '*', string $where = '', array $params = [], string $orderBy = 'id ASC', int $limit = 100, int $offset = 0): array {
-        $sql = "SELECT $columns FROM `$table`";
-        if ($where) {
-            $sql .= " WHERE $where";
-        }
-        $sql .= " ORDER BY $orderBy LIMIT $limit OFFSET $offset";
-        
-        return $this->prepare($sql, $params);
-    }
-    
     // Простое кэширование в памяти (для одного запроса)
     private function getFromCache($key) {
         if (isset($this->queryCache[$key])) {

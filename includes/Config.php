@@ -14,12 +14,7 @@ class Config {
      * Максимальный размер тела запроса (20MB)
      */
     const MAX_REQUEST_SIZE = 20 * 1024 * 1024;
-    
-    /**
-     * Максимальное количество ID в одном массовом запросе
-     */
-    const MAX_IDS_PER_REQUEST = 50000;
-    
+
     /**
      * Максимальный размер экспортируемых данных за раз (записей)
      */
@@ -49,30 +44,10 @@ class Config {
     // ========================================
     
     /**
-     * Время жизни сессии (30 дней в секундах)
-     */
-    const SESSION_LIFETIME = 30 * 24 * 60 * 60;
-    
-    /**
-     * TTL для кэша метаданных БД (1 час в секундах)
-     */
-    const CACHE_TTL = 3600;
-    
-    /**
      * TTL для кэша статистики (5 минут в секундах)
      */
     const STATS_CACHE_TTL = 300;
-    
-    /**
-     * TTL для кэша результатов запросов (10 минут в секундах)
-     */
-    const QUERY_CACHE_TTL = 600;
-    
-    /**
-     * Таймаут выполнения PHP скрипта при экспорте (5 минут в секундах)
-     */
-    const EXPORT_TIMEOUT = 300;
-    
+
     // ========================================
     // RATE LIMITING
     // ========================================
@@ -120,12 +95,7 @@ class Config {
      * Лимит импортов на пользователя (импортов в минуту)
      */
     const IMPORT_RATE_LIMIT = 5;
-    
-    /**
-     * Время блокировки при превышении лимита входа (секунд)
-     */
-    const LOGIN_BLOCK_TIME = 300; // 5 минут
-    
+
     // ========================================
     // ПРОВЕРКА ВАЛИДНОСТИ АККАУНТОВ (NPPR Services API)
     // https://npprservices.pro/apidoc
@@ -198,105 +168,22 @@ class Config {
     const TABLE_HEAVY_FIELD_PREVIEW = 256;
     
     // ========================================
-    // БЕЗОПАСНОСТЬ
-    // ========================================
-    
-    /**
-     * Длина CSRF токена
-     */
-    const CSRF_TOKEN_LENGTH = 32;
-    
-    /**
-     * Минимальная длина пароля
-     */
-    const PASSWORD_MIN_LENGTH = 8;
-    
-    /**
-     * Максимальная длина пароля
-     */
-    const PASSWORD_MAX_LENGTH = 255;
-    
-    /**
-     * Количество раундов bcrypt для хэширования паролей
-     */
-    const PASSWORD_BCRYPT_COST = 12;
-    
-    // ========================================
     // ПУТИ И ДИРЕКТОРИИ
     // ========================================
-    
-    /**
-     * Директория для кэша (вычисляется в runtime через getTempBase())
-     */
-    const CACHE_DIR = 'dashboard_cache';
 
     /**
-     * Директория для логов
-     */
-    const LOG_DIR = 'dashboard_logs';
-
-    /**
-     * Директория для rate limiting данных
+     * Директория для rate limiting данных (единственная активная директория —
+     * остальные CACHE_DIR/LOG_DIR/TEMP_DIR никем не используются и удалены).
      */
     const RATELIMIT_DIR = 'dashboard_ratelimit';
 
     /**
-     * Директория для временных файлов
-     */
-    const TEMP_DIR = 'dashboard_temp';
-
-    /**
-     * Базовая временная директория (кроссплатформенная)
-     */
-    public static function getTempBase(): string {
-        return sys_get_temp_dir();
-    }
-
-    /**
-     * Полный путь к директории по константе
+     * Полный путь к директории по подкаталогу (sys_get_temp_dir + subdir).
      */
     public static function getDir(string $subdir): string {
-        return self::getTempBase() . DIRECTORY_SEPARATOR . $subdir;
+        return sys_get_temp_dir() . DIRECTORY_SEPARATOR . $subdir;
     }
-    
-    // ========================================
-    // БАЗА ДАННЫХ
-    // ========================================
-    
-    /**
-     * Максимальное количество попыток переподключения к БД
-     */
-    const DB_MAX_RETRIES = 3;
-    
-    /**
-     * Задержка между попытками переподключения (секунд)
-     */
-    const DB_RETRY_DELAY = 2;
-    
-    /**
-     * Таймаут подключения к БД (секунд)
-     */
-    const DB_CONNECT_TIMEOUT = 10;
-    
-    /**
-     * Таймаут выполнения запроса к БД (секунд)
-     */
-    const DB_QUERY_TIMEOUT = 30;
-    
-    // ========================================
-    // ИНТЕГРАЦИЯ И API
-    // ========================================
-    
-    /**
-     * Версия API
-     */
-    const API_VERSION = '1.0';
-    
-    /**
-     * Таймаут для внешних API запросов (секунд)
-     */
-    const API_REQUEST_TIMEOUT = 30;
-    
+
     // ========================================
     // FEATURE FLAGS
     // ========================================
@@ -310,56 +197,7 @@ class Config {
      * Включена ли функция кэширования статистики
      */
     const FEATURE_STATS_CACHING = true;
-    
-    /**
-     * Включено ли детальное логирование
-     */
-    const FEATURE_DETAILED_LOGGING = false;
-    
-    // ========================================
-    // МЕТОДЫ УТИЛИТЫ
-    // ========================================
-    
-    /**
-     * Создает необходимые директории если они не существуют
-     */
-    public static function ensureDirectories() {
-        $dirs = [
-            self::CACHE_DIR,
-            self::LOG_DIR,
-            self::RATELIMIT_DIR,
-            self::TEMP_DIR
-        ];
 
-        foreach ($dirs as $subdir) {
-            $fullPath = self::getDir($subdir);
-            if (!is_dir($fullPath)) {
-                @mkdir($fullPath, 0755, true);
-            }
-        }
-    }
-    
-    /**
-     * Возвращает конфигурацию в виде массива (для отладки)
-     * 
-     * @return array
-     */
-    public static function toArray() {
-        $reflection = new ReflectionClass(__CLASS__);
-        return $reflection->getConstants();
-    }
-    
-    /**
-     * Проверяет, включена ли определенная функция
-     * 
-     * @param string $feature Название функции (например, 'RATE_LIMITING')
-     * @return bool
-     */
-    public static function isFeatureEnabled($feature) {
-        $constantName = 'Config::FEATURE_' . strtoupper($feature);
-        return defined($constantName) && constant($constantName);
-    }
-    
     /**
      * Структура CSV файла для импорта аккаунтов
      * Это единственное место, где определены все поля CSV
@@ -442,26 +280,6 @@ class Config {
     public static function getRequiredCsvFields(): array {
         return array_keys(array_filter(self::CSV_STRUCTURE, function($field) {
             return $field['required'] ?? false;
-        }));
-    }
-    
-    /**
-     * Получить все поля CSV
-     * 
-     * @return array
-     */
-    public static function getAllCsvFields(): array {
-        return array_keys(self::CSV_STRUCTURE);
-    }
-    
-    /**
-     * Получить чувствительные поля (пароли, cookies и т.п.)
-     *
-     * @return array
-     */
-    public static function getSensitiveCsvFields(): array {
-        return array_keys(array_filter(self::CSV_STRUCTURE, function($field) {
-            return $field['sensitive'] ?? false;
         }));
     }
 
