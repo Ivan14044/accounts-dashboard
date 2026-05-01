@@ -964,66 +964,137 @@ class Dashboard {
         </tr>`;
     }
     
+    // Рендер ячейки строки таблицы — зеркало серверного templates/partials/table/rows.php.
+    //
+    // КРИТИЧНО: heavy-поля (cookies/full_cookies/first_cookie/token/user_agent) приходят
+    // из refresh.php обрезанными до preview (256 байт) — это Phase 1 оптимизация payload.
+    // Поэтому для них НЕЛЬЗЯ класть значение в data-copy-text / data-full — иначе клик
+    // "Копировать" вернёт обрезанный preview. Вместо этого ставим data-truncated="1" +
+    // data-row-id + data-field; copy-handler в dashboard-init.js увидит флаг и сходит
+    // за полным значением через GET /api/accounts/field.
     renderCell(col, row) {
         const value = row[col];
-        
+        const id = row.id;
+        const cfg = window.__DASHBOARD_CONFIG__ || {};
+        const heavyFields = Array.isArray(cfg.heavyFields) ? cfg.heavyFields
+            : ['cookies', 'full_cookies', 'first_cookie', 'token', 'user_agent'];
+        const longFields = Array.isArray(cfg.longFields) ? cfg.longFields
+            : ['cookies', 'first_cookie', 'token', 'user_agent', 'social_url'];
+        const numericCols = Array.isArray(cfg.numericCols) ? cfg.numericCols : [];
+        const CLIP_LEN   = Number.isInteger(cfg.clipLen)   ? cfg.clipLen   : 80;
+        const TOKEN_CLIP = Number.isInteger(cfg.tokenClip) ? cfg.tokenClip : 20;
+
+        const isHeavy = heavyFields.indexOf(col) !== -1;
+        const fieldType = numericCols.indexOf(col) !== -1 ? 'numeric' : 'text';
+        const e = (s) => this.escapeHtml(s);
+
+        // Пустое значение — placeholder "—" с кнопкой edit/copy (кроме password/id/actions).
         if (value === undefined || value === null || value === '') {
-            return `<span class="text-muted">—</span>
-                <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>`;
+            if (col === 'password' || col === 'email_password') {
+                return `<div class="pw-mask" data-row-id="${id}" data-field="${e(col)}">
+                    <span class="pw-dots text-muted">(не задан)</span>
+                    <span class="pw-text d-none"></span>
+                    <button type="button" class="pw-toggle" title="Показать/скрыть пароль"><i class="fas fa-eye"></i></button>
+                    <button type="button" class="pw-edit" title="Редактировать пароль"><i class="fas fa-edit"></i></button>
+                    <button type="button" class="copy-btn" data-copy-text="" title="Копировать пароль"><i class="fas fa-copy"></i></button>
+                </div>`;
+            }
+            if (col === 'id' || col === 'actions') {
+                return `<span class="text-muted">—</span>`;
+            }
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
+                <span class="text-muted field-value">—</span>
+                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+                <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
         }
-        
-        // Специальная обработка для разных типов колонок
-        switch (col) {
-            case 'id':
-                return `<span class="fw-bold text-primary">#${this.escapeHtml(value)}</span>
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
-                
-            case 'email':
-                return `<div class="d-flex align-items-center gap-2">
-                    <a href="mailto:${this.escapeHtml(value)}" class="text-decoration-none">${this.escapeHtml(value)}</a>
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                </div>`;
-                
-            case 'login':
-                return `<div class="d-flex align-items-center gap-2">
-                    <span class="fw-semibold">${this.escapeHtml(value)}</span>
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                </div>`;
-                
-            case 'password':
-            case 'email_password':
-                return `<div class="pw-mask">
-                    <span class="pw-dots">••••••••</span>
-                    <span class="pw-text d-none">${this.escapeHtml(value)}</span>
-                    <button type="button" class="pw-toggle" title="Показать пароль">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать пароль"><i class="fas fa-copy"></i></button>
-                </div>`;
-                
-            case 'status':
-                return `<div class="d-flex align-items-center gap-2">${this.renderStatusBadge(value)}
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
-                </div>`;
-                
-            default:
-                // Длинные поля
-                if (typeof value === 'string' && value.length > 80) {
-                    const clipped = value.substring(0, 80) + '…';
-                    return `<span class="truncate mono" title="Нажмите для просмотра" 
-                        data-full="${this.escapeHtml(value)}" data-title="${this.escapeHtml(col)}">
-                        ${this.escapeHtml(clipped)}
-                    </span>
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
-                }
-                
-                return `<span>${this.escapeHtml(value)}</span>
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
+
+        // ID — read-only, без edit-кнопки.
+        if (col === 'id') {
+            return `<span class="fw-bold text-primary">#${e(value)}</span>
+                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
         }
+
+        if (col === 'email') {
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="email" data-field-type="text">
+                <a href="mailto:${e(value)}" class="text-decoration-none field-value">${e(value)}</a>
+                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+                <button class="copy-btn" type="button" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        if (col === 'login') {
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="login" data-field-type="text">
+                <span class="fw-semibold field-value">${e(value)}</span>
+                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+                <button class="copy-btn" type="button" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        if (col === 'password' || col === 'email_password') {
+            return `<div class="pw-mask" data-row-id="${id}" data-field="${e(col)}">
+                <span class="pw-dots">••••••••</span>
+                <span class="pw-text d-none">${e(value)}</span>
+                <button type="button" class="pw-toggle" title="Показать/скрыть пароль"><i class="fas fa-eye"></i></button>
+                <button type="button" class="pw-edit" title="Редактировать пароль"><i class="fas fa-edit"></i></button>
+                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать пароль"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        // token: спец-клип TOKEN_CLIP. heavy → AJAX за полным значением.
+        if (col === 'token') {
+            const sval = String(value);
+            const clipped = sval.length > TOKEN_CLIP ? sval.substring(0, TOKEN_CLIP) + '…' : sval;
+            const spanAttrs = isHeavy
+                ? `data-truncated="1" data-row-id="${id}" data-field="token"`
+                : `data-full="${e(value)}"`;
+            const copyAttrs = isHeavy
+                ? `data-truncated="1" data-row-id="${id}" data-field="token"`
+                : `data-copy-text="${e(value)}"`;
+            return `<div class="d-flex align-items-center gap-2">
+                <span class="truncate mono" title="Нажмите для просмотра" ${spanAttrs} data-title="Token">${e(clipped)}</span>
+                <button class="copy-btn" type="button" ${copyAttrs} title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        if (col === 'status') {
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="status" data-field-type="text">
+                ${this.renderStatusBadge(value)}
+                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        if (col === 'social_url' && typeof value === 'string' && /^https?:\/\//i.test(value)) {
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="social_url" data-field-type="text">
+                <a href="${e(value)}" target="_blank" rel="noopener" class="text-decoration-none field-value">
+                    <i class="fas fa-external-link-alt me-2"></i>${e(value)}
+                </a>
+                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        // Длинное / heavy поле: clip до CLIP_LEN, для heavy не кладём значение в DOM.
+        const sval = typeof value === 'string' ? value : String(value);
+        const isLong = sval.length > CLIP_LEN || longFields.indexOf(col) !== -1;
+        if (isLong) {
+            const clipped = sval.length > CLIP_LEN ? sval.substring(0, CLIP_LEN) + '…' : sval;
+            const spanAttrs = isHeavy ? `data-truncated="1"` : `data-full="${e(value)}"`;
+            const copyAttrs = isHeavy ? `data-truncated="1"` : `data-copy-text="${e(value)}"`;
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
+                <span class="truncate mono field-value" ${spanAttrs} data-title="${e(col)}">${e(clipped)}</span>
+                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+                <button type="button" class="copy-btn" ${copyAttrs} title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        // Обычное короткое поле.
+        return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
+            <span class="field-value">${e(value)}</span>
+            <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+            <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+        </div>`;
     }
     
     renderStatusBadge(status) {
