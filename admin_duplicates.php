@@ -14,6 +14,11 @@
  *      (через AccountsService::deleteAccounts → deleted_at = NOW).
  */
 
+// TEMP: показать runtime-ошибки прямо на странице — снимем после диагностики.
+@ini_set('display_errors', '1');
+@ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
+
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/includes/AccountsService.php';
@@ -24,6 +29,23 @@ require_once __DIR__ . '/includes/Logger.php';
 
 requireAuth();
 checkSessionTimeout();
+
+// Глобальный catch для диагностики 500 — выводим детали exception на страницу.
+set_exception_handler(function (Throwable $e) {
+    http_response_code(500);
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Error</title>';
+    echo '<style>body{font:14px monospace;padding:20px;background:#1a1a1a;color:#eee}';
+    echo 'h1{color:#f87171}pre{background:#000;padding:12px;overflow:auto;border-radius:4px}</style>';
+    echo '</head><body>';
+    echo '<h1>admin_duplicates.php — runtime error</h1>';
+    echo '<p><strong>' . htmlspecialchars(get_class($e)) . ':</strong> ';
+    echo htmlspecialchars($e->getMessage()) . '</p>';
+    echo '<p>at <code>' . htmlspecialchars($e->getFile()) . ':' . $e->getLine() . '</code></p>';
+    echo '<pre>' . htmlspecialchars($e->getTraceAsString()) . '</pre>';
+    echo '</body></html>';
+    exit;
+});
 
 function e_html($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
