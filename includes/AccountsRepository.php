@@ -1692,7 +1692,10 @@ class AccountsRepository {
         $hasSocialUrl   = $this->metadata->columnExists('social_url');
         $hasCookies     = $this->metadata->columnExists('cookies');
         $hasDeletedAt   = $this->metadata->columnExists('deleted_at');
-        $cookiesTrunc   = (int)Config::VALIDATE_COOKIES_TRUNCATE;
+        // Жмём preview cookies до 1KB. c_user всегда в первых ~200 байт
+        // FB-cookies, 1KB с большим запасом. Раньше был 4KB — на больших
+        // БД (50K+ аккаунтов) это ~200MB и memory exhaustion при импорте.
+        $cookiesTrunc   = 1024;
 
         $cols = ['`id`', '`login`'];
         if ($hasIdSoc)     $cols[] = '`id_soc_account`';
@@ -1702,32 +1705,42 @@ class AccountsRepository {
         $where = $hasDeletedAt ? 'WHERE deleted_at IS NULL' : '';
         $sql   = 'SELECT ' . implode(', ', $cols) . " FROM {$this->table} $where";
 
-        $result = $conn->query($sql);
-        if (!$result) {
-            Logger::warning('GET EXISTING FINGERPRINTS: query failed', ['error' => $conn->error]);
+        // Streaming через real_query + use_result — НЕ буферизирует результат
+        // в памяти PHP. Для каждой строки извлекаем fingerprint-токены и
+        // сразу выбрасываем сами поля. Cookies LONGTEXT не остаётся в массиве
+        // даже на момент обработки.
+        if (!$conn->real_query($sql)) {
+            Logger::warning('GET EXISTING FINGERPRINTS: real_query failed', ['error' => $conn->error]);
+            return [];
+        }
+        $stream = $conn->use_result();
+        if (!$stream) {
+            Logger::warning('GET EXISTING FINGERPRINTS: use_result failed', ['error' => $conn->error]);
             return [];
         }
 
         $index = [];
-        while ($row = $result->fetch_assoc()) {
+        while ($row = $stream->fetch_assoc()) {
             $tokens = AccountFingerprint::extract($row);
+            if (empty($tokens)) continue;
             $payload = [
                 'id'    => (int)$row['id'],
                 'login' => (string)($row['login'] ?? ''),
             ];
             foreach ($tokens as $tok) {
-                // Если по одному токену уже есть запись (например, два FB-ID совпадают
-                // у двух старых аккаунтов — дубль в самой БД), оставляем первый
-                // встретившийся. Существующие дубли в БД лечатся отдельно — admin_duplicates.php.
+                // Если по одному токену уже есть запись (два FB-ID совпали у
+                // двух старых аккаунтов — дубль в самой БД), оставляем первый
+                // встретившийся. Существующие дубли лечатся через admin_duplicates.php.
                 if (!isset($index[$tok])) {
                     $index[$tok] = $payload;
                 }
             }
         }
-        $result->free();
+        $stream->free();
 
         Logger::debug('GET EXISTING FINGERPRINTS: index built', [
             'tokens' => count($index),
+            'memory_peak_mb' => round(memory_get_peak_usage(true) / 1048576, 1),
         ]);
         return $index;
     }
