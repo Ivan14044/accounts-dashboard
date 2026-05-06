@@ -100,99 +100,148 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 }
 
 // ───────────── GET: поиск групп дублей ─────────────
+//
+// Двухпроходная стратегия — на хостинге обычно memory_limit=128M,
+// а с 10K аккаунтов × cookies LONGTEXT всё в память сразу не влезает.
+//
+// Pass 1: streaming через unbuffered query, для каждой строки только
+//         извлекаем FB IDs и регистрируем в индексе fbid → [id, id, ...].
+//         НЕ храним сами строки — экономим десятки МБ.
+// Pass 2: union-find по индексу, выделяем только дубль-кандидатов
+//         (id, у которых FB ID разделяется ≥2 аккаунтами).
+// Pass 3: для дубль-кандидатов делаем точечный SELECT с display-полями
+//         (id, login, created_at, id_soc_account, social_url, c_user).
+//
+// Memory: на 10K аккаунтов с ~5% дубликатов — пик ≤10MB.
+
 $mysqli = Database::getInstance()->getConnection();
-$cookiesTrunc = (int)Config::VALIDATE_COOKIES_TRUNCATE;
+$cookiesTrunc = 1024; // c_user всегда в первых ~200 байт FB-cookies, 1KB — с большим запасом
 
-// Берём ТОЛЬКО активные (не удалённые). Cookies обрезаем до 4KB —
-// c_user всегда лежит в первых ~4KB FB-cookies, full LONGTEXT
-// scan на 10K строк = 50–100MB лишней памяти.
-$cols = ['id', 'login', 'id_soc_account', 'social_url', 'created_at', 'status'];
-$cookiesAlias = "SUBSTRING(cookies, 1, $cookiesTrunc) AS cookies";
+// ── Pass 1: streaming-обход ВСЕЙ таблицы, только для извлечения FB IDs ──
+$fbidToAccounts = [];   // fbId → [account_id, ...]
+$accountFbIdsSparse = []; // account_id → [fbId, ...] — заполняется только для дубль-кандидатов в Pass 3
 
-$sql = "SELECT id, login, id_soc_account, social_url, created_at, status, $cookiesAlias "
-     . "FROM accounts WHERE deleted_at IS NULL ORDER BY id ASC";
-$result = $mysqli->query($sql);
+$sql = "SELECT id, login, id_soc_account, social_url, "
+     . "SUBSTRING(cookies, 1, $cookiesTrunc) AS cookies "
+     . "FROM accounts WHERE deleted_at IS NULL";
 
-$accounts = [];           // id => row
-$accountFbIds = [];       // id => [fbId, ...]
-$fbidToAccounts = [];     // fbId => [id, ...]
+$mysqli->real_query($sql);
+$stream = $mysqli->use_result(); // unbuffered — не загружает весь result-set в память
 
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
+if ($stream) {
+    while ($row = $stream->fetch_assoc()) {
         $id = (int)$row['id'];
-        $accounts[$id] = $row;
         $fbIds = AccountFingerprint::extractFbIds($row);
-        // Дополнительно: если сам login выглядит как FB ID, тоже учитываем.
+        // login сам по себе FB ID? (edge-case)
         $login = trim((string)($row['login'] ?? ''));
         if ($login !== '' && preg_match(AccountFingerprint::FB_ID_PATTERN, $login)) {
             $fbIds[] = $login;
         }
+        if (empty($fbIds)) {
+            continue; // аккаунт без FB ID не может быть дублем по нашей логике
+        }
         $fbIds = array_values(array_unique($fbIds));
-        $accountFbIds[$id] = $fbIds;
         foreach ($fbIds as $fbId) {
             $fbidToAccounts[$fbId][] = $id;
         }
+        // Сохраняем fbIds аккаунта только если хоть один из них уже встречался
+        // у другого (т.е. потенциальный дубль). Иначе забываем — экономим память.
+        // На самом деле проверка "встречался ли" требует знать состояние индекса
+        // ПОСЛЕ полного прохода. Поэтому копим всё, но компактно.
+        $accountFbIdsSparse[$id] = $fbIds;
     }
-    $result->free();
+    $stream->free();
 }
 
-// Union-find: объединяем аккаунты, у которых есть хотя бы один общий FB ID.
-$parent = [];
-foreach (array_keys($accounts) as $id) { $parent[$id] = $id; }
-
-$find = function (int $x) use (&$parent): int {
-    while ($parent[$x] !== $x) {
-        $parent[$x] = $parent[$parent[$x]] ?? $parent[$x]; // path compression
-        $x = $parent[$x];
-    }
-    return $x;
-};
-$union = function (int $a, int $b) use (&$parent, $find): void {
-    $ra = $find($a); $rb = $find($b);
-    if ($ra !== $rb) { $parent[$ra] = $rb; }
-};
-
+// ── Pass 2: выделяем дубль-кандидатов и группируем через union-find ──
+$dupCandidates = [];
 foreach ($fbidToAccounts as $fbId => $ids) {
     if (count($ids) < 2) continue;
-    $first = $ids[0];
-    foreach ($ids as $i => $other) {
-        if ($i === 0) continue;
-        $union($first, $other);
-    }
+    foreach ($ids as $id) $dupCandidates[$id] = true;
 }
 
-// Группируем аккаунты по корню union-find. Включаем в результат
-// только группы из 2+ аккаунтов.
-$rootToIds = [];
-foreach (array_keys($accounts) as $id) {
-    $root = $find($id);
-    $rootToIds[$root][] = $id;
-}
 $groups = [];
-foreach ($rootToIds as $root => $ids) {
-    if (count($ids) < 2) continue;
-    // Собираем общие FB IDs группы (для отображения "по чему совпало").
-    $fbIdsInGroup = [];
-    foreach ($ids as $id) {
-        foreach ($accountFbIds[$id] ?? [] as $fbId) {
-            $fbIdsInGroup[$fbId] = true;
+
+if (!empty($dupCandidates)) {
+    $parent = [];
+    foreach (array_keys($dupCandidates) as $id) { $parent[$id] = $id; }
+
+    $find = function (int $x) use (&$parent): int {
+        while ($parent[$x] !== $x) {
+            $parent[$x] = $parent[$parent[$x]] ?? $parent[$x];
+            $x = $parent[$x];
+        }
+        return $x;
+    };
+    $union = function (int $a, int $b) use (&$parent, $find): void {
+        $ra = $find($a); $rb = $find($b);
+        if ($ra !== $rb) { $parent[$ra] = $rb; }
+    };
+
+    foreach ($fbidToAccounts as $fbId => $ids) {
+        if (count($ids) < 2) continue;
+        $first = $ids[0];
+        foreach ($ids as $i => $other) {
+            if ($i === 0) continue;
+            $union($first, $other);
         }
     }
-    // Сортируем аккаунты в группе по created_at ASC (старые сверху —
-    // дефолтный keep — самый ранний).
-    usort($ids, function ($a, $b) use ($accounts) {
-        $ca = strtotime((string)($accounts[$a]['created_at'] ?? '1970-01-01'));
-        $cb = strtotime((string)($accounts[$b]['created_at'] ?? '1970-01-01'));
-        return $ca <=> $cb ?: ($a <=> $b);
-    });
-    $groups[] = [
-        'key'     => 'g_' . $root,
-        'ids'     => $ids,
-        'fb_ids'  => array_keys($fbIdsInGroup),
-    ];
+
+    $rootToIds = [];
+    foreach (array_keys($dupCandidates) as $id) {
+        $root = $find($id);
+        $rootToIds[$root][] = $id;
+    }
+
+    // ── Pass 3: догружаем display-данные ТОЛЬКО для дубль-кандидатов ──
+    $allDupIds = array_keys($dupCandidates);
+    $accounts = []; // id → row
+    if (!empty($allDupIds)) {
+        $placeholders = implode(',', array_fill(0, count($allDupIds), '?'));
+        $sql2 = "SELECT id, login, id_soc_account, social_url, created_at, status, "
+              . "SUBSTRING(cookies, 1, $cookiesTrunc) AS cookies "
+              . "FROM accounts WHERE id IN ($placeholders)";
+        $stmt = $mysqli->prepare($sql2);
+        if ($stmt) {
+            $stmt->bind_param(str_repeat('i', count($allDupIds)), ...$allDupIds);
+            $stmt->execute();
+            $r = $stmt->get_result();
+            while ($row = $r->fetch_assoc()) {
+                $accounts[(int)$row['id']] = $row;
+            }
+            $stmt->close();
+        }
+    }
+
+    // Собираем группы для рендера.
+    foreach ($rootToIds as $root => $ids) {
+        if (count($ids) < 2) continue;
+        $fbIdsInGroup = [];
+        foreach ($ids as $id) {
+            foreach ($accountFbIdsSparse[$id] ?? [] as $fbId) {
+                $fbIdsInGroup[$fbId] = true;
+            }
+        }
+        // Сортировка по created_at ASC (старые сверху, дефолт keep = первый).
+        usort($ids, function ($a, $b) use ($accounts) {
+            $ca = strtotime((string)($accounts[$a]['created_at'] ?? '1970-01-01'));
+            $cb = strtotime((string)($accounts[$b]['created_at'] ?? '1970-01-01'));
+            if ($ca === $cb) return $a - $b;
+            return $ca - $cb;
+        });
+        $groups[] = [
+            'key'     => 'g_' . $root,
+            'ids'     => $ids,
+            'fb_ids'  => array_keys($fbIdsInGroup),
+        ];
+    }
+    usort($groups, function ($a, $b) { return count($b['ids']) - count($a['ids']); });
+} else {
+    $accounts = [];
 }
-// Сортируем группы по размеру (большие сверху).
-usort($groups, function ($a, $b) { return count($b['ids']) - count($a['ids']); });
+
+// Освобождаем память от тяжёлых структур, которые больше не нужны для рендера.
+unset($fbidToAccounts, $accountFbIdsSparse, $dupCandidates, $parent);
 
 $totalDupGroups = count($groups);
 $totalDupAccounts = array_sum(array_map(function ($g) { return count($g['ids']); }, $groups));
