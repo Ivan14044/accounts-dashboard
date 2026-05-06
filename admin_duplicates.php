@@ -27,6 +27,21 @@ checkSessionTimeout();
 
 function e_html($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
+/**
+ * Тон статуса для цветного бейджа — те же правила, что в основной таблице
+ * (templates/partials/table/rows.php::resolveStatusTone).
+ *
+ * @return string  one of: danger, success, warning, muted
+ */
+function dup_status_tone(?string $status): string {
+    $s = strtolower(trim((string)$status));
+    if ($s === '') return 'warning';
+    if (preg_match('/(invalid|error|ban|block|fraud|dead|reject|fail)/', $s)) return 'danger';
+    if (preg_match('/(new|valid|active|ready|^ok$|success|done)/', $s))      return 'success';
+    if (preg_match('/(check|pending|wait|progress|warm|selphi|review)/', $s)) return 'warning';
+    return 'muted';
+}
+
 $service = new AccountsService($tableName);
 $flash = null;
 
@@ -241,7 +256,7 @@ $csrf = getCsrfToken();
     .group-card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:1rem; overflow:hidden; }
     .group-head { padding:.75rem 1rem; background:#f3f4f6; border-bottom:1px solid #e5e7eb; font-weight:600; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
     .group-head .fbids { font-family:monospace; font-size:.85rem; color:#6b7280; word-break:break-all; }
-    .acc-row { padding:.5rem 1rem; border-bottom:1px solid #f3f4f6; display:grid; grid-template-columns: 40px 90px 1.5fr 2fr 1.5fr 1fr; gap:1rem; align-items:center; font-size:.9rem; }
+    .acc-row { padding:.5rem 1rem; border-bottom:1px solid #f3f4f6; display:grid; grid-template-columns: 32px 80px 1.4fr 130px 1.8fr 1.3fr 80px; gap:.75rem; align-items:center; font-size:.9rem; }
     .acc-row:last-child { border-bottom:none; }
     .acc-row.keep { background:#ecfdf5; }
     .acc-row.del  { background:#fff7ed; }
@@ -250,6 +265,13 @@ $csrf = getCsrfToken();
     .acc-meta { color:#6b7280; font-size:.825rem; word-break:break-all; }
     .badge-keep { background:#10b981; color:#fff; font-size:.7rem; padding:.15rem .4rem; border-radius:4px; }
     .badge-del  { background:#f59e0b; color:#fff; font-size:.7rem; padding:.15rem .4rem; border-radius:4px; }
+    /* Цветовая семантика статуса — в одном стиле с основной таблицей. */
+    .status-pill { display:inline-block; padding:.2rem .55rem; border-radius:999px; font-size:.72rem; font-weight:600; line-height:1.2; word-break:break-all; max-width:100%; }
+    .status-pill[data-tone="success"] { background:#d1fae5; color:#065f46; }
+    .status-pill[data-tone="danger"]  { background:#fee2e2; color:#991b1b; }
+    .status-pill[data-tone="warning"] { background:#fef3c7; color:#92400e; }
+    .status-pill[data-tone="muted"]   { background:#e5e7eb; color:#374151; }
+    .status-pill.is-empty { background:#f3f4f6; color:#9ca3af; font-style:italic; }
     .empty-state { text-align:center; padding:4rem; background:#fff; border-radius:8px; border:1px solid #e5e7eb; }
     .actions-bar { position:sticky; top:0; background:#fff; border-bottom:1px solid #e5e7eb; padding:.75rem 1.5rem; margin-bottom:1.5rem; z-index:10; box-shadow:0 1px 3px rgba(0,0,0,.05); }
   </style>
@@ -315,12 +337,23 @@ $csrf = getCsrfToken();
 
         <?php foreach ($group['ids'] as $i => $accId): $acc = $accounts[$accId]; ?>
           <?php $isDefaultKeep = ($i === 0); // первый = oldest по сортировке выше ?>
+          <?php
+            $statusRaw = (string)($acc['status'] ?? '');
+            $statusTone = dup_status_tone($statusRaw);
+            $statusLabel = $statusRaw !== '' ? $statusRaw : 'пустой';
+            $statusEmpty = $statusRaw === '';
+          ?>
           <label class="acc-row <?= $isDefaultKeep ? 'keep' : 'del' ?>">
             <input type="radio" name="keep[<?= e_html($groupKey) ?>]" value="<?= (int)$accId ?>" <?= $isDefaultKeep ? 'checked' : '' ?> class="keep-radio">
             <div class="acc-id">#<?= (int)$acc['id'] ?></div>
             <div>
               <div class="acc-login"><?= e_html($acc['login'] ?? '') ?></div>
               <div class="acc-meta">создан: <?= e_html($acc['created_at'] ?? '—') ?></div>
+            </div>
+            <div>
+              <span class="status-pill <?= $statusEmpty ? 'is-empty' : '' ?>" data-tone="<?= e_html($statusTone) ?>" title="Статус: <?= e_html($statusLabel) ?>">
+                <?= e_html($statusLabel) ?>
+              </span>
             </div>
             <div class="acc-meta">
               <?php if (!empty($acc['id_soc_account'])): ?>
