@@ -13,6 +13,7 @@ require_once __DIR__ . '/FilterBuilder.php';
 require_once __DIR__ . '/ColumnMetadata.php';
 require_once __DIR__ . '/Logger.php';
 require_once __DIR__ . '/Config.php';
+require_once __DIR__ . '/AccountFingerprint.php';
 
 class AccountsRepository {
     private $db;
@@ -953,31 +954,19 @@ class AccountsRepository {
         }
         
         $conn = $this->db->getConnection();
-        
-        // Проверка дубликатов по login (только среди неудаленных аккаунтов)
         $loginValue = trim((string)$data['login']);
-        $supportsSoftDelete = $this->metadata->columnExists('deleted_at');
-        
-        $checkSql = "SELECT id FROM {$this->table} WHERE login = ?";
-        if ($supportsSoftDelete) {
-            $checkSql .= " AND deleted_at IS NULL";
+
+        // Дедуп по fingerprint: совпадение login / id_soc_account / FB ID из
+        // social_url / c_user внутри cookies = тот же FB-аккаунт под другим
+        // именем. Один SELECT даже на 10K строк отрабатывает <100ms.
+        $existingMatch = $this->findExistingByFingerprint($data);
+        if ($existingMatch !== null) {
+            $kind = $existingMatch['match_kind'];
+            $val  = $existingMatch['match_value'];
+            throw new InvalidArgumentException(
+                "Аккаунт '{$loginValue}' дублирует существующий #{$existingMatch['id']} ('{$existingMatch['login']}') по совпадению {$kind}: {$val}"
+            );
         }
-        $checkSql .= " LIMIT 1";
-        
-        $checkStmt = $conn->prepare($checkSql);
-        if (!$checkStmt) {
-            throw new Exception('Failed to prepare duplicate check statement');
-        }
-        
-        $checkStmt->bind_param('s', $loginValue);
-        $checkStmt->execute();
-        $result = $checkStmt->get_result();
-        
-        if ($result && $result->num_rows > 0) {
-            $checkStmt->close();
-            throw new InvalidArgumentException("Account with login '{$loginValue}' already exists");
-        }
-        $checkStmt->close();
         
         // Фильтруем данные: убираем системные поля и проверяем существование колонок
         $allowedFields = [];
@@ -1122,14 +1111,17 @@ class AccountsRepository {
         $updatedLogins = []; // Для audit log: логины обновлённых аккаунтов
         
         $supportsSoftDelete = $this->metadata->columnExists('deleted_at');
-        
-        // ОПТИМИЗАЦИЯ: Получаем все существующие логины ОДНИМ запросом (вместо N запросов)
-        $existingLogins = $this->getExistingLogins($accountsData);
-        
+
+        // ОПТИМИЗАЦИЯ: один SELECT собирает fingerprint-индекс всей БД, дальше
+        // проверка дубликата для каждой строки — O(1) lookup в массиве.
+        // Fingerprint включает login + id_soc_account + FB ID из social_url +
+        // c_user из cookies — см. AccountFingerprint::extract().
+        $fingerprintIndex = $this->getExistingFingerprintIndex();
+
         Logger::info('CREATE ACCOUNTS BULK: Начало импорта', [
             'total_rows' => count($accountsData),
             'duplicate_action' => $duplicateAction,
-            'existing_logins_count' => count($existingLogins)
+            'existing_fingerprints' => count($fingerprintIndex)
         ]);
         
         // Батчевые транзакции: одна транзакция на IMPORT_BATCH_TX_SIZE строк.
@@ -1280,35 +1272,58 @@ class AccountsRepository {
                         continue;
                     }
                     
-                    // ОПТИМИЗАЦИЯ: Проверяем дубликаты в массиве (вместо SQL запроса для каждой строки)
-                    // Normalize login to lowercase for case-insensitive comparison
-                    $loginKey = strtolower($loginValue);
-                    $isDuplicate = isset($existingLogins[$loginKey]);
-                    
+                    // Проверяем дубликат по fingerprint: совпадение login / id_soc_account /
+                    // FB ID из social_url / c_user из cookies = дубль того же FB-аккаунта.
+                    // Берём raw $data (а не нормализованный fieldData) — extract сам нормализует.
+                    $newTokens = AccountFingerprint::extract($data);
+                    $matchedToken = null;
+                    $matchedExisting = null;
+                    foreach ($newTokens as $tok) {
+                        if (isset($fingerprintIndex[$tok])) {
+                            $matchedToken = $tok;
+                            $matchedExisting = $fingerprintIndex[$tok];
+                            break;
+                        }
+                    }
+                    $isDuplicate = $matchedExisting !== null;
+
                     if ($isDuplicate) {
+                        // Расшифровка типа совпадения для понятного сообщения юзеру.
+                        $matchKind = strpos($matchedToken, 'login:') === 0 ? 'login'
+                                   : (strpos($matchedToken, 'fbid:') === 0 ? 'FB ID' : 'fingerprint');
+                        $matchValue = substr($matchedToken, strpos($matchedToken, ':') + 1);
+
                         Logger::debug('CREATE ACCOUNTS BULK: Дубликат найден', [
                             'row' => $rowNum + 1,
                             'login' => $loginValue,
+                            'match_kind' => $matchKind,
+                            'match_value' => $matchValue,
+                            'existing_id' => $matchedExisting['id'],
+                            'existing_login' => $matchedExisting['login'],
                             'duplicate_action' => $duplicateAction
                         ]);
-                        
+
                         if ($duplicateAction === 'error') {
                             $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                             $errors[] = [
                                 'row' => $rowNum + 1,
-                                'message' => "Account with login '{$loginValue}' already exists"
+                                'message' => "Аккаунт '{$loginValue}' дублирует существующий #{$matchedExisting['id']} ('{$matchedExisting['login']}') по совпадению {$matchKind}: {$matchValue}"
                             ];
                             continue;
                         } elseif ($duplicateAction === 'update') {
-                            // Обновляем существующую запись
+                            // Обновляем существующую запись по её login (берём из индекса —
+                            // могла быть найдена не по login, а по id_soc_account/cookies).
+                            $existingLoginForUpdate = $matchedExisting['login'];
                             try {
-                                $this->updateAccountByLogin($loginValue, $data, $allowedFields, $fieldData);
+                                $this->updateAccountByLogin($existingLoginForUpdate, $data, $allowedFields, $fieldData);
                                 $conn->release_savepoint($batchSpName);
                                 $updated++;
-                                $updatedLogins[] = $loginValue;
+                                $updatedLogins[] = $existingLoginForUpdate;
                                 Logger::info('CREATE ACCOUNTS BULK: Запись обновлена', [
                                     'row' => $rowNum + 1,
-                                    'login' => $loginValue
+                                    'login' => $loginValue,
+                                    'existing_login' => $existingLoginForUpdate,
+                                    'match_kind' => $matchKind,
                                 ]);
                             } catch (Exception $updateError) {
                                 $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
@@ -1319,18 +1334,25 @@ class AccountsRepository {
                             }
                             continue;
                         } else {
-                            // skip mode - пропускаем дубликат
+                            // skip mode — пропускаем дубликат, кладём в skipped_details
+                            // подробности (какой существующий аккаунт и по чему совпало),
+                            // чтобы юзер увидел в результатах импорта что именно дублируется.
                             $conn->query("ROLLBACK TO SAVEPOINT $batchSpName");
                             $skipped++;
                             $skippedDetails[] = [
                                 'row' => $rowNum + 1,
                                 'login' => $loginValue,
-                                'reason' => 'Duplicate login',
-                                'message' => "Аккаунт с логином '{$loginValue}' уже существует в базе данных"
+                                'reason' => 'Duplicate (' . $matchKind . ')',
+                                'message' => "Аккаунт '{$loginValue}' дублирует существующий #{$matchedExisting['id']} ('{$matchedExisting['login']}') по совпадению {$matchKind}: {$matchValue}",
+                                'existing_id'    => $matchedExisting['id'],
+                                'existing_login' => $matchedExisting['login'],
+                                'match_kind'     => $matchKind,
+                                'match_value'    => $matchValue,
                             ];
                             Logger::debug('CREATE ACCOUNTS BULK: Дубликат пропущен (skip)', [
                                 'row' => $rowNum + 1,
-                                'login' => $loginValue
+                                'login' => $loginValue,
+                                'match_kind' => $matchKind,
                             ]);
                             continue;
                         }
@@ -1460,9 +1482,16 @@ class AccountsRepository {
                     $created++;
                     $createdIds[] = $newId;
 
-                    // Обновляем кеш существующих логинов для корректной обработки дубликатов внутри файла
-                    $existingLogins[$loginKey] = true;
-                    
+                    // Intra-batch dedup: добавляем все токены новой строки в индекс,
+                    // чтобы вторая строка в файле с тем же FB ID (но другим login)
+                    // была корректно опознана как дубль.
+                    $insertedPayload = ['id' => $newId, 'login' => $loginValue];
+                    foreach ($newTokens as $tok) {
+                        if (!isset($fingerprintIndex[$tok])) {
+                            $fingerprintIndex[$tok] = $insertedPayload;
+                        }
+                    }
+
                     Logger::debug('CREATE ACCOUNTS BULK: Строка успешно добавлена', [
                         'row' => $rowNum + 1,
                         'id' => $newId,
@@ -1515,78 +1544,192 @@ class AccountsRepository {
     }
     
     /**
-     * Получает список существующих логинов для проверки дубликатов
-     * ОПТИМИЗАЦИЯ: Один запрос вместо N запросов
-     * 
-     * @param array $accountsData Массив данных аккаунтов
-     * @return array Ассоциативный массив [login => true] для быстрой проверки
+     * Точечная проверка на дубликат для одиночного createAccount.
+     * Делает узкий SELECT по индексу login + один по id_soc_account + один по
+     * c_user (если найден в cookies нового аккаунта). Не строит индекс по всей
+     * БД — для одиночного создания это перебор.
+     *
+     * @return array{id:int, login:string, match_kind:string, match_value:string}|null
      */
-    private function getExistingLogins(array $accountsData): array {
-        if (empty($accountsData)) {
-            return [];
-        }
-        
+    public function findExistingByFingerprint(array $row): ?array {
         $conn = $this->db->getConnection();
-        
-        // Собираем все логины из данных
-        $loginsToCheck = [];
-        foreach ($accountsData as $data) {
-            $login = isset($data['login']) ? trim((string)$data['login']) : '';
-            if (!empty($login)) {
-                $loginsToCheck[] = $login;
+        $hasDeleted = $this->metadata->columnExists('deleted_at');
+        $deletedClause = $hasDeleted ? ' AND deleted_at IS NULL' : '';
+
+        // 1. Точное совпадение по login (case-insensitive — MySQL collation
+        // utf8mb4_general_ci/0900_ai_ci уже делает это автоматически).
+        $login = trim((string)($row['login'] ?? ''));
+        if ($login !== '') {
+            $sql = "SELECT id, login FROM {$this->table} WHERE login = ?{$deletedClause} LIMIT 1";
+            $stmt = $conn->prepare($sql);
+            if ($stmt) {
+                $stmt->bind_param('s', $login);
+                $stmt->execute();
+                $r = $stmt->get_result();
+                if ($r && ($found = $r->fetch_assoc())) {
+                    $stmt->close();
+                    return [
+                        'id' => (int)$found['id'],
+                        'login' => (string)$found['login'],
+                        'match_kind' => 'login',
+                        'match_value' => $login,
+                    ];
+                }
+                $stmt->close();
             }
         }
-        
-        if (empty($loginsToCheck)) {
-            return [];
-        }
-        
-        // Удаляем дубликаты из списка проверки
-        $loginsToCheck = array_unique($loginsToCheck);
-        
-        // Формируем SQL с IN (...)
-        $placeholders = implode(',', array_fill(0, count($loginsToCheck), '?'));
-        // Проверяем только среди активных (не удалённых) аккаунтов
-        $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
-        $sql = "SELECT login FROM {$this->table} WHERE login IN ($placeholders)$softDeleteClause";
-        
-        $stmt = $conn->prepare($sql);
-        if (!$stmt) {
-            Logger::warning('GET EXISTING LOGINS: Ошибка подготовки запроса', [
-                'error' => $conn->error
-            ]);
-            return [];
-        }
-        
-        // Привязываем параметры
-        $types = str_repeat('s', count($loginsToCheck));
-        $stmt->bind_param($types, ...$loginsToCheck);
-        
-        if (!$stmt->execute()) {
-            Logger::warning('GET EXISTING LOGINS: Ошибка выполнения запроса', [
-                'error' => $stmt->error
-            ]);
-            $stmt->close();
-            return [];
-        }
-        
-        $result = $stmt->get_result();
-        $existingLogins = [];
 
-        while ($row = $result->fetch_assoc()) {
-            // Normalize to lowercase for case-insensitive comparison (MySQL collation is typically case-insensitive)
-            $loginKey = strtolower($row['login']);
-            $existingLogins[$loginKey] = true;
+        // 2. FB IDs (id_soc_account / social_url / c_user в cookies).
+        $fbIds = AccountFingerprint::extractFbIds($row);
+        if (empty($fbIds)) {
+            return null;
         }
-        
-        $stmt->close();
-        
-        Logger::debug('GET EXISTING LOGINS: Найдено существующих логинов', [
-            'total_checked' => count($loginsToCheck),
-            'existing_count' => count($existingLogins)
+
+        $hasIdSoc     = $this->metadata->columnExists('id_soc_account');
+        $hasSocialUrl = $this->metadata->columnExists('social_url');
+        $hasCookies   = $this->metadata->columnExists('cookies');
+
+        // Точные матчи по id_soc_account для каждого FB ID — один IN-запрос.
+        if ($hasIdSoc) {
+            $placeholders = implode(',', array_fill(0, count($fbIds), '?'));
+            $sql = "SELECT id, login, id_soc_account FROM {$this->table} "
+                 . "WHERE id_soc_account IN ($placeholders){$deletedClause} LIMIT 1";
+            $stmt = $conn->prepare($sql);
+            if ($stmt) {
+                $stmt->bind_param(str_repeat('s', count($fbIds)), ...$fbIds);
+                $stmt->execute();
+                $r = $stmt->get_result();
+                if ($r && ($found = $r->fetch_assoc())) {
+                    $stmt->close();
+                    return [
+                        'id' => (int)$found['id'],
+                        'login' => (string)$found['login'],
+                        'match_kind' => 'FB ID (id_soc_account)',
+                        'match_value' => (string)$found['id_soc_account'],
+                    ];
+                }
+                $stmt->close();
+            }
+        }
+
+        // social_url — LIKE %fbid% (на больших таблицах потребует full scan,
+        // но social_url обычно short — допустимо при единичном createAccount).
+        if ($hasSocialUrl) {
+            foreach ($fbIds as $fbId) {
+                $like = '%' . $fbId . '%';
+                $sql = "SELECT id, login, social_url FROM {$this->table} "
+                     . "WHERE social_url LIKE ?{$deletedClause} LIMIT 1";
+                $stmt = $conn->prepare($sql);
+                if (!$stmt) continue;
+                $stmt->bind_param('s', $like);
+                $stmt->execute();
+                $r = $stmt->get_result();
+                if ($r && ($found = $r->fetch_assoc())) {
+                    $stmt->close();
+                    return [
+                        'id' => (int)$found['id'],
+                        'login' => (string)$found['login'],
+                        'match_kind' => 'FB ID (social_url)',
+                        'match_value' => $fbId,
+                    ];
+                }
+                $stmt->close();
+            }
+        }
+
+        // cookies — LIKE %c_user=<id>% по preview-области (первые 4KB).
+        // Полный LONGTEXT scan убил бы перформанс на большой БД.
+        if ($hasCookies) {
+            $cookiesTrunc = (int)Config::VALIDATE_COOKIES_TRUNCATE;
+            foreach ($fbIds as $fbId) {
+                $like = '%c_user%' . $fbId . '%';
+                $sql = "SELECT id, login FROM {$this->table} "
+                     . "WHERE SUBSTRING(cookies, 1, $cookiesTrunc) LIKE ?{$deletedClause} LIMIT 1";
+                $stmt = $conn->prepare($sql);
+                if (!$stmt) continue;
+                $stmt->bind_param('s', $like);
+                $stmt->execute();
+                $r = $stmt->get_result();
+                if ($r && ($found = $r->fetch_assoc())) {
+                    $stmt->close();
+                    return [
+                        'id' => (int)$found['id'],
+                        'login' => (string)$found['login'],
+                        'match_kind' => 'FB ID (cookies c_user)',
+                        'match_value' => $fbId,
+                    ];
+                }
+                $stmt->close();
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Строит индекс fingerprint-токенов всех АКТИВНЫХ аккаунтов из БД.
+     *
+     * Возвращает map: token → ['id' => existingId, 'login' => existingLogin].
+     * Используется createAccountsBulk и createAccount для O(1)-проверки дубликатов
+     * без N SQL-запросов (один SELECT для всей БД на старте импорта).
+     *
+     * Что считается дубликатом — см. AccountFingerprint::extract():
+     *   - совпал login (lowercase)
+     *   - совпал id_soc_account (FB user ID)
+     *   - совпал FB ID из social_url
+     *   - совпал c_user внутри cookies
+     *
+     * cookies при выборе обрезаются SUBSTRING(..., 1, VALIDATE_COOKIES_TRUNCATE)
+     * (4 KB) — c_user всегда лежит в первых ~4 KB FB-cookies, а LONGTEXT
+     * на 10K строк = 50–100 МБ при чтении полностью.
+     *
+     * @return array<string, array{id:int, login:string}>
+     */
+    private function getExistingFingerprintIndex(): array {
+        $conn = $this->db->getConnection();
+
+        $hasIdSoc       = $this->metadata->columnExists('id_soc_account');
+        $hasSocialUrl   = $this->metadata->columnExists('social_url');
+        $hasCookies     = $this->metadata->columnExists('cookies');
+        $hasDeletedAt   = $this->metadata->columnExists('deleted_at');
+        $cookiesTrunc   = (int)Config::VALIDATE_COOKIES_TRUNCATE;
+
+        $cols = ['`id`', '`login`'];
+        if ($hasIdSoc)     $cols[] = '`id_soc_account`';
+        if ($hasSocialUrl) $cols[] = '`social_url`';
+        if ($hasCookies)   $cols[] = "SUBSTRING(`cookies`, 1, $cookiesTrunc) AS `cookies`";
+
+        $where = $hasDeletedAt ? 'WHERE deleted_at IS NULL' : '';
+        $sql   = 'SELECT ' . implode(', ', $cols) . " FROM {$this->table} $where";
+
+        $result = $conn->query($sql);
+        if (!$result) {
+            Logger::warning('GET EXISTING FINGERPRINTS: query failed', ['error' => $conn->error]);
+            return [];
+        }
+
+        $index = [];
+        while ($row = $result->fetch_assoc()) {
+            $tokens = AccountFingerprint::extract($row);
+            $payload = [
+                'id'    => (int)$row['id'],
+                'login' => (string)($row['login'] ?? ''),
+            ];
+            foreach ($tokens as $tok) {
+                // Если по одному токену уже есть запись (например, два FB-ID совпадают
+                // у двух старых аккаунтов — дубль в самой БД), оставляем первый
+                // встретившийся. Существующие дубли в БД лечатся отдельно — admin_duplicates.php.
+                if (!isset($index[$tok])) {
+                    $index[$tok] = $payload;
+                }
+            }
+        }
+        $result->free();
+
+        Logger::debug('GET EXISTING FINGERPRINTS: index built', [
+            'tokens' => count($index),
         ]);
-        
-        return $existingLogins;
+        return $index;
     }
     
     /**

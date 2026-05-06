@@ -26,11 +26,10 @@
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Logger.php';
 require_once __DIR__ . '/JobProgress.php';
+require_once __DIR__ . '/AccountFingerprint.php';
 
 class AccountValidationService
 {
-    /** FB ID regex: starts with 10 or 61, then 10-23 alphanumeric chars */
-    private const FB_ID_PATTERN = '/\b(10|61)[0-9A-Za-z]{10,23}\b/';
 
     // ────────────────────────────────────────────────────────
     // Step 1: Prepare
@@ -61,77 +60,12 @@ class AccountValidationService
 
     /**
      * Extract unique FB IDs that belong to THIS account (own ID only).
-     * Sources, in priority:
-     *   1. id_soc_account — direct, authoritative
-     *   2. social_url     — usually facebook.com/profile.php?id=... or vanity link
-     *   3. cookies        — ONLY the c_user value (authenticated user's FB ID).
-     *      Не сканируем cookies регуляркой целиком: куки содержат десятки чужих
-     *      FB-ID (реклама, друзья, посты, трекеры). Они возвращают «not found»
-     *      от NPPR (notFound) и душат API параллельными запросами без выгоды.
+     * Делегирует в AccountFingerprint (общая утилита, переиспользуется dedup-логикой
+     * при импорте — см. AccountsRepository::createAccountsBulk).
      */
     private static function extractFbIds(array $row): array
     {
-        $ids = [];
-
-        $idSoc = trim((string)($row['id_soc_account'] ?? ''));
-        if ($idSoc !== '' && preg_match_all(self::FB_ID_PATTERN, $idSoc, $m)) {
-            foreach ($m[0] as $id) $ids[$id] = true;
-        }
-
-        $socialUrl = trim((string)($row['social_url'] ?? ''));
-        if ($socialUrl !== '' && preg_match_all(self::FB_ID_PATTERN, $socialUrl, $m)) {
-            foreach ($m[0] as $id) $ids[$id] = true;
-        }
-
-        $cookies = (string)($row['cookies'] ?? '');
-        if ($cookies !== '') {
-            $cUser = self::extractCUserFromCookies($cookies);
-            if ($cUser !== null) {
-                $ids[$cUser] = true;
-            }
-        }
-
-        return array_keys($ids);
-    }
-
-    /**
-     * Extract c_user from cookies. Supports two formats:
-     *   1. JSON array: [{"name":"c_user","value":"123..."}, ...]
-     *   2. Cookie-string: "c_user=123...; xs=...; ..."
-     *
-     * Hot-path optimization: stripos() ранний return для всех cookies без c_user
-     * (например, гугловые/трекерные cookies). На больших батчах это экономит
-     * мегабайты regex-сканирования и сотни json_decode вызовов.
-     */
-    private static function extractCUserFromCookies(string $cookies): ?string
-    {
-        if ($cookies === '' || stripos($cookies, 'c_user') === false) {
-            return null;
-        }
-
-        $trim = ltrim($cookies);
-        if ($trim !== '' && ($trim[0] === '[' || $trim[0] === '{')) {
-            $decoded = json_decode($cookies, true);
-            if (is_array($decoded)) {
-                foreach ($decoded as $cookie) {
-                    if (is_array($cookie)
-                        && isset($cookie['name'], $cookie['value'])
-                        && strcasecmp((string)$cookie['name'], 'c_user') === 0
-                    ) {
-                        $val = (string)$cookie['value'];
-                        if (preg_match('/^[0-9]{8,23}$/', $val)) {
-                            return $val;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (preg_match('/(?:^|[\s;])c_user=([0-9]{8,23})\b/i', $cookies, $m)) {
-            return $m[1];
-        }
-
-        return null;
+        return AccountFingerprint::extractFbIds($row);
     }
 
     // ────────────────────────────────────────────────────────
