@@ -60,7 +60,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 }
             }
         }
-        $toDelete = array_values(array_unique(array_filter($toDelete, static fn($x) => $x > 0)));
+        $toDelete = array_values(array_unique(array_filter($toDelete, function ($x) { return $x > 0; })));
 
         if (empty($toDelete)) {
             $flash = ['type' => 'info', 'msg' => 'Не выбрано ни одного аккаунта для удаления.'];
@@ -170,11 +170,11 @@ foreach ($rootToIds as $root => $ids) {
     ];
 }
 // Сортируем группы по размеру (большие сверху).
-usort($groups, fn($a, $b) => count($b['ids']) - count($a['ids']));
+usort($groups, function ($a, $b) { return count($b['ids']) - count($a['ids']); });
 
 $totalDupGroups = count($groups);
-$totalDupAccounts = array_sum(array_map(fn($g) => count($g['ids']), $groups));
-$totalToDelete   = array_sum(array_map(fn($g) => count($g['ids']) - 1, $groups));
+$totalDupAccounts = array_sum(array_map(function ($g) { return count($g['ids']); }, $groups));
+$totalToDelete   = array_sum(array_map(function ($g) { return count($g['ids']) - 1; }, $groups));
 
 $csrf = getCsrfToken();
 ?>
