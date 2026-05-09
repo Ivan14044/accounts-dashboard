@@ -54,6 +54,20 @@ function writeCsvRow($handle, array $fields, string $delimiter = ';') {
     return fwrite($handle, implode($delimiter, $out) . "\n");
 }
 
+/**
+ * Читает параметр из POST или GET (POST приоритет).
+ * Frontend экспорта шлёт всё через POST hidden inputs, а старый get_param() смотрит только GET.
+ */
+function export_param(string $key, string $default = ''): string {
+    if (isset($_POST[$key]) && !is_array($_POST[$key])) {
+        return trim((string)$_POST[$key]);
+    }
+    if (isset($_GET[$key]) && !is_array($_GET[$key])) {
+        return trim((string)$_GET[$key]);
+    }
+    return $default;
+}
+
 // Обработчик фатальных ошибок
 register_shutdown_function(function() {
     $error = error_get_last();
@@ -320,9 +334,11 @@ try {
     // Ограничиваем максимальное количество записей для экспорта
     $maxRecords = Config::MAX_EXPORT_RECORDS;
     
-    // ПРОВЕРКА: Кастомный лимит от пользователя
-    $userLimit = filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT);
-    if ($userLimit !== null && $userLimit !== false && $userLimit > 0) {
+    // ПРОВЕРКА: Кастомный лимит от пользователя.
+    // JS шлёт limit через POST (hidden input), поэтому читаем из POST+GET.
+    $userLimitRaw = export_param('limit', '');
+    $userLimit = ($userLimitRaw === '') ? false : filter_var($userLimitRaw, FILTER_VALIDATE_INT);
+    if ($userLimit !== false && $userLimit > 0) {
         $totalRows = min($totalRows, $userLimit);
         Logger::info('EXPORT: Applying user-specified limit', [
             'total' => $totalRows,
@@ -390,76 +406,85 @@ try {
     die('Export failed: ' . htmlspecialchars($e->getMessage()));
 }
 
-// Устанавливаем заголовки с правильным именем файла ДО начала вывода данных
-$obLevel = function_exists('ob_get_level') ? ob_get_level() : 0;
-Logger::info('EXPORT: Setting headers', [
-    'format' => $format,
-    'ob_level' => $obLevel,
-    'headers_sent' => headers_sent(),
-    'total_rows' => $totalRows
-]);
+// КРИТИЧНО: НЕ отправляем download-заголовки заранее.
+// Если SQL упадёт после Content-Disposition: attachment, браузер сохранит обрубок (только BOM)
+// и пользователь получит "пустой файл". Поэтому заголовки ставим только когда первый batch
+// данных реально получен и не пуст.
+//
+// Реализация: буферизуем вывод через ob_start(). При первом успешном batch вызываем
+// $sendDownloadHeaders() + ob_end_flush() — буфер летит браузеру вместе со свежими headers.
+// При ошибке/пустом результате до этого момента — ob_end_clean() + HTML-ошибка.
+$headersSent = false;
 
-// Устанавливаем заголовки только если они еще не отправлены
-if (!headers_sent()) {
-    if ($format === 'txt') {
-        // Чистим буферы перед началом вывода (на всякий случай)
-        if (function_exists('ob_get_level')) {
-            while (ob_get_level() > 0) { @ob_end_clean(); }
-        }
-        header('Content-Type: text/plain; charset=utf-8');
-        $dateStr = date('Y-m-d_H-i-s');
-        $filename = "accounts_{$totalRows}_{$dateStr}.txt";
-        // Используем правильное экранирование имени файла
-        $filenameSafe = rawurlencode($filename);
-        header("Content-Disposition: attachment; filename=\"{$filename}\"; filename*=UTF-8''{$filenameSafe}");
-        header('Cache-Control: no-cache, must-revalidate');
-        header('Pragma: no-cache');
-        Logger::info('EXPORT: TXT headers set', ['filename' => $filename]);
-    } else {
-        // Чистим буферы перед началом вывода (на всякий случай)
-        if (function_exists('ob_get_level')) {
-            while (ob_get_level() > 0) { @ob_end_clean(); }
-        }
-        header('Content-Type: text/csv; charset=utf-8');
-        $csvDateStr = date('Y-m-d_H-i-s');
-        $csvFilename = "accounts_{$totalRows}_{$csvDateStr}.csv";
-        $csvFilenameSafe = rawurlencode($csvFilename);
-        header("Content-Disposition: attachment; filename=\"{$csvFilename}\"; filename*=UTF-8''{$csvFilenameSafe}");
-        header('Cache-Control: no-cache, must-revalidate');
-        header('Pragma: no-cache');
-        // Добавляем BOM для корректного отображения UTF-8 в Excel
-        echo "\xEF\xBB\xBF";
-        Logger::info('EXPORT: CSV headers set');
+$sendDownloadHeaders = function() use ($format, $totalRows, &$headersSent) {
+    if ($headersSent) return;
+    if (headers_sent()) {
+        Logger::error('EXPORT: Cannot send download headers — output already flushed');
+        $headersSent = true; // не пытаться снова
+        return;
     }
-} else {
-    // Если заголовки уже отправлены, это критическая ошибка
-    $sentFile = '';
-    $sentLine = 0;
-    headers_sent($sentFile, $sentLine);
-    Logger::error('EXPORT: Headers already sent, cannot set download headers', [
-        'headers_sent_file' => $sentFile ?: 'unknown',
-        'headers_sent_line' => $sentLine ?: 'unknown'
-    ]);
-    http_response_code(500);
-    die('Export failed: Headers already sent');
-}
+    $dateStr = date('Y-m-d_H-i-s');
+    if ($format === 'txt') {
+        $filename = "accounts_{$totalRows}_{$dateStr}.txt";
+        $filenameSafe = rawurlencode($filename);
+        header('Content-Type: text/plain; charset=utf-8');
+        header("Content-Disposition: attachment; filename=\"{$filename}\"; filename*=UTF-8''{$filenameSafe}");
+    } else {
+        $filename = "accounts_{$totalRows}_{$dateStr}.csv";
+        $filenameSafe = rawurlencode($filename);
+        header('Content-Type: text/csv; charset=utf-8');
+        header("Content-Disposition: attachment; filename=\"{$filename}\"; filename*=UTF-8''{$filenameSafe}");
+    }
+    header('Cache-Control: no-cache, must-revalidate');
+    header('Pragma: no-cache');
+    $headersSent = true;
+    Logger::info('EXPORT: Download headers sent', ['format' => $format, 'filename' => $filename]);
+};
+
+// Helper: отдать HTML-ошибку до того, как мы зафиксировались как attachment.
+$failBeforeData = function(int $code, string $msg) use (&$headersSent) {
+    while (function_exists('ob_get_level') && ob_get_level() > 0) {
+        @ob_end_clean();
+    }
+    if (!$headersSent && !headers_sent()) {
+        http_response_code($code);
+        header('Content-Type: text/plain; charset=utf-8');
+    }
+    die($msg);
+};
+
+// Открываем буфер: всё что пишется до первого ob_end_flush() задерживается в памяти.
+ob_start();
 
 // Обертываем весь процесс экспорта в try-catch
 try {
 if ($format === 'txt') {
     Logger::info('EXPORT: Starting TXT export processing');
-    
+
     // Экспорт в TXT: поддержка pipe-delimited для выбранных колонок
     $output = fopen('php://output', 'w');
     if (!$output) {
         Logger::error('EXPORT: Failed to open output stream');
-        die('Failed to open output stream');
+        $failBeforeData(500, 'Failed to open output stream');
     }
-    
-    // Добавляем BOM для UTF-8, чтобы редакторы правильно определяли кодировку
-    fwrite($output, "\xEF\xBB\xBF");
-    
+
+    // BOM и Content-Disposition отправляем только после первого успешного batch
+    // (см. $sendDownloadHeaders / $failBeforeData выше). До этого момента всё буферизуется.
+
     $EOL = "\r\n"; // Корректные переводы строк для Windows-редакторов
+
+    // Helper: вызывается перед первой записью данных. Шлёт headers + BOM, переключает поток
+    // из режима ob_buffer в прямой stream.
+    $beginDownload = function() use (&$headersSent, $sendDownloadHeaders, $output) {
+        if ($headersSent) return;
+        $sendDownloadHeaders();
+        fwrite($output, "\xEF\xBB\xBF"); // UTF-8 BOM в буфер
+        // Сбрасываем буфер — после этого данные летят браузеру напрямую.
+        if (function_exists('ob_get_level') && ob_get_level() > 0) {
+            @ob_end_flush();
+        }
+        @flush();
+    };
 
     // Список допустимых ключей полей (все колонки из базы)
     $allKeys = $allCols;
@@ -499,9 +524,10 @@ if ($format === 'txt') {
         return $s;
     };
 
-    // Определяем стратегию обработки
-    $sort = get_param('sort', 'id');
-    $dir = get_param('dir', 'ASC');
+    // Определяем стратегию обработки.
+    // JS шлёт sort/dir через POST, get_param смотрит только GET — используем export_param.
+    $sort = export_param('sort', 'id');
+    $dir = export_param('dir', 'ASC');
     $exportedCount = 0;
     
     // Если выбраны конкретные ID и их немного - загружаем все сразу
@@ -530,22 +556,36 @@ if ($format === 'txt') {
                     'accounts_count' => count($accounts ?? []),
                     'selected_cols_count' => count($selectedCols)
                 ]);
-                
-                foreach ($accounts as $row) {
-                    $line = [];
-                    foreach ($selectedCols as $key) {
-                        $line[] = $sanitizeCell($row[$key] ?? '');
-                    }
-                    fwrite($output, implode('|', $line) . $EOL);
-                    $exportedCount++;
-                }
-                
-                unset($accounts);
             } catch (Exception $e) {
-                Logger::error('EXPORT: Error processing accounts', ['error' => $e->getMessage()]);
-                fclose($output);
-                die('Export error: ' . htmlspecialchars($e->getMessage()));
+                // SQL упал ДО отправки headers — отдаём HTML-ошибку, не "пустой" .txt.
+                Logger::error('EXPORT: Error processing accounts', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                if (isset($output) && $output) { @fclose($output); }
+                $failBeforeData(500, 'Export error: ' . htmlspecialchars($e->getMessage()));
             }
+
+            if (empty($accounts)) {
+                // Все запрошенные ID были удалены / не найдены. Не отдаём .txt с одним BOM.
+                Logger::warning('EXPORT: Query returned 0 rows for selected IDs', [
+                    'ids_count' => count($idArray),
+                    'total_rows' => $totalRows
+                ]);
+                if (isset($output) && $output) { @fclose($output); }
+                $failBeforeData(404, 'No matching records found (выбранные записи могли быть удалены)');
+            }
+
+            $beginDownload();
+            foreach ($accounts as $row) {
+                $line = [];
+                foreach ($selectedCols as $key) {
+                    $line[] = $sanitizeCell($row[$key] ?? '');
+                }
+                fwrite($output, implode('|', $line) . $EOL);
+                $exportedCount++;
+            }
+            unset($accounts);
         } else {
             // Потоковая обработка для больших объемов
             $batchSize = 1000; // Обрабатываем по 1000 записей за раз
@@ -556,8 +596,6 @@ if ($format === 'txt') {
                 'selectAll' => $selectAll
             ]);
             
-            $sort = get_param('sort', 'id');
-            $dir = get_param('dir', 'ASC');
             Logger::info('EXPORT: Streaming parameters', [
                 'sort' => $sort,
                 'dir' => $dir,
@@ -566,7 +604,7 @@ if ($format === 'txt') {
             
             for ($offset = 0; $offset < $totalRows; $offset += $batchSize) {
                 $currentLimit = min($batchSize, $totalRows - $offset);
-                
+
                 try {
                     // Получаем порцию данных
                     Logger::info('EXPORT: Fetching batch', [
@@ -575,58 +613,76 @@ if ($format === 'txt') {
                         'batch_num' => floor($offset / $batchSize) + 1,
                         'total_batches' => ceil($totalRows / $batchSize)
                     ]);
-                    
+
                     $accounts = $service->getAccounts($filter, $sort, $dir, $currentLimit, $offset);
-                    
+
                     Logger::info('EXPORT: Batch fetched', [
                         'accounts_in_batch' => count($accounts ?? []),
                         'offset' => $offset,
                         'expected' => $currentLimit
                     ]);
-                    
-                    if (empty($accounts)) {
-                        Logger::info('EXPORT: No more data, stopping', ['offset' => $offset]);
-                        break; // Больше нет данных
-                    }
-                    
-                    // Обрабатываем и выводим порцию
-                    foreach ($accounts as $row) {
-                        $line = [];
-                        foreach ($selectedCols as $key) {
-                            $cellValue = $row[$key] ?? '';
-                            // Убеждаемся, что данные в UTF-8
-                            $sanitized = $sanitizeCell($cellValue);
-                            $line[] = mb_convert_encoding($sanitized, 'UTF-8', 'UTF-8');
-                        }
-                        fwrite($output, implode('|', $line) . $EOL);
-                        $exportedCount++;
-                    }
-                    
-                    // Очищаем память и отправляем данные браузеру
-                    unset($accounts);
-                    if (function_exists('ob_get_level') && ob_get_level() > 0) {
-                        @ob_flush();
-                    }
-                    flush();
-                    
-                    // Логируем прогресс каждые 1000 записей для лучшей видимости
-                    if ($exportedCount % 1000 === 0) {
-                        Logger::info('EXPORT: Progress', [
-                            'exported' => $exportedCount, 
-                            'total' => $totalRows,
-                            'percent' => round(($exportedCount / $totalRows) * 100, 2)
-                        ]);
-                    }
                 } catch (Exception $e) {
                     Logger::error('EXPORT: Error processing batch', [
                         'offset' => $offset,
                         'error' => $e->getMessage(),
                         'trace' => $e->getTraceAsString()
                     ]);
-                    if (isset($output) && $output) {
-                        fclose($output);
+                    if ($offset === 0 && !$headersSent) {
+                        // Первый batch упал ДО headers — отдаём HTML-ошибку, не "пустой" .txt.
+                        if (isset($output) && $output) { @fclose($output); }
+                        $failBeforeData(500, 'Export error: ' . htmlspecialchars($e->getMessage()));
                     }
+                    // Headers уже отправлены — обрубаем поток (файл будет неполный, но не пустой).
+                    if (isset($output) && $output) { fclose($output); }
                     die('Export error: ' . htmlspecialchars($e->getMessage()));
+                }
+
+                if (empty($accounts)) {
+                    if ($offset === 0 && !$headersSent) {
+                        // Первый batch пустой ДО headers — отдаём HTML-ошибку.
+                        Logger::warning('EXPORT: First batch returned 0 rows', [
+                            'total_rows' => $totalRows,
+                            'selectAll' => $selectAll
+                        ]);
+                        if (isset($output) && $output) { @fclose($output); }
+                        $failBeforeData(404, 'No matching records found');
+                    }
+                    Logger::info('EXPORT: No more data, stopping', ['offset' => $offset]);
+                    break; // Больше нет данных
+                }
+
+                // Первый успешный batch — шлём headers + BOM, выпускаем буфер.
+                if (!$headersSent) {
+                    $beginDownload();
+                }
+
+                // Обрабатываем и выводим порцию
+                foreach ($accounts as $row) {
+                    $line = [];
+                    foreach ($selectedCols as $key) {
+                        $cellValue = $row[$key] ?? '';
+                        // Убеждаемся, что данные в UTF-8
+                        $sanitized = $sanitizeCell($cellValue);
+                        $line[] = mb_convert_encoding($sanitized, 'UTF-8', 'UTF-8');
+                    }
+                    fwrite($output, implode('|', $line) . $EOL);
+                    $exportedCount++;
+                }
+
+                // Очищаем память и отправляем данные браузеру
+                unset($accounts);
+                if (function_exists('ob_get_level') && ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+
+                // Логируем прогресс каждые 1000 записей для лучшей видимости
+                if ($exportedCount % 1000 === 0) {
+                    Logger::info('EXPORT: Progress', [
+                        'exported' => $exportedCount,
+                        'total' => $totalRows,
+                        'percent' => round(($exportedCount / $totalRows) * 100, 2)
+                    ]);
                 }
             }
             
@@ -636,29 +692,95 @@ if ($format === 'txt') {
             ]);
         }
     } else {
-        // Легаси-формат: многострочный блок по записи
-        fwrite($output, "EXPORT ACCOUNTS" . $EOL);
-        fwrite($output, "Generated: " . date('Y-m-d H:i:s') . $EOL);
-        fwrite($output, "Total records: " . $totalRows . $EOL);
-        fwrite($output, str_repeat("=", 50) . $EOL);
-        
+        // Легаси-формат: многострочный блок по записи.
+        // Шапку пишем ТОЛЬКО после первого успешного fetch (через $beginDownload).
+        $writeLegacyHeader = function() use ($output, $totalRows, $EOL) {
+            fwrite($output, "EXPORT ACCOUNTS" . $EOL);
+            fwrite($output, "Generated: " . date('Y-m-d H:i:s') . $EOL);
+            fwrite($output, "Total records: " . $totalRows . $EOL);
+            fwrite($output, str_repeat("=", 50) . $EOL);
+        };
+
         if (!$useStreaming && !empty($idArray)) {
             // Для конкретных ID загружаем все сразу
             try {
                 $accounts = $service->getAccounts($filter, $sort, $dir, $totalRows, 0);
-                
+            } catch (Exception $e) {
+                Logger::error('EXPORT: Error processing accounts', ['error' => $e->getMessage()]);
+                if (isset($output) && $output) { @fclose($output); }
+                $failBeforeData(500, 'Export error: ' . htmlspecialchars($e->getMessage()));
+            }
+
+            if (empty($accounts)) {
+                if (isset($output) && $output) { @fclose($output); }
+                $failBeforeData(404, 'No matching records found');
+            }
+
+            $beginDownload();
+            $writeLegacyHeader();
+            foreach ($accounts as $row) {
+                fwrite($output, "ACCOUNT #{$row['id']}" . $EOL);
+                fwrite($output, str_repeat("-", 30) . $EOL);
+                foreach ($row as $key => $value) {
+                    if ($value !== null && $value !== '') {
+                        $label = ucfirst(str_replace('_', ' ', $key));
+                        $cleanValue = (string)$value;
+                        if (!mb_check_encoding($cleanValue, 'UTF-8')) {
+                            $cleanValue = mb_convert_encoding($cleanValue, 'UTF-8', 'auto');
+                        }
+                        $cleanValue = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $cleanValue);
+                        fwrite($output, "$label: $cleanValue" . $EOL);
+                    }
+                }
+                fwrite($output, $EOL);
+                $exportedCount++;
+            }
+            unset($accounts);
+        } else {
+            // Потоковая обработка для больших объемов
+            $batchSize = 1000;
+
+            for ($offset = 0; $offset < $totalRows; $offset += $batchSize) {
+                $currentLimit = min($batchSize, $totalRows - $offset);
+
+                try {
+                    $accounts = $service->getAccounts($filter, $sort, $dir, $currentLimit, $offset);
+                } catch (Exception $e) {
+                    Logger::error('EXPORT: Error processing batch', [
+                        'offset' => $offset,
+                        'error' => $e->getMessage()
+                    ]);
+                    if ($offset === 0 && !$headersSent) {
+                        if (isset($output) && $output) { @fclose($output); }
+                        $failBeforeData(500, 'Export error: ' . htmlspecialchars($e->getMessage()));
+                    }
+                    if (isset($output) && $output) { fclose($output); }
+                    die('Export error: ' . htmlspecialchars($e->getMessage()));
+                }
+
+                if (empty($accounts)) {
+                    if ($offset === 0 && !$headersSent) {
+                        if (isset($output) && $output) { @fclose($output); }
+                        $failBeforeData(404, 'No matching records found');
+                    }
+                    break; // Больше нет данных
+                }
+
+                if (!$headersSent) {
+                    $beginDownload();
+                    $writeLegacyHeader();
+                }
+
                 foreach ($accounts as $row) {
                     fwrite($output, "ACCOUNT #{$row['id']}" . $EOL);
                     fwrite($output, str_repeat("-", 30) . $EOL);
                     foreach ($row as $key => $value) {
                         if ($value !== null && $value !== '') {
                             $label = ucfirst(str_replace('_', ' ', $key));
-                            // Обеспечиваем корректную UTF-8 кодировку
                             $cleanValue = (string)$value;
                             if (!mb_check_encoding($cleanValue, 'UTF-8')) {
                                 $cleanValue = mb_convert_encoding($cleanValue, 'UTF-8', 'auto');
                             }
-                            // Удаляем управляющие символы
                             $cleanValue = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $cleanValue);
                             fwrite($output, "$label: $cleanValue" . $EOL);
                         }
@@ -666,63 +788,12 @@ if ($format === 'txt') {
                     fwrite($output, $EOL);
                     $exportedCount++;
                 }
-                
+
                 unset($accounts);
-            } catch (Exception $e) {
-                Logger::error('EXPORT: Error processing accounts', ['error' => $e->getMessage()]);
-                fclose($output);
-                die('Export error: ' . htmlspecialchars($e->getMessage()));
-            }
-        } else {
-            // Потоковая обработка для больших объемов
-            $batchSize = 1000;
-            
-            for ($offset = 0; $offset < $totalRows; $offset += $batchSize) {
-                $currentLimit = min($batchSize, $totalRows - $offset);
-                
-                try {
-                    // Получаем порцию данных
-                    $accounts = $service->getAccounts($filter, $sort, $dir, $currentLimit, $offset);
-                    
-                    if (empty($accounts)) {
-                        break; // Больше нет данных
-                    }
-                    
-                    // Обрабатываем и выводим порцию
-                    foreach ($accounts as $row) {
-                        fwrite($output, "ACCOUNT #{$row['id']}" . $EOL);
-                        fwrite($output, str_repeat("-", 30) . $EOL);
-                        foreach ($row as $key => $value) {
-                            if ($value !== null && $value !== '') {
-                                $label = ucfirst(str_replace('_', ' ', $key));
-                                // Обеспечиваем корректную UTF-8 кодировку
-                                $cleanValue = (string)$value;
-                                if (!mb_check_encoding($cleanValue, 'UTF-8')) {
-                                    $cleanValue = mb_convert_encoding($cleanValue, 'UTF-8', 'auto');
-                                }
-                                // Удаляем управляющие символы
-                                $cleanValue = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $cleanValue);
-                                fwrite($output, "$label: $cleanValue" . $EOL);
-                            }
-                        }
-                        fwrite($output, $EOL);
-                        $exportedCount++;
-                    }
-                    
-                    // Очищаем память и отправляем данные браузеру
-                    unset($accounts);
-                    if (function_exists('ob_get_level') && ob_get_level() > 0) {
-                        @ob_flush();
-                    }
-                    flush();
-                } catch (Exception $e) {
-                    Logger::error('EXPORT: Error processing batch', [
-                        'offset' => $offset,
-                        'error' => $e->getMessage()
-                    ]);
-                    fclose($output);
-                    die('Export error: ' . htmlspecialchars($e->getMessage()));
+                if (function_exists('ob_get_level') && ob_get_level() > 0) {
+                    @ob_flush();
                 }
+                flush();
             }
         }
     }
@@ -749,7 +820,11 @@ if ($format === 'txt') {
 } else {
     // Экспорт в CSV
     $output = fopen('php://output', 'w');
-    
+    if (!$output) {
+        Logger::error('EXPORT: Failed to open output stream (csv)');
+        $failBeforeData(500, 'Failed to open output stream');
+    }
+
     // Заголовки и соответствие полей (динамически из базы)
     $knownTitles = [
       'id' => 'ID', 'login' => 'Login', 'email' => 'Email', 'first_name' => 'First Name',
@@ -764,77 +839,103 @@ if ($format === 'txt') {
     foreach ($allCols as $col) {
         $columns[$col] = $knownTitles[$col] ?? ucfirst(str_replace('_', ' ', $col));
     }
-    // Используем точку с запятой как разделитель для Excel
-    writeCsvRow($output, array_values($columns), ';');
+
+    // BOM + шапка пишутся ТОЛЬКО после первого успешного fetch.
+    $beginCsvDownload = function() use (&$headersSent, $sendDownloadHeaders, $output, $columns) {
+        if ($headersSent) return;
+        $sendDownloadHeaders();
+        // Excel UTF-8 BOM в буфер.
+        echo "\xEF\xBB\xBF";
+        // Шапка через тот же $output stream.
+        writeCsvRow($output, array_values($columns), ';');
+        if (function_exists('ob_get_level') && ob_get_level() > 0) {
+            @ob_end_flush();
+        }
+        @flush();
+    };
 
     // Санитизация для CSV-инъекций и UTF-8
     $sanitize = function($v) {
         if ($v === null) return '';
         $v = (string)$v;
-        
-        // Обеспечиваем корректную UTF-8 кодировку
         if (!mb_check_encoding($v, 'UTF-8')) {
             $v = mb_convert_encoding($v, 'UTF-8', 'auto');
         }
-        
-        // Удаляем управляющие символы
         $v = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $v);
-        
-        // Защита от CSV-инъекций
         if ($v !== '' && in_array($v[0], ['=', '+', '-', '@'], true)) {
             return "'" . $v;
         }
-        
         return trim($v);
     };
-    
+
     // Потоковая обработка данных порциями
-    $batchSize = 1000; // Обрабатываем по 1000 записей за раз
-    $sort = get_param('sort', 'id');
-    $dir = get_param('dir', 'ASC');
+    $batchSize = 1000;
+    // JS шлёт sort/dir через POST, get_param смотрит только GET — используем export_param.
+    $sort = export_param('sort', 'id');
+    $dir = export_param('dir', 'ASC');
     $exportedCount = 0;
-    
+
     for ($offset = 0; $offset < $totalRows; $offset += $batchSize) {
         $currentLimit = min($batchSize, $totalRows - $offset);
-        
-        // Получаем порцию данных
-        $accounts = $service->getAccounts($filter, $sort, $dir, $currentLimit, $offset);
-        
+
+        try {
+            $accounts = $service->getAccounts($filter, $sort, $dir, $currentLimit, $offset);
+        } catch (Exception $e) {
+            Logger::error('EXPORT: CSV batch failed', [
+                'offset' => $offset,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            if ($offset === 0 && !$headersSent) {
+                if (isset($output) && $output) { @fclose($output); }
+                $failBeforeData(500, 'Export error: ' . htmlspecialchars($e->getMessage()));
+            }
+            if (isset($output) && $output) { fclose($output); }
+            die('Export error: ' . htmlspecialchars($e->getMessage()));
+        }
+
         if (empty($accounts)) {
+            if ($offset === 0 && !$headersSent) {
+                Logger::warning('EXPORT: First CSV batch returned 0 rows', [
+                    'total_rows' => $totalRows,
+                    'selectAll' => $selectAll
+                ]);
+                if (isset($output) && $output) { @fclose($output); }
+                $failBeforeData(404, 'No matching records found');
+            }
             break; // Больше нет данных
         }
-        
-        // Обрабатываем и выводим порцию
+
+        if (!$headersSent) {
+            $beginCsvDownload();
+        }
+
         foreach ($accounts as $row) {
             $line = [];
             foreach ($columns as $key => $_) {
                 $cellValue = $row[$key] ?? '';
-                // Убеждаемся, что данные в UTF-8
                 $sanitized = $sanitize($cellValue);
                 $line[] = mb_convert_encoding($sanitized, 'UTF-8', 'UTF-8');
             }
-            // Используем точку с запятой как разделитель для Excel
             writeCsvRow($output, $line, ';');
             $exportedCount++;
         }
-        
-        // Очищаем память и отправляем данные браузеру
+
         unset($accounts);
         if (function_exists('ob_get_level') && ob_get_level() > 0) {
             @ob_flush();
         }
         flush();
-        
-        // Логируем прогресс каждые 5000 записей
+
         if ($exportedCount % 5000 === 0) {
             Logger::debug('EXPORT: Progress', ['exported' => $exportedCount, 'total' => $totalRows]);
         }
     }
-    
+
     if (isset($output) && $output) {
         fclose($output);
     }
-    
+
     Logger::info('EXPORT: ===== CSV EXPORT COMPLETED =====', [
         'exported_count' => $exportedCount,
         'expected_count' => $totalRows,
@@ -856,7 +957,12 @@ exit(0);
     if (isset($output) && $output) {
         @fclose($output);
     }
-    if (!headers_sent()) {
+    // Если исключение прорвалось до того, как мы успели отправить download headers,
+    // выкидываем буфер и отдаём HTML-ошибку, а не "пустой" .txt с одним BOM.
+    if (empty($headersSent) && !headers_sent()) {
+        while (function_exists('ob_get_level') && ob_get_level() > 0) {
+            @ob_end_clean();
+        }
         http_response_code(500);
         header('Content-Type: text/plain; charset=utf-8');
     }
@@ -871,7 +977,10 @@ exit(0);
     if (isset($output) && $output) {
         @fclose($output);
     }
-    if (!headers_sent()) {
+    if (empty($headersSent) && !headers_sent()) {
+        while (function_exists('ob_get_level') && ob_get_level() > 0) {
+            @ob_end_clean();
+        }
         http_response_code(500);
         header('Content-Type: text/plain; charset=utf-8');
     }
