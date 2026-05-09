@@ -575,7 +575,9 @@ if ($format === 'txt') {
     
     // Если выбраны конкретные ID и их немного - загружаем все сразу
     // Если много записей или selectAll - используем потоковую обработку
-    $useStreaming = ($totalRows > 1000) || $selectAll;
+    // Порог 100 совпадает с $batchSize — больше 100 строк идёт через стриминг,
+    // чтобы не грузить сразу 100+ записей с тяжёлыми колонками в память.
+    $useStreaming = ($totalRows > 100) || $selectAll;
     
     Logger::info('EXPORT: Processing strategy determined', [
         'useStreaming' => $useStreaming,
@@ -616,8 +618,11 @@ if ($format === 'txt') {
                 die('Export error: ' . htmlspecialchars($e->getMessage()));
             }
         } else {
-            // Потоковая обработка для больших объемов
-            $batchSize = 1000; // Обрабатываем по 1000 записей за раз
+            // Потоковая обработка для больших объемов.
+            // 1000 строк × heavy cookies/full_cookies/token ~ 50–100 MB в одном SQL —
+            // на shared hosting (memory_limit ≈ 128M) это бьёт PHP-FPM. 100 строк
+            // удерживают batch в нескольких MB, файл собирается чуть дольше, но не падает.
+            $batchSize = 100;
             Logger::info('EXPORT: Using streaming mode', [
                 'total_rows' => $totalRows,
                 'batch_size' => $batchSize,
@@ -648,7 +653,9 @@ if ($format === 'txt') {
                     Logger::info('EXPORT: Batch fetched', [
                         'accounts_in_batch' => count($accounts ?? []),
                         'offset' => $offset,
-                        'expected' => $currentLimit
+                        'expected' => $currentLimit,
+                        'mem_used_mb' => round(memory_get_usage(true) / 1048576, 1),
+                        'mem_peak_mb' => round(memory_get_peak_usage(true) / 1048576, 1)
                     ]);
                     
                     if (empty($accounts)) {
@@ -741,9 +748,9 @@ if ($format === 'txt') {
                 die('Export error: ' . htmlspecialchars($e->getMessage()));
             }
         } else {
-            // Потоковая обработка для больших объемов
-            $batchSize = 1000;
-            
+            // Потоковая обработка для больших объемов (legacy формат)
+            $batchSize = 100;
+
             for ($offset = 0; $offset < $totalRows; $offset += $batchSize) {
                 $currentLimit = min($batchSize, $totalRows - $offset);
                 
@@ -855,8 +862,9 @@ if ($format === 'txt') {
         return trim($v);
     };
     
-    // Потоковая обработка данных порциями
-    $batchSize = 1000; // Обрабатываем по 1000 записей за раз
+    // Потоковая обработка данных порциями (CSV).
+    // См. комментарий выше про 1000→100: shared hosting не тянет 1000 строк с heavy fields.
+    $batchSize = 100;
     // JS шлёт sort/dir через POST, get_param смотрит только GET — используем export_param.
     $sort = export_param('sort', 'id');
     $dir = export_param('dir', 'ASC');
