@@ -54,6 +54,20 @@ function writeCsvRow($handle, array $fields, string $delimiter = ';') {
     return fwrite($handle, implode($delimiter, $out) . "\n");
 }
 
+/**
+ * Читает параметр из POST или GET (POST приоритет).
+ * Frontend экспорта шлёт всё через POST hidden inputs, а старый get_param() смотрит только GET.
+ */
+function export_param(string $key, string $default = ''): string {
+    if (isset($_POST[$key]) && !is_array($_POST[$key])) {
+        return trim((string)$_POST[$key]);
+    }
+    if (isset($_GET[$key]) && !is_array($_GET[$key])) {
+        return trim((string)$_GET[$key]);
+    }
+    return $default;
+}
+
 // Обработчик фатальных ошибок
 register_shutdown_function(function() {
     $error = error_get_last();
@@ -321,8 +335,10 @@ try {
     $maxRecords = Config::MAX_EXPORT_RECORDS;
     
     // ПРОВЕРКА: Кастомный лимит от пользователя
-    $userLimit = filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT);
-    if ($userLimit !== null && $userLimit !== false && $userLimit > 0) {
+    // JS шлёт limit через POST hidden input → читаем из обоих источников.
+    $userLimitRaw = export_param('limit', '');
+    $userLimit = ($userLimitRaw === '') ? false : filter_var($userLimitRaw, FILTER_VALIDATE_INT);
+    if ($userLimit !== false && $userLimit > 0) {
         $totalRows = min($totalRows, $userLimit);
         Logger::info('EXPORT: Applying user-specified limit', [
             'total' => $totalRows,
@@ -389,6 +405,58 @@ try {
     header('Content-Type: text/plain; charset=utf-8');
     die('Export failed: ' . htmlspecialchars($e->getMessage()));
 }
+
+// Pre-flight LIMIT 1 запрос ДО установки download-заголовков.
+// Защищает от ситуации, когда headers уже отправлены (Content-Disposition: attachment),
+// а сам запрос потом падает или возвращает 0 строк — пользователь получает .txt с одним
+// BOM, что выглядит как "пустой файл". С pre-flight мы можем отдать HTML-ошибку.
+//
+// Запрос дешёвый: одна строка с тем же WHERE/ORDER BY, что и реальный экспорт. SQL-error
+// (timeout, broken IN-clause и т.п.) проявится здесь, и юзер увидит понятное сообщение
+// вместо непонятного "пустого файла".
+$preflightSort = export_param('sort', 'id');
+$preflightDir = export_param('dir', 'ASC');
+try {
+    $preflightRows = $service->getAccounts($filter, $preflightSort, $preflightDir, 1, 0);
+} catch (Exception $e) {
+    Logger::error('EXPORT: Pre-flight query failed', [
+        'error' => $e->getMessage(),
+        'trace' => $e->getTraceAsString()
+    ]);
+    if (function_exists('ob_get_level')) {
+        while (ob_get_level() > 0) { @ob_end_clean(); }
+    }
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    die('Export failed: ' . htmlspecialchars($e->getMessage()));
+} catch (Throwable $e) {
+    Logger::error('EXPORT: Pre-flight query fatal', [
+        'error' => $e->getMessage(),
+        'trace' => $e->getTraceAsString()
+    ]);
+    if (function_exists('ob_get_level')) {
+        while (ob_get_level() > 0) { @ob_end_clean(); }
+    }
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    die('Export failed: ' . htmlspecialchars($e->getMessage()));
+}
+
+if (empty($preflightRows)) {
+    // count > 0, а реальный fetch вернул пусто — например, выбранные ID были удалены.
+    Logger::warning('EXPORT: Pre-flight returned 0 rows despite count > 0', [
+        'total_rows' => $totalRows,
+        'selectAll' => $selectAll,
+        'has_ids' => !empty($idArray)
+    ]);
+    if (function_exists('ob_get_level')) {
+        while (ob_get_level() > 0) { @ob_end_clean(); }
+    }
+    http_response_code(404);
+    header('Content-Type: text/plain; charset=utf-8');
+    die('No matching records found (выбранные записи могли быть удалены)');
+}
+unset($preflightRows); // не держим в памяти — основной flow перечитает свою порцию
 
 // Устанавливаем заголовки с правильным именем файла ДО начала вывода данных
 $obLevel = function_exists('ob_get_level') ? ob_get_level() : 0;
@@ -499,9 +567,10 @@ if ($format === 'txt') {
         return $s;
     };
 
-    // Определяем стратегию обработки
-    $sort = get_param('sort', 'id');
-    $dir = get_param('dir', 'ASC');
+    // Определяем стратегию обработки.
+    // JS шлёт sort/dir через POST, get_param смотрит только GET — используем export_param.
+    $sort = export_param('sort', 'id');
+    $dir = export_param('dir', 'ASC');
     $exportedCount = 0;
     
     // Если выбраны конкретные ID и их немного - загружаем все сразу
@@ -556,8 +625,6 @@ if ($format === 'txt') {
                 'selectAll' => $selectAll
             ]);
             
-            $sort = get_param('sort', 'id');
-            $dir = get_param('dir', 'ASC');
             Logger::info('EXPORT: Streaming parameters', [
                 'sort' => $sort,
                 'dir' => $dir,
@@ -790,8 +857,9 @@ if ($format === 'txt') {
     
     // Потоковая обработка данных порциями
     $batchSize = 1000; // Обрабатываем по 1000 записей за раз
-    $sort = get_param('sort', 'id');
-    $dir = get_param('dir', 'ASC');
+    // JS шлёт sort/dir через POST, get_param смотрит только GET — используем export_param.
+    $sort = export_param('sort', 'id');
+    $dir = export_param('dir', 'ASC');
     $exportedCount = 0;
     
     for ($offset = 0; $offset < $totalRows; $offset += $batchSize) {
