@@ -20,7 +20,7 @@
       <span class="dashboard-table__counter-total" id="showingOnPageTop"><?= count($rows) ?></span>
     </div>
   </div>
-  
+
   <!-- Уведомление о выборе всех строк (интегрировано в toolbar) -->
   <div class="dashboard-table__selection-notice d-none" id="selectAllNotice">
     <i class="fas fa-info-circle"></i>

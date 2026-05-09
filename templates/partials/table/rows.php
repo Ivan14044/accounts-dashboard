@@ -2,13 +2,42 @@
 /**
  * Рендер тела таблицы
  */
+
+/**
+ * Семантический тон статуса (для цветного риббона на строке и для badge-окраски).
+ *
+ * @param string|null $status
+ * @return string  one of: danger, success, warning, info, muted
+ */
+if (!function_exists('resolveStatusTone')) {
+    function resolveStatusTone(?string $status): string {
+        $s = strtolower(trim((string)$status));
+        if ($s === '') return 'warning'; // пустой статус — внимание
+        // Сначала отсеиваем "invalid_..." — это всегда danger, даже если содержит "valid"
+        if (preg_match('/(invalid|error|ban|block|fraud|dead|reject|fail)/', $s)) return 'danger';
+        if (preg_match('/(new|valid|active|ready|^ok$|success|done)/', $s))      return 'success';
+        if (preg_match('/(check|pending|wait|progress|warm|selphi|review)/', $s)) return 'warning';
+        return 'muted';
+    }
+}
+
+// Защита от undefined-переменных при включённом error_reporting=E_ALL.
+// custom set_error_handler конвертирует undefined в ErrorException и обрывает рендер.
+$ALL_COLUMNS  = isset($ALL_COLUMNS)  && is_array($ALL_COLUMNS)  ? $ALL_COLUMNS  : [];
+$LONG_FIELDS  = isset($LONG_FIELDS)  && is_array($LONG_FIELDS)  ? $LONG_FIELDS  : [];
+$NUMERIC_COLS = isset($NUMERIC_COLS) && is_array($NUMERIC_COLS) ? $NUMERIC_COLS : [];
+$CLIP_LEN     = isset($CLIP_LEN)     ? (int)$CLIP_LEN     : 80;
+$TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
 ?>
 <tbody id="accountsTableBody">
 <?php if (!$rows): ?>
   <?php include __DIR__ . '/empty-state.php'; ?>
 <?php else: ?>
-  <?php foreach ($rows as $r): ?>
-    <tr class="ac-row" data-id="<?= (int)$r['id'] ?>" role="row">
+  <?php foreach ($rows as $r):
+    $rowStatus = strtolower(trim((string)($r['status'] ?? '')));
+    $rowTone   = resolveStatusTone($rowStatus);
+  ?>
+    <tr class="ac-row" data-id="<?= (int)$r['id'] ?>" data-status="<?= e($rowStatus) ?>" data-tone="<?= e($rowTone) ?>" role="row">
       <td class="ac-cell ac-cell--checkbox checkbox-cell" data-column="checkbox">
         <div class="form-check">
           <input class="form-check-input row-checkbox" type="checkbox"
@@ -88,10 +117,9 @@
               </button>
             </div>
           <?php elseif ($k === 'token'): ?>
-            <?php $clip = mb_substr($v, 0, $TOKEN_CLIP, 'UTF-8') . '…'; ?>
+            <?php $clip = mb_substr((string)$v, 0, $TOKEN_CLIP, 'UTF-8') . '…'; ?>
             <div class="d-flex align-items-center gap-2">
-              <span class="truncate mono" title="Нажмите для просмотра" 
-                    data-full="<?= e($v) ?>" data-title="Token">
+              <span class="truncate mono" title="Нажмите для просмотра" data-full="<?= e($v) ?>" data-title="Token">
                 <?= e($clip) ?>
               </span>
               <button class="copy-btn" type="button" data-copy-text="<?= e($v) ?>" title="Копировать">
@@ -99,23 +127,24 @@
               </button>
             </div>
           <?php elseif ($k === 'status'): ?>
-            <?php 
-            $statusClass = 'badge-default';
-            $statusValue = strtolower((string)$v);
-            $statusDisplay = (string)$v;
+            <?php
+            // Семантический тон + дисплей
+            $statusDisplay = ($v === null || $v === '') ? 'Пустой статус' : (string)$v;
+            $cellTone      = $rowTone; // используем уже вычисленный для строки
+            // Сохраняем legacy classes для backward-compat с существующим CSS
+            $legacyClass = 'badge-default';
             if ($v === null || $v === '') {
-              $statusClass = 'badge-empty-status';
-              $statusDisplay = 'Пустой статус';
-            } elseif (strpos($statusValue, 'new') !== false) {
-              $statusClass = 'badge-new';
-            } elseif (strpos($statusValue, 'add_selphi_true') !== false) {
-              $statusClass = 'badge-add_selphi_true';
-            } elseif (strpos($statusValue, 'error') !== false) {
-              $statusClass = 'badge-error_login';
+              $legacyClass = 'badge-empty-status';
+            } elseif ($cellTone === 'success') {
+              $legacyClass = 'badge-new';
+            } elseif ($cellTone === 'danger') {
+              $legacyClass = 'badge-error_login';
+            } elseif ($cellTone === 'warning') {
+              $legacyClass = 'badge-add_selphi_true';
             }
             ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="text">
-              <span class="badge <?= $statusClass ?> field-value"><?= e($statusDisplay) ?></span>
+              <span class="badge <?= $legacyClass ?> field-value" data-tone="<?= e($cellTone) ?>"><?= e($statusDisplay) ?></span>
               <button type="button" class="field-edit-btn" title="Редактировать">
                 <i class="fas fa-edit"></i>
               </button>
@@ -132,7 +161,7 @@
               <button type="button" class="copy-btn" data-copy-text="<?= e($v) ?>" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>
           <?php elseif ($isLong): ?>
-            <?php $clip = mb_substr($v, 0, $CLIP_LEN, 'UTF-8') . '…'; ?>
+            <?php $clip = mb_substr((string)$v, 0, $CLIP_LEN, 'UTF-8') . '…'; ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="<?= e($fieldType) ?>">
               <span class="truncate mono field-value" data-full="<?= e($v) ?>" data-title="<?= e($title) ?>">
                 <?= e($clip) ?>

@@ -20,25 +20,92 @@ if (!function_exists('pgHref')) {
         return '?' . http_build_query(array_merge($qs, ['page' => $p]));
     }
 }
+
+// Допустимый набор значений per_page (на случай если контроллер не пробросил)
+$__allowedPerPage = isset($allowedPerPage) && is_array($allowedPerPage) && $allowedPerPage
+    ? $allowedPerPage
+    : [25, 50, 100, 200];
+
+// Базовые GET-параметры без page и per_page (для построения URL смены per_page)
+$__ppQs = $_GET;
+unset($__ppQs['page'], $__ppQs['per_page']);
+$__ppQs = $__ppQs ?: [];
+
+// Защита от undefined-переменных. error_reporting=E_ALL + custom set_error_handler
+// конвертирует любой E_NOTICE в ErrorException, прерывая рендер. Если контроллер
+// не передал startPage/endPage/pageNumbers — берём sane defaults.
+$startPage   = isset($startPage)   ? (int)$startPage   : 1;
+$endPage     = isset($endPage)     ? (int)$endPage     : (isset($pages) ? (int)$pages : 1);
+$pageNumbers = isset($pageNumbers) && is_array($pageNumbers) ? $pageNumbers : [];
+$prev        = isset($prev) ? (int)$prev : 1;
+$next        = isset($next) ? (int)$next : 1;
+$pages       = isset($pages) ? (int)$pages : 1;
+$page        = isset($page)  ? (int)$page  : 1;
 ?>
 <footer class="dashboard-table__footer">
 
   <div class="dashboard-table__footer-info text-muted small">
     Найдено: <span id="foundTotal"><?= number_format((int)$filteredTotal) ?></span>
-    • Стр. <span id="pageNum"><?= (int)$page ?></span>
-    из <span id="pagesCount"><?= (int)$pages ?></span>
-    • Показывается: <span id="showingCount"><?= count($rows) ?></span>
+    <?php
+      // Спаны pageNum/pagesCount всегда в DOM, чтобы AJAX-refresh мог их обновить
+      // при переходе из state pages=1 → pages>1 (иначе getElementById вернёт null
+      // и счётчик «Стр. X из Y» зависнет в скрытом виде после смены фильтра).
+      $__multiPage = (int)$pages > 1;
+    ?>
+    <span class="dashboard-table__footer-pageinfo"<?= $__multiPage ? '' : ' style="display:none"' ?>>
+      • Стр. <span id="pageNum"><?= (int)$page ?></span>
+      из <span id="pagesCount"><?= (int)$pages ?></span>
+    </span>
+    <?php
+      // Показываем "Показывается: N" только если оно != Найдено
+      // (на 1 странице с pages=1 они равны → дублирование).
+      $showingCount = count($rows);
+      $showShowing  = (int)$pages > 1 || $showingCount !== (int)$filteredTotal;
+    ?>
+    <?php if ($showShowing): ?>
+      • Показывается: <span id="showingCount"><?= $showingCount ?></span>
+    <?php else: ?>
+      <span id="showingCount" class="d-none"><?= $showingCount ?></span>
+    <?php endif; ?>
     <span id="virtualizationHint" class="ms-2 d-none">
       <i class="fas fa-info-circle text-info" title="Виртуализация активна"></i>
       <span id="virtualizationStats">Видно <span id="visibleRowsCount">0</span> из <span id="totalRowsOnPage">0</span> строк</span>
     </span>
   </div>
 
-  <div class="dashboard-table__footer-nav">
+  <!-- Все controls в одной правой группе: per-page → page jump → pagination buttons.
+       Объединение нужно, чтобы footer был flex space-between на двух блоках
+       (info ↔ controls) — без бесхозного per-page в центре. -->
+  <div class="dashboard-table__footer-controls">
 
-    <!-- Поле быстрого перехода -->
+    <!-- Per-page селектор (URL-based: смена сбрасывает page → 1) -->
+    <div class="dashboard-table__per-page" data-base-qs="<?= e(http_build_query($__ppQs)) ?>">
+      <label class="form-label mb-0 small text-muted" for="perPageSelect" title="Строк на странице">
+        <i class="fas fa-list-ol me-1" aria-hidden="true"></i>Строк:
+      </label>
+      <select class="form-select form-select-sm" id="perPageSelect" aria-label="Записей на странице">
+        <?php foreach ($__allowedPerPage as $pp): ?>
+          <option value="<?= (int)$pp ?>" <?= (int)$perPage === (int)$pp ? 'selected' : '' ?>><?= (int)$pp ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+
+    <?php
+      // ВАЖНО: footer-nav рендерим ВСЕГДА, даже при pages=1, иначе AJAX-refresh
+      // не сможет вставить пагинацию при переходе из pages=1 → pages>1
+      // (dashboard-refresh.js ищет #paginationNav и .dashboard-table__footer-nav,
+      // и если оба отсутствуют — молча ничего не делает). Скрываем визуально через
+      // style="display:none" — это согласовано с refresh.php, который возвращает
+      // скрытый <nav> при pages<=1.
+      $__navHidden = $__multiPage ? '' : ' style="display:none"';
+    ?>
+    <span class="dashboard-table__footer-divider" aria-hidden="true"<?= $__navHidden ?>></span>
+
+    <div class="dashboard-table__footer-nav"<?= $__navHidden ?>>
+
+    <!-- Поле быстрого перехода — только когда есть куда переходить -->
     <div class="dashboard-table__footer-select d-flex align-items-center gap-2">
-      <label class="form-label mb-0 small" for="pageJumpInput">Перейти на стр.:</label>
+      <label class="form-label mb-0 small" for="pageJumpInput" title="Перейти на страницу">Стр.:</label>
       <input
         type="number"
         class="form-control form-control-sm dashboard-table__footer-page-input"
@@ -57,9 +124,9 @@ if (!function_exists('pgHref')) {
       >Перейти</button>
     </div>
 
-    <!-- Кнопки пагинации (только если страниц > 1) -->
-    <?php if ($pages > 1): ?>
-    <nav aria-label="Навигация по страницам" class="dashboard-table__pagination" id="paginationNav">
+    <!-- Кнопки пагинации -->
+    <nav aria-label="Навигация по страницам" class="dashboard-table__pagination" id="paginationNav"<?= $__navHidden ?>>
+      <?php if ($__multiPage): ?>
       <ul class="pagination m-0">
 
         <!-- Первая страница -->
@@ -140,8 +207,10 @@ if (!function_exists('pgHref')) {
         </li>
 
       </ul>
+      <?php endif; ?>
     </nav>
-    <?php endif; ?>
+
+    </div>
 
   </div>
 </footer>

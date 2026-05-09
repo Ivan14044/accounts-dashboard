@@ -259,22 +259,22 @@ class AccountsService {
      */
     public function getAccounts(FilterBuilder $filter, string $sort = 'id', string $dir = 'ASC', int $limit = 100, int $offset = 0, $includeDeleted = false): array {
         $meta = $this->getColumnMetadata();
-        
+
         // Валидация сортировки
         if (!in_array($sort, $meta['all'], true)) {
             $sort = 'id';
         }
         $dir = strtoupper($dir) === 'DESC' ? 'DESC' : 'ASC';
-        
+
         // Используем централизованную логику построения ORDER BY
         $orderBy = $this->buildOrderBy($sort, $dir);
-        
+
         // Приводим к bool, если передан null
         if ($includeDeleted === null) {
             $includeDeleted = false;
         }
         $includeDeleted = (bool)$includeDeleted;
-        
+
         // Делегируем в репозиторий
         return $this->repository->getAccounts($filter, $orderBy, $limit, $offset, $includeDeleted);
     }
@@ -303,6 +303,14 @@ class AccountsService {
      */
     public function getStatistics(FilterBuilder $filter = null): array {
         return $this->statistics->getStatistics($filter);
+    }
+
+    /**
+     * Кумулятивный total по дням для sparkline на дашборде.
+     * Делегирует работу в StatisticsService
+     */
+    public function getDailyTotals(int $days = 7): array {
+        return $this->statistics->getDailyTotals($days);
     }
     
     /**
@@ -422,6 +430,21 @@ class AccountsService {
         }
         $rows = $this->repository->getAccountsByIdsForValidation($ids);
         return ['rows' => $rows, 'total' => count($rows)];
+    }
+
+    /**
+     * Быстрый COUNT для validate/preview — возвращает только число записей
+     * без тяжёлой выборки cookies. Для selected/page — count(ids), для filter
+     * — SQL COUNT с использованием существующих индексов.
+     */
+    public function getValidationCount(string $scope, array $ids, string $query): int {
+        if ($scope === 'filter') {
+            parse_str($query, $params);
+            $filter = $this->createFilterFromRequest($params);
+            return $this->repository->getAccountsCount($filter, false);
+        }
+        $ids = array_filter(array_map('intval', $ids));
+        return count($ids);
     }
     
     /**
@@ -695,7 +718,7 @@ class AccountsService {
     public function getAccountById(int $id): ?array {
         return $this->repository->getAccountById($id);
     }
-    
+
     /**
      * Создание нового аккаунта
      * Делегирует работу в AccountsRepository с логированием в audit log

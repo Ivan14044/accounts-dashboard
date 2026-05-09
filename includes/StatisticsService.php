@@ -473,5 +473,67 @@ class StatisticsService {
             '(status_rk IS NULL OR status_rk = "")' . $deletedFilter
         );
     }
+
+    /**
+     * Получение кумулятивного количества аккаунтов за последние N дней
+     * (для отрисовки sparkline в карточке "Всего аккаунтов").
+     *
+     * Возвращает массив из N int значений (running total на конец каждого дня).
+     * Если в таблице нет колонки created_at — возвращает пустой массив.
+     *
+     * @param int $days
+     * @return array
+     */
+    public function getDailyTotals(int $days = 7): array {
+        if ($days < 2) $days = 2;
+        if ($days > 90) $days = 90;
+
+        if (!$this->metadata->columnExists('created_at')) {
+            return [];
+        }
+
+        $cacheKey = 'sparkline_' . $this->table . '_' . $days;
+        $cached = $this->db->getCached($cacheKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $deletedFilter = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
+
+        // События за последние $days дней (включая сегодня)
+        $sql = "SELECT DATE(created_at) AS d, COUNT(*) AS c
+                FROM `{$this->table}`
+                WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+                  {$deletedFilter}
+                GROUP BY DATE(created_at)
+                ORDER BY d ASC";
+
+        try {
+            $rows = $this->db->prepare($sql, [$days - 1]);
+        } catch (Throwable $e) {
+            Logger::debug('SPARKLINE: query failed - ' . $e->getMessage());
+            return [];
+        }
+
+        $byDate = [];
+        foreach ($rows as $r) {
+            $byDate[$r['d']] = (int)$r['c'];
+        }
+
+        // Стартовое значение = всего записей до начала окна
+        $startSql = "created_at < DATE_SUB(CURDATE(), INTERVAL " . ($days - 1) . " DAY)" . $deletedFilter;
+        $start = (int)$this->db->getCount($this->table, $startSql);
+
+        $result = [];
+        $running = $start;
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $d = date('Y-m-d', strtotime("-{$i} days"));
+            $running += $byDate[$d] ?? 0;
+            $result[] = $running;
+        }
+
+        $this->db->cache($cacheKey, $result, Config::STATS_CACHE_TTL);
+        return $result;
+    }
 }
 

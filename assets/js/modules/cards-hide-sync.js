@@ -1,87 +1,102 @@
 /**
- * Синхронное скрытие карточек до/во время загрузки DOM.
- * Загружается в head для предотвращения мигания скрытых карточек.
- * Не зависит от logger (проверяет typeof перед вызовом).
+ * Синхронное скрытие карточек статистики из localStorage.
  *
- * ВАЖНО: _hiddenCardsToHide используется ТОЛЬКО при начальной загрузке.
- * После DOMContentLoaded observer отключается, чтобы не конфликтовать
- * с showCard/hideCard, которые управляют видимостью в runtime.
+ * Загружается с defer в конце body. Цели:
+ *  1. До рендера (через MutationObserver на .stats-grid) — успеть скрыть карточки,
+ *     которые добавляет PHP-шаблон или клиентский код (custom-cards.js).
+ *  2. После initial load — продолжать наблюдать. Любая логика, которая
+ *     перерисовывает карточки в runtime (refreshDashboardData, custom-cards
+ *     async добавление, кастомные виджеты), не должна показывать спрятанные.
+ *
+ * РАНЬШЕ observer disconnect-ился на window.load. Это создавало баг: если
+ * пользователь скрыл карточку и localStorage обновился, то при следующем
+ * rerender карточки (после load) скрытие не применялось.
+ *
+ * Источник правды — localStorage. Перечитываем его на каждый mutation —
+ * это копеечно (читается строка ~200 байт), зато наблюдатель всегда
+ * синхронизирован с реальным состоянием.
  */
 (function() {
-  try {
-    var saved = localStorage.getItem('dashboard_hidden_cards');
-    if (!saved) return;
+  var LS_KEY = 'dashboard_hidden_cards';
 
-    var hiddenIds = JSON.parse(saved);
-    if (!Array.isArray(hiddenIds) || hiddenIds.length === 0) return;
-
-    window._hiddenCardsToHide = new Set(hiddenIds);
-
-    function hideCardImmediately(card) {
-      var cardId = card.getAttribute('data-card');
-      if (!cardId) return;
-      if (!window._hiddenCardsToHide || !window._hiddenCardsToHide.has(cardId)) return;
-
-      card.classList.add('hidden');
-      card.style.setProperty('display', 'none', 'important');
-      card.style.setProperty('visibility', 'hidden', 'important');
-      card.style.setProperty('opacity', '0', 'important');
-      card.setAttribute('hidden', '');
+  function readHidden() {
+    try {
+      var saved = localStorage.getItem(LS_KEY);
+      if (!saved) return null;
+      var arr = JSON.parse(saved);
+      return Array.isArray(arr) && arr.length > 0 ? new Set(arr) : null;
+    } catch (_) {
+      return null;
     }
+  }
 
-    // MutationObserver только для начальной отрисовки (до window.load)
-    var observer = new MutationObserver(function(mutations) {
-      if (!window._hiddenCardsToHide) return;
-      mutations.forEach(function(mutation) {
-        mutation.addedNodes.forEach(function(node) {
-          if (node.nodeType !== 1) return;
-          if (node.classList && node.classList.contains('stat-card')) {
-            hideCardImmediately(node);
-          }
-          if (node.querySelectorAll) {
-            node.querySelectorAll('.stat-card').forEach(hideCardImmediately);
-          }
-        });
-      });
+  function hideCardImmediately(card, hiddenSet) {
+    var cardId = card.getAttribute('data-card');
+    if (!cardId || !hiddenSet || !hiddenSet.has(cardId)) return;
+
+    card.classList.add('hidden');
+    card.style.setProperty('display', 'none', 'important');
+    card.style.setProperty('visibility', 'hidden', 'important');
+    card.style.setProperty('opacity', '0', 'important');
+    card.setAttribute('hidden', '');
+  }
+
+  function applyHidingToAllCards() {
+    var hiddenSet = readHidden();
+    if (!hiddenSet) return;
+    document.querySelectorAll('.stat-card').forEach(function(card) {
+      hideCardImmediately(card, hiddenSet);
     });
+  }
 
-    function startObserving() {
-      var statsContainer = document.querySelector('.stats-grid');
-      if (statsContainer) {
-        observer.observe(statsContainer, { childList: true, subtree: true });
-      } else if (document.body) {
-        observer.observe(document.body, { childList: true, subtree: true });
+  // _hiddenCardsToHide остаётся для обратной совместимости с dashboard-init.js,
+  // но теперь это просто проекция localStorage, а не отдельный лайфтайм.
+  var initialHidden = readHidden();
+  if (initialHidden) {
+    window._hiddenCardsToHide = initialHidden;
+  }
+
+  var observer = new MutationObserver(function(mutations) {
+    // Перечитываем localStorage на каждый mutation — это дёшево, зато
+    // всегда видим актуальный set (например, после showCard/hideCard).
+    var hiddenSet = readHidden();
+    if (!hiddenSet) return;
+
+    for (var i = 0; i < mutations.length; i++) {
+      var added = mutations[i].addedNodes;
+      for (var j = 0; j < added.length; j++) {
+        var node = added[j];
+        if (node.nodeType !== 1) continue;
+        if (node.classList && node.classList.contains('stat-card')) {
+          hideCardImmediately(node, hiddenSet);
+        }
+        if (node.querySelectorAll) {
+          node.querySelectorAll('.stat-card').forEach(function(c) {
+            hideCardImmediately(c, hiddenSet);
+          });
+        }
       }
     }
+  });
 
-    if (document.body) startObserving();
-    else document.addEventListener('DOMContentLoaded', startObserving);
-
-    function applyHidingToExistingCards() {
-      if (!window._hiddenCardsToHide || !document.querySelectorAll) return;
-      document.querySelectorAll('.stat-card').forEach(function(card) {
-        var cardId = card.getAttribute('data-card');
-        if (cardId && window._hiddenCardsToHide.has(cardId)) {
-          hideCardImmediately(card);
-        }
-      });
-    }
-
-    // Применяем скрытие при первой возможности
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', applyHidingToExistingCards);
-    } else {
-      applyHidingToExistingCards();
-    }
-
-    // После полной загрузки — финальное применение, затем ОТКЛЮЧАЕМ observer
-    window.addEventListener('load', function() {
-      applyHidingToExistingCards();
-      // Observer больше не нужен: runtime-управление через showCard/hideCard
-      observer.disconnect();
-      window._hiddenCardsToHide = null;
-    });
-  } catch (e) {
-    if (typeof logger !== 'undefined') logger.error('Error in cards-hide-sync:', e);
+  function startObserving() {
+    var statsContainer = document.querySelector('.stats-grid');
+    var target = statsContainer || document.body;
+    if (!target) return;
+    observer.observe(target, { childList: true, subtree: true });
   }
+
+  if (document.body) {
+    startObserving();
+    applyHidingToAllCards();
+  } else {
+    document.addEventListener('DOMContentLoaded', function() {
+      startObserving();
+      applyHidingToAllCards();
+    });
+  }
+
+  // Финальное применение после полной загрузки (на случай если что-то добавилось
+  // между DOMContentLoaded и load). Observer ОСТАЁТСЯ активным — это намеренно.
+  window.addEventListener('load', applyHidingToAllCards);
 })();

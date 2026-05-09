@@ -154,6 +154,7 @@ class DashboardController {
         $paginationParams = RequestHandler::getPaginationParams();
         $page = $paginationParams['page'];
         $perPage = $paginationParams['perPage'];
+        $allowedPerPage = $paginationParams['allowedPerPage'] ?? [25, 50, 100, 200];
         
         // Сортировка
         if (isset($meta['all']) && is_array($meta['all'])) {
@@ -267,6 +268,13 @@ class DashboardController {
         $recentAll = null;
         $byStatus = $stats['byStatus'];
         $countEmailTwoFa = $stats['emailTwoFa'] ?? 0;
+
+        // 7-day sparkline data for "Всего аккаунтов" stat-card
+        try {
+            $dailyTotals = $this->service->getDailyTotals(7);
+        } catch (Throwable $e) {
+            $dailyTotals = [];
+        }
         
         // Константы для обрезки длинных полей
         $CLIP_LEN = 80;
@@ -324,14 +332,21 @@ class DashboardController {
             'page' => $page,
             'pages' => $pages,
             'perPage' => $perPage,
+            'allowedPerPage' => $allowedPerPage,
             'prev' => $prev,
             'next' => $next,
             'pageNumbers' => $pageNumbers,
+            // Окно номеров страниц — нужны для footer.php, иначе при error_reporting=E_ALL
+            // обращение к undefined переменной триггерит set_error_handler → ErrorException →
+            // renderErrorPage → exit, и pagination обрывается посередине рендера.
+            'startPage' => $startPage,
+            'endPage'   => $endPage,
             'emptyStatusCount' => $emptyStatusCount,
             'totals' => $totals,
             'recentAll' => $recentAll,
             'byStatus' => $byStatus,
             'countEmailTwoFa' => $countEmailTwoFa,
+            'dailyTotals' => $dailyTotals,
             'CLIP_LEN' => $CLIP_LEN,
             'TOKEN_CLIP' => $TOKEN_CLIP,
             'statusMarketplace' => $statusMarketplace,

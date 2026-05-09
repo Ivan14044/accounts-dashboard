@@ -641,13 +641,13 @@ class Dashboard {
             return;
         }
         
-        // Модальные окна для полного содержимого
+        // Модальные окна для полного содержимого. Значение всегда в DOM (data-full).
         const fullDataTarget = e.target.closest('[data-full]');
-        if (fullDataTarget) {
+        if (fullDataTarget && !fullDataTarget.classList.contains('copy-btn')) {
             this.showFullDataModal(fullDataTarget);
             return;
         }
-        
+
         // Редактирование ячеек таблицы
         const editableCell = e.target.closest('#accountsTable td[data-col]');
         if (editableCell && !e.target.closest('a,button,.pw-toggle,[data-full]')) {
@@ -960,66 +960,120 @@ class Dashboard {
         </tr>`;
     }
     
+    // Рендер ячейки строки таблицы — зеркало серверного templates/partials/table/rows.php.
+    // Полные значения всегда в data-full / data-copy-text — никаких lazy-load.
     renderCell(col, row) {
         const value = row[col];
-        
+        const id = row.id;
+        const cfg = window.__DASHBOARD_CONFIG__ || {};
+        const longFields = Array.isArray(cfg.longFields) ? cfg.longFields
+            : ['cookies', 'first_cookie', 'token', 'user_agent', 'social_url'];
+        const numericCols = Array.isArray(cfg.numericCols) ? cfg.numericCols : [];
+        const CLIP_LEN   = Number.isInteger(cfg.clipLen)   ? cfg.clipLen   : 80;
+        const TOKEN_CLIP = Number.isInteger(cfg.tokenClip) ? cfg.tokenClip : 20;
+
+        const fieldType = numericCols.indexOf(col) !== -1 ? 'numeric' : 'text';
+        const e = (s) => this.escapeHtml(s);
+
+        // Пустое значение — placeholder "—" с кнопкой edit/copy (кроме password/id/actions).
         if (value === undefined || value === null || value === '') {
-            return `<span class="text-muted">—</span>
-                <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>`;
+            if (col === 'password' || col === 'email_password') {
+                return `<div class="pw-mask" data-row-id="${id}" data-field="${e(col)}">
+                    <span class="pw-dots text-muted">(не задан)</span>
+                    <span class="pw-text d-none"></span>
+                    <button type="button" class="pw-toggle" title="Показать/скрыть пароль"><i class="fas fa-eye"></i></button>
+                    <button type="button" class="pw-edit" title="Редактировать пароль"><i class="fas fa-edit"></i></button>
+                    <button type="button" class="copy-btn" data-copy-text="" title="Копировать пароль"><i class="fas fa-copy"></i></button>
+                </div>`;
+            }
+            if (col === 'id' || col === 'actions') {
+                return `<span class="text-muted">—</span>`;
+            }
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
+                <span class="text-muted field-value">—</span>
+                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+                <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
         }
-        
-        // Специальная обработка для разных типов колонок
-        switch (col) {
-            case 'id':
-                return `<span class="fw-bold text-primary">#${this.escapeHtml(value)}</span>
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
-                
-            case 'email':
-                return `<div class="d-flex align-items-center gap-2">
-                    <a href="mailto:${this.escapeHtml(value)}" class="text-decoration-none">${this.escapeHtml(value)}</a>
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                </div>`;
-                
-            case 'login':
-                return `<div class="d-flex align-items-center gap-2">
-                    <span class="fw-semibold">${this.escapeHtml(value)}</span>
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать">
-                        <i class="fas fa-copy"></i>
-                    </button>
-                </div>`;
-                
-            case 'password':
-            case 'email_password':
-                return `<div class="pw-mask">
-                    <span class="pw-dots">••••••••</span>
-                    <span class="pw-text d-none">${this.escapeHtml(value)}</span>
-                    <button type="button" class="pw-toggle" title="Показать пароль">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать пароль"><i class="fas fa-copy"></i></button>
-                </div>`;
-                
-            case 'status':
-                return `<div class="d-flex align-items-center gap-2">${this.renderStatusBadge(value)}
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
-                </div>`;
-                
-            default:
-                // Длинные поля
-                if (typeof value === 'string' && value.length > 80) {
-                    const clipped = value.substring(0, 80) + '…';
-                    return `<span class="truncate mono" title="Нажмите для просмотра" 
-                        data-full="${this.escapeHtml(value)}" data-title="${this.escapeHtml(col)}">
-                        ${this.escapeHtml(clipped)}
-                    </span>
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
-                }
-                
-                return `<span>${this.escapeHtml(value)}</span>
-                    <button type="button" class="copy-btn" data-copy-text="${this.escapeHtml(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
+
+        // ID — read-only, без edit-кнопки.
+        if (col === 'id') {
+            return `<span class="fw-bold text-primary">#${e(value)}</span>
+                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
         }
+
+        if (col === 'email') {
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="email" data-field-type="text">
+                <a href="mailto:${e(value)}" class="text-decoration-none field-value">${e(value)}</a>
+                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+                <button class="copy-btn" type="button" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        if (col === 'login') {
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="login" data-field-type="text">
+                <span class="fw-semibold field-value">${e(value)}</span>
+                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+                <button class="copy-btn" type="button" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        if (col === 'password' || col === 'email_password') {
+            return `<div class="pw-mask" data-row-id="${id}" data-field="${e(col)}">
+                <span class="pw-dots">••••••••</span>
+                <span class="pw-text d-none">${e(value)}</span>
+                <button type="button" class="pw-toggle" title="Показать/скрыть пароль"><i class="fas fa-eye"></i></button>
+                <button type="button" class="pw-edit" title="Редактировать пароль"><i class="fas fa-edit"></i></button>
+                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать пароль"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        // token: спец-клип TOKEN_CLIP, полное значение в data-full / data-copy-text.
+        if (col === 'token') {
+            const sval = String(value);
+            const clipped = sval.length > TOKEN_CLIP ? sval.substring(0, TOKEN_CLIP) + '…' : sval;
+            return `<div class="d-flex align-items-center gap-2">
+                <span class="truncate mono" title="Нажмите для просмотра" data-full="${e(value)}" data-title="Token">${e(clipped)}</span>
+                <button class="copy-btn" type="button" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        if (col === 'status') {
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="status" data-field-type="text">
+                ${this.renderStatusBadge(value)}
+                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        if (col === 'social_url' && typeof value === 'string' && /^https?:\/\//i.test(value)) {
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="social_url" data-field-type="text">
+                <a href="${e(value)}" target="_blank" rel="noopener" class="text-decoration-none field-value">
+                    <i class="fas fa-external-link-alt me-2"></i>${e(value)}
+                </a>
+                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        // Длинное поле: clip до CLIP_LEN, полное значение в data-full / data-copy-text.
+        const sval = typeof value === 'string' ? value : String(value);
+        const isLong = sval.length > CLIP_LEN || longFields.indexOf(col) !== -1;
+        if (isLong) {
+            const clipped = sval.length > CLIP_LEN ? sval.substring(0, CLIP_LEN) + '…' : sval;
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
+                <span class="truncate mono field-value" data-full="${e(value)}" data-title="${e(col)}">${e(clipped)}</span>
+                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+            </div>`;
+        }
+
+        // Обычное короткое поле.
+        return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
+            <span class="field-value">${e(value)}</span>
+            <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
+            <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+        </div>`;
     }
     
     renderStatusBadge(status) {
@@ -1165,65 +1219,76 @@ class Dashboard {
         }
     }
     
-    // Показ полного содержимого длинных полей
+    // Показ полного содержимого длинных полей. Значение всегда в data-full.
     showFullDataModal(target) {
-        const full = target.getAttribute('data-full') || '';
         const title = target.getAttribute('data-title') || 'Данные';
+        const full = target.getAttribute('data-full') || '';
         if (!full) return;
+        this._renderFullDataModal(title, full);
+    }
 
-        let modal = dashboardDomCache.getById('fullDataModal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'fullDataModal';
-
-            // Build the modal structure safely using DOM methods instead of innerHTML
-            const backdrop = document.createElement('div');
-            backdrop.className = 'fdm-backdrop';
-            backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:99999;';
-
-            const dialog = document.createElement('div');
-            dialog.className = 'fdm-dialog';
-            dialog.style.cssText = 'max-width:70vw;max-height:70vh;width:70vw;background:#fff;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;';
-
-            const header = document.createElement('div');
-            header.style.cssText = 'padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;';
-
-            const titleDiv = document.createElement('div');
-            titleDiv.style.fontWeight = '600';
-            titleDiv.textContent = title;
-
-            const closeBtn = document.createElement('button');
-            closeBtn.type = 'button';
-            closeBtn.className = 'fdm-close';
-            closeBtn.style.cssText = 'border:none;background:transparent;font-size:20px;line-height:1;cursor:pointer';
-            closeBtn.textContent = '×';
-
-            header.appendChild(titleDiv);
-            header.appendChild(closeBtn);
-
-            const content = document.createElement('div');
-            content.style.cssText = 'padding:16px;overflow:auto';
-
-            const pre = document.createElement('pre');
-            pre.style.cssText = 'white-space:pre-wrap;word-wrap:break-word;font-family:monospace;margin:0';
-            pre.textContent = full;
-
-            content.appendChild(pre);
-
-            dialog.appendChild(header);
-            dialog.appendChild(content);
-            backdrop.appendChild(dialog);
-            modal.appendChild(backdrop);
-
-            document.body.appendChild(modal);
-
-            backdrop.addEventListener('click', (e) => {
-                if (e.target.classList.contains('fdm-backdrop')) {
-                    modal.remove();
-                }
-            });
-            closeBtn.addEventListener('click', () => modal.remove());
+    _renderFullDataModal(title, full) {
+        let modal = document.getElementById('fullDataModal');
+        // Если предыдущий instance ещё на странице — обновим title/body in-place
+        // (нужно для AJAX-кейса: сначала показываем "Загружаю…", потом ответ).
+        if (modal) {
+            const titleDiv = modal.querySelector('.fdm-title');
+            const pre = modal.querySelector('pre');
+            if (titleDiv) titleDiv.textContent = title;
+            if (pre) pre.textContent = full;
+            return;
         }
+
+        modal = document.createElement('div');
+        modal.id = 'fullDataModal';
+
+        const backdrop = document.createElement('div');
+        backdrop.className = 'fdm-backdrop';
+        backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:99999;';
+
+        const dialog = document.createElement('div');
+        dialog.className = 'fdm-dialog';
+        dialog.style.cssText = 'max-width:70vw;max-height:70vh;width:70vw;background:#fff;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;';
+
+        const header = document.createElement('div');
+        header.style.cssText = 'padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;';
+
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'fdm-title';
+        titleDiv.style.fontWeight = '600';
+        titleDiv.textContent = title;
+
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'fdm-close';
+        closeBtn.style.cssText = 'border:none;background:transparent;font-size:20px;line-height:1;cursor:pointer';
+        closeBtn.textContent = '×';
+
+        header.appendChild(titleDiv);
+        header.appendChild(closeBtn);
+
+        const content = document.createElement('div');
+        content.style.cssText = 'padding:16px;overflow:auto';
+
+        const pre = document.createElement('pre');
+        pre.style.cssText = 'white-space:pre-wrap;word-wrap:break-word;font-family:monospace;margin:0';
+        pre.textContent = full;
+
+        content.appendChild(pre);
+
+        dialog.appendChild(header);
+        dialog.appendChild(content);
+        backdrop.appendChild(dialog);
+        modal.appendChild(backdrop);
+
+        document.body.appendChild(modal);
+
+        backdrop.addEventListener('click', (e) => {
+            if (e.target.classList.contains('fdm-backdrop')) {
+                modal.remove();
+            }
+        });
+        closeBtn.addEventListener('click', () => modal.remove());
     }
     
     // Переинициализация обработчиков для динамически обновлённой таблицы (заглушка)

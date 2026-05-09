@@ -293,9 +293,38 @@ $router->post('/accounts/custom-card', function() use ($tableName) {
 });
 
 // ────────────────────────────────────────────────────────────
-// Проверка аккаунтов на валидность (getuid.live)
+// Проверка аккаунтов на валидность (NPPR Services)
 // ────────────────────────────────────────────────────────────
 require_once __DIR__ . '/../includes/AccountValidationService.php';
+
+/**
+ * POST /accounts/validate/preview
+ * Pre-flight COUNT: возвращает только число записей в выбранном scope,
+ * без выборки cookies/regex-парсинга. Нужен для мгновенной обратной связи
+ * пользователю ("Будет проверено: 1234 аккаунта") до старта тяжёлого prepare.
+ */
+$router->post('/accounts/validate/preview', function() use ($tableName) {
+    $input = read_json_input(1048576);
+    if (!is_array($input)) throw new InvalidArgumentException('Invalid input');
+
+    $csrf = (string)($input['csrf'] ?? '');
+    if (!Validator::validateCsrfToken($csrf)) {
+        throw new InvalidArgumentException('CSRF validation failed');
+    }
+
+    $scope = (string)($input['scope'] ?? 'selected');
+    if (!in_array($scope, ['selected', 'page', 'filter'], true)) {
+        throw new InvalidArgumentException('Invalid scope');
+    }
+
+    $ids   = isset($input['ids']) && is_array($input['ids']) ? array_filter(array_map('intval', $input['ids'])) : [];
+    $query = (string)($input['query'] ?? '');
+
+    $service = new AccountsService($tableName);
+    $total   = $service->getValidationCount($scope, $ids, $query);
+
+    json_success(['total' => $total, 'scope' => $scope]);
+});
 
 /**
  * POST /accounts/validate/prepare
@@ -320,12 +349,34 @@ $router->post('/accounts/validate/prepare', function() use ($tableName) {
     $limit  = min(max((int)($input['limit'] ?? Config::VALIDATE_PREPARE_LIMIT), 1), Config::VALIDATE_PREPARE_LIMIT);
     $offset = max(0, (int)($input['offset'] ?? 0));
 
+    $tStart = microtime(true);
     $service  = new AccountsService($tableName);
     $data     = $service->getAccountsForValidation($scope, $ids, $query, $limit, $offset);
+    $tSql     = microtime(true);
     $prepared = AccountValidationService::prepareItems($data['rows']);
+    $tEnd     = microtime(true);
 
     $rowCount = count($data['rows']);
     $nextOffset = $offset + $rowCount;
+    $sqlMs    = (int)(($tSql - $tStart) * 1000);
+    $extractMs = (int)(($tEnd - $tSql) * 1000);
+    $totalMs  = $sqlMs + $extractMs;
+
+    Logger::debug('validate/prepare timing', [
+        'scope'      => $scope,
+        'rows'       => $rowCount,
+        'items'      => count($prepared['items']),
+        'skipped'    => count($prepared['skipped']),
+        'sql_ms'     => $sqlMs,
+        'extract_ms' => $extractMs,
+        'total_ms'   => $totalMs,
+    ]);
+    if ($totalMs > 3000) {
+        Logger::warning('validate/prepare slow', [
+            'scope' => $scope, 'rows' => $rowCount,
+            'sql_ms' => $sqlMs, 'extract_ms' => $extractMs,
+        ]);
+    }
 
     json_success([
         'items'       => $prepared['items'],
@@ -340,7 +391,13 @@ $router->post('/accounts/validate/prepare', function() use ($tableName) {
  * POST /accounts/validate/check
  * Проверка батча через NPPR fbchecker (curl_multi, параллельно внутри запроса).
  * Сессия закрывается до начала — чтобы не блокировать другие запросы.
+ *
+ * Если передан job_id — после каждого sub-batch NPPR пишем инкрементальный
+ * прогресс в JobProgress. Фронт читает его через polling /progress, что даёт
+ * движение % ВНУТРИ одного /check (без этого UI стоит на 0% по 5–15 сек).
  */
+require_once __DIR__ . '/../includes/JobProgress.php';
+
 $router->post('/accounts/validate/check', function() use ($tableName) {
     $input = read_json_input(1048576);
     if (!is_array($input)) throw new InvalidArgumentException('Invalid input');
@@ -355,12 +412,61 @@ $router->post('/accounts/validate/check', function() use ($tableName) {
         throw new InvalidArgumentException('Too many items, max ' . Config::VALIDATE_CHECK_MAX_ITEMS);
     }
 
+    $jobId = (string)($input['job_id'] ?? '');
+    if ($jobId !== '' && !JobProgress::isValidId($jobId)) {
+        $jobId = ''; // невалидный — игнорируем, но не падаем
+    }
+
+    // Cleanup старых job-файлов: на shared нет cron, делаем оппортунистически.
+    // Дешёвая операция (glob + filemtime), 1 раз на /check некритично.
+    if ($jobId !== '') {
+        JobProgress::cleanup();
+    }
+
     // Отпускаем сессию — длинная операция не должна блокировать UI
     session_write_close();
     set_time_limit(120);
 
-    $result = AccountValidationService::checkItems($items);
+    $tStart = microtime(true);
+    $result = AccountValidationService::checkItems($items, $jobId !== '' ? $jobId : null);
+    $totalMs = (int)((microtime(true) - $tStart) * 1000);
+
+    Logger::debug('validate/check timing', [
+        'items'    => count($items),
+        'valid'    => count($result['valid']   ?? []),
+        'invalid'  => count($result['invalid'] ?? []),
+        'skipped'  => count($result['skipped'] ?? []),
+        'total_ms' => $totalMs,
+        'job_id'   => $jobId,
+    ]);
+    if ($totalMs > 15000) {
+        Logger::warning('validate/check slow', [
+            'items' => count($items), 'total_ms' => $totalMs,
+        ]);
+    }
+
     json_success($result);
+});
+
+/**
+ * GET /accounts/validate/progress?job_id=X
+ * Возвращает текущий прогресс задачи валидации. Фронт делает polling
+ * каждые 1.5 сек чтобы UI двигался во время /check.
+ */
+$router->get('/accounts/validate/progress', function() {
+    $jobId = (string)($_GET['job_id'] ?? '');
+    if (!JobProgress::isValidId($jobId)) {
+        throw new InvalidArgumentException('Invalid job_id');
+    }
+
+    // Polling может прилететь до того как сервер начал писать — это не ошибка
+    $data = JobProgress::read($jobId);
+    if ($data === null) {
+        json_success(['exists' => false, 'checked' => 0]);
+        return;
+    }
+
+    json_success(array_merge(['exists' => true], $data));
 });
 
 $router->post('/status/register', function() use ($tableName) {

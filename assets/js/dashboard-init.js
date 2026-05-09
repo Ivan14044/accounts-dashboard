@@ -684,21 +684,12 @@ function handleDocumentClick(e) {
     });
     return;
   }
-  var dataFullEl = t.closest && t.closest('[data-full]');
-  if (dataFullEl) {
-    var full = dataFullEl.getAttribute('data-full') || '';
-    var title = dataFullEl.getAttribute('data-title') || 'Полное значение';
-    var cellModalTitle = getElementById('cellModalTitle');
-    var cellModalBody = getElementById('cellModalBody');
-    var cellModal = getElementById('cellModal');
-    if (cellModalTitle) cellModalTitle.textContent = title;
-    if (cellModalBody) cellModalBody.textContent = full;
-    if (cellModal) {
-      var modal = new bootstrap.Modal(cellModal);
-      modal.show();
-    }
-    return;
-  }
+  // Popup полного значения управляется единственным handler'ом в dashboard.js
+  // (метод showFullDataModal класса DashboardManager). Дубликат удалён — раньше
+  // и dashboard-init.js, и dashboard.js оба ловили клик на [data-full] и
+  // открывали ДВЕ модалки одновременно (Bootstrap cellModal + кастомная
+  // fullDataModal). Backdrop Bootstrap'а застревал после закрытия и блокировал
+  // все клики на странице.
   var copyBtn = t.closest && t.closest('.copy-btn');
   if (copyBtn) {
     var textToCopy = copyBtn.getAttribute('data-copy-text');
@@ -1350,24 +1341,9 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
   
   // Редактирование названий статистических блоков отключено
 
-  // Отключаем JavaScript обработчик пагинации - пусть работают обычные ссылки
-  // document.addEventListener('click', function(e){
-  //   const a = e.target.closest('.pagination a.page-link');
-  //   if (!a) return;
-  //   // если пункт disabled — игнорируем
-  //   const li = a.closest('li');
-  //   if (li && li.classList.contains('disabled')) { 
-  //     e.preventDefault(); 
-  //     return; 
-  //   }
-  //   // Обычный переход по href - это должно работать
-  //   logger.debug('Pagination click:', a.getAttribute('href'), 'data-page:', a.getAttribute('data-page'));
-  // });
-  
-  // Select All и Individual checkboxes теперь обрабатываются через делегирование событий ниже
-  // Удалён дублирующийся код (см. строки 4778+ и 5315+)
-  
-  // Password toggle / Password edit / Cell modal — в handleDocumentClick
+  // Pagination клики обрабатываются обычным href-переходом (без JS).
+  // Select All и individual checkbox-ы — через делегирование в handleDocumentChange.
+  // Password toggle / cell modal — в handleDocumentClick.
   
   // Copy cell content
   const cellCopyBtn = getElementById('cellCopyBtn');
@@ -2362,18 +2338,18 @@ async function handleCardSwipe(card) {
   } else if (cardType === 'status') {
     // Фильтровать по статусу - БЕЗ перезагрузки страницы
     const url = new URL(window.location);
-    // Удаляем все старые статусы
-    const keysToDelete = [];
-    for (const key of url.searchParams.keys()) {
-      if (key === 'status[]' || key === 'status') {
-        keysToDelete.push(key);
+    // Удаляем все старые статусы (включая индексированные status[N] от http_build_query)
+    if (typeof window.deleteAllStatusKeys === 'function') {
+      window.deleteAllStatusKeys(url);
+    } else {
+      const keysToDelete = [];
+      for (const key of url.searchParams.keys()) {
+        if (key === 'status' || key === 'status[]' || /^status\[\d+\]$/.test(key)) {
+          keysToDelete.push(key);
+        }
       }
+      keysToDelete.forEach(key => url.searchParams.delete(key));
     }
-    keysToDelete.forEach(key => {
-      while (url.searchParams.has(key)) {
-        url.searchParams.delete(key);
-      }
-    });
     // Добавляем новый статус
     url.searchParams.append('status[]', status);
     url.searchParams.set('page', '1');
@@ -3210,19 +3186,20 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Обновляем URL и данные
     const url = new URL(window.location);
-    // Удаляем все старые параметры status и empty_status
-    const keysToDelete = [];
-    for (const key of url.searchParams.keys()) {
-      if (key === 'status[]' || key === 'status' || key === 'empty_status') {
-        keysToDelete.push(key);
+    // Удаляем все старые параметры status (включая индексированные status[N]) и empty_status
+    if (typeof window.deleteAllStatusKeys === 'function') {
+      window.deleteAllStatusKeys(url);
+      url.searchParams.delete('empty_status');
+    } else {
+      const keysToDelete = [];
+      for (const key of url.searchParams.keys()) {
+        if (key === 'status' || key === 'status[]' || /^status\[\d+\]$/.test(key) || key === 'empty_status') {
+          keysToDelete.push(key);
+        }
       }
+      keysToDelete.forEach(key => url.searchParams.delete(key));
     }
-    keysToDelete.forEach(key => {
-      while (url.searchParams.has(key)) {
-        url.searchParams.delete(key);
-      }
-    });
-    
+
     // Добавляем выбранные статусы
     if (selectedCount > 0) {
       checkedBoxes.forEach(cb => {

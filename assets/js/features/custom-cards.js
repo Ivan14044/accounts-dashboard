@@ -223,7 +223,16 @@
         '<div class="stat-value">0</div>' +
         '<div class="stat-trend"><small class="text-muted">' + trendEsc + '</small></div>';
 
-      if (isHiddenByUser) cardElement.classList.add('hidden');
+      if (isHiddenByUser) {
+        // Класс + inline style: дублируем для надёжности. Если кто-то перебивает
+        // CSS правило `.stat-card.hidden { display: none !important }` через
+        // более специфичный селектор — inline `!important` всё равно победит.
+        cardElement.classList.add('hidden');
+        cardElement.style.setProperty('display', 'none', 'important');
+        cardElement.style.setProperty('visibility', 'hidden', 'important');
+        cardElement.style.setProperty('opacity', '0', 'important');
+        cardElement.setAttribute('hidden', '');
+      }
       row.appendChild(cardElement);
     });
 

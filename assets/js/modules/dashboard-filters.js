@@ -86,13 +86,22 @@ function updateFilterURL(filterName, value, min = null, max = null) {
       }
       break;
     case 'status':
+      // Удаляем все формы status (включая индексированные status[N] от http_build_query)
+      if (typeof window.deleteAllStatusKeys === 'function') {
+        window.deleteAllStatusKeys(url);
+      } else {
+        const _statusKeys = [];
+        for (const _k of url.searchParams.keys()) {
+          if (_k === 'status' || _k === 'status[]' || /^status\[\d+\]$/.test(_k)) {
+            _statusKeys.push(_k);
+          }
+        }
+        _statusKeys.forEach(_k => url.searchParams.delete(_k));
+      }
       if (Array.isArray(value) && value.length > 0) {
-        url.searchParams.delete('status[]');
         value.forEach(status => {
           url.searchParams.append('status[]', status);
         });
-      } else {
-        url.searchParams.delete('status[]');
       }
       break;
     case 'bm_status':

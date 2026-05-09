@@ -171,36 +171,39 @@
       }
     }
 
+    // Цепь инициализаторов после рендера таблицы. Раньше тут было 5 вызовов
+     // подряд, каждый делал свой querySelectorAll и переплетал read/write —
+     // 100 строк × layout thrashing = ~30 мс впустую. Сейчас:
+     //  - убран мёртвый updateAllSelectedRowsHighlight (функции нет в коде, typeof === undefined);
+     //  - вся цепь обёрнута в один RAF, чтобы браузер сделал ОДИН reflow в конце;
+     //  - sticky-scrollbar убран из refreshLayout — он зависит только от ширин колонок,
+     //    а они на render строк не меняются. Sticky обновляется на resize и при toggle колонок.
     afterRender() {
-      if (typeof applySavedColumnVisibility === 'function') {
-        applySavedColumnVisibility();
-      }
-      if (typeof initCheckboxStates === 'function') {
-        initCheckboxStates();
-      }
-      if (typeof updateAllSelectedRowsHighlight === 'function') {
-        updateAllSelectedRowsHighlight();
-      }
-      if (window.favoritesManager && typeof window.favoritesManager.updateTableFavorites === 'function') {
-        window.favoritesManager.updateTableFavorites();
-      }
-      if (typeof updateSelectedCount === 'function') {
-        updateSelectedCount();
-      }
-      this.refreshLayout();
+      const run = () => {
+        if (typeof applySavedColumnVisibility === 'function') applySavedColumnVisibility();
+        if (typeof initCheckboxStates === 'function') initCheckboxStates();
+        if (window.favoritesManager && typeof window.favoritesManager.updateTableFavorites === 'function') {
+          window.favoritesManager.updateTableFavorites();
+        }
+        if (typeof updateSelectedCount === 'function') updateSelectedCount();
+        this.refreshLayout();
+      };
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+      else run();
     }
 
     refreshLayout() {
-      // Используем requestAnimationFrame для гарантии, что DOM полностью обновлен
-      // перед обновлением виртуализации
+      // Только то, что реально зависит от обновления tbody:
+      //  - virtualScroller пересчитывает spacers/visible window
+      //  - cache invalidation (dom-cache, RowIdsCache)
+      // Sticky-scrollbar НЕ обновляем здесь — он завязан на ширины колонок,
+      // а они при rerender строк не меняются. См. sticky-scrollbar.js — он
+      // подписан на window resize и события скрытия/показа колонок.
+      if (typeof requestAnimationFrame !== 'function') return;
       requestAnimationFrame(() => {
         if (this.virtualScroller && typeof this.virtualScroller.refresh === 'function') {
           this.virtualScroller.refresh();
         }
-        if (typeof window.updateStickyScrollbar === 'function') {
-          window.updateStickyScrollbar();
-        }
-        // Инвалидируем dom-cache и RowIdsCache после обновления виртуализации
         if (typeof domCache !== 'undefined' && typeof domCache.invalidate === 'function') {
           domCache.invalidate();
         }
@@ -425,13 +428,14 @@
     checkAndToggle() {
       if (!this.tbody) return;
       const dataRows = Array.from(this.tbody.querySelectorAll('tr[data-id]'));
-      
-      // Проверяем значение per_page из URL
-      // Отключаем виртуализацию для малых значений per_page (<=100)
-      // чтобы пользователь видел все строки сразу
+
+      // Виртуализация рассчитана на 500+ строк. Для умеренных выборок (50–200)
+      // она НЕ ускоряет — наоборот, добавляет cost: создание spacer-элементов,
+      // scroll-listener'ы, recalculate на resize. Браузер прекрасно справляется
+      // со 100–200 строками без неё. Триггерим только при per_page > 200.
       const urlParams = new URLSearchParams(window.location.search);
       const perPage = parseInt(urlParams.get('per_page') || '25', 10);
-      const shouldEnableVirtualization = dataRows.length > this.options.threshold && perPage > 50;
+      const shouldEnableVirtualization = dataRows.length > this.options.threshold && perPage > 200;
       
       if (shouldEnableVirtualization) {
         if (!this.enabled) {
@@ -621,10 +625,9 @@
       if (typeof initCheckboxStates === 'function') {
         initCheckboxStates();
       }
-      if (typeof updateAllSelectedRowsHighlight === 'function') {
-        updateAllSelectedRowsHighlight();
-      }
-      
+      // updateAllSelectedRowsHighlight удалён — функции нет в коде, проверка
+      // typeof давала false, вызов был мёртвым.
+
       // Обновляем индикатор виртуализации в idle
       (window.scheduleIdle || function(fn) { setTimeout(fn, 0); })(() => this.updateVirtualizationHint());
       

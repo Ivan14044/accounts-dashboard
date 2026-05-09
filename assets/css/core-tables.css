@@ -294,7 +294,10 @@
   font-size: 0.6875rem;
 }
 
-/* ── FOOTER ТАБЛИЦЫ (Пагинация) ── */
+/* ── FOOTER ТАБЛИЦЫ (Пагинация) ──
+   Layout: 2 главные группы — info слева, controls справа.
+   Раньше было 3 child-а под space-between → per-page оказывался в одиночестве
+   посередине с большими пустотами. Теперь: [info] ←──── space ────→ [controls]. */
 .dashboard-table__footer {
   padding: var(--space-4) var(--space-6);
   border-top: 1px solid var(--gray-200);
@@ -306,10 +309,28 @@
   gap: var(--space-4);
 }
 
+.dashboard-table__footer-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
 .dashboard-table__footer-nav {
   display: flex;
   align-items: center;
   gap: var(--space-4);
+}
+
+/* Тонкий вертикальный разделитель между per-page и блоком навигации.
+   Ширина 1px, высота от align-self:stretch — растягивается по высоте flex-row. */
+.dashboard-table__footer-divider {
+  display: inline-block;
+  width: 1px;
+  align-self: stretch;
+  background: var(--gray-200);
+  min-height: 24px;
+  flex-shrink: 0;
 }
 
 /* ── LOADER В ТАБЛИЦЕ ── */

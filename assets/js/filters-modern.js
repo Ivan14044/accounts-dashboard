@@ -12,6 +12,64 @@ function escapeHtml(str) {
 }
 
 // ========================================
+// УНИВЕРСАЛЬНАЯ РАБОТА СО СТАТУСАМИ В URL
+// ========================================
+// PHP может отдавать статусы в трёх формах:
+//   status=foo,bar           — CSV-строкой
+//   status[]=foo&status[]=bar — массивом без индексов (HTML-форма, JS-код)
+//   status[0]=foo&status[1]=bar — индексированным массивом (http_build_query, пагинация)
+// JS-код раньше работал только с status[], из-за чего status[N] оставался
+// в URL после удаления чипа / сброса / синхронизации формы и фильтр продолжал
+// применяться на бэкенде.
+
+/**
+ * Вернуть массив выбранных статусов из URL, объединяя все формы передачи.
+ * Дубликаты убираются.
+ * @param {URL|URLSearchParams} src
+ * @returns {string[]}
+ */
+function getStatusValuesFromUrl(src) {
+    const params = src instanceof URL ? src.searchParams : src;
+    if (!params) return [];
+    const values = [];
+    const seen = new Set();
+    const push = function(v) {
+        if (v == null) return;
+        const s = String(v);
+        if (s === '' || seen.has(s)) return;
+        seen.add(s);
+        values.push(s);
+    };
+    params.forEach(function(value, key) {
+        if (key === 'status[]' || /^status\[\d+\]$/.test(key)) {
+            push(value);
+        } else if (key === 'status') {
+            String(value).split(',').forEach(function(v) { push(v.trim()); });
+        }
+    });
+    return values;
+}
+
+/**
+ * Удалить из URL все ключи статуса (status, status[], status[0], status[1], ...).
+ * Используется перед записью статусов в канонической форме status[].
+ * @param {URL} url
+ */
+function deleteAllStatusKeys(url) {
+    if (!url || !url.searchParams) return;
+    const keys = new Set();
+    url.searchParams.forEach(function(_value, key) {
+        if (key === 'status' || key === 'status[]' || /^status\[\d+\]$/.test(key)) {
+            keys.add(key);
+        }
+    });
+    keys.forEach(function(k) { url.searchParams.delete(k); });
+}
+
+window.getStatusValuesFromUrl = getStatusValuesFromUrl;
+window.deleteAllStatusKeys = deleteAllStatusKeys;
+
+// ========================================
 // УПРАВЛЕНИЕ CHIPS (Активные фильтры)
 // ========================================
 
@@ -39,8 +97,8 @@ function renderActiveFiltersFromUrl() {
         chips.push('<div class="filter-chip" data-filter="status" data-status-value="__empty__"><i class="fas fa-exclamation-triangle filter-chip-icon"></i><span>Пустой статус</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
     }
 
-    // Статусы
-    const statuses = params.getAll('status[]');
+    // Статусы (учитываем все формы: status, status[], status[N])
+    const statuses = getStatusValuesFromUrl(params);
     statuses.forEach(function (st) {
         if (st !== '' && st !== '__empty__') {
             chips.push('<div class="filter-chip" data-filter="status" data-status-value="' + escapeHtml(st) + '"><i class="fas fa-tag filter-chip-icon"></i><span>' + escapeHtml(st) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
@@ -245,8 +303,8 @@ function syncFormFromUrl() {
     if (!form) return;
     var params = new URLSearchParams(window.location.search);
 
-    // Статусы
-    var urlStatuses = params.getAll('status[]');
+    // Статусы (учитываем все формы: status, status[], status[N])
+    var urlStatuses = getStatusValuesFromUrl(params);
     form.querySelectorAll('input.status-checkbox[name="status[]"]').forEach(function(cb) {
         cb.checked = urlStatuses.indexOf(cb.value) !== -1;
     });
@@ -355,23 +413,15 @@ function removeStatusChip(statusValue) {
         // Удаляем empty_status
         url.searchParams.delete('empty_status');
     } else {
-        // Получаем все текущие статусы (проверяем оба варианта: status[] и status)
-        let currentStatuses = url.searchParams.getAll('status[]');
-        
-        // Если status[] пустой, пробуем получить из status
-        if (currentStatuses.length === 0) {
-            const statusParam = url.searchParams.get('status');
-            if (statusParam) {
-                currentStatuses = statusParam.split(',').map(s => s.trim()).filter(s => s);
-            }
-        }
-        
-        // Удаляем все статусы из URL
-        url.searchParams.delete('status[]');
-        url.searchParams.delete('status');
-        
-        // Добавляем обратно всё кроме удаляемого (строгое сравнение)
-        currentStatuses.forEach(st => {
+        // Собираем текущие статусы из всех возможных форм (status, status[], status[N])
+        const currentStatuses = getStatusValuesFromUrl(url);
+
+        // Полностью зачищаем все ключи статуса в URL — иначе индексированный
+        // status[0]=... оставался бы и продолжал фильтровать на бэкенде
+        deleteAllStatusKeys(url);
+
+        // Записываем обратно всё кроме удаляемого, в канонической форме status[]
+        currentStatuses.forEach(function(st) {
             if (String(st) !== String(statusValue)) {
                 url.searchParams.append('status[]', st);
             }
@@ -440,6 +490,9 @@ function resetAllFilters() {
     ALL_FILTER_PARAMS.forEach(function(key) {
         url.searchParams.delete(key);
     });
+    // На случай если в URL пришли status[0], status[1] (от http_build_query):
+    // ALL_FILTER_PARAMS их не покрывает, нужен явный обход всех ключей.
+    deleteAllStatusKeys(url);
     url.searchParams.set('page', '1');
     applyFiltersWithoutReload(url);
 }
@@ -509,10 +562,11 @@ function getFormFiltersUrl(form) {
         }
     }
     // Статусы и empty_status берём по текущему состоянию чекбоксов в DOM,
-    // а не из FormData — иначе при быстром снятии одного и выборе другого может применяться старый набор
-    for (const key of ['status[]', 'status', 'empty_status']) {
-        while (url.searchParams.has(key)) url.searchParams.delete(key);
-    }
+    // а не из FormData — иначе при быстром снятии одного и выборе другого может применяться старый набор.
+    // deleteAllStatusKeys гарантирует, что индексированные status[N] (от http_build_query)
+    // тоже будут удалены — иначе они остались бы в URL и продолжали фильтровать на бэкенде.
+    deleteAllStatusKeys(url);
+    url.searchParams.delete('empty_status');
     var emptyCb = form.querySelector('input.status-checkbox[name="empty_status"]');
     if (emptyCb && emptyCb.checked) {
         url.searchParams.set('empty_status', '1');

@@ -183,6 +183,18 @@
           }
         }
       }
+      // Обёртки (footer-nav div + divider + pageinfo span) рендерятся всегда,
+      // но могут быть скрыты через style="display:none" при initial pages<=1.
+      // Переключаем видимость на основе текущего data.pages.
+      if (typeof data.pages === 'number') {
+        const multi = data.pages > 1;
+        const footerNav = document.querySelector('.dashboard-table__footer-nav');
+        const footerDivider = document.querySelector('.dashboard-table__footer-divider');
+        const pageInfo = document.querySelector('.dashboard-table__footer-pageinfo');
+        if (footerNav) footerNav.style.display = multi ? '' : 'none';
+        if (footerDivider) footerDivider.style.display = multi ? '' : 'none';
+        if (pageInfo) pageInfo.style.display = multi ? '' : 'none';
+      }
 
       // ── Фаза 2: Тяжёлые DOM-операции в requestAnimationFrame (один reflow) ──
       requestAnimationFrame(() => {
