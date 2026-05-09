@@ -1,6 +1,4 @@
-# Автодеплой по FTPS на оба домена (panel + dashboard) при пуше в main или
-# feature/dashboard-load-optimization. Оба таргета используют один и тот же
-# FTP-аккаунт, но разные server-dir.
+# Автодеплой по FTPS при пуше в main. main — единственный trunk.
 #
 # Секреты: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, NPPR_API_TOKEN.
 
@@ -10,7 +8,6 @@ on:
   push:
     branches:
       - main
-      - feature/dashboard-load-optimization
   workflow_dispatch:
 
 env:
