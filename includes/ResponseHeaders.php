@@ -102,8 +102,8 @@ class ResponseHeaders {
         $csp = implode('; ', [
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
-            "style-src  'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
-            "font-src   'self' https://cdnjs.cloudflare.com data:",
+            "style-src  'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com",
+            "font-src   'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
             "img-src    'self' data: blob: https:",
             "connect-src 'self'",
             "frame-ancestors 'self'",
