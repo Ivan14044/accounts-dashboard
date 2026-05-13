@@ -219,29 +219,35 @@ class AccountsService {
         if ($sort === 'id') {
             return "`id` $dir";
         }
-        
+
+        // Везде ниже добавляем `id` финальным tie-breaker. Без него LIMIT/OFFSET-пагинация по
+        // не-уникальной колонке (quantity_friends, year_created, status, created_at и т.д.)
+        // нестабильна между батчами: MySQL не гарантирует одинаковый порядок тай-строк между
+        // отдельными выполнениями запроса, и export.php перечитывает одни и те же id в разные
+        // батчи → дубли в выгрузке.
+
         // Колонки с числовым типом в БД (INT и т.д.) — простая сортировка для использования индекса.
         if (in_array($sort, $meta['numeric'], true)) {
-            return "`$sort` $dir";
+            return "`$sort` $dir, `id` $dir";
         }
-        
+
         // Колонки, которые хранятся как строки, но сортируются как числа (TRIM/CAST по строкам, индекс не используется)
         $isNumericLike = in_array($sort, self::getNumericLikeColumns(), true);
-        
+
         if ($isNumericLike) {
             $numericExpr = "CAST(COALESCE(NULLIF(TRIM(`$sort`), ''), '0') AS UNSIGNED)";
             if ($dir === 'ASC') {
-                return "CASE WHEN `$sort` IS NULL OR TRIM(`$sort`) = '' THEN 1 ELSE 0 END, $numericExpr ASC";
+                return "CASE WHEN `$sort` IS NULL OR TRIM(`$sort`) = '' THEN 1 ELSE 0 END, $numericExpr ASC, `id` ASC";
             }
-            return "CASE WHEN `$sort` IS NULL OR TRIM(`$sort`) = '' THEN 1 ELSE 0 END DESC, $numericExpr DESC";
+            return "CASE WHEN `$sort` IS NULL OR TRIM(`$sort`) = '' THEN 1 ELSE 0 END DESC, $numericExpr DESC, `id` DESC";
         }
-        
+
         {
             // Для текстовых полей: NULL и пустые значения идут в конец при ASC, в начало при DESC
             if ($dir === 'ASC') {
-                return "(`$sort` IS NULL OR `$sort` = ''), `$sort` ASC";
+                return "(`$sort` IS NULL OR `$sort` = ''), `$sort` ASC, `id` ASC";
             } else {
-                return "(`$sort` IS NULL OR `$sort` = '') DESC, `$sort` DESC";
+                return "(`$sort` IS NULL OR `$sort` = '') DESC, `$sort` DESC, `id` DESC";
             }
         }
     }
