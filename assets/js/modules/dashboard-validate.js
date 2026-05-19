@@ -1,14 +1,14 @@
 /**
  * dashboard-validate.js
- * Модуль проверки аккаунтов на валидность через NPPR Services API
+ * Модуль проверки аккаунтов на валидность через check.fb.tools
  *
  * ВАЖНО: параллельные запросы к нашему API блокируются nginx rate limiter'ом (429).
  * Поэтому отправляем СТРОГО ОДИН запрос за раз (CONCURRENCY=1),
  * а параллельность обеспечивает бэкенд: AccountValidationService раскидывает
- * суб-батчи к NPPR через curl_multi.
+ * суб-батчи к check.fb.tools через curl_multi.
  *
  * BATCH_SIZE=200 (= VALIDATE_CHECK_MAX_ITEMS) → бэкенд делит их на суб-батчи
- * по NPPR_BATCH_SIZE=100 и обращается к NPPR одновременно.
+ * по FB_TOOLS_BATCH_SIZE=100 и обращается к check.fb.tools одновременно.
  * Streaming прогресс: после каждого sub-batch сервер пишет в JobProgress,
  * фронт читает через polling /progress — UI движется внутри батча.
  */
@@ -310,7 +310,7 @@
   // ─── Streaming progress polling ────────────────────────
   // Пока /check выполняется на сервере (5–15 сек на батч), без polling
   // прогресс-бар стоит на 0%. Сервер пишет инкрементальные апдейты в
-  // JobProgress после каждого sub-batch NPPR, мы их подтягиваем сюда.
+  // JobProgress после каждого sub-batch check.fb.tools, мы их подтягиваем сюда.
   function startPolling() {
     if (state.pollTimer || !state.jobId) return;
 
