@@ -26,7 +26,7 @@
     <button class="btn btn-sm btn-primary btn-cta" id="addAccountBtn" data-bs-toggle="modal" data-bs-target="#addAccountModal">
       <i class="fas fa-plus"></i> Добавить аккаунт
     </button>
-    <button class="btn btn-sm btn-ghost btn-ghost--primary" id="validateAccountsBtn" disabled title="Проверка аккаунтов на валидность (NPPR Services)">
+    <button class="btn btn-sm btn-ghost btn-ghost--primary" id="validateAccountsBtn" disabled title="Проверка аккаунтов на валидность (check.fb.tools)">
       <i class="fas fa-check-double"></i> Проверка
     </button>
     <button class="btn btn-sm btn-ghost" id="transferAccountsBtn">

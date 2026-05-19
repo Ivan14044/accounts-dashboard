@@ -127,33 +127,50 @@ class Config {
     const LOGIN_BLOCK_TIME = 300; // 5 минут
     
     // ========================================
-    // ПРОВЕРКА ВАЛИДНОСТИ АККАУНТОВ (NPPR Services API)
-    // https://npprservices.pro/apidoc
+    // ПРОВЕРКА ВАЛИДНОСТИ АККАУНТОВ
     // ========================================
+    //
+    // Live-провайдер: check.fb.tools (https://check.fb.tools/ru)
+    //   - bulk endpoint POST /api/check/account
+    //   - без авторизации, без токена
+    //   - возвращает { data: [{account, uid, status: {name: "valid"|"invalid"}}] }
+    //
+    // Legacy: NPPR Services (https://npprservices.pro). Константы NPPR_*
+    // временно остаются для FbCheckerService + /accounts/check-fb — это dead
+    // path, который будет удалён вторым PR после пробы check.fb.tools в проде.
 
     /**
-     * URL для проверки FB аккаунтов (NPPR fbchecker)
+     * URL bulk-чекера check.fb.tools.
+     * API без авторизации: POST { inputData: [...], checkFriends: false, userLang: "ru" }.
      */
-    const NPPR_FBCHECK_URL = 'https://npprservices.pro/api/services/fbchecker';
+    const FB_TOOLS_URL = 'https://check.fb.tools/api/check/account';
 
     /**
-     * Размер батча FB ID за один запрос к NPPR
+     * Размер батча FB ID за один запрос к check.fb.tools.
      */
-    const NPPR_BATCH_SIZE = 100;
+    const FB_TOOLS_BATCH_SIZE = 100;
 
     /**
-     * Таймаут запроса к NPPR (секунд).
+     * Таймаут запроса к check.fb.tools (секунд).
      * 15 сек — компромисс: достаточно для нормального ответа, но при сбое
      * быстрее проваливаемся в retry, не блокируя UI.
      */
+    const FB_TOOLS_TIMEOUT = 15;
+
+    // ── Legacy NPPR (удалить вторым PR после пробы check.fb.tools) ──
+
+    /** @deprecated используется только FbCheckerService (dead code) */
+    const NPPR_FBCHECK_URL = 'https://npprservices.pro/api/services/fbchecker';
+
+    /** @deprecated */
+    const NPPR_BATCH_SIZE = 100;
+
+    /** @deprecated */
     const NPPR_TIMEOUT = 15;
 
-    /**
-     * ENV-переменная и fallback файл с токеном NPPR API.
-     * При деплое (.github/workflows/deploy.yml) GitHub Secret NPPR_API_TOKEN
-     * материализуется в файл .nppr_token в корне проекта (gitignored).
-     */
+    /** @deprecated */
     const NPPR_TOKEN_ENV  = 'NPPR_API_TOKEN';
+    /** @deprecated */
     const NPPR_TOKEN_FILE = '.nppr_token';
 
     /**

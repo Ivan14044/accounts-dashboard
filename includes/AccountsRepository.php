@@ -121,7 +121,7 @@ class AccountsRepository {
 
     /**
      * Получение записей для проверки валидности (id, login, id_soc_account, social_url, cookies)
-     * Используется для prepare перед вызовом NPPR fbchecker.
+     * Используется для prepare перед вызовом check.fb.tools.
      *
      * @param array $ids Массив ID записей
      * @return array

@@ -1,26 +1,28 @@
 <?php
 /**
- * AccountValidationService — проверка аккаунтов через NPPR Services API
+ * AccountValidationService — проверка аккаунтов через check.fb.tools
  *
  * Scheme:
  *   1. prepareItems(rows)   — извлекаем FB ID из id_soc_account/social_url/cookies (только c_user)
- *   2. checkItems(items)    — bulk check через NPPR /services/fbchecker
+ *   2. checkItems(items)    — bulk check через check.fb.tools /api/check/account
  *   3. JobProgress (опц.)   — streaming прогресс по мере завершения sub-batches
  *
- * NPPR API (https://npprservices.pro/apidoc):
- *   POST https://npprservices.pro/api/services/fbchecker
- *   Body: { token: "<64char>", accs: ["id1","id2",...] }
+ * check.fb.tools API (без авторизации):
+ *   POST https://check.fb.tools/api/check/account
+ *   Body: { inputData: ["id1","id2",...], checkFriends: false, userLang: "ru" }
  *   Response: {
- *     balance: int,
- *     duplicates: array,
- *     active:   { "<acc>": "<fbid>", ... },     // валидные
- *     banned:   ["<acc>", ...],                 // невалидные (забанены)
- *     notFound: ["<acc>", ...],                 // невалидные (не найдены)
- *     withoutToken: array
+ *     data: [
+ *       { account: "<acc>", uid: "<fbid>", status: { name: "valid"|"invalid" } },
+ *       ...
+ *     ],
+ *     info: {...}
  *   }
  *
- * Token storage: ENV NPPR_API_TOKEN, fallback — файл <root>/.nppr_token (gitignored).
- * При деплое (.github/workflows/deploy.yml) GitHub Secret записывается в файл.
+ * Бинарный результат: status.name === "valid" → true, иначе → false.
+ *
+ * Авторизация не требуется — токен/секрет не нужны. Раньше использовался
+ * NPPR Services (платный, с балансом), переехали на check.fb.tools после
+ * того как стало нужно только valid/invalid без 5 категорий NPPR.
  */
 
 require_once __DIR__ . '/Config.php';
@@ -75,7 +77,7 @@ class AccountValidationService
     /**
      * Check items. An account is valid if at least one of its FB IDs is active.
      *
-     * Если передан $jobId — после каждого sub-batch NPPR (curl_multi_info_read)
+     * Если передан $jobId — после каждого sub-batch check.fb.tools (curl_multi_info_read)
      * пишем инкрементальный прогресс в JobProgress. Фронт читает его через
      * polling /progress, поэтому ползунок «Проверено N/M» движется ВНУТРИ
      * одного /check запроса, а не только между ними.
@@ -104,7 +106,7 @@ class AccountValidationService
         $progressCb = null;
         if ($jobId !== null && $jobId !== '' && !empty($allFbIds)) {
             $totalItems  = count($items);
-            $batchCount  = (int)ceil(count($allFbIds) / Config::NPPR_BATCH_SIZE);
+            $batchCount  = (int)ceil(count($allFbIds) / Config::FB_TOOLS_BATCH_SIZE);
             $completed   = 0;
             $progressCb  = function () use (&$completed, $totalItems, $batchCount, $jobId) {
                 $completed++;
@@ -149,7 +151,7 @@ class AccountValidationService
     }
 
     /**
-     * Check FB IDs in batches via NPPR fbchecker bulk API.
+     * Check FB IDs in batches via check.fb.tools bulk API.
      * Sub-batches run in parallel via curl_multi. Failed batches are retried.
      *
      * @param callable|null $onSubBatchDone Вызывается каждый раз когда sub-batch
@@ -161,27 +163,8 @@ class AccountValidationService
         $fbIds = array_values(array_unique(array_filter(array_map('strval', $fbIds))));
         if (empty($fbIds)) return [];
 
-        $token = Config::getNpprToken();
-        if ($token === '') {
-            Logger::warning('NPPR token is not configured', [
-                'env'  => Config::NPPR_TOKEN_ENV,
-                'file' => Config::NPPR_TOKEN_FILE,
-            ]);
-            // Без токена ни один батч не отработает — все считаем невалидными.
-            // Прогресс-callback всё равно вызываем, чтобы UI не висел.
-            $batchCount = (int)ceil(count($fbIds) / Config::NPPR_BATCH_SIZE);
-            for ($i = 0; $i < $batchCount; $i++) {
-                if ($onSubBatchDone !== null) {
-                    try { $onSubBatchDone(); } catch (\Throwable $e) {}
-                }
-            }
-            $out = [];
-            foreach ($fbIds as $fbId) $out[$fbId] = false;
-            return $out;
-        }
-
-        $batches      = array_chunk($fbIds, Config::NPPR_BATCH_SIZE);
-        $batchResults = self::runParallel($batches, $token, $onSubBatchDone);
+        $batches      = array_chunk($fbIds, Config::FB_TOOLS_BATCH_SIZE);
+        $batchResults = self::runParallel($batches, $onSubBatchDone);
 
         $failedIdx = [];
         foreach ($batchResults as $idx => $res) {
@@ -192,13 +175,13 @@ class AccountValidationService
             // 300ms / 600ms — короткая пауза перед retry. Большинство сетевых
             // сбоев восстанавливаются мгновенно; секундная пауза только ухудшала UX.
             usleep($attempt * 300000);
-            Logger::debug('NPPR fbchecker retry', ['attempt' => $attempt, 'batches' => count($failedIdx)]);
+            Logger::debug('check.fb.tools retry', ['attempt' => $attempt, 'batches' => count($failedIdx)]);
 
             $retryBatches = [];
             foreach ($failedIdx as $idx) $retryBatches[$idx] = $batches[$idx];
 
             // На retry callback не вызываем — прогресс уже учтён при первой попытке
-            $retryResults = self::runParallel($retryBatches, $token, null);
+            $retryResults = self::runParallel($retryBatches, null);
             $newFailed    = [];
             foreach ($retryResults as $originalIdx => $res) {
                 if ($res !== null) {
@@ -217,7 +200,7 @@ class AccountValidationService
                     $results[$fbId] = $isValid;
                 }
             } else {
-                Logger::warning('NPPR fbchecker batch failed after retries', ['count' => count($batches[$idx])]);
+                Logger::warning('check.fb.tools batch failed after retries', ['count' => count($batches[$idx])]);
                 foreach ($batches[$idx] as $fbId) {
                     $results[$fbId] = false;
                 }
@@ -235,12 +218,11 @@ class AccountValidationService
      * вместо ожидания всех sub-batches сразу.
      *
      * @param array $batches [idx => array<string>]
-     * @param string $token NPPR API token
      * @param callable|null $onSubBatchDone Вызывается без аргументов после каждого
      *   завершившегося sub-batch (успех или провал — оба считаются «обработанными»).
      * @return array [idx => array<fb_id, bool>|null]
      */
-    private static function runParallel(array $batches, string $token, ?callable $onSubBatchDone = null): array
+    private static function runParallel(array $batches, ?callable $onSubBatchDone = null): array
     {
         if (empty($batches)) return [];
 
@@ -249,16 +231,17 @@ class AccountValidationService
 
         foreach ($batches as $idx => $batch) {
             $payload = json_encode([
-                'token' => $token,
-                'accs'  => array_map('strval', array_values($batch)),
+                'inputData'    => array_map('strval', array_values($batch)),
+                'checkFriends' => false,
+                'userLang'     => 'ru',
             ]);
 
-            $ch = curl_init(Config::NPPR_FBCHECK_URL);
+            $ch = curl_init(Config::FB_TOOLS_URL);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_POST           => true,
                 CURLOPT_POSTFIELDS     => $payload,
-                CURLOPT_TIMEOUT        => Config::NPPR_TIMEOUT,
+                CURLOPT_TIMEOUT        => Config::FB_TOOLS_TIMEOUT,
                 CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_SSL_VERIFYPEER => true,
@@ -336,15 +319,16 @@ class AccountValidationService
      * Парсит ответ одного curl handle. Вынесено из runParallel чтобы можно было
      * вызывать ПО МЕРЕ завершения каждого sub-batch.
      *
-     * Формат ответа NPPR (см. https://npprservices.pro/apidoc):
+     * Формат ответа check.fb.tools:
      *   {
-     *     "balance": int,
-     *     "active":   { "<acc>": "<fbid>", ... },  // валидные → true
-     *     "banned":   ["<acc>", ...],              // забанены → false
-     *     "notFound": ["<acc>", ...],              // не найдены → false
-     *     "withoutToken": [...],
-     *     "duplicates": [...]
+     *     "data": [
+     *       { "account": "<acc>", "uid": "<fbid>", "status": { "name": "valid"|"invalid" } },
+     *       ...
+     *     ],
+     *     "info": {...}
      *   }
+     *
+     * status.name === "valid" → true, всё остальное → false.
      *
      * @return array|null [fb_id => bool] или null при сетевой/парс ошибке
      */
@@ -355,7 +339,7 @@ class AccountValidationService
         $error    = curl_error($ch);
 
         if ($error || $httpCode !== 200 || $body === false || $body === '') {
-            Logger::warning('NPPR fbchecker request failed', [
+            Logger::warning('check.fb.tools request failed', [
                 'http_code' => $httpCode,
                 'error'     => $error,
                 'batch_idx' => $batchIdx,
@@ -365,59 +349,27 @@ class AccountValidationService
         }
 
         $json = @json_decode($body, true);
-        if (!is_array($json)) {
-            Logger::warning('NPPR fbchecker invalid response', [
+        if (!is_array($json) || !isset($json['data']) || !is_array($json['data'])) {
+            Logger::warning('check.fb.tools invalid response', [
                 'body'      => substr((string)$body, 0, 500),
                 'batch_idx' => $batchIdx,
             ]);
             return null;
-        }
-
-        // NPPR ошибки приходят как { error: "..." } или { message: "..." }.
-        // Если нет ни одной из ожидаемых категорий — это API-ошибка.
-        if (isset($json['error']) ||
-            (!isset($json['active']) && !isset($json['banned']) && !isset($json['notFound']))
-        ) {
-            Logger::warning('NPPR fbchecker API error', [
-                'batch_idx' => $batchIdx,
-                'body'      => substr((string)$body, 0, 500),
-            ]);
-            return null;
-        }
-
-        // Полезно для мониторинга — видно когда баланс заканчивается
-        if (isset($json['balance'])) {
-            Logger::debug('NPPR fbchecker balance', [
-                'balance'   => (int)$json['balance'],
-                'batch_idx' => $batchIdx,
-            ]);
         }
 
         $batchResult = [];
-
-        // active: { "acc" => "fb_id" } — валидные
-        if (isset($json['active']) && is_array($json['active'])) {
-            foreach ($json['active'] as $acc => $_fbId) {
-                $key = (string)$acc;
-                if ($key !== '') $batchResult[$key] = true;
+        foreach ($json['data'] as $entry) {
+            if (!is_array($entry)) continue;
+            $account = (string)($entry['account'] ?? '');
+            $status  = (string)($entry['status']['name'] ?? '');
+            if ($account !== '') {
+                $batchResult[$account] = ($status === 'valid');
             }
         }
 
-        // banned/notFound: либо обычный массив строк, либо ассоциативный.
-        // Защищаемся от обоих форматов на всякий случай.
-        $invalidLists = ['banned', 'notFound'];
-        foreach ($invalidLists as $listKey) {
-            if (isset($json[$listKey]) && is_array($json[$listKey])) {
-                foreach ($json[$listKey] as $k => $v) {
-                    $acc = is_string($k) ? $k : (string)$v;
-                    if ($acc !== '' && !isset($batchResult[$acc])) {
-                        $batchResult[$acc] = false;
-                    }
-                }
-            }
-        }
-
-        // ID, не попавшие ни в одну категорию — false (теоретически таких быть не должно)
+        // ID, не попавшие в response data — отмечаем как невалидные.
+        // Теоретически таких быть не должно (API всегда возвращает запись на каждый input),
+        // но защищаемся на случай частичного ответа.
         foreach ($batch as $fbId) {
             $key = (string)$fbId;
             if (!isset($batchResult[$key])) {
