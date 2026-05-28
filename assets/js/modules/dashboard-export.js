@@ -250,7 +250,7 @@
         });
         if (!res.ok) {
             let msg = 'HTTP ' + res.status;
-            try { const j = await res.json(); if (j && j.error) msg = j.error; } catch (_) { }
+            try { const j = await res.json(); if (j && j.error) msg = j.error + (j.detail ? (': ' + j.detail) : ''); } catch (_) { }
             throw new Error(msg);
         }
         return res.json();
