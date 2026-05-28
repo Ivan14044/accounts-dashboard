@@ -37,8 +37,15 @@ class AccountsRepository {
      * @param bool $includeDeleted Включать ли удалённые записи
      * @return array
      */
-    public function getAccounts(FilterBuilder $filter, string $orderBy, int $limit, int $offset, bool $includeDeleted = false): array {
-        $meta = $this->metadata->getAllColumns();
+    public function getAccounts(FilterBuilder $filter, string $orderBy, int $limit, int $offset, bool $includeDeleted = false, ?array $columns = null): array {
+        // $columns !== null — выбрать только эти колонки (+ id для INNER JOIN USING(id)).
+        // Лёгкий экспорт: не тащим все колонки (вкл. тяжёлые cookies/full_cookies) на 1000 строк,
+        // когда в файл идёт лишь часть. null = все колонки (прежнее поведение, дашборд/CSV).
+        if ($columns !== null) {
+            $meta = array_values(array_unique(array_merge(['id'], $columns)));
+        } else {
+            $meta = $this->metadata->getAllColumns();
+        }
 
         $validCols = [];
         foreach ($meta as $col) {

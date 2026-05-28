@@ -181,7 +181,9 @@ try {
     // Тянем именно этот срез ids (быстро, по PK). Порядок — по тому же sort/dir,
     // что и idlist, поэтому строки в файле идут в том же порядке, что список.
     $filter = $service->createFilterFromRequest(['ids' => $idArray]);
-    $accounts = $service->getAccounts($filter, $sort, $dir, count($idArray), 0);
+    // Тянем ТОЛЬКО выбранные колонки (+id), а не всю таблицу — иначе тяжёлые cookies на
+    // тысячу строк исчерпывают память (memory_limit на шаринге залочен на 256M).
+    $accounts = $service->getAccounts($filter, $sort, $dir, count($idArray), 0, false, $selectedCols);
 
     $EOL = "\r\n";
     $buf = '';
