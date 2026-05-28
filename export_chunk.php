@@ -17,15 +17,38 @@ require_once __DIR__ . '/includes/Logger.php';
 
 /**
  * Отдать JSON-ошибку и завершить выполнение.
+ * $detail — реальное сообщение об ошибке. Endpoint только для авторизованных (не публичный),
+ * поэтому детали отдаём клиенту для диагностики.
  */
-function chunk_fail(int $code, string $msg): void {
+function chunk_fail(int $code, string $msg, string $detail = ''): void {
     if (!headers_sent()) {
         http_response_code($code);
         header('Content-Type: application/json; charset=utf-8');
     }
-    echo json_encode(['ok' => false, 'error' => $msg], JSON_UNESCAPED_UNICODE);
+    $out = ['ok' => false, 'error' => $msg];
+    if ($detail !== '') { $out['detail'] = $detail; }
+    echo json_encode($out, JSON_UNESCAPED_UNICODE);
     exit;
 }
+
+// Перехват фатальных ошибок (в т.ч. вне try/catch) — вернуть JSON с причиной вместо голого 500.
+register_shutdown_function(function () {
+    $e = error_get_last();
+    if ($e && in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        if (class_exists('Logger')) {
+            Logger::error('EXPORT_CHUNK: fatal', ['message' => $e['message'], 'file' => $e['file'], 'line' => $e['line']]);
+        }
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        echo json_encode([
+            'ok'     => false,
+            'error'  => 'fatal',
+            'detail' => $e['message'] . ' @ ' . basename($e['file']) . ':' . $e['line']
+        ], JSON_UNESCAPED_UNICODE);
+    }
+});
 
 try {
     require_once __DIR__ . '/config.php';
@@ -38,7 +61,7 @@ try {
     require_once __DIR__ . '/includes/Validator.php';
 } catch (Throwable $e) {
     Logger::error('EXPORT_CHUNK: bootstrap failed', ['error' => $e->getMessage()]);
-    chunk_fail(500, 'bootstrap failed');
+    chunk_fail(500, 'bootstrap failed', $e->getMessage());
 }
 
 // Авторизация. Используем мягкий лимит 'api' (100/мин), а не строгий 'export' (10/мин):
@@ -48,7 +71,7 @@ try {
     checkSessionTimeout();
     checkRateLimit('api');
 } catch (Throwable $e) {
-    chunk_fail(403, 'auth');
+    chunk_fail(403, 'auth', $e->getMessage());
 }
 
 // Требуем POST + валидный CSRF (как export.php) — это authenticated bulk-read.
@@ -77,7 +100,7 @@ try {
     $allCols = $meta['all'];
 } catch (Throwable $e) {
     Logger::error('EXPORT_CHUNK: service init failed', ['error' => $e->getMessage()]);
-    chunk_fail(500, 'service init');
+    chunk_fail(500, 'service init', $e->getMessage());
 }
 
 // ── Режим idlist: вернуть упорядоченный список id по фильтру ───────────────────
@@ -108,7 +131,7 @@ if ($mode === 'idlist') {
         exit;
     } catch (Throwable $e) {
         Logger::error('EXPORT_CHUNK: idlist failed', ['error' => $e->getMessage()]);
-        chunk_fail(500, 'idlist');
+        chunk_fail(500, 'idlist', $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
     }
 }
 
@@ -174,5 +197,5 @@ try {
     exit;
 } catch (Throwable $e) {
     Logger::error('EXPORT_CHUNK: rows failed', ['error' => $e->getMessage()]);
-    chunk_fail(500, 'rows');
+    chunk_fail(500, 'rows', $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
 }
