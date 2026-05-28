@@ -263,7 +263,7 @@ class AccountsService {
      * @param int $offset Смещение
      * @param bool|null $includeDeleted Включать ли удалённые записи (для корзины)
      */
-    public function getAccounts(FilterBuilder $filter, string $sort = 'id', string $dir = 'ASC', int $limit = 100, int $offset = 0, $includeDeleted = false): array {
+    public function getAccounts(FilterBuilder $filter, string $sort = 'id', string $dir = 'ASC', int $limit = 100, int $offset = 0, $includeDeleted = false, ?array $columns = null): array {
         $meta = $this->getColumnMetadata();
 
         // Валидация сортировки
@@ -281,8 +281,8 @@ class AccountsService {
         }
         $includeDeleted = (bool)$includeDeleted;
 
-        // Делегируем в репозиторий
-        return $this->repository->getAccounts($filter, $orderBy, $limit, $offset, $includeDeleted);
+        // Делегируем в репозиторий ($columns — необязательное ограничение колонок выборки)
+        return $this->repository->getAccounts($filter, $orderBy, $limit, $offset, $includeDeleted, $columns);
     }
     
     /**

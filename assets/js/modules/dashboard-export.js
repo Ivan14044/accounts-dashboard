@@ -259,7 +259,7 @@
     async function downloadTxtChunked(opts) {
         const csrf = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
         const url = window.getTableAwareUrl('export_chunk.php');
-        const CHUNK = 1000;
+        const CHUNK = 400;
         const prog = getProgress();
         try {
             let ids;
