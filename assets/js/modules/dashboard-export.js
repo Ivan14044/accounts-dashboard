@@ -112,6 +112,42 @@
         const currentSort = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.sort) || '';
         const currentDir = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.dir) || '';
 
+        function closeModal() {
+            const modalEl = getElementById('exportSettingsModal');
+            if (modalEl) {
+                const bsModal = bootstrap.Modal.getInstance(modalEl);
+                if (bsModal) bsModal.hide();
+            }
+        }
+
+        // TXT качаем частями (chunked) — большой объём не упирается в таймаут сервера.
+        // Колонки и формат не меняем: качаются ровно выбранные колонки.
+        if (format === 'txt') {
+            let visibleCols = [];
+            try {
+                const saved = localStorage.getItem('dashboard_visible_columns');
+                if (saved) visibleCols = JSON.parse(saved);
+            } catch (_) { }
+            if (!Array.isArray(visibleCols) || visibleCols.length === 0) {
+                visibleCols = Array.from(document.querySelectorAll('#accountsTable thead th[data-col]')).map(th => th.getAttribute('data-col'));
+            }
+            const ALL_COL_KEYS = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.allColumnKeys) || [];
+            visibleCols = (visibleCols || []).filter(c => ALL_COL_KEYS.includes(c)).filter(c => c !== 'id');
+
+            closeModal();
+            downloadTxtChunked({
+                scope: scope,
+                ids: scope === 'selected' ? Array.from(DS.getSelectedIds()) : null,
+                cols: visibleCols,
+                sort: currentSort,
+                dir: currentDir,
+                limit: scope === 'custom' ? (parseInt(limit, 10) || 0) : 0,
+                filterSearch: window.location.search
+            });
+            return;
+        }
+
+        // CSV (и прочие форматы) — нативная отправка формы (скачивание одним запросом).
         const params = new URLSearchParams(window.location.search);
         params.set('format', format);
         params.set('sort', currentSort);
@@ -128,24 +164,6 @@
         } else if (scope === 'custom') {
             params.set('select', 'all');
             params.set('limit', limit);
-        }
-
-        // Если TXT, добавляем видимые колонки
-        if (format === 'txt') {
-            let visibleCols = [];
-            try {
-                const saved = localStorage.getItem('dashboard_visible_columns');
-                if (saved) visibleCols = JSON.parse(saved);
-            } catch (_) { }
-
-            if (!Array.isArray(visibleCols) || visibleCols.length === 0) {
-                visibleCols = Array.from(document.querySelectorAll('#accountsTable thead th[data-col]')).map(th => th.getAttribute('data-col'));
-            }
-
-            const ALL_COL_KEYS = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.allColumnKeys) || [];
-            visibleCols = (visibleCols || []).filter(c => ALL_COL_KEYS.includes(c));
-            visibleCols = visibleCols.filter(c => c !== 'id');
-            params.set('cols', visibleCols.join(','));
         }
 
         // Всегда используем POST — export.php требует POST + CSRF.
@@ -183,18 +201,128 @@
         form.submit();
         document.body.removeChild(form);
 
-        // Закрываем модалку
-        const modalEl = getElementById('exportSettingsModal');
-        if (modalEl) {
-            const bsModal = bootstrap.Modal.getInstance(modalEl);
-            if (bsModal) bsModal.hide();
+        closeModal();
+    }
+
+    // ── Chunked TXT download ──────────────────────────────────────────────
+    // Собирает один .txt из множества мелких быстрых запросов к export_chunk.php,
+    // чтобы тысячи строк не упирались в ~120s таймаут веб-сервера на шаринге.
+
+    function nowStamp() {
+        const d = new Date();
+        const p = n => String(n).padStart(2, '0');
+        return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+            '_' + p(d.getHours()) + '-' + p(d.getMinutes()) + '-' + p(d.getSeconds());
+    }
+
+    function notify(msg, type) {
+        if (typeof window.showToast === 'function') { window.showToast(msg, type || 'info'); }
+        else if (type === 'error') { alert(msg); }
+    }
+
+    function getProgress() {
+        let el = getElementById('exportChunkProgress');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'exportChunkProgress';
+            el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:99999;' +
+                'background:#1f2937;color:#fff;padding:10px 14px;border-radius:8px;' +
+                'font:13px/1.4 system-ui,-apple-system,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.35);min-width:190px';
+            document.body.appendChild(el);
+        }
+        el.style.display = 'block';
+        return {
+            set(text) { el.textContent = text; },
+            hide() { el.style.display = 'none'; }
+        };
+    }
+
+    async function postJson(url, body, csrf) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'X-CSRF-TOKEN': csrf,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: body.toString(),
+            credentials: 'same-origin'
+        });
+        if (!res.ok) {
+            let msg = 'HTTP ' + res.status;
+            try { const j = await res.json(); if (j && j.error) msg = j.error + (j.detail ? (': ' + j.detail) : ''); } catch (_) { }
+            throw new Error(msg);
+        }
+        return res.json();
+    }
+
+    async function downloadTxtChunked(opts) {
+        const csrf = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
+        const url = window.getTableAwareUrl('export_chunk.php');
+        const CHUNK = 400;
+        const prog = getProgress();
+        try {
+            let ids;
+            if (opts.scope === 'selected') {
+                ids = (opts.ids || []).slice();
+            } else {
+                // all / custom: берём упорядоченный список id по текущему фильтру одним лёгким запросом.
+                prog.set('Готовлю список аккаунтов…');
+                const body = new URLSearchParams(opts.filterSearch || '');
+                body.set('mode', 'idlist');
+                body.set('sort', opts.sort || 'id');
+                body.set('dir', opts.dir || 'ASC');
+                const j = await postJson(url, body, csrf);
+                if (!j.ok) throw new Error(j.error || 'idlist');
+                ids = j.ids || [];
+            }
+            if (opts.scope === 'custom' && opts.limit > 0) ids = ids.slice(0, opts.limit);
+
+            const total = ids.length;
+            if (total === 0) { notify('Нет записей для экспорта', 'error'); prog.hide(); return; }
+
+            let out = '';
+            let written = 0;
+            for (let i = 0; i < ids.length; i += CHUNK) {
+                const slice = ids.slice(i, i + CHUNK);
+                const body = new URLSearchParams();
+                body.set('mode', 'rows');
+                body.set('ids', slice.join(','));
+                body.set('cols', (opts.cols || []).join(','));
+                body.set('sort', opts.sort || 'id');
+                body.set('dir', opts.dir || 'ASC');
+                const j = await postJson(url, body, csrf);
+                if (!j.ok) throw new Error(j.error || 'rows');
+                out += (j.text || '');
+                written += (j.count || 0);
+                const done = Math.min(i + CHUNK, total);
+                prog.set('Скачивание: ' + done.toLocaleString('ru-RU') + ' / ' + total.toLocaleString('ru-RU'));
+            }
+
+            // Собираем один файл с BOM (как в export.php) и отдаём на скачивание.
+            const blob = new Blob(['﻿' + out], { type: 'text/plain;charset=utf-8' });
+            const a = document.createElement('a');
+            const objUrl = URL.createObjectURL(blob);
+            a.href = objUrl;
+            a.download = 'accounts_' + written + '_' + nowStamp() + '.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(objUrl), 2000);
+
+            prog.hide();
+            notify('Скачано аккаунтов: ' + written.toLocaleString('ru-RU'), 'success');
+        } catch (e) {
+            prog.hide();
+            notify('Ошибка экспорта: ' + (e && e.message ? e.message : e), 'error');
         }
     }
 
     // Экспортируем функции в глобальную область
     window.DashboardExport = {
         init: initExportModule,
-        openModal: openExportModal
+        openModal: openExportModal,
+        downloadTxtChunked: downloadTxtChunked
     };
 
     // Авто-инициализация при загрузке DOM

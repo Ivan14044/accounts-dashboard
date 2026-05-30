@@ -1441,63 +1441,23 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
       // Убираем ID из экспорта, если он есть
       visibleCols = visibleCols.filter(c => c !== 'id');
 
-      // Создаем скрытую форму для корректной обработки заголовков скачивания.
-      // POST обязателен — export.php требует POST + CSRF.
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = window.getTableAwareUrl('export.php');
-      // Не указываем target, чтобы браузер правильно обработал Content-Disposition: attachment
-
-      if (DS.getSelectedAllFiltered()) {
-        // Добавляем все параметры из текущего URL
-        const params = new URLSearchParams(window.location.search);
-        params.set('select', 'all');
-        params.set('format', 'txt');
-        params.set('sort', currentSort);
-        params.set('dir', currentDir);
-        params.set('cols', visibleCols.join(','));
-
-        // Добавляем все параметры как скрытые поля формы
-        params.forEach((value, key) => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = value;
-          form.appendChild(input);
-        });
-      } else {
-        // Экспорт выбранных ID
-        const ids = Array.from(DS.getSelectedIds()).join(',');
-        const cols = visibleCols.join(',');
-
-        const fields = {
-          'ids': ids,
-          'format': 'txt',
-          'sort': currentSort,
-          'dir': currentDir,
-          'cols': cols
-        };
-
-        Object.keys(fields).forEach(key => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = fields[key];
-          form.appendChild(input);
-        });
+      // Качаем частями (chunked): браузер собирает один файл из множества быстрых
+      // запросов к export_chunk.php — большой объём не упирается в ~120s таймаут сервера.
+      if (!window.DashboardExport || typeof window.DashboardExport.downloadTxtChunked !== 'function') {
+        showToast('Модуль экспорта не загружен', 'error');
+        return;
       }
 
-      // CSRF-токен
-      const csrfInput2 = document.createElement('input');
-      csrfInput2.type = 'hidden';
-      csrfInput2.name = 'csrf';
-      csrfInput2.value = (window.DashboardConfig && window.DashboardConfig.csrfToken) || '';
-      form.appendChild(csrfInput2);
-
-      // Добавляем форму в DOM, отправляем и удаляем
-      document.body.appendChild(form);
-      form.submit();
-      document.body.removeChild(form);
+      const allFiltered = DS.getSelectedAllFiltered();
+      window.DashboardExport.downloadTxtChunked({
+        scope: allFiltered ? 'all' : 'selected',
+        ids: allFiltered ? null : Array.from(DS.getSelectedIds()),
+        cols: visibleCols,
+        sort: currentSort,
+        dir: currentDir,
+        limit: 0,
+        filterSearch: window.location.search
+      });
     });
   }
 
