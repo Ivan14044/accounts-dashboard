@@ -16,7 +16,6 @@
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-  <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <!-- CSS Bundles -->
   <link href="assets/css/core-base.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <link href="assets/css/core-components.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
@@ -25,27 +24,24 @@
   <link href="assets/css/core-tables.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <link href="assets/css/core-mobile.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <link href="assets/css/core-design-v2.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+  <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 
   <style>
-    /* Премиальный заголовок для страницы Корзины */
+    /* Заголовок корзины — чистый, danger-акцент (без glassmorphism/градиента) */
     .trash-header {
-      background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(185, 28, 28, 0.15) 100%);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      color: var(--danger-700);
-      padding: var(--space-6) var(--space-8);
-      border-radius: var(--radius-2xl);
+      background: var(--bg-primary);
+      border: 1px solid var(--color-border);
+      border-left: 3px solid var(--danger-500);
+      color: var(--color-text);
+      padding: var(--space-5) var(--space-6);
+      border-radius: var(--radius-xl);
       margin-bottom: var(--space-6);
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
       gap: var(--space-4);
-      box-shadow:
-        0 4px 6px -1px rgba(239, 68, 68, 0.05),
-        0 10px 15px -3px rgba(239, 68, 68, 0.05),
-        inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      box-shadow: var(--shadow-sm);
     }
     .trash-header-main {
       display: flex;
@@ -53,57 +49,60 @@
       gap: var(--space-4);
     }
     .trash-icon-wrap {
-      width: 64px;
-      height: 64px;
-      background: linear-gradient(135deg, var(--danger-500), var(--danger-700));
-      border-radius: var(--radius-xl);
+      width: 52px;
+      height: 52px;
+      background: var(--danger-50);
+      color: var(--danger-600);
+      border-radius: var(--radius-lg);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 8px 16px rgba(239, 68, 68, 0.3);
     }
+    [data-bs-theme="dark"] .trash-icon-wrap { background: rgba(248,113,113,0.14); color: #fca5a5; }
     .trash-icon-wrap i {
-      font-size: 2rem;
-      color: white;
+      font-size: 1.5rem;
     }
     .trash-header h1 {
       margin: 0;
-      font-size: 2rem;
-      font-weight: 800;
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
       letter-spacing: -0.02em;
+      color: var(--color-text);
     }
     .trash-subtitle {
-      font-size: 0.875rem;
-      opacity: 0.8;
-      margin-top: 4px;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+      margin-top: 2px;
     }
     .trash-count {
-      font-size: 1.125rem;
+      font-size: var(--font-size-sm);
       font-weight: 500;
-      background: rgba(255, 255, 255, 0.6);
+      color: var(--color-text-secondary);
+      background: var(--bg-secondary);
       padding: var(--space-2) var(--space-4);
       border-radius: var(--radius-full);
-      border: 1px solid rgba(239, 68, 68, 0.2);
+      border: 1px solid var(--color-border);
     }
     .trash-count strong {
-      color: var(--danger-700);
+      color: var(--danger-600);
       font-weight: 700;
-      font-size: 1.25rem;
+      font-size: var(--font-size-md);
     }
+    [data-bs-theme="dark"] .trash-count strong { color: #fca5a5; }
 
     .trash-warning {
-      background: rgba(254, 243, 199, 0.5); /* amber-50 / 50% */
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      border-radius: var(--radius-xl);
+      background: var(--warning-50);
+      border: 1px solid var(--warning-100);
+      border-left: 3px solid var(--warning-500);
+      border-radius: var(--radius-lg);
       padding: var(--space-4) var(--space-5);
       margin-bottom: var(--space-6);
       display: flex;
       align-items: flex-start;
       gap: var(--space-3);
-      color: var(--warning-800);
-      box-shadow: var(--shadow-sm);
+      color: var(--warning-700);
     }
+    [data-bs-theme="dark"] .trash-warning { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.25); border-left-color: var(--warning-500); color: #fcd34d; }
 
     /* Бейджи "возраст / автоудаление" */
     .age-badge { font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
@@ -142,8 +141,8 @@
       align-items: center;
       gap: var(--space-3);
       flex-wrap: wrap;
-      background: rgba(255,255,255,0.6);
-      border: 1px solid var(--gray-200, #e5e7eb);
+      background: var(--bg-primary);
+      border: 1px solid var(--color-border);
       border-radius: var(--radius-lg);
       padding: var(--space-3) var(--space-4);
     }
@@ -158,6 +157,14 @@
     .history-meta { font-size: 0.75rem; color: var(--gray-500,#6b7280); }
     .history-field { font-weight: 600; }
     .history-change { font-size: 0.8125rem; word-break: break-word; }
+
+    /* ===== Тёмная тема: страница + новые элементы ===== */
+    [data-bs-theme="dark"] body.bg-light { background: #0A0A0F !important; }
+    [data-bs-theme="dark"] .age-ok { color: var(--gray-500); }
+    [data-bs-theme="dark"] .age-soon { color: #fbbf24; }
+    [data-bs-theme="dark"] .age-overdue { color: #f87171; }
+    [data-bs-theme="dark"] .who-unknown { color: var(--gray-500); }
+    [data-bs-theme="dark"] .history-item { border-left-color: var(--color-border); }
   </style>
 </head>
 <body class="bg-light">
