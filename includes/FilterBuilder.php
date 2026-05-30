@@ -352,6 +352,30 @@ class FilterBuilder {
     }
 
     /**
+     * Фильтр «пустые аккаунты» (мусор в корзине): и login, и email пусты.
+     * Если колонок нет — условие не добавляется.
+     *
+     * @param bool $shouldFilter
+     * @return self
+     */
+    public function addEmptyAccountFilter(bool $shouldFilter = false): self {
+        if (!$shouldFilter) return $this;
+
+        $parts = [];
+        if (isset($this->columnsList['login'])) {
+            $parts[] = "(`login` IS NULL OR `login` = '')";
+        }
+        if (isset($this->columnsList['email'])) {
+            $parts[] = "(`email` IS NULL OR `email` = '')";
+        }
+
+        if (!empty($parts)) {
+            $this->conditions[] = '(' . implode(' AND ', $parts) . ')';
+        }
+        return $this;
+    }
+
+    /**
      * Добавляет фильтр "поле пустое"
      */
     public function addEmptyFilter($field) {

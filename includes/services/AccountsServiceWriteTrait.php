@@ -273,4 +273,72 @@ trait AccountsServiceWriteTrait {
 
         return $affectedRows;
     }
+
+    /**
+     * Восстановление всех записей под фильтром корзины (Soft Delete → NULL).
+     * Один UPDATE на стороне БД. Аудит — суммарной строкой в Logger (не per-row,
+     * чтобы не плодить десятки тысяч записей account_history на массовой операции).
+     *
+     * @param FilterBuilder $filter Фильтр корзины (scoped к deleted_at IS NOT NULL)
+     * @return int Кол-во восстановленных
+     */
+    public function restoreAccountsByFilter(FilterBuilder $filter): int {
+        $affectedRows = $this->repository->restoreAccountsByFilter($filter);
+
+        if ($affectedRows > 0) {
+            Logger::info('Trash: bulk restore by filter', [
+                'user'  => $_SESSION['username'] ?? 'unknown',
+                'count' => $affectedRows,
+            ]);
+        }
+
+        return $affectedRows;
+    }
+
+    /**
+     * Окончательное удаление записей под фильтром корзины (Hard Delete) чанками.
+     * За вызов удаляет не более $maxRows строк; остаток клиент дочищает повторно.
+     *
+     * @param FilterBuilder $filter  Фильтр корзины (scoped к deleted_at IS NOT NULL)
+     * @param int           $maxRows Кэп строк за вызов (0 = без лимита)
+     * @return int Кол-во удалённых за этот вызов
+     */
+    public function permanentlyDeleteByFilter(FilterBuilder $filter, int $maxRows = 50000): int {
+        $deleted = $this->repository->permanentlyDeleteByFilter($filter, $maxRows);
+
+        if ($deleted > 0) {
+            Logger::warning('Trash: bulk permanent delete by filter', [
+                'user'  => $_SESSION['username'] ?? 'unknown',
+                'count' => $deleted,
+            ]);
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * Retention-purge: удаление записей корзины старше N дней (чанками).
+     *
+     * @param int $days    Порог в днях
+     * @param int $maxRows  Кэп строк за вызов (0 = без лимита)
+     * @return int Кол-во удалённых за этот вызов
+     */
+    public function purgeTrashOlderThan(int $days, int $maxRows = 50000): int {
+        $deleted = $this->repository->purgeOlderThan($days, $maxRows);
+
+        if ($deleted > 0) {
+            Logger::warning('Trash: retention purge', [
+                'user'  => $_SESSION['username'] ?? 'system',
+                'days'  => $days,
+                'count' => $deleted,
+            ]);
+        }
+
+        return $deleted;
+    }
+
+    /** Кол-во записей в корзине старше N дней. */
+    public function countTrashOlderThan(int $days): int {
+        return $this->repository->countOlderThan($days);
+    }
 }
