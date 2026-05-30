@@ -186,7 +186,7 @@
           echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8');
           ?>
         </span>
-        <button type="button" class="btn btn-sm btn-icon-ghost" data-theme-toggle data-label="1" title="Тёмная тема">
+        <button type="button" id="themeToggle" class="btn btn-sm btn-outline-secondary rounded-circle" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
           <i class="fas fa-moon"></i>
         </button>
         <div class="vr mx-1"></div>
