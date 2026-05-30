@@ -3,6 +3,11 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    (function(){try{var t=localStorage.getItem('dashboard-theme');
+      if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+      document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
+  </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -11,6 +16,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <!-- CSS Bundles -->
   <link href="assets/css/core-base.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <link href="assets/css/core-components.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
@@ -180,6 +186,9 @@
           echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8');
           ?>
         </span>
+        <button type="button" class="btn btn-sm btn-icon-ghost" data-theme-toggle data-label="1" title="Тёмная тема">
+          <i class="fas fa-moon"></i>
+        </button>
         <div class="vr mx-1"></div>
         <a href="index.php" class="btn btn-sm btn-outline-primary rounded-pill">
           <i class="fas fa-arrow-left me-1"></i> Назад
@@ -552,6 +561,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="assets/js/toast.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
+  <script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
   <script>
     window.DashboardConfig = window.DashboardConfig || {};
     window.DashboardConfig.csrfToken = <?= json_encode((string)getCsrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;

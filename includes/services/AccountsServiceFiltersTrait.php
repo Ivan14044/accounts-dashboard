@@ -159,6 +159,13 @@ trait AccountsServiceFiltersTrait {
     public function createTrashFilterFromRequest(array $params): FilterBuilder {
         $filter = $this->createFilterFromRequest($params);
 
+        // Только удалённые (корзина) — ДОБАВЛЯЕМ ПЕРВЫМ.
+        // addDeletedOnly() пропускает добавление, если в условиях уже встречается
+        // 'deleted_at'. Диапазон по deleted_at содержит эту подстроку, поэтому при
+        // обратном порядке токен-страж `deleted_at IS NOT NULL` не попадёт в WHERE,
+        // и защитная проверка by-filter операций (restore/delete) ложно сработает.
+        $filter->addDeletedOnly();
+
         // Диапазон даты удаления
         if ($this->metadata->columnExists('deleted_at')) {
             $filter->addDateRangeFilter('deleted_at',
@@ -169,9 +176,6 @@ trait AccountsServiceFiltersTrait {
 
         // "Только пустые" аккаунты (мусор: login и email пусты)
         $filter->addEmptyAccountFilter(!empty($params['only_empty']));
-
-        // Только удалённые (корзина)
-        $filter->addDeletedOnly();
 
         return $filter;
     }
