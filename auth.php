@@ -3,9 +3,8 @@
  * Система авторизации
  */
 
-// Загружаем SessionManager для управления сессиями
-// Сессия уже должна быть инициализирована в config.php или bootstrap.php
-// Если auth.php загружается отдельно, инициализируем сессию здесь
+// Сессия обычно уже инициализирована в config.php. Этот блок — fallback
+// для случаев, когда auth.php подключается из скрипта, не вызывающего config.php.
 if (!class_exists('SessionManager')) {
     require_once __DIR__ . '/includes/SessionManager.php';
 }

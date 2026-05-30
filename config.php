@@ -117,15 +117,10 @@ if (!$mysqli->set_charset($DB_CHARSET)) {
     // Продолжаем работу, так как это не критично
 }
 
-// Автоматическое применение оптимизаций при первом запуске
-if (file_exists(__DIR__ . '/auto_setup.php')) {
-    require_once __DIR__ . '/auto_setup.php';
-}
-
 // Безопасный вывод (если функция не определена)
 if (!function_exists('e')) {
-    function e($v) { 
-        return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); 
+    function e($v) {
+        return htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
 
@@ -200,7 +195,9 @@ if (!defined('ASSETS_VERSION')) {
     if ($v !== false && $v !== '') {
         define('ASSETS_VERSION', $v);
     } else {
-        define('ASSETS_VERSION', '2026-05-01-pagination-fix-v3');
+        // DEV (redesign): динамическая версия — браузер всегда берёт свежие CSS/JS.
+        // TODO: вернуть фиксированную версию (например '2026-05-30-redesign-v1') перед деплоем.
+        define('ASSETS_VERSION', (string) time());
     }
 }
 

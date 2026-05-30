@@ -83,15 +83,7 @@ try {
         $cleanupStmt->close();
     }
     
-    // Удаляем историю изменений (опционально - можно оставить для аудита)
-    // Раскомментируйте, если нужно удалять историю:
-    // $cleanupSql = "DELETE FROM account_history WHERE account_id IN ($placeholders)";
-    // $cleanupStmt = $mysqli->prepare($cleanupSql);
-    // if ($cleanupStmt) {
-    //     $cleanupStmt->bind_param($types, ...$validIds);
-    //     $cleanupStmt->execute();
-    //     $cleanupStmt->close();
-    // }
+    // История изменений (account_history) намеренно НЕ удаляется — сохраняется для аудита.
     
     // Окончательно удаляем аккаунты
     // Для TIMESTAMP колонки достаточно проверки IS NOT NULL
