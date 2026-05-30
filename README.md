@@ -79,7 +79,7 @@ mysql -u username -p database_name < sql/create_all_tables.sql
 
 ```bash
 # Автоматически (безопасный способ)
-php apply_indexes_safe.php
+php tools/migrations/apply_indexes_safe.php
 
 # Или вручную через phpMyAdmin
 # Загрузите sql/performance_indexes.sql
@@ -218,7 +218,8 @@ php build_assets.php
 ## 🏗️ Архитектура для разработчиков
 
 - **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)** - структура проекта, модули, работа с БД
-- **[REFACTORING_REPORT.md](REFACTORING_REPORT.md)** - отчет по рефакторингу и фазам
+- **[PROJECT_AUDIT.md](PROJECT_AUDIT.md)** - аудит безопасности и качества
+- **[AGENTS.md](AGENTS.md)** - инструкции для AI-ассистентов (OpenSpec)
 
 **Ключевые модули JS:** `dashboard-main.js`, `dashboard-selection.js`, `dashboard-filters.js`, `dashboard-stats.js`, `dashboard-refresh.js`, `table-module.js`, `dom-cache.js`, `performance.js`, `logger.js`.
 
@@ -226,7 +227,7 @@ php build_assets.php
 
 ## 📚 Документация
 
-- **[DEPLOYMENT_INSTRUCTIONS.md](DEPLOYMENT_INSTRUCTIONS.md)** - подробная инструкция по развертыванию
+- **[DEPLOY.md](DEPLOY.md)** - инструкция по развертыванию (FTP через GitHub Actions)
 - **[USER_GUIDE.md](USER_GUIDE.md)** - руководство пользователя
 - **[CHANGELOG.md](CHANGELOG.md)** - история изменений
 
@@ -264,10 +265,10 @@ define('DEBUG', true);
 
 Если возникли проблемы:
 
-1. Проверьте логи PHP (`error.log`)
+1. Проверьте логи PHP (`error.log`, `php_errors.log`)
 2. Проверьте права на запись (для кэша и логов)
 3. Проверьте права пользователя БД (CREATE INDEX, ALTER TABLE)
-4. См. [DEPLOYMENT_INSTRUCTIONS.md](DEPLOYMENT_INSTRUCTIONS.md)
+4. См. [DEPLOY.md](DEPLOY.md) и [PROJECT_AUDIT.md](PROJECT_AUDIT.md)
 
 ## 📄 Лицензия
 

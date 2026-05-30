@@ -27,7 +27,9 @@ dashboard/
 │       │   ├── init-script.php
 │       │   └── modals/
 │       └── table/
-├── api/                    # API endpoints (роутинг)
+├── api/                    # API endpoints
+│   ├── index.php           # Единая точка входа, регистрирует маршруты
+│   └── routes/             # Группы маршрутов: accounts, favorites, settings, filters, status
 ├── sql/                    # Миграции и индексы
 ├── config.php
 ├── auth.php
@@ -92,18 +94,18 @@ $rows = Database::getInstance()->prepare("SELECT * FROM accounts WHERE status = 
 
 ## Настройка окружения
 
-1. `.env` или `config.local.php` — параметры БД.
-2. `DEBUG` в config.php — включение отладочных логов.
-3. `php apply_indexes_safe.php` — применение индексов БД.
+1. Подключение к БД задаётся через форму логина (`login.php` → сессия `db_config`).
+2. `DEBUG` в `config.php` — включение отладочных логов.
+3. `php tools/migrations/apply_indexes_safe.php` — применение индексов БД.
 
 ## Добавление новой фичи
 
 1. **Backend:** Используйте `AccountsService`, `FilterBuilder`, `Database::getInstance()`.
 2. **Frontend:** Создайте модуль в `assets/js/modules/` или используйте `dashboard-main.js` для координации.
-3. **API:** Добавьте endpoint в `api/index.php` или отдельный `api_*.php`.
+3. **API:** Добавьте маршрут в `api/routes/<resource>.php` (роутер — `api/index.php`).
 4. **Логирование:** Используйте `logger.debug/warn/error` вместо `console.log`.
 
 ## Полезные ссылки
 
-- [REFACTORING_REPORT.md](REFACTORING_REPORT.md) — ход рефакторинга
-- [PERFORMANCE_ANALYSIS_REPORT.md](PERFORMANCE_ANALYSIS_REPORT.md) — анализ производительности
+- [PROJECT_AUDIT.md](PROJECT_AUDIT.md) — аудит безопасности и качества кода
+- [DEPLOY.md](DEPLOY.md) — деплой через GitHub Actions / FTP

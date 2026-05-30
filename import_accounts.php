@@ -148,17 +148,7 @@ try {
 
     $parser = new CsvParser(Config::MAX_IMPORT_ROWS);
     $data = $parser->parse($file['tmp_name']);
-    
-    // УДАЛЕНО: ~120 строк кода функции parseCSVForImport()
-    // Теперь используется CsvParser из includes/CsvParser.php (см. выше)
-    
-    // Старый код parseCSVForImport() был заменён на класс CsvParser
-    // Это даёт преимущества:
-    // 1. Переиспользование кода (можно использовать в других местах)
-    // 2. Легче тестировать
-    // 3. Соответствует принципу Single Responsibility
-    
-    // CSV-парсинг выполнен через CsvParser (строка ~172)
+
     Logger::debug('IMPORT ACCOUNTS: CSV файл распарсен', [
         'rows_count' => count($data),
         'first_row' => !empty($data) ? array_keys($data[0] ?? []) : []
