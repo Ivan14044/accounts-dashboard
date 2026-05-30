@@ -294,8 +294,56 @@ class AuditLogger {
     }
     
     /**
+     * Карта "кто/когда удалил" для набора аккаунтов — один запрос к account_history.
+     * Берёт самое свежее событие field_name='deleted_at' с непустым new_value на аккаунт.
+     * Используется страницей корзины, чтобы не делать запрос на каждую строку.
+     *
+     * @param array $accountIds
+     * @return array<int,array{changed_by:string,changed_at:string}>
+     */
+    public function getDeletedByForAccounts(array $accountIds): array {
+        $accountIds = array_values(array_filter(array_map('intval', $accountIds)));
+        if (empty($accountIds)) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($accountIds), '?'));
+        // Самое свежее deleted-событие на аккаунт: сортируем DESC и берём первое встреченное.
+        $sql = "SELECT account_id, changed_by, changed_at
+                FROM account_history
+                WHERE field_name = 'deleted_at'
+                  AND new_value <> ''
+                  AND account_id IN ($placeholders)
+                ORDER BY changed_at DESC, id DESC";
+        $stmt = $this->mysqli->prepare($sql);
+        if (!$stmt) {
+            return [];
+        }
+        $types = str_repeat('i', count($accountIds));
+        $stmt->bind_param($types, ...$accountIds);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            return [];
+        }
+        $res = $stmt->get_result();
+        $map = [];
+        while ($row = $res->fetch_assoc()) {
+            $aid = (int)$row['account_id'];
+            if (isset($map[$aid])) {
+                continue; // уже взяли самое свежее
+            }
+            $map[$aid] = [
+                'changed_by' => (string)($row['changed_by'] ?? ''),
+                'changed_at' => (string)($row['changed_at'] ?? ''),
+            ];
+        }
+        $stmt->close();
+        return $map;
+    }
+
+    /**
      * Преобразование значения в строку для хранения
-     * 
+     *
      * @param mixed $value
      * @return string
      */

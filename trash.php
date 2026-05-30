@@ -12,6 +12,7 @@ require_once __DIR__ . '/includes/RequestHandler.php';
 require_once __DIR__ . '/includes/Config.php';
 require_once __DIR__ . '/includes/Logger.php';
 require_once __DIR__ . '/includes/ErrorHandler.php';
+require_once __DIR__ . '/includes/TrashSettings.php';
 
 // Для отладки - проверим, что файл выполняется
 if (!defined('TRASH_PHP_LOADED')) {
@@ -33,6 +34,15 @@ $NUMERIC_COLS = [];
 $LONG_FIELDS = ['cookies', 'first_cookie', 'token', 'user_agent', 'social_url'];
 $meta = ['all' => [], 'columns' => [], 'numeric' => []];
 
+// Retention / автоочистка
+$trashSettings = ['enabled' => true, 'days' => TrashSettings::DEFAULT_DAYS, 'last_purge_at' => null];
+$retentionDays = TrashSettings::DEFAULT_DAYS;
+
+// Параметры trash-фильтра (для режима "выбрать все по фильтру" и сохранения в форме)
+$trashFilterParams = [];
+$statusList = [];
+$deletedByMap = [];
+
 try {
     requireAuth();
     checkSessionTimeout();
@@ -50,12 +60,29 @@ try {
     
     // Получаем параметры поиска
     $q = get_param('q', '');
-    
-    // Получаем фильтр из GET-параметров (для поиска в корзине)
-    $filter = $service->createFilterFromRequest($_GET);
-    
-    // Добавляем фильтр по deleted_at для показа только удалённых
-    $filter->addDeletedOnly();
+
+    // Настройки retention (для колонки "возраст" и UI настройки)
+    $trashSettings = TrashSettings::get();
+    $retentionDays = $trashSettings['days'];
+
+    // Параметры, влияющие на trash-фильтр — прокидываем в шаблон для
+    // режима "выбрать все по фильтру" (клиент шлёт их обратно в restore/delete).
+    $TRASH_FILTER_KEYS = ['q', 'status', 'empty_status', 'only_empty', 'deleted_from', 'deleted_to'];
+    foreach ($TRASH_FILTER_KEYS as $k) {
+        if (isset($_GET[$k]) && $_GET[$k] !== '') {
+            $trashFilterParams[$k] = $_GET[$k];
+        }
+    }
+
+    // Список статусов для выпадающего фильтра
+    try {
+        $statusList = $service->getDistinctStatuses();
+    } catch (Throwable $e) {
+        $statusList = [];
+    }
+
+    // Получаем trash-фильтр (поиск + статус + диапазон дат + "только пустые" + deleted-only)
+    $filter = $service->createTrashFilterFromRequest($_GET);
     
     // Пагинация
     require_once __DIR__ . '/includes/RequestHandler.php';
@@ -102,11 +129,23 @@ try {
     
     // Получаем данные таблицы (включая удалённые)
     $rows = $service->getAccounts($filter, $sort, $dir, $perPage, $offset, true);
-    
+
+    // Аудит "кто/когда удалил" для видимых строк — один батч-запрос к account_history
+    // (легаси-записи, удалённые до появления аудита, останутся без автора → "неизвестно").
+    $deletedByMap = [];
+    if (!empty($rows)) {
+        try {
+            $visibleIds = array_map(static function ($r) { return (int)$r['id']; }, $rows);
+            $deletedByMap = AuditLogger::getInstance()->getDeletedByForAccounts($visibleIds);
+        } catch (Throwable $e) {
+            $deletedByMap = [];
+        }
+    }
+
     // Метаданные колонок
     $ALL_COLUMNS = $meta['columns'];
     $NUMERIC_COLS = $meta['numeric'];
-    
+
     // Подсчитываем количество удалённых
     $deletedCount = $filteredTotal;
     
@@ -158,5 +197,33 @@ try {
     }
     echo '</body></html>';
     exit;
+}
+
+// Авто-purge (гибрид без cron): выполняется ПОСЛЕ отрисовки страницы, не блокируя
+// пользователя, и не чаще раза в сутки. Удаляет записи корзины старше N дней
+// чанками с кэпом за проход. Любые ошибки гасятся — страница уже отдана.
+if (!isset($errorMessage) && TrashSettings::shouldAutoPurge()) {
+    if (function_exists('fastcgi_finish_request')) {
+        @fastcgi_finish_request();
+    }
+    register_shutdown_function(function () use ($tableName) {
+        try {
+            $settings = TrashSettings::get();
+            if (empty($settings['enabled'])) {
+                return;
+            }
+            $svc = new AccountsService($tableName);
+            $deleted = $svc->purgeTrashOlderThan((int)$settings['days'], 50000);
+            TrashSettings::markPurged();
+            if ($deleted > 0) {
+                Logger::info('Trash auto-purge completed', [
+                    'days' => $settings['days'],
+                    'deleted' => $deleted,
+                ]);
+            }
+        } catch (Throwable $e) {
+            Logger::warning('Trash auto-purge failed', ['error' => $e->getMessage()]);
+        }
+    });
 }
 

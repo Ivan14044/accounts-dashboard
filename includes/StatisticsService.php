@@ -453,9 +453,38 @@ class StatisticsService {
         if (!$this->metadata->columnExists('status_rk')) {
             return [];
         }
-        
+
         $values = $this->getUniqueFilterValues();
         return $values['status_rk'] ?? [];
+    }
+
+    /**
+     * Уникальные значения status среди записей в корзине (для фильтра корзины).
+     * Скоупится к deleted_at IS NOT NULL — показываем только релевантные статусы.
+     *
+     * @return string[] Список непустых статусов
+     */
+    public function getDistinctStatuses(): array {
+        if (!$this->metadata->columnExists('status')) {
+            return [];
+        }
+        $deletedScope = $this->metadata->columnExists('deleted_at')
+            ? 'WHERE deleted_at IS NOT NULL AND status IS NOT NULL AND status <> \'\''
+            : 'WHERE status IS NOT NULL AND status <> \'\'';
+        $sql = "SELECT DISTINCT status FROM `{$this->table}` $deletedScope ORDER BY status ASC LIMIT 500";
+        try {
+            $rows = $this->db->prepare($sql, []);
+        } catch (Throwable $e) {
+            Logger::debug('getDistinctStatuses failed: ' . $e->getMessage());
+            return [];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            if (isset($r['status']) && $r['status'] !== '') {
+                $out[] = (string)$r['status'];
+            }
+        }
+        return $out;
     }
     
     /**
