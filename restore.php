@@ -25,42 +25,52 @@ try {
         throw new InvalidArgumentException('Invalid input');
     }
     
-    $ids = $input['ids'] ?? [];
     $csrf = $input['csrf'] ?? '';
-    
+
     // CSRF валидация
     if (!Validator::validateCsrfToken($csrf)) {
         Logger::warning('RESTORE: CSRF validation failed');
         throw new InvalidArgumentException('CSRF validation failed');
     }
-    
-    // Валидация ID
-    $ids = Validator::validateIds($ids);
-    
-    // Проверка на пустой массив ID
-    if (empty($ids)) {
-        throw new InvalidArgumentException('IDs are required');
-    }
-    
+
     $service = new AccountsService($tableName);
-    
+
     // Проверяем, поддерживается ли Soft Delete
     $meta = $service->getColumnMetadata();
     $supportsSoftDelete = in_array('deleted_at', $meta['all'], true);
-    
+
     if (!$supportsSoftDelete) {
         json_error('Soft Delete не поддерживается');
     }
-    
+
+    // Режим "по фильтру": восстановить все записи корзины под текущим фильтром.
+    if (($input['scope'] ?? '') === 'filter') {
+        $filterParams = is_array($input['filter'] ?? null) ? $input['filter'] : [];
+        $filter = $service->createTrashFilterFromRequest($filterParams);
+        $restored = $service->restoreAccountsByFilter($filter);
+
+        json_success([
+            'message' => "Восстановлено $restored аккаунт(ов)",
+            'restored_count' => $restored
+        ]);
+        exit;
+    }
+
+    // Режим по ID
+    $ids = Validator::validateIds($input['ids'] ?? []);
+    if (empty($ids)) {
+        throw new InvalidArgumentException('IDs are required');
+    }
+
     // Восстанавливаем аккаунты
     $restored = $service->restoreAccounts($ids);
-    
+
     Logger::info('Accounts restored from trash', [
         'user' => $_SESSION['username'] ?? 'unknown',
         'count' => $restored,
         'ids' => $ids
     ]);
-    
+
     json_success([
         'message' => "Восстановлено $restored аккаунт(ов)",
         'restored_count' => $restored

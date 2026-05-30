@@ -108,6 +108,14 @@ trait AccountsServiceStatsTrait {
     }
 
     /**
+     * Список уникальных значений status (для фильтра корзины)
+     * Делегирует работу в StatisticsService
+     */
+    public function getDistinctStatuses(): array {
+        return $this->statistics->getDistinctStatuses();
+    }
+
+    /**
      * Получение количества записей с пустым status_rk
      * Делегирует работу в StatisticsService
      */

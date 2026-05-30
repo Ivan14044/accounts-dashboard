@@ -145,6 +145,42 @@ trait AccountsServiceFiltersTrait {
     }
 
     /**
+     * Сборка фильтра для страницы корзины (Trash).
+     *
+     * Берёт базовый createFilterFromRequest() (поиск, статусы и т.д.) и добавляет
+     * trash-специфичные условия:
+     *   - диапазон даты удаления (deleted_from / deleted_to → addDateRangeFilter('deleted_at'))
+     *   - "только пустые" (only_empty → login И email пусты)
+     *   - addDeletedOnly() — гарантирует deleted_at IS NOT NULL (живые записи не попадут).
+     *
+     * Единый источник для trash.php и всех by-filter эндпоинтов (restore/delete/purge),
+     * чтобы UI и бэкенд строили идентичный WHERE.
+     */
+    public function createTrashFilterFromRequest(array $params): FilterBuilder {
+        $filter = $this->createFilterFromRequest($params);
+
+        // Только удалённые (корзина) — ДОБАВЛЯЕМ ПЕРВЫМ.
+        // addDeletedOnly() пропускает добавление, если в условиях уже встречается
+        // 'deleted_at'. Диапазон по deleted_at содержит эту подстроку, поэтому при
+        // обратном порядке токен-страж `deleted_at IS NOT NULL` не попадёт в WHERE,
+        // и защитная проверка by-filter операций (restore/delete) ложно сработает.
+        $filter->addDeletedOnly();
+
+        // Диапазон даты удаления
+        if ($this->metadata->columnExists('deleted_at')) {
+            $filter->addDateRangeFilter('deleted_at',
+                $params['deleted_from'] ?? null,
+                $params['deleted_to'] ?? null
+            );
+        }
+
+        // "Только пустые" аккаунты (мусор: login и email пусты)
+        $filter->addEmptyAccountFilter(!empty($params['only_empty']));
+
+        return $filter;
+    }
+
+    /**
      * Построение ORDER BY выражения с правильной обработкой NULL значений
      * Централизованная логика для устранения дублирования
      *

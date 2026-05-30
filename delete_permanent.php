@@ -26,13 +26,40 @@ try {
     
     $ids = $input['ids'] ?? [];
     $csrf = $input['csrf'] ?? '';
-    
+
     // CSRF валидация
     if (!verifyCsrfToken($csrf)) {
         Logger::warning('DELETE PERMANENT: CSRF validation failed');
         json_error('CSRF validation failed', 403);
     }
-    
+
+    // Режим "по фильтру": окончательно удалить все записи корзины под фильтром.
+    // Чанковано и с кэпом на стороне сервиса — клиент дочищает остаток повторными
+    // запросами, пока remaining > 0 (как chunked-export).
+    if (($input['scope'] ?? '') === 'filter') {
+        $service = new AccountsService($tableName);
+        $meta = $service->getColumnMetadata();
+        if (!in_array('deleted_at', $meta['all'], true)) {
+            json_error('Soft Delete не поддерживается');
+        }
+
+        $filterParams = is_array($input['filter'] ?? null) ? $input['filter'] : [];
+        $filter = $service->createTrashFilterFromRequest($filterParams);
+
+        $maxRows = 50000; // кэп строк за один HTTP-вызов
+        $deletedCount = $service->permanentlyDeleteByFilter($filter, $maxRows);
+
+        // Сколько ещё осталось под фильтром после этого прохода
+        $remaining = $service->getAccountsCount($filter, true);
+
+        json_success([
+            'message' => "Окончательно удалено $deletedCount аккаунт(ов)",
+            'deleted_count' => $deletedCount,
+            'remaining' => $remaining
+        ]);
+        exit;
+    }
+
     if (empty($ids) || !is_array($ids)) {
         json_error('IDs are required');
     }

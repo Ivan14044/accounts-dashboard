@@ -3,6 +3,11 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    (function(){try{var t=localStorage.getItem('dashboard-theme');
+      if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+      document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
+  </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -19,27 +24,24 @@
   <link href="assets/css/core-tables.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <link href="assets/css/core-mobile.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <link href="assets/css/core-design-v2.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+  <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 
   <style>
-    /* Премиальный заголовок для страницы Корзины */
+    /* Заголовок корзины — чистый, danger-акцент (без glassmorphism/градиента) */
     .trash-header {
-      background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(185, 28, 28, 0.15) 100%);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      color: var(--danger-700);
-      padding: var(--space-6) var(--space-8);
-      border-radius: var(--radius-2xl);
+      background: var(--bg-primary);
+      border: 1px solid var(--color-border);
+      border-left: 3px solid var(--danger-500);
+      color: var(--color-text);
+      padding: var(--space-5) var(--space-6);
+      border-radius: var(--radius-xl);
       margin-bottom: var(--space-6);
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
       gap: var(--space-4);
-      box-shadow: 
-        0 4px 6px -1px rgba(239, 68, 68, 0.05),
-        0 10px 15px -3px rgba(239, 68, 68, 0.05),
-        inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      box-shadow: var(--shadow-sm);
     }
     .trash-header-main {
       display: flex;
@@ -47,57 +49,122 @@
       gap: var(--space-4);
     }
     .trash-icon-wrap {
-      width: 64px;
-      height: 64px;
-      background: linear-gradient(135deg, var(--danger-500), var(--danger-700));
-      border-radius: var(--radius-xl);
+      width: 52px;
+      height: 52px;
+      background: var(--danger-50);
+      color: var(--danger-600);
+      border-radius: var(--radius-lg);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 8px 16px rgba(239, 68, 68, 0.3);
     }
+    [data-bs-theme="dark"] .trash-icon-wrap { background: rgba(248,113,113,0.14); color: #fca5a5; }
     .trash-icon-wrap i {
-      font-size: 2rem;
-      color: white;
+      font-size: 1.5rem;
     }
     .trash-header h1 {
       margin: 0;
-      font-size: 2rem;
-      font-weight: 800;
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
       letter-spacing: -0.02em;
+      color: var(--color-text);
     }
     .trash-subtitle {
-      font-size: 0.875rem;
-      opacity: 0.8;
-      margin-top: 4px;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+      margin-top: 2px;
     }
     .trash-count {
-      font-size: 1.125rem;
+      font-size: var(--font-size-sm);
       font-weight: 500;
-      background: rgba(255, 255, 255, 0.6);
+      color: var(--color-text-secondary);
+      background: var(--bg-secondary);
       padding: var(--space-2) var(--space-4);
       border-radius: var(--radius-full);
-      border: 1px solid rgba(239, 68, 68, 0.2);
+      border: 1px solid var(--color-border);
     }
     .trash-count strong {
-      color: var(--danger-700);
+      color: var(--danger-600);
       font-weight: 700;
-      font-size: 1.25rem;
+      font-size: var(--font-size-md);
     }
-    
+    [data-bs-theme="dark"] .trash-count strong { color: #fca5a5; }
+
     .trash-warning {
-      background: rgba(254, 243, 199, 0.5); /* amber-50 / 50% */
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      border-radius: var(--radius-xl);
+      background: var(--warning-50);
+      border: 1px solid var(--warning-100);
+      border-left: 3px solid var(--warning-500);
+      border-radius: var(--radius-lg);
       padding: var(--space-4) var(--space-5);
       margin-bottom: var(--space-6);
       display: flex;
       align-items: flex-start;
       gap: var(--space-3);
-      color: var(--warning-800);
-      box-shadow: var(--shadow-sm);
+      color: var(--warning-700);
     }
+    [data-bs-theme="dark"] .trash-warning { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.25); border-left-color: var(--warning-500); color: #fcd34d; }
+
+    /* Бейджи "возраст / автоудаление" */
+    .age-badge { font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
+    .age-sub { font-size: 0.7rem; opacity: 0.75; display: block; margin-top: 2px; }
+    .age-ok      { color: var(--gray-600, #4b5563); }
+    .age-soon    { color: var(--warning-700, #b45309); }
+    .age-overdue { color: var(--danger-600, #dc2626); font-weight: 700; }
+
+    /* Кто удалил */
+    .who-cell { font-size: 0.8125rem; }
+    .who-unknown { color: var(--gray-400, #9ca3af); font-style: italic; }
+
+    /* Баннер "выбрать все по фильтру" */
+    .select-all-banner {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px dashed rgba(59, 130, 246, 0.4);
+      border-radius: var(--radius-lg);
+      padding: var(--space-3) var(--space-4);
+      margin-bottom: var(--space-3);
+      font-size: 0.875rem;
+    }
+    .select-all-banner.is-visible { display: flex; }
+    .select-all-banner.is-active {
+      background: rgba(59, 130, 246, 0.15);
+      border-style: solid;
+    }
+
+    /* Панель retention */
+    .retention-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      background: var(--bg-primary);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-3) var(--space-4);
+    }
+    .retention-bar .form-control { max-width: 90px; }
+
+    /* История: таймлайн */
+    .history-item { border-left: 2px solid var(--gray-200,#e5e7eb); padding: 0 0 var(--space-3) var(--space-4); position: relative; }
+    .history-item::before {
+      content: ''; position: absolute; left: -5px; top: 4px; width: 8px; height: 8px;
+      border-radius: 50%; background: var(--primary-500, #3b82f6);
+    }
+    .history-meta { font-size: 0.75rem; color: var(--gray-500,#6b7280); }
+    .history-field { font-weight: 600; }
+    .history-change { font-size: 0.8125rem; word-break: break-word; }
+
+    /* ===== Тёмная тема: страница + новые элементы ===== */
+    [data-bs-theme="dark"] body.bg-light { background: #0A0A0F !important; }
+    [data-bs-theme="dark"] .age-ok { color: var(--gray-500); }
+    [data-bs-theme="dark"] .age-soon { color: #fbbf24; }
+    [data-bs-theme="dark"] .age-overdue { color: #f87171; }
+    [data-bs-theme="dark"] .who-unknown { color: var(--gray-500); }
+    [data-bs-theme="dark"] .history-item { border-left-color: var(--color-border); }
   </style>
 </head>
 <body class="bg-light">
@@ -112,7 +179,7 @@
       <div class="d-flex align-items-center gap-3">
         <span class="text-muted small fw-medium">
           <i class="fas fa-user-circle me-1 text-primary"></i>
-          <?php 
+          <?php
           $username = 'Пользователь';
           if (function_exists('getCurrentUser')) {
               try {
@@ -126,6 +193,9 @@
           echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8');
           ?>
         </span>
+        <button type="button" id="themeToggle" class="btn btn-sm btn-outline-secondary rounded-circle" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
+          <i class="fas fa-moon"></i>
+        </button>
         <div class="vr mx-1"></div>
         <a href="index.php" class="btn btn-sm btn-outline-primary rounded-pill">
           <i class="fas fa-arrow-left me-1"></i> Назад
@@ -142,14 +212,14 @@
 
   <!-- Основной контент -->
   <main class="container-fluid px-4 pb-5">
-    
+
     <?php if (isset($errorMessage)): ?>
     <div class="alert alert-danger shadow-sm rounded-xl" role="alert">
       <i class="fas fa-exclamation-circle me-2"></i>
       <strong>Ошибка:</strong> <?= htmlspecialchars($errorMessage) ?>
     </div>
     <?php endif; ?>
-    
+
     <!-- Заголовок корзины -->
     <div class="trash-header">
       <div class="trash-header-main">
@@ -165,12 +235,12 @@
         Всего записей: <strong><?= number_format(isset($deletedCount) ? $deletedCount : 0) ?></strong>
       </div>
     </div>
-    
+
     <!-- Предупреждение -->
     <div class="trash-warning">
       <i class="fas fa-exclamation-triangle fs-5 text-warning mt-1"></i>
       <div>
-        <strong>Внимание!</strong> В корзине отображаются аккаунты, которые были удалены, но всё ещё хранятся в базе данных. 
+        <strong>Внимание!</strong> В корзине отображаются аккаунты, которые были удалены, но всё ещё хранятся в базе данных.
         Вы можете <strong><span class="text-success">восстановить</span></strong> их обратно или <strong><span class="text-danger">удалить навсегда</span></strong>.
       </div>
     </div>
@@ -180,18 +250,37 @@
       <div class="card-body p-4">
         <form method="get" action="trash.php" id="trashSearchForm">
           <div class="row g-3 align-items-end">
-            <div class="col-md-5">
+            <div class="col-md-4">
               <label class="form-label text-muted small fw-semibold mb-1">Поиск по корзине</label>
               <div class="position-relative">
                 <i class="fas fa-search position-absolute text-muted" style="top: 50%; left: 16px; transform: translateY(-50%);"></i>
-                <input 
-                  type="search" 
-                  name="q" 
-                  class="form-control" 
-                  placeholder="Логин, email, ID..." 
+                <input
+                  type="search"
+                  name="q"
+                  class="form-control"
+                  placeholder="Логин, email, ID..."
                   value="<?= htmlspecialchars(isset($q) ? $q : '', ENT_QUOTES, 'UTF-8') ?>"
                   style="padding-left: 40px; border-radius: var(--radius-lg);"
                 >
+              </div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label text-muted small fw-semibold mb-1">Статус</label>
+              <select name="status" class="form-select" style="border-radius: var(--radius-lg);">
+                <option value="">Все статусы</option>
+                <?php
+                  $curStatus = isset($_GET['status']) && !is_array($_GET['status']) ? (string)$_GET['status'] : '';
+                  foreach (($statusList ?? []) as $st):
+                ?>
+                  <option value="<?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8') ?>" <?= $curStatus === $st ? 'selected' : '' ?>><?= htmlspecialchars($st, ENT_QUOTES, 'UTF-8') ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label text-muted small fw-semibold mb-1">Дата удаления (диапазон)</label>
+              <div class="d-flex gap-2">
+                <input type="date" name="deleted_from" class="form-control" value="<?= htmlspecialchars($_GET['deleted_from'] ?? '', ENT_QUOTES, 'UTF-8') ?>" style="border-radius: var(--radius-lg);">
+                <input type="date" name="deleted_to" class="form-control" value="<?= htmlspecialchars($_GET['deleted_to'] ?? '', ENT_QUOTES, 'UTF-8') ?>" style="border-radius: var(--radius-lg);">
               </div>
             </div>
             <div class="col-md-4">
@@ -203,18 +292,55 @@
                 <option value="deleted_at" <?= ($sort ?? 'deleted_at') === 'deleted_at' ? 'selected' : '' ?>>По дате удаления (сначала новые)</option>
               </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4 d-flex align-items-center gap-4 pt-2">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="only_empty" value="1" id="onlyEmptyCheck" <?= !empty($_GET['only_empty']) ? 'checked' : '' ?>>
+                <label class="form-check-label small fw-semibold" for="onlyEmptyCheck">Только пустые (без логина и email)</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="empty_status" value="1" id="emptyStatusCheck" <?= !empty($_GET['empty_status']) ? 'checked' : '' ?>>
+                <label class="form-check-label small fw-semibold" for="emptyStatusCheck">Пустой статус</label>
+              </div>
+            </div>
+            <div class="col-md-4 d-flex gap-2">
               <button type="submit" class="btn btn-primary w-100" style="border-radius: var(--radius-lg);">
                 <i class="fas fa-filter me-2"></i> Применить
               </button>
+              <a href="trash.php" class="btn btn-outline-secondary" style="border-radius: var(--radius-lg);" title="Сбросить фильтры">
+                <i class="fas fa-times"></i>
+              </a>
             </div>
           </div>
         </form>
       </div>
     </div>
 
+    <!-- Настройки автоочистки (Retention) -->
+    <div class="retention-bar mb-4">
+      <span class="fw-semibold small text-muted d-flex align-items-center gap-2">
+        <i class="fas fa-clock-rotate-left text-primary"></i> Автоочистка корзины
+      </span>
+      <div class="form-check form-switch m-0">
+        <input class="form-check-input" type="checkbox" id="retentionEnabled" <?= !empty($trashSettings['enabled']) ? 'checked' : '' ?>>
+        <label class="form-check-label small" for="retentionEnabled">Включена</label>
+      </div>
+      <span class="small text-muted">Удалять навсегда старше</span>
+      <input type="number" min="1" max="3650" class="form-control form-control-sm" id="retentionDays" value="<?= (int)$retentionDays ?>">
+      <span class="small text-muted">дней</span>
+      <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="saveRetentionBtn">
+        <i class="fas fa-save me-1"></i> Сохранить
+      </button>
+      <div class="vr"></div>
+      <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" id="purgeOldBtn">
+        <i class="fas fa-broom me-1"></i> Очистить старше N дней сейчас
+      </button>
+      <?php if (!empty($trashSettings['last_purge_at'])): ?>
+        <span class="small text-muted ms-auto">Последняя автоочистка: <?= htmlspecialchars(date('d.m.Y H:i', strtotime($trashSettings['last_purge_at'])), ENT_QUOTES, 'UTF-8') ?></span>
+      <?php endif; ?>
+    </div>
+
     <?php if (isset($deletedCount) && $deletedCount > 0): ?>
-    
+
     <!-- Панель инструментов (Массовые действия) -->
     <div class="toolbar-modern mb-4">
       <div class="d-flex align-items-center gap-3">
@@ -238,6 +364,12 @@
       </div>
     </div>
 
+    <!-- Баннер "выбрать все по фильтру" -->
+    <div class="select-all-banner" id="selectAllBanner">
+      <span id="selectAllBannerText"></span>
+      <button type="button" class="btn btn-sm btn-link p-0" id="selectAllFilterBtn"></button>
+    </div>
+
     <!-- Таблица (Premium Glassmorphism) -->
     <div class="dashboard-table">
       <div class="dashboard-table__inner">
@@ -247,7 +379,7 @@
               <tr>
                 <th class="ac-cell--checkbox text-center" style="width: 50px;">
                   <div class="form-check justify-content-center m-0">
-                    <input class="form-check-input" type="checkbox" id="selectAllTrash" title="Выбрать все">
+                    <input class="form-check-input" type="checkbox" id="selectAllTrash" title="Выбрать все на странице">
                   </div>
                 </th>
                 <th>ID</th>
@@ -255,19 +387,53 @@
                 <th>Email</th>
                 <th>Статус</th>
                 <th>Дата удаления</th>
+                <th>Возраст</th>
+                <th>Удалил</th>
                 <th class="ac-cell--actions text-center">Действия</th>
               </tr>
             </thead>
             <tbody>
               <?php if (!empty($rows)): ?>
                 <?php foreach ($rows as $r): ?>
-                  <tr data-id="<?= (int)$r['id'] ?>">
+                  <?php
+                    // Расчёт возраста и срока автоудаления
+                    $ageHtml = '<span class="text-muted">—</span>';
+                    if (!empty($r['deleted_at'])) {
+                        $delTs = strtotime($r['deleted_at']);
+                        if ($delTs !== false) {
+                            $ageDays = (int)floor((time() - $delTs) / 86400);
+                            $ageLabel = $ageDays <= 0 ? 'сегодня' : ('в корзине ' . $ageDays . ' дн.');
+                            $cls = 'age-ok';
+                            $sub = '';
+                            if (!empty($trashSettings['enabled'])) {
+                                $remaining = (int)$retentionDays - $ageDays;
+                                if ($remaining <= 0) {
+                                    $cls = 'age-overdue';
+                                    $sub = 'просрочено — будет удалено';
+                                } elseif ($remaining <= 7) {
+                                    $cls = 'age-soon';
+                                    $sub = 'автоудаление через ' . $remaining . ' дн.';
+                                } else {
+                                    $sub = 'автоудаление через ' . $remaining . ' дн.';
+                                }
+                            }
+                            $ageHtml = '<span class="age-badge ' . $cls . '">' . htmlspecialchars($ageLabel, ENT_QUOTES, 'UTF-8') . '</span>';
+                            if ($sub !== '') {
+                                $ageHtml .= '<span class="age-sub ' . $cls . '">' . htmlspecialchars($sub, ENT_QUOTES, 'UTF-8') . '</span>';
+                            }
+                        }
+                    }
+                    // Кто удалил
+                    $rid = (int)$r['id'];
+                    $who = $deletedByMap[$rid]['changed_by'] ?? '';
+                  ?>
+                  <tr data-id="<?= $rid ?>">
                     <td class="ac-cell--checkbox text-center">
                       <div class="form-check justify-content-center m-0">
-                        <input class="form-check-input trash-checkbox" type="checkbox" value="<?= (int)$r['id'] ?>">
+                        <input class="form-check-input trash-checkbox" type="checkbox" value="<?= $rid ?>">
                       </div>
                     </td>
-                    <td class="fw-bold text-muted">#<?= (int)$r['id'] ?></td>
+                    <td class="fw-bold text-muted">#<?= $rid ?></td>
                     <td class="fw-medium text-dark"><?= htmlspecialchars(isset($r['login']) ? $r['login'] : '', ENT_QUOTES, 'UTF-8') ?></td>
                     <td><span class="text-muted"><i class="fas fa-envelope me-2 opacity-50"></i><?= htmlspecialchars(isset($r['email']) ? $r['email'] : '', ENT_QUOTES, 'UTF-8') ?></span></td>
                     <td>
@@ -287,12 +453,23 @@
                         <span class="text-muted">—</span>
                       <?php endif; ?>
                     </td>
+                    <td><?= $ageHtml ?></td>
+                    <td class="who-cell">
+                      <?php if ($who !== ''): ?>
+                        <span><i class="fas fa-user me-1 opacity-50"></i><?= htmlspecialchars($who, ENT_QUOTES, 'UTF-8') ?></span>
+                      <?php else: ?>
+                        <span class="who-unknown">неизвестно</span>
+                      <?php endif; ?>
+                    </td>
                     <td class="ac-cell--actions text-center">
                       <div class="btn-group btn-group-sm rounded-pill shadow-sm">
-                        <button type="button" class="btn btn-outline-success restore-btn border-end-0" data-id="<?= (int)$r['id'] ?>" title="Восстановить">
+                        <button type="button" class="btn btn-outline-secondary history-btn border-end-0" data-id="<?= $rid ?>" title="История изменений">
+                          <i class="fas fa-clock-rotate-left"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-success restore-btn border-end-0 border-start-0" data-id="<?= $rid ?>" title="Восстановить">
                           <i class="fas fa-undo"></i> Восстановить
                         </button>
-                        <button type="button" class="btn btn-outline-danger delete-permanent-btn border-start-0" data-id="<?= (int)$r['id'] ?>" title="Удалить навсегда">
+                        <button type="button" class="btn btn-outline-danger delete-permanent-btn border-start-0" data-id="<?= $rid ?>" title="Удалить навсегда">
                           <i class="fas fa-times"></i>
                         </button>
                       </div>
@@ -300,9 +477,8 @@
                   </tr>
                 <?php endforeach; ?>
               <?php else: ?>
-                <!-- This shouldn't be reached due to empty check above, but keeping for safety -->
                 <tr>
-                  <td colspan="7">
+                  <td colspan="9">
                     <div class="empty-state border-0 shadow-none my-2">
                        <h3 class="empty-state-title">Нет совпадений</h3>
                        <p class="empty-state-desc">По вашему запросу ничего не найдено в корзине.</p>
@@ -314,7 +490,7 @@
           </table>
         </div>
       </div>
-      
+
       <?php if (isset($pages) && $pages > 1): ?>
         <div class="dashboard-table__footer">
           <div class="dashboard-table__counter">
@@ -335,9 +511,9 @@
         </div>
       <?php endif; ?>
     </div>
-    
+
     <?php else: ?>
-    
+
     <!-- Пустая корзина -->
     <div class="empty-state">
       <i class="fas fa-dumpster empty-state-icon" style="background: linear-gradient(135deg, var(--gray-300), var(--gray-500)); -webkit-background-clip: text;"></i>
@@ -347,16 +523,67 @@
         <i class="fas fa-arrow-left me-2"></i> Вернуться к дашборду
       </a>
     </div>
-    
+
     <?php endif; ?>
-    
+
   </main>
+
+  <!-- Модалка: История изменений -->
+  <div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg">
+      <div class="modal-content rounded-xl">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-clock-rotate-left me-2 text-primary"></i>История изменений <span id="historyAccountId" class="text-muted"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body" id="historyBody">
+          <div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>Загрузка…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модалка: подтверждение необратимого действия по фильтру (typed-confirm) -->
+  <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content rounded-xl">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title"><i class="fas fa-triangle-exclamation me-2"></i>Подтверждение удаления</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body">
+          <p id="confirmDeleteText" class="mb-3"></p>
+          <p class="text-muted small mb-2">Для подтверждения введите число <strong id="confirmDeleteNumber"></strong>:</p>
+          <input type="text" inputmode="numeric" class="form-control" id="confirmDeleteInput" placeholder="Введите число для подтверждения">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="button" class="btn btn-danger" id="confirmDeleteOk" disabled>
+            <i class="fas fa-minus-circle me-1"></i> Удалить навсегда
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="assets/js/toast.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
+  <script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
   <script>
     window.DashboardConfig = window.DashboardConfig || {};
     window.DashboardConfig.csrfToken = <?= json_encode((string)getCsrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
+
+    // Конфиг страницы корзины для trash.js (режим "выбрать все по фильтру", retention).
+    window.TrashConfig = {
+      filterParams: <?= json_encode($trashFilterParams ?? [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_HEX_APOS) ?>,
+      filteredTotal: <?= (int)($filteredTotal ?? 0) ?>,
+      pageRows: <?= isset($rows) ? count($rows) : 0 ?>,
+      retention: {
+        enabled: <?= !empty($trashSettings['enabled']) ? 'true' : 'false' ?>,
+        days: <?= (int)$retentionDays ?>
+      }
+    };
+
     // На странице корзины не подключается dashboard-init.js, поэтому
     // даём минимальное определение getTableAwareUrl — иначе trash.js падает
     // с "window.getTableAwareUrl is not a function" при empty/restore.

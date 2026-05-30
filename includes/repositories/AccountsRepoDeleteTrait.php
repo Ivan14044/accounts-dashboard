@@ -246,4 +246,216 @@ trait AccountsRepoDeleteTrait {
 
         return $affectedRows;
     }
+
+    /**
+     * Восстановление всех записей под фильтром (Soft Delete → deleted_at = NULL).
+     *
+     * Один UPDATE — MySQL делает всё на стороне сервера, без загрузки id в PHP
+     * (нет риска 256M OOM). Фильтр обязан содержать `deleted_at IS NOT NULL`
+     * (его добавляет createTrashFilterFromRequest()→addDeletedOnly), иначе бросаем.
+     *
+     * @param FilterBuilder $filter Фильтр корзины
+     * @return int Кол-во восстановленных записей
+     */
+    public function restoreAccountsByFilter(FilterBuilder $filter): int {
+        if (!$this->metadata->columnExists('deleted_at')) {
+            throw new Exception('Soft Delete не поддерживается. Поле deleted_at не существует.');
+        }
+
+        $where = $filter->getWhereClause(true); // includeSoftDelete=true: не добавлять deleted_at IS NULL
+        if (strpos($where, 'deleted_at IS NOT NULL') === false) {
+            // Защита: без deleted-only условия можно случайно затронуть живые записи.
+            throw new InvalidArgumentException('Trash filter must be scoped to deleted rows');
+        }
+
+        $whereClause = str_replace('WHERE ', '', $where);
+        $params = $filter->getParams();
+
+        $updateTimestamp = $this->metadata->columnExists('updated_at')
+            ? ', updated_at = CURRENT_TIMESTAMP'
+            : '';
+
+        $sql = "UPDATE {$this->table} SET deleted_at = NULL $updateTimestamp WHERE $whereClause";
+        $stmt = $this->db->getConnection()->prepare($sql);
+        if (!$stmt) {
+            throw new Exception('Failed to prepare restore-by-filter statement');
+        }
+
+        if (!empty($params)) {
+            $stmt->bind_param($filter->getParamTypes(), ...$params);
+        }
+
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new Exception('Failed to restore accounts by filter');
+        }
+
+        $affectedRows = $stmt->affected_rows;
+        $stmt->close();
+
+        $this->db->clearCache();
+
+        return $affectedRows;
+    }
+
+    /**
+     * Окончательное удаление записей под фильтром (Hard Delete) чанками.
+     *
+     * Память ограничена одним чанком id (по умолчанию 1000), а не всем набором,
+     * — поэтому безопасно для десятков тысяч строк. За один вызов удаляет не более
+     * $maxRows строк (кэп против 120s-таймаута HTTP); остаток клиент дочищает
+     * повторными запросами (как chunked-export).
+     *
+     * @param FilterBuilder $filter Фильтр корзины (обязан быть scoped к deleted_at IS NOT NULL)
+     * @param int $maxRows Максимум строк за один вызов (0 = без лимита)
+     * @param int $chunkSize Размер чанка
+     * @return int Кол-во физически удалённых записей за этот вызов
+     */
+    public function permanentlyDeleteByFilter(FilterBuilder $filter, int $maxRows = 50000, int $chunkSize = 1000): int {
+        if (!$this->metadata->columnExists('deleted_at')) {
+            throw new Exception('Soft Delete не поддерживается. Поле deleted_at не существует.');
+        }
+
+        $where = $filter->getWhereClause(true);
+        if (strpos($where, 'deleted_at IS NOT NULL') === false) {
+            throw new InvalidArgumentException('Trash filter must be scoped to deleted rows');
+        }
+
+        $whereClause = str_replace('WHERE ', '', $where);
+        $params = $filter->getParams();
+        $types = $filter->getParamTypes();
+
+        return $this->deleteScopedInChunks($whereClause, $params, $types, $maxRows, $chunkSize);
+    }
+
+    /**
+     * Очистка корзины от записей старше N дней (retention purge) чанками.
+     *
+     * @param int $days   Порог в днях (deleted_at < NOW() - INTERVAL N DAY)
+     * @param int $maxRows Максимум строк за один вызов (0 = без лимита)
+     * @param int $chunkSize Размер чанка
+     * @return int Кол-во удалённых записей за этот вызов
+     */
+    public function purgeOlderThan(int $days, int $maxRows = 50000, int $chunkSize = 1000): int {
+        if (!$this->metadata->columnExists('deleted_at')) {
+            return 0;
+        }
+        $days = max(1, $days);
+        // INTERVAL не биндится как параметр в старых MySQL → инлайним проверенный int.
+        $whereClause = "deleted_at IS NOT NULL AND deleted_at < (NOW() - INTERVAL $days DAY)";
+        return $this->deleteScopedInChunks($whereClause, [], '', $maxRows, $chunkSize);
+    }
+
+    /**
+     * Кол-во записей в корзине старше N дней (для UI и определения "есть что чистить").
+     */
+    public function countOlderThan(int $days): int {
+        if (!$this->metadata->columnExists('deleted_at')) {
+            return 0;
+        }
+        $days = max(1, $days);
+        $sql = "SELECT COUNT(*) AS cnt FROM {$this->table}
+                WHERE deleted_at IS NOT NULL AND deleted_at < (NOW() - INTERVAL $days DAY)";
+        $res = $this->db->getConnection()->query($sql);
+        if (!$res) return 0;
+        $row = $res->fetch_assoc();
+        $res->close();
+        return (int)($row['cnt'] ?? 0);
+    }
+
+    /**
+     * Общий чанкованный hard-delete по готовому WHERE-условию.
+     * На каждой итерации: SELECT id LIMIT chunk → DELETE favorites → DELETE accounts.
+     * Удалённые строки перестают матчиться (deleted_at-условие), поэтому LIMIT без OFFSET
+     * корректно перебирает набор. Память ограничена одним чанком.
+     *
+     * @param string $whereClause WHERE без ключевого слова WHERE (должен содержать deleted_at-условие)
+     * @param array  $params      Параметры для prepared statement
+     * @param string $types       Типы для bind_param ('' если параметров нет)
+     * @param int    $maxRows     Кэп строк за вызов (0 = без лимита)
+     * @param int    $chunkSize   Размер чанка
+     * @return int Всего удалено за вызов
+     */
+    private function deleteScopedInChunks(string $whereClause, array $params, string $types, int $maxRows, int $chunkSize): int {
+        $mysqli = $this->db->getConnection();
+        $chunkSize = max(1, $chunkSize);
+        $totalDeleted = 0;
+
+        while (true) {
+            // Сколько ещё можно за этот вызов
+            $limit = $chunkSize;
+            if ($maxRows > 0) {
+                $remainingCap = $maxRows - $totalDeleted;
+                if ($remainingCap <= 0) break;
+                $limit = min($chunkSize, $remainingCap);
+            }
+
+            // 1) Выбираем id очередного чанка
+            $selectSql = "SELECT id FROM {$this->table} WHERE $whereClause ORDER BY id LIMIT ?";
+            $selStmt = $mysqli->prepare($selectSql);
+            if (!$selStmt) {
+                throw new Exception('Failed to prepare chunk select: ' . $mysqli->error);
+            }
+            $selTypes = $types . 'i';
+            $selParams = $params;
+            $selParams[] = $limit;
+            $selStmt->bind_param($selTypes, ...$selParams);
+            if (!$selStmt->execute()) {
+                $err = $selStmt->error;
+                $selStmt->close();
+                throw new Exception('Failed to execute chunk select: ' . $err);
+            }
+            $res = $selStmt->get_result();
+            $ids = [];
+            while ($row = $res->fetch_assoc()) {
+                $ids[] = (int)$row['id'];
+            }
+            $selStmt->close();
+
+            if (empty($ids)) break;
+
+            // 2) Атомарно: favorites + accounts для этого чанка
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            $chunkTypes = str_repeat('i', count($ids));
+
+            $mysqli->begin_transaction();
+            try {
+                $favSql = "DELETE FROM account_favorites WHERE account_id IN ($ph)";
+                $favStmt = $mysqli->prepare($favSql);
+                if ($favStmt) {
+                    $favStmt->bind_param($chunkTypes, ...$ids);
+                    $favStmt->execute();
+                    $favStmt->close();
+                }
+
+                $delSql = "DELETE FROM {$this->table} WHERE id IN ($ph)";
+                $delStmt = $mysqli->prepare($delSql);
+                if (!$delStmt) {
+                    throw new Exception('Failed to prepare chunk delete: ' . $mysqli->error);
+                }
+                $delStmt->bind_param($chunkTypes, ...$ids);
+                if (!$delStmt->execute()) {
+                    $err = $delStmt->error;
+                    $delStmt->close();
+                    throw new Exception('Failed to execute chunk delete: ' . $err);
+                }
+                $totalDeleted += $delStmt->affected_rows;
+                $delStmt->close();
+
+                $mysqli->commit();
+            } catch (Throwable $txErr) {
+                $mysqli->rollback();
+                throw $txErr;
+            }
+
+            // Чанк меньше лимита → набор исчерпан
+            if (count($ids) < $limit) break;
+        }
+
+        if ($totalDeleted > 0) {
+            $this->db->clearCache();
+        }
+
+        return $totalDeleted;
+    }
 }
