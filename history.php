@@ -34,12 +34,19 @@ $history = $auditLogger->getAccountHistory($accountId, 200);
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script>
+      (function(){try{var t=localStorage.getItem('dashboard-theme');
+        if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+        document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
+    </script>
     <title>История изменений #<?= $accountId ?> - Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="assets/css/core-base.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
     <link href="assets/css/core-theme.css?v=<?= time() ?>" rel="stylesheet">
     <link href="assets/css/core-mobile.css?v=<?= time() ?>" rel="stylesheet">
     <link href="assets/css/core-design-v2.css?v=<?= time() ?>" rel="stylesheet">
+    <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
     <style>
         .history-item {
             border-left: 3px solid #0d6efd;
@@ -56,16 +63,29 @@ $history = $auditLogger->getAccountHistory($accountId, 200);
             font-weight: 600;
             color: #0d6efd;
         }
+        .old-value { background: #fff3cd; }
+        .new-value { background: #d1e7dd; }
+
+        /* ===== Тёмная тема ===== */
+        [data-bs-theme="dark"] .old-value { background: rgba(245,158,11,0.14); }
+        [data-bs-theme="dark"] .new-value { background: rgba(16,185,129,0.14); }
+        [data-bs-theme="dark"] .old-value code,
+        [data-bs-theme="dark"] .new-value code { color: #E0E3E8; }
+        [data-bs-theme="dark"] .field-name { color: #60a5fa; }
+        [data-bs-theme="dark"] .history-item { border-left-color: #3b82f6; }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <nav class="navbar navbar-expand-lg">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.php">
                 <i class="fas fa-chart-line text-primary me-2"></i>
                 Dashboard
             </a>
             <div class="d-flex align-items-center gap-2">
+                <button type="button" id="themeToggle" class="btn btn-sm btn-outline-secondary" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему">
+                    <i class="fas fa-moon"></i>
+                </button>
                 <a href="view.php?id=<?= $accountId ?>" class="btn btn-sm btn-outline-primary">
                     <i class="fas fa-arrow-left me-1"></i>
                     Назад к аккаунту
@@ -133,6 +153,7 @@ $history = $auditLogger->getAccountHistory($accountId, 200);
     </main>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 </body>
 </html>
 

@@ -199,21 +199,43 @@ class ErrorHandler {
         // Иначе - простой HTML вывод
         $showDetails = ini_get('display_errors') || Logger::isDebugEnabled();
         
-        echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ошибка</title></head><body>';
-        echo '<h1>Ошибка</h1>';
-        echo '<p>Произошла ошибка при обработке запроса.</p>';
-        
+        $themeInit = '<script>(function(){try{var t=localStorage.getItem("dashboard-theme");'
+            . 'if(!t){t=(window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light";}'
+            . 'document.documentElement.setAttribute("data-bs-theme",t);}catch(e){}})();</script>';
+        $css = '<style>'
+            . ':root{--bg:#f9fafb;--card:#fff;--bd:#e5e7eb;--tx:#111827;--mut:#6b7280;--accent:#2563eb;--code:#f3f4f6;}'
+            . '[data-bs-theme="dark"]{--bg:#0A0A0F;--card:#15161A;--bd:#2C2E36;--tx:#F1F2F4;--mut:#8C929C;--accent:#60a5fa;--code:#23252B;}'
+            . '*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;'
+            . 'font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx);}'
+            . '.err-card{width:100%;max-width:520px;background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:32px;'
+            . 'box-shadow:0 10px 24px rgba(0,0,0,.10);}'
+            . '.err-ico{width:48px;height:48px;border-radius:12px;background:rgba(239,68,68,.12);color:#ef4444;display:flex;'
+            . 'align-items:center;justify-content:center;font-size:24px;margin-bottom:16px;}'
+            . 'h1{font-size:1.25rem;margin:0 0 8px;letter-spacing:-.02em;}p{color:var(--mut);margin:0 0 16px;line-height:1.5;}'
+            . 'pre{background:var(--code);border:1px solid var(--bd);border-radius:8px;padding:12px;overflow:auto;font-size:12px;'
+            . 'color:var(--tx);white-space:pre-wrap;word-break:break-word;}'
+            . 'a.btn{display:inline-block;margin-top:8px;padding:10px 18px;background:var(--accent);color:#fff;border-radius:8px;'
+            . 'text-decoration:none;font-weight:600;font-size:14px;}summary{cursor:pointer;color:var(--mut);font-size:13px;}'
+            . '</style>';
+        echo '<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width, initial-scale=1"><title>Ошибка</title>'
+            . $themeInit . $css . '</head><body>';
+        echo '<div class="err-card">';
+        echo '<div class="err-ico">&#9888;</div>';
+        echo '<h1>Произошла ошибка</h1>';
+        echo '<p>При обработке запроса возникла ошибка.</p>';
+
         if ($showDetails) {
             echo '<pre>' . htmlspecialchars($e->getMessage()) . '</pre>';
-            echo '<p><strong>Файл:</strong> ' . htmlspecialchars($e->getFile()) . '</p>';
-            echo '<p><strong>Строка:</strong> ' . htmlspecialchars($e->getLine()) . '</p>';
+            echo '<p style="font-size:13px"><strong>Файл:</strong> ' . htmlspecialchars($e->getFile())
+                . '<br><strong>Строка:</strong> ' . htmlspecialchars($e->getLine()) . '</p>';
             echo '<details><summary>Стек вызовов</summary><pre>' . htmlspecialchars($e->getTraceAsString()) . '</pre></details>';
         } else {
             echo '<p>Проверьте логи сервера для получения подробной информации.</p>';
         }
-        
-        echo '<p><a href="index.php">Вернуться на главную</a></p>';
-        echo '</body></html>';
+
+        echo '<a class="btn" href="index.php">Вернуться на главную</a>';
+        echo '</div></body></html>';
         exit;
     }
     

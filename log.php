@@ -213,13 +213,20 @@ function highlightLevel($line) {
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    (function(){try{var t=localStorage.getItem('dashboard-theme');
+      if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+      document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
+  </script>
   <title>Логи системы - Dashboard</title>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="assets/css/core-base.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <link href="assets/css/core-theme.css?v=<?= time() ?>" rel="stylesheet">
   <link href="assets/css/core-mobile.css?v=<?= time() ?>" rel="stylesheet">
   <link href="assets/css/core-design-v2.css?v=<?= time() ?>" rel="stylesheet">
+  <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 
   <style>
     .log-container {
@@ -294,6 +301,24 @@ function highlightLevel($line) {
     .stats-warning { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
     .stats-info { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
     .stats-debug { background: rgba(107, 114, 128, 0.1); color: #6b7280; }
+
+    /* Audit value boxes (старое/новое значение) */
+    .audit-box { padding: 0.5rem; border-radius: 4px; }
+    .audit-box.old { background: #fff3cd; }
+    .audit-box.new { background: #d1e7dd; }
+
+    /* ===== Тёмная тема (контраст для хардкод-цветов) ===== */
+    [data-bs-theme="dark"] .audit-box.old { background: rgba(245,158,11,0.14); }
+    [data-bs-theme="dark"] .audit-box.new { background: rgba(16,185,129,0.14); }
+    [data-bs-theme="dark"] .audit-box code { color: #E0E3E8; }
+    [data-bs-theme="dark"] .log-error   { color: #f87171; }
+    [data-bs-theme="dark"] .log-warning { color: #fbbf24; }
+    [data-bs-theme="dark"] .log-info    { color: #60a5fa; }
+    [data-bs-theme="dark"] .log-debug   { color: #9ca3af; }
+    [data-bs-theme="dark"] .stats-error   { color: #f87171; }
+    [data-bs-theme="dark"] .stats-warning { color: #fbbf24; }
+    [data-bs-theme="dark"] .stats-info    { color: #60a5fa; }
+    [data-bs-theme="dark"] .stats-debug   { color: #9ca3af; }
   </style>
 </head>
 <body>
@@ -303,10 +328,15 @@ function highlightLevel($line) {
         <i class="fas fa-file-alt me-2"></i>
         Логи системы
       </h1>
-      <a href="index.php" class="btn btn-outline-secondary">
-        <i class="fas fa-arrow-left me-2"></i>
-        Назад к дашборду
-      </a>
+      <div class="d-flex gap-2">
+        <button type="button" id="themeToggle" class="btn btn-outline-secondary" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему">
+          <i class="fas fa-moon"></i>
+        </button>
+        <a href="index.php" class="btn btn-outline-secondary">
+          <i class="fas fa-arrow-left me-2"></i>
+          Назад к дашборду
+        </a>
+      </div>
     </div>
     
     <!-- Вкладки для переключения между типами логов -->
@@ -474,7 +504,7 @@ function highlightLevel($line) {
               <div class="row g-2">
                 <?php if (!empty($item['old_value'])): ?>
                   <div class="col-md-6">
-                    <div style="background: #fff3cd; padding: 0.5rem; border-radius: 4px;">
+                    <div class="audit-box old">
                       <small class="text-muted d-block mb-1"><strong>Было:</strong></small>
                       <code style="word-break: break-all; white-space: pre-wrap;"><?= e($item['old_value']) ?></code>
                     </div>
@@ -483,7 +513,7 @@ function highlightLevel($line) {
                 
                 <?php if (!empty($item['new_value'])): ?>
                   <div class="col-md-6">
-                    <div style="background: #d1e7dd; padding: 0.5rem; border-radius: 4px;">
+                    <div class="audit-box new">
                       <small class="text-muted d-block mb-1"><strong>Стало:</strong></small>
                       <code style="word-break: break-all; white-space: pre-wrap;"><?= e($item['new_value']) ?></code>
                     </div>
@@ -571,6 +601,7 @@ function highlightLevel($line) {
       }
     });
   </script>
+  <script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 </body>
 </html>
 

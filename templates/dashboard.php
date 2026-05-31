@@ -3,6 +3,12 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Тема: выставляем data-bs-theme ДО отрисовки (no-flash) -->
+  <script>
+    (function(){try{var t=localStorage.getItem('dashboard-theme');
+      if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+      document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
+  </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -19,6 +25,7 @@
   <link href="assets/css/core-tables.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-mobile.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-design-v2.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
+  <link href="assets/css/core-dark.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link rel="preload" href="assets/css/core-base.css?v=<?= ASSETS_VERSION ?>" as="style">
   <link rel="preload" href="assets/js/dashboard-init.js?v=<?= ASSETS_VERSION ?>" as="script">
 
@@ -52,14 +59,14 @@
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
     }
 
-    /* ── Stat card per-type gradient bars ── */
-    .stat-card[data-card="total"]::before             { background: linear-gradient(90deg, #6366f1, #4f46e5); }
-    .stat-card[data-card="custom:email_twofa"]::before { background: linear-gradient(90deg, #818cf8, #6366f1); }
-    .stat-card[data-status="INVALID_EMAIL"]::before    { background: linear-gradient(90deg, #ef4444, #f97316); }
-    .stat-card[data-status="NEW_TAR"]::before          { background: linear-gradient(90deg, #10b981, #059669); }
-    .stat-card[data-card="empty_status"]::before       { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+    /* ── Stat card per-type accent bars (solid, семантика — без градиентов) ── */
+    .stat-card[data-card="total"]::before             { background: var(--primary-500); }
+    .stat-card[data-card="custom:email_twofa"]::before { background: var(--primary-500); }
+    .stat-card[data-status="INVALID_EMAIL"]::before    { background: var(--danger-500); }
+    .stat-card[data-status="NEW_TAR"]::before          { background: var(--success-500); }
+    .stat-card[data-card="empty_status"]::before       { background: var(--warning-500); }
     .stat-card[data-card^="custom:"][style*="--card-color"]::before {
-      background: linear-gradient(90deg, var(--card-color), var(--card-color-dark, var(--card-color)));
+      background: var(--card-color);
     }
 
     /* ── Custom card modal select ── */
@@ -68,7 +75,7 @@
       border-radius: 0.375rem;
     }
     #customCardStatuses option { padding: 0.5rem; border-bottom: 1px solid var(--gray-100); }
-    #customCardStatuses option:checked { background: linear-gradient(90deg, #6366f1, #4f46e5); color: white; font-weight: 600; }
+    #customCardStatuses option:checked { background: var(--primary-600); color: white; font-weight: 600; }
 
     /* ── Dropdown checkbox items (status, currency, geo, etc.) ── */
     .status-dropdown-menu,
@@ -155,7 +162,7 @@
     }
 
     .currency-item.active, .geo-item.active, .status-rk-item.active, .status-marketplace-item.active {
-      background-color: rgba(79, 70, 229, 0.08);
+      background-color: rgba(37, 99, 235, 0.08);
       font-weight: 500;
     }
 
@@ -201,14 +208,14 @@
 
     .copy-btn {
       border: none;
-      background: rgba(79, 70, 229, 0.08);
+      background: rgba(37, 99, 235, 0.08);
       color: var(--primary-600);
       padding: 2px 6px;
       border-radius: 6px;
       font-size: 0.75rem;
       cursor: pointer;
     }
-    .copy-btn:hover { background: rgba(79, 70, 229, 0.15); }
+    .copy-btn:hover { background: rgba(37, 99, 235, 0.15); }
 
     .truncate { max-width: 200px; display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
     .truncate:hover { color: var(--primary-600); }
@@ -251,7 +258,7 @@
       width: 3rem; height: 3rem;
       background: var(--primary-600);
       color: white; border: none; border-radius: 50%;
-      box-shadow: 0 4px 16px rgba(79, 70, 229, 0.3);
+      box-shadow: 0 4px 16px rgba(37, 99, 235, 0.28);
       cursor: pointer; z-index: 1000;
       opacity: 0; visibility: hidden; transform: translateY(20px);
       transition: all 300ms ease;
@@ -259,7 +266,7 @@
       font-size: 1.125rem;
     }
     .scroll-to-top.show { opacity: 1; visibility: visible; transform: translateY(0); }
-    .scroll-to-top:hover { background: var(--primary-700); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(79, 70, 229, 0.4); }
+    .scroll-to-top:hover { background: var(--primary-700); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37, 99, 235, 0.36); }
 
     /* ── Page loader ── */
     .page-loader {
@@ -1245,6 +1252,8 @@
 <script src="assets/js/density-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 <!-- Per-page selector (URL-based, сбрасывает page=1) -->
 <script src="assets/js/per-page.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
+<!-- Переключатель темы (light/dark, persist в localStorage) -->
+<script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 </body>
 </html>
 

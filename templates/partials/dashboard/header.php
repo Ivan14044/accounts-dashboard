@@ -49,6 +49,9 @@
 
     <!-- Иконки действий -->
     <div class="header-actions">
+      <button class="header-action-btn" id="themeToggle" type="button" title="Тёмная тема" aria-pressed="false" aria-label="Включить тёмную тему">
+        <i class="fas fa-moon" aria-hidden="true"></i>
+      </button>
       <button class="header-action-btn" id="autoRefreshToggle" title="Автообновление">
         <i class="fas fa-sync-alt" aria-hidden="true"></i>
       </button>

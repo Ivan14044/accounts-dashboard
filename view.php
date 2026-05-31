@@ -44,6 +44,11 @@ function getStatusClass($status) {
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    (function(){try{var t=localStorage.getItem('dashboard-theme');
+      if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+      document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
+  </script>
   <title>Account #<?= (int)$row['id'] ?> - Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -53,6 +58,7 @@ function getStatusClass($status) {
   <link href="assets/css/core-theme.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-mobile.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-design-v2.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
+  <link href="assets/css/core-dark.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <style>
     /* Premium View Layout */
     body { 
@@ -62,41 +68,25 @@ function getStatusClass($status) {
     }
     
     .account-header {
-      background: var(--glass-bg);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid var(--glass-border);
+      background: var(--bg-primary);
+      border: 1px solid var(--color-border);
       border-radius: var(--radius-2xl);
       padding: var(--space-8);
       margin-bottom: var(--space-6);
       text-align: center;
       position: relative;
       overflow: hidden;
-      box-shadow: var(--shadow-xl);
+      box-shadow: var(--shadow-sm);
     }
-    
-    .account-header::before {
-      content: '';
-      position: absolute;
-      top: -50%; left: -50%;
-      width: 200%; height: 200%;
-      background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 50%);
-      pointer-events: none;
-      z-index: 0;
-    }
-    
+
     .account-id {
       position: relative;
       z-index: 1;
       font-size: 3.5rem;
       font-weight: 800;
       letter-spacing: -0.03em;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      color: var(--primary-600);
       margin-bottom: var(--space-2);
-      filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.2));
     }
     
     .account-title {
@@ -121,8 +111,7 @@ function getStatusClass($status) {
     }
     
     .toolbar-view {
-      background: rgba(255, 255, 255, 0.6);
-      backdrop-filter: blur(12px);
+      background: var(--bg-primary);
       border-radius: var(--radius-xl);
       padding: var(--space-4) var(--space-6);
       margin-bottom: var(--space-6);
@@ -136,11 +125,10 @@ function getStatusClass($status) {
     }
     
     .details-card {
-      background: var(--glass-bg);
-      backdrop-filter: blur(16px);
-      border: 1px solid var(--glass-border);
+      background: var(--bg-primary);
+      border: 1px solid var(--color-border);
       border-radius: var(--radius-2xl);
-      box-shadow: var(--shadow-lg);
+      box-shadow: var(--shadow-sm);
       overflow: hidden;
     }
     
@@ -192,7 +180,7 @@ function getStatusClass($status) {
     
     .field-value .mono {
       font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      background: rgba(244, 244, 245, 0.8);
+      background: var(--bg-secondary);
       padding: var(--space-2) var(--space-3);
       border-radius: var(--radius-md);
       border: 1px solid var(--border-medium);
@@ -219,11 +207,9 @@ function getStatusClass($status) {
     }
     
     .copy-btn:hover {
-      background: var(--primary);
+      background: var(--primary-600);
       color: white;
-      border-color: var(--primary);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 6px rgba(99, 102, 241, 0.2);
+      border-color: var(--primary-600);
     }
     
     .pw-mask {
@@ -282,6 +268,15 @@ function getStatusClass($status) {
       .toolbar-view .btn-group { flex-direction: column; width: 100%; gap: var(--space-2); }
       .toolbar-view .btn-group .btn { border-radius: var(--radius-lg) !important; width: 100%; }
     }
+
+    /* ===== Тёмная тема ===== */
+    [data-bs-theme="dark"] .account-id { color: #60a5fa; }
+    [data-bs-theme="dark"] .field-row:hover { background: rgba(59,130,246,0.10); }
+    [data-bs-theme="dark"] .field-value .mono,
+    [data-bs-theme="dark"] .field-value pre.mono { background: var(--gray-100); color: var(--gray-700); border-color: var(--color-border); }
+    [data-bs-theme="dark"] .copy-btn { background: rgba(59,130,246,0.14); color: #93c5fd; border-color: rgba(59,130,246,0.30); }
+    [data-bs-theme="dark"] .copy-btn:hover { background: var(--primary-600); color: #fff; border-color: var(--primary-600); }
+    [data-bs-theme="dark"] .btn-white { background: var(--bg-primary); color: var(--gray-700); }
   </style>
 </head>
 <body>
@@ -297,6 +292,9 @@ function getStatusClass($status) {
         <?= htmlspecialchars(getCurrentUser()) ?>
       </span>
       <div class="vr mx-1 d-none d-sm-block"></div>
+      <button type="button" id="themeToggle" class="btn btn-sm btn-outline-secondary rounded-pill" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему">
+        <i class="fas fa-moon"></i>
+      </button>
       <button class="btn btn-sm btn-outline-secondary rounded-pill" id="copyJsonBtn" title="Скопировать JSON">
         <i class="fas fa-copy"></i>
       </button>
@@ -679,6 +677,7 @@ async function duplicateAccount() {
 }
 </script>
 <script src="assets/js/favorites.js?v=<?= ASSETS_VERSION ?>"></script>
+<script src="assets/js/theme-toggle.js?v=<?= ASSETS_VERSION ?>" defer></script>
 </body>
 </html>
 

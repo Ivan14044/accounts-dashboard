@@ -195,9 +195,7 @@ if (!defined('ASSETS_VERSION')) {
     if ($v !== false && $v !== '') {
         define('ASSETS_VERSION', $v);
     } else {
-        // DEV (redesign): динамическая версия — браузер всегда берёт свежие CSS/JS.
-        // TODO: вернуть фиксированную версию (например '2026-05-30-redesign-v1') перед деплоем.
-        define('ASSETS_VERSION', (string) time());
+        define('ASSETS_VERSION', '2026-05-30-redesign-v4');
     }
 }
 
