@@ -1552,3 +1552,5 @@ body.dashboard-perf-light #stickyScrollbarWrapper {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* Переключение темы — мгновенное, без анимации (см. theme-toggle.js). */

@@ -25,6 +25,11 @@ $indexUrl = $baseUrl . '/index.php' . $queryString;
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    (function(){try{var t=localStorage.getItem('dashboard-theme');
+      if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+      document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
+  </script>
   <title>Загрузка дашборда — Dashboard</title>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <style>
@@ -51,13 +56,20 @@ $indexUrl = $baseUrl . '/index.php' . $queryString;
       height: 48px;
       margin: 0 auto 1.5rem;
       border: 4px solid #e8eaed;
-      border-top-color: #337ab7;
+      border-top-color: #2563eb;
       border-radius: 50%;
       animation: spin 0.9s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .loading-box h1 { font-size: 1.25rem; font-weight: 500; margin: 0 0 0.5rem; }
     .loading-box p  { font-size: 0.9rem; color: #666; margin: 0; }
+
+    /* ===== Тёмная тема ===== */
+    [data-bs-theme="dark"] body { background: #0A0A0F; color: #E0E3E8; }
+    [data-bs-theme="dark"] .loading-box { background: #15161A; box-shadow: 0 4px 24px rgba(0,0,0,0.5); }
+    [data-bs-theme="dark"] .spinner { border-color: #2C2E36; border-top-color: #3b82f6; }
+    [data-bs-theme="dark"] .loading-box p { color: #A9AFB9; }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.6s; } }
   </style>
 </head>
 <body>

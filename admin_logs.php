@@ -460,6 +460,11 @@ function activePeriod(): string {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script>
+      (function(){try{var t=localStorage.getItem('dashboard-theme');
+        if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+        document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
+    </script>
     <title>Журнал действий — Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -480,7 +485,7 @@ function activePeriod(): string {
 
         /* === Шапка === */
         .page-header {
-            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            background: #1e293b;
             color: #fff;
             padding: 28px 32px;
             border-radius: 16px;
@@ -724,6 +729,58 @@ function activePeriod(): string {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .action-buttons { flex-direction: column; }
         }
+
+        /* ===== Тёмная тема (самодостаточно; Bootstrap-компоненты темит data-bs-theme) ===== */
+        [data-bs-theme="dark"] {
+            --log-bg: #15161A;
+            --log-border: #2C2E36;
+            --log-hover: #1B1C21;
+            --log-stripe: #15161A;
+        }
+        [data-bs-theme="dark"] body { background: #0A0A0F; color: #C6CBD2; }
+        [data-bs-theme="dark"] .stat-card .stat-number { color: #F1F2F4; }
+        [data-bs-theme="dark"] .stat-card .stat-label { color: #8C929C; }
+        [data-bs-theme="dark"] .stat-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.55); }
+        [data-bs-theme="dark"] .period-btn { background: var(--log-bg); border-color: var(--log-border); color: #C6CBD2; }
+        [data-bs-theme="dark"] .period-btn:hover { background: rgba(59,130,246,0.14); border-color: #3b82f6; color: #93c5fd; }
+        [data-bs-theme="dark"] .period-btn.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+        [data-bs-theme="dark"] .filters-card .form-label { color: #A9AFB9; }
+        [data-bs-theme="dark"] .filters-card .form-control,
+        [data-bs-theme="dark"] .filters-card .form-select { background: var(--log-bg); border-color: var(--log-border); color: #E0E3E8; }
+        [data-bs-theme="dark"] .filters-card .form-control:focus,
+        [data-bs-theme="dark"] .filters-card .form-select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }
+        [data-bs-theme="dark"] .card-header-custom { background: #1B1C21; }
+        [data-bs-theme="dark"] .log-table thead th { background: #1B1C21; color: #8C929C; border-bottom-color: var(--log-border); }
+        [data-bs-theme="dark"] .log-table tbody tr { border-bottom-color: var(--log-border); }
+        [data-bs-theme="dark"] .log-table tbody tr:hover,
+        [data-bs-theme="dark"] .log-table tbody tr:nth-child(even):hover { background: rgba(59,130,246,0.10); }
+        [data-bs-theme="dark"] .value-old { background: rgba(248,113,113,0.14); color: #fca5a5; }
+        [data-bs-theme="dark"] .value-new { background: rgba(16,185,129,0.14); color: #6ee7b7; }
+        [data-bs-theme="dark"] .user-badge { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.30); color: #93c5fd; }
+        [data-bs-theme="dark"] .user-badge .user-dot { background: #3b82f6; }
+        [data-bs-theme="dark"] .account-link { color: #C6CBD2; }
+        [data-bs-theme="dark"] .account-link:hover { background: rgba(59,130,246,0.14); color: #93c5fd; }
+        [data-bs-theme="dark"] .action-btn { background: var(--log-bg); border-color: var(--log-border); color: #8C929C; }
+        [data-bs-theme="dark"] .action-btn:hover { background: rgba(59,130,246,0.14); border-color: #3b82f6; color: #93c5fd; }
+        [data-bs-theme="dark"] .ip-badge { color: #6E737D; }
+        [data-bs-theme="dark"] .pagination-wrapper { background: #1B1C21; border-top-color: var(--log-border); }
+        [data-bs-theme="dark"] .pagination .page-link { background: var(--log-bg); border-color: var(--log-border); color: #C6CBD2; }
+        [data-bs-theme="dark"] .pagination .page-item.active .page-link { background: #2563eb; border-color: #2563eb; color: #fff; }
+        [data-bs-theme="dark"] .user-stat-chip { background: var(--log-bg); border-color: var(--log-border); color: #C6CBD2; }
+        [data-bs-theme="dark"] .user-stat-chip:hover { background: rgba(59,130,246,0.12); border-color: #3b82f6; }
+        [data-bs-theme="dark"] .user-stat-chip.active-chip { background: #2563eb; border-color: #2563eb; color: #fff; }
+        [data-bs-theme="dark"] .user-stat-chip .chip-count { background: rgba(255,255,255,0.08); color: #C6CBD2; }
+        [data-bs-theme="dark"] .user-stat-chip.active-chip .chip-count { background: rgba(255,255,255,0.2); color: #fff; }
+        [data-bs-theme="dark"] .empty-state { color: #8C929C; }
+        [data-bs-theme="dark"] .detail-modal .modal-header,
+        [data-bs-theme="dark"] .detail-modal .modal-footer { background: #1B1C21 !important; border-color: var(--log-border) !important; }
+        [data-bs-theme="dark"] .detail-modal .detail-row { background: #1B1C21; }
+        [data-bs-theme="dark"] .detail-modal .detail-label { color: #8C929C; }
+        [data-bs-theme="dark"] .detail-modal .detail-value { color: #E0E3E8; }
+        [data-bs-theme="dark"] .detail-modal .value-block.old { background: rgba(248,113,113,0.12); color: #fca5a5; border-color: rgba(248,113,113,0.25); }
+        [data-bs-theme="dark"] .detail-modal .value-block.new { background: rgba(16,185,129,0.12); color: #6ee7b7; border-color: rgba(16,185,129,0.25); }
+        [data-bs-theme="dark"] .auto-refresh-indicator.inactive { background: #1B1C21; color: #8C929C; }
+        [data-bs-theme="dark"] .auto-refresh-indicator.active { background: rgba(16,185,129,0.14); color: #6ee7b7; }
     </style>
 </head>
 <body>
@@ -737,6 +794,9 @@ function activePeriod(): string {
                     <div class="subtitle">Полный аудит всех операций с аккаунтами</div>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" id="themeToggle" class="btn btn-sm btn-outline-light" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему">
+                        <i class="fas fa-moon"></i>
+                    </button>
                     <button onclick="toggleAutoRefresh()" class="btn btn-sm btn-outline-light" id="autoRefreshBtn" title="Автообновление каждые 30 сек">
                         <i class="fas fa-sync-alt me-1"></i> Авто
                     </button>
@@ -1265,5 +1325,6 @@ function activePeriod(): string {
             }
         });
     </script>
+    <script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 </body>
 </html>

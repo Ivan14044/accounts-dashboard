@@ -319,7 +319,7 @@
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 1px 2px rgba(99, 102, 241, 0.25));
+  /* drop-shadow убран: индиго-glow off-brand + лишний repaint */
   /* анимация прорисовки */
   stroke-dasharray: 200;
   stroke-dashoffset: 200;
@@ -333,8 +333,8 @@
 }
 
 .sparkline__dot {
-  fill: var(--primary-600);
-  stroke: #ffffff;
+  fill: var(--primary-500);
+  stroke: var(--bg-primary);
   stroke-width: 2;
   opacity: 0;
   animation: sparkline-fade 400ms ease-out 900ms forwards;

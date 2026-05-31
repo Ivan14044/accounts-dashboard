@@ -247,6 +247,11 @@ $csrf = getCsrfToken();
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    (function(){try{var t=localStorage.getItem('dashboard-theme');
+      if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+      document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
+  </script>
   <title>Поиск дублей — Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -274,6 +279,25 @@ $csrf = getCsrfToken();
     .status-pill.is-empty { background:#f3f4f6; color:#9ca3af; font-style:italic; }
     .empty-state { text-align:center; padding:4rem; background:#fff; border-radius:8px; border:1px solid #e5e7eb; }
     .actions-bar { position:sticky; top:0; background:#fff; border-bottom:1px solid #e5e7eb; padding:.75rem 1.5rem; margin-bottom:1.5rem; z-index:10; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+
+    /* ===== Тёмная тема ===== */
+    [data-bs-theme="dark"] body { background:#0A0A0F; color:#C6CBD2; }
+    [data-bs-theme="dark"] .header,
+    [data-bs-theme="dark"] .actions-bar { background:#15161A; border-bottom-color:#2C2E36; }
+    [data-bs-theme="dark"] .group-card,
+    [data-bs-theme="dark"] .empty-state { background:#15161A; border-color:#2C2E36; }
+    [data-bs-theme="dark"] .group-head { background:#1B1C21; border-bottom-color:#2C2E36; }
+    [data-bs-theme="dark"] .group-head .fbids,
+    [data-bs-theme="dark"] .acc-meta { color:#8C929C; }
+    [data-bs-theme="dark"] .acc-row { border-bottom-color:#2C2E36; }
+    [data-bs-theme="dark"] .acc-row.keep { background: rgba(16,185,129,0.10); }
+    [data-bs-theme="dark"] .acc-row.del  { background: rgba(245,158,11,0.10); }
+    [data-bs-theme="dark"] .acc-id { color:#60a5fa; }
+    [data-bs-theme="dark"] .status-pill[data-tone="success"] { background: rgba(16,185,129,0.16); color:#6ee7b7; }
+    [data-bs-theme="dark"] .status-pill[data-tone="danger"]  { background: rgba(248,113,113,0.16); color:#fca5a5; }
+    [data-bs-theme="dark"] .status-pill[data-tone="warning"] { background: rgba(245,158,11,0.16); color:#fcd34d; }
+    [data-bs-theme="dark"] .status-pill[data-tone="muted"]   { background:#23252B; color:#C6CBD2; }
+    [data-bs-theme="dark"] .status-pill.is-empty { background:#1B1C21; color:#8C929C; }
   </style>
 </head>
 <body>
@@ -284,7 +308,8 @@ $csrf = getCsrfToken();
       <h1 class="h4 mb-1"><i class="fas fa-clone me-2 text-warning"></i>Поиск и удаление дублей</h1>
       <small class="text-muted">Аккаунты с одинаковым FB ID (id_soc_account / c_user в cookies / FB ID в social_url)</small>
     </div>
-    <div>
+    <div class="d-flex gap-2">
+      <button type="button" id="themeToggle" class="btn btn-sm btn-outline-secondary" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему"><i class="fas fa-moon"></i></button>
       <a href="index.php" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i> К дашборду</a>
     </div>
   </div>
@@ -422,6 +447,7 @@ document.getElementById('keepNewest')?.addEventListener('click', () => {
   });
 });
 </script>
+<script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 
 </body>
 </html>

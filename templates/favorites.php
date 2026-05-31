@@ -3,6 +3,11 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    (function(){try{var t=localStorage.getItem('dashboard-theme');
+      if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+      document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
+  </script>
   <title>Избранные аккаунты - Dashboard</title>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -15,59 +20,59 @@
   <link href="assets/css/core-tables.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <link href="assets/css/core-mobile.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <link href="assets/css/core-design-v2.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+  <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 
   <style>
-    /* Премиальный заголовок для страницы Избранного */
+    /* ── Page surface + nav (tokenized, theme-aware) ── */
+    body { background: var(--gray-50); }
+    [data-bs-theme="dark"] body { background: #0A0A0F; }
+    .page-nav {
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--color-border);
+      box-shadow: var(--shadow-xs);
+    }
+    .page-theme-toggle {
+      width: 38px; height: 38px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--color-border); border-radius: var(--radius-md);
+      background: var(--bg-primary); color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+    }
+    .page-theme-toggle:hover { color: var(--color-text); border-color: var(--color-border-hover); }
+    .page-theme-toggle:active { transform: scale(0.96); }
+    .page-theme-toggle:focus-visible { outline: 2px solid var(--primary-500); outline-offset: 2px; }
+
+    /* ── Favorites header — чистый, с warning-акцентом (без glassmorphism/градиента) ── */
     .favorites-header {
-      background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.15) 100%);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      color: var(--warning-700);
-      padding: var(--space-6) var(--space-8);
-      border-radius: var(--radius-2xl);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: var(--space-4);
+      background: var(--bg-primary);
+      border: 1px solid var(--color-border);
+      border-left: 3px solid var(--warning-500);
+      border-radius: var(--radius-xl);
+      padding: var(--space-5) var(--space-6);
       margin-bottom: var(--space-6);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: var(--space-4);
-      box-shadow: 
-        0 4px 6px -1px rgba(245, 158, 11, 0.05),
-        0 10px 15px -3px rgba(245, 158, 11, 0.05),
-        inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      box-shadow: var(--shadow-sm);
     }
     .favorites-header h1 {
-      margin: 0;
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
+      margin: 0; font-size: var(--font-size-2xl); font-weight: 700; letter-spacing: -0.02em;
+      color: var(--color-text); display: flex; align-items: center; gap: var(--space-3);
     }
-    .favorites-header h1 i {
-      color: var(--warning-500);
-      filter: drop-shadow(0 2px 4px rgba(245, 158, 11, 0.3));
-    }
+    .favorites-header h1 i { color: var(--warning-500); }
     .favorites-count {
-      font-size: 1.125rem;
-      font-weight: 500;
-      background: rgba(255, 255, 255, 0.5);
-      padding: var(--space-2) var(--space-4);
-      border-radius: var(--radius-full);
-      border: 1px solid rgba(245, 158, 11, 0.2);
+      font-size: var(--font-size-sm); font-weight: 500; color: var(--color-text-secondary);
+      background: var(--bg-secondary); border: 1px solid var(--color-border);
+      padding: var(--space-2) var(--space-4); border-radius: var(--radius-full);
     }
-    .favorites-count strong {
-      color: var(--warning-600);
-      font-weight: 700;
-    }
+    .favorites-count strong { color: var(--warning-600); font-weight: 700; }
+    [data-bs-theme="dark"] .favorites-count strong { color: #fbbf24; }
   </style>
 </head>
-<body class="favorites-page bg-light">
+<body class="favorites-page">
 
   <!-- Навигация -->
-  <nav class="navbar navbar-expand bg-white border-bottom shadow-sm mb-4" style="height: 64px;">
+  <nav class="navbar navbar-expand page-nav mb-4" style="height: 64px;">
     <div class="container-fluid px-4">
       <a class="navbar-brand fw-bold" href="index.php">
         <i class="fas fa-chart-line text-primary me-2"></i>
@@ -91,6 +96,9 @@
           ?>
         </span>
         <div class="vr mx-1"></div>
+        <button type="button" id="themeToggle" class="page-theme-toggle" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему">
+          <i class="fas fa-moon"></i>
+        </button>
         <a href="index.php" class="btn btn-sm btn-outline-primary rounded-pill">
           <i class="fas fa-arrow-left me-1"></i> Назад
         </a>
@@ -267,5 +275,6 @@
     window.DashboardConfig.csrfToken = <?= json_encode((string)getCsrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
   </script>
   <script src="assets/js/favorites.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
+  <script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 </body>
 </html>
