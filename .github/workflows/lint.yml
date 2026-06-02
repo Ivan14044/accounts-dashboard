@@ -1,0 +1,46 @@
+# PR-гейт: проверка синтаксиса всех PHP-файлов через `php -l`.
+# Тестов в проекте нет, а мерж в main сразу деплоится в прод (deploy.yml),
+# поэтому это минимальная защита — не дать fatal-ошибке парсера уехать на живой сайт.
+# Имя job = "lint" → это имя required status check в branch protection на main.
+
+name: lint
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 7.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: php -l на всех PHP-файлах
+        run: |
+          set -uo pipefail
+          fail=0
+          while IFS= read -r -d '' f; do
+            if ! php -l "$f" > /dev/null 2>&1; then
+              echo "::error file=$f::PHP syntax error"
+              php -l "$f" || true
+              fail=1
+            fi
+          done < <(find . -type f -name '*.php' -not -path './.git/*' -not -path './vendor/*' -print0)
+          if [ "$fail" -ne 0 ]; then
+            echo "PHP lint FAILED — есть синтаксические ошибки"
+            exit 1
+          fi
+          echo "Все PHP-файлы прошли php -l"
