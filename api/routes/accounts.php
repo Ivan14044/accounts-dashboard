@@ -385,6 +385,7 @@ $router->post('/accounts/validate/check', function() use ($tableName) {
         'valid'    => count($result['valid']   ?? []),
         'invalid'  => count($result['invalid'] ?? []),
         'skipped'  => count($result['skipped'] ?? []),
+        'errored'  => count($result['errored'] ?? []),
         'total_ms' => $totalMs,
         'job_id'   => $jobId,
     ]);

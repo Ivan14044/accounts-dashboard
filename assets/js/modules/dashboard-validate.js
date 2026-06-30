@@ -444,6 +444,10 @@
               (res.valid   || []).forEach(function (r) { state.valid.push(r); });
               (res.invalid || []).forEach(function (r) { state.invalid.push(r); });
               (res.skipped || []).forEach(function (r) { state.skipped.push(r); });
+              // «errored» — аккаунты, которые сервер не смог проверить (сбой/таймаут/
+              // rate-limit внешнего API). НЕ помечаем их invalid: кладём в errors,
+              // чтобы показать «не проверено» и НЕ перезаписать им статус.
+              (res.errored || []).forEach(function (r) { state.errors.push(r); });
 
               state.checked += batch.length;
               refreshProgress();
