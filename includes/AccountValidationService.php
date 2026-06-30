@@ -121,33 +121,58 @@ class AccountValidationService
 
         $results = self::checkFbIdsBulk(array_keys($allFbIds), $progressCb);
 
+        $errored = [];
+
         foreach ($items as $item) {
             $fbIds = $item['fb_ids'] ?? [];
             if (empty($fbIds)) continue;
 
-            $isValid = false;
+            $anyValid   = false;
+            $anyUnknown = false;
             foreach ($fbIds as $fbId) {
-                if (isset($results[$fbId]) && $results[$fbId] === true) {
-                    $isValid = true;
+                $key = (string)$fbId;
+                if (!array_key_exists($key, $results)) {
+                    // По этому ID не получили определённого ответа (батч упал /
+                    // ID отсутствует в ответе API) — считаем «неизвестным».
+                    $anyUnknown = true;
+                    continue;
+                }
+                if ($results[$key] === true) {
+                    $anyValid = true;
                     break;
                 }
             }
 
             $entry = ['id' => $item['id'] ?? 0, 'login' => $item['login'] ?? ''];
-            $isValid ? ($valid[] = $entry) : ($invalid[] = $entry);
+            if ($anyValid) {
+                $valid[] = $entry;
+            } elseif ($anyUnknown) {
+                // Ни одного «valid», но часть ID не проверена (сеть / rate-limit).
+                // НЕ помечаем невалидным: иначе валидный аккаунт получил бы статус
+                // invalid из-за временного сбоя API. Уходит в «не проверено».
+                $errored[] = $entry;
+            } else {
+                // Все ID получили определённый ответ, valid среди них нет.
+                $invalid[] = $entry;
+            }
         }
 
-        // Также пишем accumulated valid/invalid — фронт может их использовать
-        // для живого ratio-бара (опционально).
+        // Accumulated счётчики — фронт использует для живого ratio-бара / итогов.
         if ($jobId !== null && $jobId !== '') {
             JobProgress::update($jobId, [
                 'valid'   => count($valid),
                 'invalid' => count($invalid),
                 'skipped' => count($skipped),
+                'errored' => count($errored),
             ]);
         }
 
-        return ['valid' => $valid, 'invalid' => $invalid, 'skipped' => $skipped];
+        return [
+            'valid'   => $valid,
+            'invalid' => $invalid,
+            'skipped' => $skipped,
+            'errored' => $errored,
+        ];
     }
 
     /**
@@ -200,10 +225,11 @@ class AccountValidationService
                     $results[$fbId] = $isValid;
                 }
             } else {
+                // Батч не удалось проверить (сеть / таймаут / rate-limit) даже после
+                // ретраев. НЕ помечаем эти ID невалидными — оставляем их неизвестными
+                // (отсутствующими в $results). Иначе при троттлинге API валидные
+                // аккаунты массово получали бы статус invalid. См. checkItems().
                 Logger::warning('check.fb.tools batch failed after retries', ['count' => count($batches[$idx])]);
-                foreach ($batches[$idx] as $fbId) {
-                    $results[$fbId] = false;
-                }
             }
         }
 
@@ -367,16 +393,9 @@ class AccountValidationService
             }
         }
 
-        // ID, не попавшие в response data — отмечаем как невалидные.
-        // Теоретически таких быть не должно (API всегда возвращает запись на каждый input),
-        // но защищаемся на случай частичного ответа.
-        foreach ($batch as $fbId) {
-            $key = (string)$fbId;
-            if (!isset($batchResult[$key])) {
-                $batchResult[$key] = false;
-            }
-        }
-
+        // ID, не попавшие в response data, НЕ помечаем невалидными — оставляем
+        // «неизвестными» (просто отсутствуют в результате). Иначе частичный или
+        // битый ответ API ошибочно пометил бы валидные аккаунты как invalid.
         return $batchResult;
     }
 }
