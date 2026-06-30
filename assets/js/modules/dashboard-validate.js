@@ -7,8 +7,9 @@
  * а параллельность обеспечивает бэкенд: AccountValidationService раскидывает
  * суб-батчи к check.fb.tools через curl_multi.
  *
- * BATCH_SIZE=200 (= VALIDATE_CHECK_MAX_ITEMS) → бэкенд делит их на суб-батчи
- * по FB_TOOLS_BATCH_SIZE=100 и обращается к check.fb.tools одновременно.
+ * BATCH_SIZE=1000 (= VALIDATE_CHECK_MAX_ITEMS) → бэкенд кладёт их в 1-2 суб-батча
+ * по FB_TOOLS_BATCH_SIZE=1000 и обращается к check.fb.tools. Укрупнено после
+ * живых замеров: API принимает крупные партии и не троттлит ⇒ меньше round-trip'ов.
  * Streaming прогресс: после каждого sub-batch сервер пишет в JobProgress,
  * фронт читает через polling /progress — UI движется внутри батча.
  */
@@ -16,8 +17,8 @@
   'use strict';
 
   // ─── Константы ─────────────────────────────────────────
-  var BATCH_SIZE  = 200;   // элементов за один /check запрос (= VALIDATE_CHECK_MAX_ITEMS)
-  var CONCURRENCY = 1;     // СТРОГО 1 — иначе nginx отдаёт 429!
+  var BATCH_SIZE  = 1000;  // элементов за один /check запрос (= VALIDATE_CHECK_MAX_ITEMS)
+  var CONCURRENCY = 1;     // СТРОГО 1 — иначе НАШ nginx отдаёт 429 (не внешний API)
   var PREP_LIMIT  = 2000;  // лимит prepare за одну страницу
   var ACTION_BATCH = 1000; // лимит ID за один запрос действия
 
