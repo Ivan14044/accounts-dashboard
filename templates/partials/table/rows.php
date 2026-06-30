@@ -47,7 +47,7 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
       </td>
       <?php foreach ($ALL_COLUMNS as $k => $title): $v = $r[$k]; $isLong = is_string($v) && (strlen($v) > $CLIP_LEN || in_array($k, $LONG_FIELDS, true)); ?>
         <?php if ($k === 'id'): ?>
-          <td class="ac-cell ac-cell--id" data-col="<?= e($k) ?>" data-column="<?= e($k) ?>" data-label="<?= e($title) ?>">
+          <td class="ac-cell ac-cell--id" data-col="<?= e($k) ?>" data-column="<?= e($k) ?>">
             <span class="fw-bold text-primary">#<?= (int)$v ?></span>
             <button type="button" class="copy-btn" data-copy-text="<?= (int)$v ?>" title="Копировать"><i class="fas fa-copy"></i></button>
           </td>
@@ -62,7 +62,7 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
           </td>
           <?php continue; ?>
         <?php endif; ?>
-        <td class="ac-cell" data-col="<?= e($k) ?>" data-column="<?= e($k) ?>" data-label="<?= e($title) ?>">
+        <td class="ac-cell" data-col="<?= e($k) ?>" data-column="<?= e($k) ?>">
           <?php 
           // Определяем тип поля для валидации на фронтенде
           $isNumeric = isset($NUMERIC_COLS) && in_array($k, $NUMERIC_COLS, true);
