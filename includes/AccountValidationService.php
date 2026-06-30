@@ -121,41 +121,12 @@ class AccountValidationService
 
         $results = self::checkFbIdsBulk(array_keys($allFbIds), $progressCb);
 
-        $errored = [];
-
-        foreach ($items as $item) {
-            $fbIds = $item['fb_ids'] ?? [];
-            if (empty($fbIds)) continue;
-
-            $anyValid   = false;
-            $anyUnknown = false;
-            foreach ($fbIds as $fbId) {
-                $key = (string)$fbId;
-                if (!array_key_exists($key, $results)) {
-                    // По этому ID не получили определённого ответа (батч упал /
-                    // ID отсутствует в ответе API) — считаем «неизвестным».
-                    $anyUnknown = true;
-                    continue;
-                }
-                if ($results[$key] === true) {
-                    $anyValid = true;
-                    break;
-                }
-            }
-
-            $entry = ['id' => $item['id'] ?? 0, 'login' => $item['login'] ?? ''];
-            if ($anyValid) {
-                $valid[] = $entry;
-            } elseif ($anyUnknown) {
-                // Ни одного «valid», но часть ID не проверена (сеть / rate-limit).
-                // НЕ помечаем невалидным: иначе валидный аккаунт получил бы статус
-                // invalid из-за временного сбоя API. Уходит в «не проверено».
-                $errored[] = $entry;
-            } else {
-                // Все ID получили определённый ответ, valid среди них нет.
-                $invalid[] = $entry;
-            }
-        }
+        // Классификация — чистая функция без сети/IO (см. classifyItems()).
+        // Покрыта тестом tests/test_validation_classify.php.
+        $classified = self::classifyItems($items, $results);
+        $valid      = $classified['valid'];
+        $invalid    = $classified['invalid'];
+        $errored    = $classified['errored'];
 
         // Accumulated счётчики — фронт использует для живого ratio-бара / итогов.
         if ($jobId !== null && $jobId !== '') {
@@ -173,6 +144,60 @@ class AccountValidationService
             'skipped' => $skipped,
             'errored' => $errored,
         ];
+    }
+
+    /**
+     * Чистая классификация аккаунтов по результатам проверки FB ID.
+     * Без сети и IO — поэтому покрыта юнит-тестом (tests/test_validation_classify.php).
+     *
+     * Правила (важно для корректности — см. историю бага «всё невалид»):
+     *   - valid   — хотя бы один FB ID аккаунта вернул true (активен);
+     *   - invalid — ТОЛЬКО если по ВСЕМ FB ID получен определённый ответ и
+     *               среди них нет ни одного true;
+     *   - errored — есть хотя бы один FB ID, по которому ответа НЕТ
+     *               (батч упал / rate-limit / отсутствует в ответе API) и при
+     *               этом нет ни одного true. Такие НЕЛЬЗЯ помечать invalid —
+     *               иначе валидный аккаунт испортится статусом из-за сбоя API.
+     *
+     * @param array $items   [['id'=>int,'login'=>string,'fb_ids'=>string[]], ...]
+     * @param array $results [fb_id(string) => bool]; отсутствие ключа = «неизвестно»
+     * @return array{valid: array, invalid: array, errored: array}
+     */
+    public static function classifyItems(array $items, array $results): array
+    {
+        $valid   = [];
+        $invalid = [];
+        $errored = [];
+
+        foreach ($items as $item) {
+            $fbIds = $item['fb_ids'] ?? [];
+            if (empty($fbIds)) continue; // нет FB ID — это skipped, не сюда
+
+            $anyValid   = false;
+            $anyUnknown = false;
+            foreach ($fbIds as $fbId) {
+                $key = (string)$fbId;
+                if (!array_key_exists($key, $results)) {
+                    $anyUnknown = true; // нет определённого ответа по этому ID
+                    continue;
+                }
+                if ($results[$key] === true) {
+                    $anyValid = true;
+                    break;
+                }
+            }
+
+            $entry = ['id' => $item['id'] ?? 0, 'login' => $item['login'] ?? ''];
+            if ($anyValid) {
+                $valid[] = $entry;
+            } elseif ($anyUnknown) {
+                $errored[] = $entry;
+            } else {
+                $invalid[] = $entry;
+            }
+        }
+
+        return ['valid' => $valid, 'invalid' => $invalid, 'errored' => $errored];
     }
 
     /**
