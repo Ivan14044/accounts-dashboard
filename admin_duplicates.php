@@ -298,6 +298,38 @@ $csrf = getCsrfToken();
     [data-bs-theme="dark"] .status-pill[data-tone="warning"] { background: rgba(245,158,11,0.16); color:#fcd34d; }
     [data-bs-theme="dark"] .status-pill[data-tone="muted"]   { background:#23252B; color:#C6CBD2; }
     [data-bs-theme="dark"] .status-pill.is-empty { background:#1B1C21; color:#8C929C; }
+
+    /* ===== Мобильная адаптация ===== */
+    @media (max-width: 768px) {
+      .header { padding: .85rem 1rem; margin-bottom: 1rem; }
+      .header h1.h4 { font-size: 1.05rem; }
+      .actions-bar { padding: .6rem 1rem; margin-bottom: 1rem; }
+      .container-fluid { padding-left: 12px; padding-right: 12px; }
+      .group-head { padding: .65rem .85rem; font-size: .9rem; }
+
+      /* 7-колоночный grid → вертикальный стек, радио в углу */
+      .acc-row {
+        display: block;
+        position: relative;
+        padding: .85rem 1rem .85rem 2.6rem;
+        font-size: .9rem;
+      }
+      .acc-row > input[type="radio"] {
+        position: absolute;
+        left: 1rem;
+        top: 1rem;
+        width: 1.1rem;
+        height: 1.1rem;
+      }
+      .acc-row > div { margin-bottom: .4rem; }
+      .acc-row > div:last-child { margin-bottom: 0; }
+      .acc-id { font-size: 1rem; }
+    }
+
+    @media (max-width: 480px) {
+      .header .d-flex { flex-wrap: wrap; gap: .5rem; }
+      .empty-state { padding: 2.5rem 1rem; }
+    }
   </style>
 </head>
 <body>

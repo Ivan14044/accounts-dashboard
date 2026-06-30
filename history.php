@@ -65,6 +65,19 @@ $history = $auditLogger->getAccountHistory($accountId, 200);
         }
         .old-value { background: #fff3cd; }
         .new-value { background: #d1e7dd; }
+        /* Длинные значения (токены, cookies) переносятся, а не ломают вёрстку */
+        .old-value code,
+        .new-value code {
+            display: block;
+            white-space: pre-wrap;
+            word-break: break-all;
+            overflow-wrap: anywhere;
+        }
+
+        @media (max-width: 480px) {
+            main.container { padding-left: 12px; padding-right: 12px; }
+            .history-item { padding-left: .75rem; }
+        }
 
         /* ===== Тёмная тема ===== */
         [data-bs-theme="dark"] .old-value { background: rgba(245,158,11,0.14); }

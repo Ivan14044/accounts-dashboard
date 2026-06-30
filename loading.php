@@ -40,16 +40,22 @@ $indexUrl = $baseUrl . '/index.php' . $queryString;
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 16px;
       background: #f0f2f5;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       color: #333;
     }
     .loading-box {
       text-align: center;
+      width: 100%;
+      max-width: 420px;
       padding: 2rem 3rem;
       background: #fff;
       border-radius: 12px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    @media (max-width: 480px) {
+      .loading-box { padding: 1.75rem 1.25rem; }
     }
     .spinner {
       width: 48px;

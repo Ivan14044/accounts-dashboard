@@ -190,8 +190,8 @@
             </thead>
             <tbody>
               <?php foreach ($rows as $r): ?>
-              <tr data-id="<?= (int)$r['id'] ?>">
-                <td class="fw-bold text-primary">#<?= (int)$r['id'] ?></td>
+              <tr class="ac-row" data-id="<?= (int)$r['id'] ?>">
+                <td class="fw-bold text-primary ac-cell--id" data-label="ID">#<?= (int)$r['id'] ?></td>
                 <td class="favorite-cell text-center ac-cell--checkbox" data-account-id="<?= (int)$r['id'] ?>">
                   <button
                     type="button"
@@ -202,11 +202,11 @@
                     <i class="fas fa-star text-warning filter-drop-shadow"></i>
                   </button>
                 </td>
-                <td class="fw-medium"><?= htmlspecialchars($r['login'] ?? '') ?></td>
-                <td><span class="text-muted"><i class="fas fa-envelope me-2 opacity-50"></i><?= htmlspecialchars($r['email'] ?? '') ?></span></td>
-                <td><?= htmlspecialchars($r['first_name'] ?? '') ?></td>
-                <td><?= htmlspecialchars($r['last_name'] ?? '') ?></td>
-                <td>
+                <td class="fw-medium" data-label="Логин"><?= htmlspecialchars($r['login'] ?? '') ?></td>
+                <td data-label="Email"><span class="text-muted"><i class="fas fa-envelope me-2 opacity-50"></i><?= htmlspecialchars($r['email'] ?? '') ?></span></td>
+                <td data-label="Имя"><?= htmlspecialchars($r['first_name'] ?? '') ?></td>
+                <td data-label="Фамилия"><?= htmlspecialchars($r['last_name'] ?? '') ?></td>
+                <td data-label="Статус">
                   <?php $st = $r['status'] ?? ''; ?>
                   <span class="badge <?= $st !== '' ? 'bg-secondary' : 'badge-empty-status' ?> px-3 py-2 rounded-pill shadow-sm">
                     <?= $st !== '' ? htmlspecialchars($st) : 'Пустой статус' ?>
