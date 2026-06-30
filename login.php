@@ -289,9 +289,18 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) time();
     }
 
     @media (max-width: 480px) {
+      body { padding: 16px; }
       .login-card { padding: 28px 22px; border-radius: var(--radius-xl); }
       .login-heading { font-size: var(--font-size-xl); }
       .login-theme-toggle { top: 14px; right: 14px; }
+      /* iOS не зумит поле при фокусе, если шрифт ≥ 16px */
+      .login-input { font-size: 16px; }
+    }
+
+    @media (max-width: 360px) {
+      body { padding: 12px; }
+      .login-card { padding: 22px 16px; }
+      .login-brand { margin-bottom: 22px; }
     }
   </style>
 </head>

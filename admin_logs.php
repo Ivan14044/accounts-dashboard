@@ -728,6 +728,14 @@ function activePeriod(): string {
             .log-table td, .log-table thead th { padding: 8px 10px; font-size: 0.8rem; }
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .action-buttons { flex-direction: column; }
+            /* Широкая таблица логов скроллится по горизонтали внутри контейнера */
+            .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .log-table { min-width: 760px; }
+        }
+
+        @media (max-width: 480px) {
+            .page-header { padding: 16px 14px; }
+            .stats-grid { grid-template-columns: 1fr; }
         }
 
         /* ===== Тёмная тема (самодостаточно; Bootstrap-компоненты темит data-bs-theme) ===== */

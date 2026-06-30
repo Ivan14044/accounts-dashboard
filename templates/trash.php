@@ -427,23 +427,23 @@
                     $rid = (int)$r['id'];
                     $who = $deletedByMap[$rid]['changed_by'] ?? '';
                   ?>
-                  <tr data-id="<?= $rid ?>">
+                  <tr class="ac-row" data-id="<?= $rid ?>">
                     <td class="ac-cell--checkbox text-center">
                       <div class="form-check justify-content-center m-0">
                         <input class="form-check-input trash-checkbox" type="checkbox" value="<?= $rid ?>">
                       </div>
                     </td>
-                    <td class="fw-bold text-muted">#<?= $rid ?></td>
-                    <td class="fw-medium text-dark"><?= htmlspecialchars(isset($r['login']) ? $r['login'] : '', ENT_QUOTES, 'UTF-8') ?></td>
-                    <td><span class="text-muted"><i class="fas fa-envelope me-2 opacity-50"></i><?= htmlspecialchars(isset($r['email']) ? $r['email'] : '', ENT_QUOTES, 'UTF-8') ?></span></td>
-                    <td>
+                    <td class="fw-bold text-muted" data-label="ID">#<?= $rid ?></td>
+                    <td class="fw-medium text-dark" data-label="Логин"><?= htmlspecialchars(isset($r['login']) ? $r['login'] : '', ENT_QUOTES, 'UTF-8') ?></td>
+                    <td data-label="Email"><span class="text-muted"><i class="fas fa-envelope me-2 opacity-50"></i><?= htmlspecialchars(isset($r['email']) ? $r['email'] : '', ENT_QUOTES, 'UTF-8') ?></span></td>
+                    <td data-label="Статус">
                       <?php if (!empty($r['status'])): ?>
                         <span class="badge bg-secondary px-3 py-2 rounded-pill shadow-sm"><?= htmlspecialchars($r['status'], ENT_QUOTES, 'UTF-8') ?></span>
                       <?php else: ?>
                         <span class="badge badge-empty-status px-3 py-2 rounded-pill shadow-sm">Пустой статус</span>
                       <?php endif; ?>
                     </td>
-                    <td>
+                    <td data-label="Дата удаления">
                       <?php if (!empty($r['deleted_at'])): ?>
                         <span class="text-danger fw-medium" style="font-size: 0.8125rem;">
                           <i class="fas fa-clock me-1 opacity-50"></i>
@@ -453,8 +453,8 @@
                         <span class="text-muted">—</span>
                       <?php endif; ?>
                     </td>
-                    <td><?= $ageHtml ?></td>
-                    <td class="who-cell">
+                    <td data-label="Возраст"><?= $ageHtml ?></td>
+                    <td class="who-cell" data-label="Удалил">
                       <?php if ($who !== ''): ?>
                         <span><i class="fas fa-user me-1 opacity-50"></i><?= htmlspecialchars($who, ENT_QUOTES, 'UTF-8') ?></span>
                       <?php else: ?>
@@ -477,7 +477,7 @@
                   </tr>
                 <?php endforeach; ?>
               <?php else: ?>
-                <tr>
+                <tr class="ac-row--empty">
                   <td colspan="9">
                     <div class="empty-state border-0 shadow-none my-2">
                        <h3 class="empty-state-title">Нет совпадений</h3>
