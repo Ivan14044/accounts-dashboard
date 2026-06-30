@@ -103,6 +103,10 @@ jobs:
             - **/Thumbs.db
             - **/.DS_Store
             - **/.optimization_applied
+            - **/tests/**
+            - **/docs/**
+            - **/openspec/**
+            - **/*.md
 
       - name: Pause before retry 2
         if: steps.deploy1.outcome == 'failure'
@@ -134,6 +138,10 @@ jobs:
             - **/Thumbs.db
             - **/.DS_Store
             - **/.optimization_applied
+            - **/tests/**
+            - **/docs/**
+            - **/openspec/**
+            - **/*.md
 
       - name: Pause before retry 3
         if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
@@ -163,3 +171,7 @@ jobs:
             - **/Thumbs.db
             - **/.DS_Store
             - **/.optimization_applied
+            - **/tests/**
+            - **/docs/**
+            - **/openspec/**
+            - **/*.md

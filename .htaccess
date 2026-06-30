@@ -52,11 +52,19 @@ php_value memory_limit 256M
     Require all denied
 </FilesMatch>
 
+# Внутренняя документация (CLAUDE.md, PROJECT_AUDIT.md, README и т.п.) и
+# Markdown-файлы — не должны быть доступны на публичном домене.
+<FilesMatch "\.md$">
+    Require all denied
+</FilesMatch>
+
 # Блокировка доступа к папкам
 <IfModule mod_rewrite.c>
     RewriteEngine On
     # Запрет доступа к скрытым файлам/папкам (начинаются с точки)
     RewriteRule ^\.(?!well-known/) - [F]
+    # Каталоги с тестами и внутренней документацией — не для веба
+    RewriteRule ^(tests|docs|openspec)/ - [F,L]
 </IfModule>
 
 # === Кэширование статических ресурсов ===
