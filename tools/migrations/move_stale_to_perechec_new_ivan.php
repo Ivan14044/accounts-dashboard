@@ -41,6 +41,13 @@ $FROM_STATUSES = ['sale_2', 'trash_document'];
 $TO_STATUS     = 'perechec_new_ivan';
 $MONTHS        = 6;
 
+// Явная collation для сравнения колонка↔колонка (history.new_value ↔ accounts.status).
+// В проекте account_history — utf8mb4_unicode_ci, а accounts.status на MySQL 8
+// обычно utf8mb4_0900_ai_ci ⇒ прямое '=' даёт "Illegal mix of collations".
+// Обе колонки в charset utf8mb4, поэтому приведение обеих сторон к одной
+// collation безопасно и снимает конфликт.
+$COLL = 'utf8mb4_unicode_ci';
+
 $confirm = isset($_GET['confirm']) && $_GET['confirm'] === '1';
 
 // Какие из колонок реально есть в таблице (login/email — только для показа,
@@ -78,7 +85,8 @@ $JOIN = "
         FROM account_history
         WHERE field_name = 'status' AND new_value IN (?, ?)
         GROUP BY account_id, new_value
-    ) h ON h.account_id = a.id AND h.new_value = a.status";
+    ) h ON h.account_id = a.id
+       AND h.new_value COLLATE $COLL = a.status COLLATE $COLL";
 
 $WHERE = "
     WHERE a.status IN (?, ?)" . $softDeleteClause . "
@@ -119,7 +127,7 @@ $diagSql = "SELECT COUNT(*) AS cnt FROM `$TABLE` a
       AND NOT EXISTS (
           SELECT 1 FROM account_history hh
           WHERE hh.account_id = a.id AND hh.field_name = 'status'
-            AND hh.new_value = a.status
+            AND hh.new_value COLLATE $COLL = a.status COLLATE $COLL
       )";
 $diag = $mysqli->prepare($diagSql);
 if ($diag) {
