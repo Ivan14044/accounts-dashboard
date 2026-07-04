@@ -1,0 +1,4 @@
+﻿login*;status*;password;email;cookies;proxy;comment
+acc1;active;pass1;acc1@example.com;"[{""name"":""c_user"",""value"":""100001""},{""name"":""alsfid"",""value"":""{\""id\"":\""f2a5cd5ab\"",\""timestamp\"":1774209718197.7}""}]";127.0.0.1:8080;"fixture row with alsfid"
+acc2;active;pass2;acc2@example.com;"[{""name"":""c_user"",""value"":""100002""},{""name"":""xs"",""value"":""abc:def:ghi""}]";;"simple cookies"
+acc3;inactive;;;;;
