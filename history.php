@@ -40,12 +40,12 @@ $history = $auditLogger->getAccountHistory($accountId, 200);
         document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
     </script>
     <title>История изменений #<?= $accountId ?> - Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
     <link href="assets/css/core-base.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
-    <link href="assets/css/core-theme.css?v=<?= time() ?>" rel="stylesheet">
-    <link href="assets/css/core-mobile.css?v=<?= time() ?>" rel="stylesheet">
-    <link href="assets/css/core-design-v2.css?v=<?= time() ?>" rel="stylesheet">
+    <link href="assets/css/core-theme.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+    <link href="assets/css/core-mobile.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+    <link href="assets/css/core-design-v2.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
     <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
     <style>
         .history-item {
@@ -165,7 +165,7 @@ $history = $auditLogger->getAccountHistory($accountId, 200);
         </div>
     </main>
     
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 </body>
 </html>

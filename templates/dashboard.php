@@ -15,8 +15,8 @@
   <title>Accounts Dashboard</title>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link rel="alternate icon" href="assets/favicon.svg">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+  <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
   <!-- CSS Bundles -->
   <link href="assets/css/core-base.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-components.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
@@ -339,6 +339,9 @@
         </button>
         <button class="btn btn-sm btn-outline-secondary" id="transferAccountsBtn">
           <i class="fas fa-exchange-alt"></i> Перенос
+        </button>
+        <button class="btn btn-sm btn-outline-warning" id="undoLastActionBtn" style="display: none;" disabled>
+          <i class="fas fa-undo"></i> Отменить последнее
         </button>
       </div>
 
@@ -1217,7 +1220,7 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js" defer></script>
 <?php include __DIR__ . '/partials/dashboard/config-script.php'; ?>
 <?php include __DIR__ . '/partials/dashboard/init-script.php'; ?>
@@ -1239,6 +1242,8 @@
 <script src="assets/js/sticky-scrollbar.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
 <script src="assets/js/table-module.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
 <script src="assets/js/toast.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
+<script src="assets/js/modules/undo.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
+<script src="assets/js/modules/cell-actions.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
 <script src="assets/js/filters-modern.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
 <script src="assets/js/modules/dashboard-upload.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 <script src="assets/js/dashboard.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>

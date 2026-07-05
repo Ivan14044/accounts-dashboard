@@ -16,17 +16,28 @@ trait AccountsServiceWriteTrait {
      */
     public function updateStatus(array $ids, string $status): int {
         // Логируем изменения в audit log ДО обновления (чтобы сохранить старые значения)
+        $auditLogger = null;
         try {
             $auditLogger = AuditLogger::getInstance();
             if ($auditLogger->isEnabled()) {
-                $auditLogger->logBulkChange($ids, 'status', null, $status);
+                $auditLogger->beginAction('update_status', $this->table,
+                    'Смена статуса на «' . $status . '» (' . count($ids) . ' акк.)');
+                $auditLogger->logBulkChange($ids, 'status', null, $status, null, $this->table);
             }
         } catch (Exception $e) {
             Logger::warning('Audit log failed for updateStatus', ['error' => $e->getMessage()]);
         }
 
         // Делегируем в репозиторий
-        return $this->repository->updateStatus($ids, $status);
+        $affectedRows = 0;
+        try {
+            $affectedRows = $this->repository->updateStatus($ids, $status);
+        } finally {
+            if ($auditLogger !== null) {
+                try { $auditLogger->finishAction($affectedRows); } catch (Exception $e) {}
+            }
+        }
+        return $affectedRows;
     }
 
     /**
@@ -35,31 +46,15 @@ trait AccountsServiceWriteTrait {
      */
     public function updateStatusByFilter(FilterBuilder $filter, string $status): int {
         // Получаем ID аккаунтов, которые будут обновлены, для audit log
+        $auditLogger = null;
         try {
             $auditLogger = AuditLogger::getInstance();
             if ($auditLogger->isEnabled()) {
-                // Находим ID аккаунтов, попадающих под фильтр, со старыми статусами
-                $where = $filter->getWhereClause();
-                $params = $filter->getParams();
-                $sql = "SELECT id FROM {$this->table} " . ($where ?: '');
-                $mysqli = $this->db->getConnection();
-                $stmt = $mysqli->prepare($sql);
-                if ($stmt) {
-                    if (!empty($params)) {
-                        $types = $filter->getParamTypes();
-                        $stmt->bind_param($types, ...$params);
-                    }
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    $ids = [];
-                    while ($row = $result->fetch_assoc()) {
-                        $ids[] = (int)$row['id'];
-                    }
-                    $stmt->close();
-
-                    if (!empty($ids)) {
-                        $auditLogger->logBulkChange($ids, 'status', null, $status);
-                    }
+                $ids = $this->collectIdsByFilter($filter);
+                if (!empty($ids)) {
+                    $auditLogger->beginAction('update_status', $this->table,
+                        'Смена статуса по фильтру на «' . $status . '» (' . count($ids) . ' акк.)');
+                    $auditLogger->logBulkChange($ids, 'status', null, $status, null, $this->table);
                 }
             }
         } catch (Exception $e) {
@@ -67,7 +62,47 @@ trait AccountsServiceWriteTrait {
         }
 
         // Делегируем в репозиторий
-        return $this->repository->updateStatusByFilter($filter, $status);
+        $affectedRows = 0;
+        try {
+            $affectedRows = $this->repository->updateStatusByFilter($filter, $status);
+        } finally {
+            if ($auditLogger !== null) {
+                try { $auditLogger->finishAction($affectedRows); } catch (Exception $e) {}
+            }
+        }
+        return $affectedRows;
+    }
+
+    /**
+     * ID записей, попадающих под фильтр (для audit log перед массовой операцией).
+     *
+     * @param FilterBuilder $filter
+     * @param string $extraWhere Дополнительное условие (без ведущего AND)
+     * @return int[]
+     */
+    private function collectIdsByFilter(FilterBuilder $filter, string $extraWhere = ''): array {
+        $where = $filter->getWhereClause();
+        $params = $filter->getParams();
+        if ($extraWhere !== '') {
+            $where = $where ? ($where . ' AND ' . $extraWhere) : ('WHERE ' . $extraWhere);
+        }
+        $sql = "SELECT id FROM {$this->table} " . ($where ?: '');
+        $mysqli = $this->db->getConnection();
+        $stmt = $mysqli->prepare($sql);
+        if (!$stmt) {
+            return [];
+        }
+        if (!empty($params)) {
+            $stmt->bind_param($filter->getParamTypes(), ...$params);
+        }
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $ids = [];
+        while ($row = $result->fetch_assoc()) {
+            $ids[] = (int)$row['id'];
+        }
+        $stmt->close();
+        return $ids;
     }
 
     /**
@@ -77,11 +112,14 @@ trait AccountsServiceWriteTrait {
     public function updateField(int $id, string $field, $value): int {
         // Получаем старое значение для audit log
         $oldValue = null;
+        $auditLogger = null;
         try {
             $auditLogger = AuditLogger::getInstance();
             if ($auditLogger->isEnabled()) {
                 $oldAccount = $this->getAccountById($id);
                 $oldValue = $oldAccount[$field] ?? null;
+                $auditLogger->beginAction('update_field', $this->table,
+                    'Изменение поля «' . $field . '» у аккаунта #' . $id);
             }
         } catch (Exception $e) {
             // Игнорируем ошибки audit log
@@ -91,9 +129,12 @@ trait AccountsServiceWriteTrait {
         $affectedRows = $this->repository->updateField($id, $field, $value);
 
         // Логируем изменение в audit log
-        if ($affectedRows > 0 && isset($auditLogger) && $auditLogger->isEnabled()) {
+        if ($auditLogger !== null && $auditLogger->isEnabled()) {
             try {
-                $auditLogger->logChange($id, $field, $oldValue, $value);
+                if ($affectedRows > 0) {
+                    $auditLogger->logChange($id, $field, $oldValue, $value);
+                }
+                $auditLogger->finishAction($affectedRows);
             } catch (Exception $e) {
                 // Игнорируем ошибки audit log
             }
@@ -108,17 +149,28 @@ trait AccountsServiceWriteTrait {
      */
     public function bulkUpdateField(array $ids, string $field, $value): int {
         // Логируем изменения в audit log
+        $auditLogger = null;
         try {
             $auditLogger = AuditLogger::getInstance();
             if ($auditLogger->isEnabled()) {
-                $auditLogger->logBulkChange($ids, $field, null, $value);
+                $auditLogger->beginAction('bulk_update_field', $this->table,
+                    'Массовое изменение поля «' . $field . '» (' . count($ids) . ' акк.)');
+                $auditLogger->logBulkChange($ids, $field, null, $value, null, $this->table);
             }
         } catch (Exception $e) {
             // Игнорируем ошибки audit log
         }
 
         // Делегируем в репозиторий
-        return $this->repository->bulkUpdateField($ids, $field, $value);
+        $affectedRows = 0;
+        try {
+            $affectedRows = $this->repository->bulkUpdateField($ids, $field, $value);
+        } finally {
+            if ($auditLogger !== null) {
+                try { $auditLogger->finishAction($affectedRows); } catch (Exception $e) {}
+            }
+        }
+        return $affectedRows;
     }
 
     /**
@@ -129,29 +181,15 @@ trait AccountsServiceWriteTrait {
         // AUDIT: зеркалит схему updateStatusByFilter — сначала собираем ID по фильтру,
         // потом logBulkChange (который сам прочитает старые значения через $field),
         // потом основной UPDATE.
+        $auditLogger = null;
         try {
             $auditLogger = AuditLogger::getInstance();
             if ($auditLogger->isEnabled()) {
-                $where = $filter->getWhereClause();
-                $params = $filter->getParams();
-                $sql = "SELECT id FROM {$this->table} " . ($where ?: '');
-                $mysqli = $this->db->getConnection();
-                $stmt = $mysqli->prepare($sql);
-                if ($stmt) {
-                    if (!empty($params)) {
-                        $stmt->bind_param($filter->getParamTypes(), ...$params);
-                    }
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    $ids = [];
-                    while ($row = $result->fetch_assoc()) {
-                        $ids[] = (int)$row['id'];
-                    }
-                    $stmt->close();
-
-                    if (!empty($ids)) {
-                        $auditLogger->logBulkChange($ids, $field, null, $value);
-                    }
+                $ids = $this->collectIdsByFilter($filter);
+                if (!empty($ids)) {
+                    $auditLogger->beginAction('bulk_update_field', $this->table,
+                        'Изменение поля «' . $field . '» по фильтру (' . count($ids) . ' акк.)');
+                    $auditLogger->logBulkChange($ids, $field, null, $value, null, $this->table);
                 }
             }
         } catch (Exception $e) {
@@ -161,7 +199,15 @@ trait AccountsServiceWriteTrait {
             ]);
         }
 
-        return $this->repository->updateFieldByFilter($filter, $field, $value);
+        $affectedRows = 0;
+        try {
+            $affectedRows = $this->repository->updateFieldByFilter($filter, $field, $value);
+        } finally {
+            if ($auditLogger !== null) {
+                try { $auditLogger->finishAction($affectedRows); } catch (Exception $e) {}
+            }
+        }
+        return $affectedRows;
     }
 
     /**
@@ -180,19 +226,32 @@ trait AccountsServiceWriteTrait {
         // Проверяем, поддерживается ли Soft Delete для логирования
         $supportsSoftDelete = $this->metadata->columnExists('deleted_at');
 
-        // Делегируем в репозиторий
-        $affectedRows = $this->repository->deleteAccounts($ids);
-
-        // Логируем удаление в audit log
+        $auditLogger = null;
         try {
             $auditLogger = AuditLogger::getInstance();
             if ($auditLogger->isEnabled()) {
+                $auditLogger->beginAction('delete', $this->table,
+                    'Удаление в корзину (' . count($ids) . ' акк.)');
+            }
+        } catch (Exception $e) {
+            // Игнорируем ошибки audit log
+        }
+
+        // Делегируем в репозиторий
+        $affectedRows = 0;
+        try {
+            $affectedRows = $this->repository->deleteAccounts($ids);
+
+            // Логируем удаление в audit log
+            if ($auditLogger !== null && $auditLogger->isEnabled()) {
                 foreach ($ids as $accountId) {
                     $auditLogger->logChange($accountId, 'deleted_at', null, $supportsSoftDelete ? date('Y-m-d H:i:s') : 'DELETED');
                 }
             }
-        } catch (Exception $e) {
-            // Игнорируем ошибки audit log
+        } finally {
+            if ($auditLogger !== null) {
+                try { $auditLogger->finishAction($affectedRows); } catch (Exception $e) {}
+            }
         }
 
         return $affectedRows;
@@ -206,26 +265,37 @@ trait AccountsServiceWriteTrait {
         // Проверяем, поддерживается ли Soft Delete для логирования
         $supportsSoftDelete = $this->metadata->columnExists('deleted_at');
 
-        // Делегируем в репозиторий
-        $affectedRows = $this->repository->deleteAccountsByFilter($filter);
-
-        // Логируем удаление в audit log
-        if ($affectedRows > 0 && $supportsSoftDelete) {
+        // AUDIT: собираем ID ДО удаления. Раньше ID добирались после удаления
+        // эвристикой «deleted_at за последнюю минуту LIMIT 100» — при массовом
+        // удалении история теряла всё сверх 100 строк и могла захватить чужие удаления.
+        $auditLogger = null;
+        if ($supportsSoftDelete) {
             try {
                 $auditLogger = AuditLogger::getInstance();
                 if ($auditLogger->isEnabled()) {
-                    // Получаем ID удалённых аккаунтов для логирования (недавно удалённые)
-                    $deletedQuery = "SELECT id FROM {$this->table} WHERE deleted_at IS NOT NULL AND deleted_at >= DATE_SUB(NOW(), INTERVAL 1 MINUTE) LIMIT 100";
-                    $deletedResult = $this->db->getConnection()->query($deletedQuery);
-                    if ($deletedResult) {
-                        while ($row = $deletedResult->fetch_assoc()) {
-                            $auditLogger->logChange($row['id'], 'deleted_at', null, date('Y-m-d H:i:s'));
-                        }
-                        $deletedResult->close();
+                    // Логируем только строки, которые реально перейдут в корзину
+                    $ids = $this->collectIdsByFilter($filter, 'deleted_at IS NULL');
+                    if (!empty($ids)) {
+                        $auditLogger->beginAction('delete', $this->table,
+                            'Удаление в корзину по фильтру (' . count($ids) . ' акк.)');
+                        $auditLogger->logBulkChange($ids, 'deleted_at', null, date('Y-m-d H:i:s'), null, $this->table);
+                    } else {
+                        $auditLogger = null;
                     }
                 }
             } catch (Exception $e) {
+                $auditLogger = null;
                 // Игнорируем ошибки audit log
+            }
+        }
+
+        // Делегируем в репозиторий
+        $affectedRows = 0;
+        try {
+            $affectedRows = $this->repository->deleteAccountsByFilter($filter);
+        } finally {
+            if ($auditLogger !== null) {
+                try { $auditLogger->finishAction($affectedRows); } catch (Exception $e) {}
             }
         }
 

@@ -49,7 +49,6 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
         <?php if ($k === 'id'): ?>
           <td class="ac-cell ac-cell--id" data-col="<?= e($k) ?>" data-column="<?= e($k) ?>">
             <span class="fw-bold text-primary">#<?= (int)$v ?></span>
-            <button type="button" class="copy-btn" data-copy-text="<?= (int)$v ?>" title="Копировать"><i class="fas fa-copy"></i></button>
           </td>
           <td class="ac-cell ac-cell--favorite favorite-cell text-center" data-column="favorite" data-account-id="<?= (int)$r['id'] ?>">
             <button 
@@ -71,32 +70,16 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
           <?php if (($v === null || $v === '') && $k !== 'password' && $k !== 'email_password' && $k !== 'id' && $k !== 'actions'): ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="<?= e($fieldType) ?>">
               <span class="text-muted field-value">—</span>
-              <button type="button" class="field-edit-btn" title="Редактировать">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>
           <?php elseif ($k === 'email'): ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="text">
               <a href="mailto:<?= e($v) ?>" class="text-decoration-none field-value">
                 <?= e($v) ?>
               </a>
-              <button type="button" class="field-edit-btn" title="Редактировать">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button class="copy-btn" type="button" data-copy-text="<?= e($v) ?>" title="Копировать">
-                <i class="fas fa-copy"></i>
-              </button>
             </div>
           <?php elseif ($k === 'login'): ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="text">
               <span class="fw-semibold field-value"><?= e((string)$v) ?></span>
-              <button type="button" class="field-edit-btn" title="Редактировать">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button class="copy-btn" type="button" data-copy-text="<?= e($v) ?>" title="Копировать">
-                <i class="fas fa-copy"></i>
-              </button>
             </div>
           <?php elseif ($k === 'password' || $k === 'email_password'): ?>
             <div class="pw-mask" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>">
@@ -106,26 +89,12 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
                 <span class="pw-dots">••••••••</span>
               <?php endif; ?>
               <span class="pw-text d-none"><?= e((string)$v) ?></span>
-              <button type="button" class="pw-toggle" title="Показать/скрыть пароль">
-                <i class="fas fa-eye"></i>
-              </button>
-              <button type="button" class="pw-edit" title="Редактировать пароль">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button type="button" class="copy-btn" data-copy-text="<?= e($v) ?>" title="Копировать пароль">
-                <i class="fas fa-copy"></i>
-              </button>
             </div>
           <?php elseif ($k === 'token'): ?>
             <?php $clip = mb_substr((string)$v, 0, $TOKEN_CLIP, 'UTF-8') . '…'; ?>
-            <div class="d-flex align-items-center gap-2">
-              <span class="truncate mono" title="Нажмите для просмотра" data-full="<?= e($v) ?>" data-title="Token">
-                <?= e($clip) ?>
-              </span>
-              <button class="copy-btn" type="button" data-copy-text="<?= e($v) ?>" title="Копировать">
-                <i class="fas fa-copy"></i>
-              </button>
-            </div>
+            <span class="truncate mono" title="Нажмите для просмотра" data-clipped="1" data-title="Token" data-row-id="<?= (int)$r['id'] ?>" data-field="token">
+              <?= e($clip) ?>
+            </span>
           <?php elseif ($k === 'status'): ?>
             <?php
             // Семантический тон + дисплей
@@ -145,39 +114,24 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
             ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="text">
               <span class="badge <?= $legacyClass ?> field-value" data-tone="<?= e($cellTone) ?>"><?= e($statusDisplay) ?></span>
-              <button type="button" class="field-edit-btn" title="Редактировать">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button type="button" class="copy-btn" data-copy-text="<?= e((string)$v) ?>" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>
           <?php elseif ($k === 'social_url' && preg_match('~^https?://~i', $v)): ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="text">
               <a href="<?= e($v) ?>" target="_blank" rel="noopener" class="text-decoration-none field-value">
                 <i class="fas fa-external-link-alt me-2"></i><?= e($v) ?>
               </a>
-              <button type="button" class="field-edit-btn" title="Редактировать">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button type="button" class="copy-btn" data-copy-text="<?= e($v) ?>" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>
-          <?php elseif ($isLong): ?>
+          <?php elseif ($isLong && strlen((string)$v) > $CLIP_LEN): ?>
+            <?php // Полное значение НЕ кладём в DOM (вес страницы) — подгружается по требованию (data-clipped) ?>
             <?php $clip = mb_substr((string)$v, 0, $CLIP_LEN, 'UTF-8') . '…'; ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="<?= e($fieldType) ?>">
-              <span class="truncate mono field-value" data-full="<?= e($v) ?>" data-title="<?= e($title) ?>">
+              <span class="truncate mono field-value" data-clipped="1" data-title="<?= e($title) ?>">
                 <?= e($clip) ?>
               </span>
-              <button type="button" class="field-edit-btn" title="Редактировать">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button type="button" class="copy-btn" data-copy-text="<?= e($v) ?>" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>
           <?php else: ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="<?= e($fieldType) ?>">
-              <span class="field-value"><?= e((string)$v) ?></span>
-              <button type="button" class="field-edit-btn" title="Редактировать">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button type="button" class="copy-btn" data-copy-text="<?= e((string)$v) ?>" title="Копировать"><i class="fas fa-copy"></i></button>
+              <span class="<?= $isLong ? 'truncate mono ' : '' ?>field-value"><?= e((string)$v) ?></span>
             </div>
           <?php endif; ?>
         </td>

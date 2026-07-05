@@ -10,8 +10,8 @@
   </script>
   <title>Избранные аккаунты - Dashboard</title>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+  <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
   <!-- CSS Bundles -->
   <link href="assets/css/core-base.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <link href="assets/css/core-components.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
@@ -268,7 +268,7 @@
     <?php endif; ?>
   </main>
   
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
   <script src="assets/js/toast.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
   <script>
     window.DashboardConfig = window.DashboardConfig || {};

@@ -149,7 +149,7 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) time();
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
   <!-- Единая токен-система (один источник правды) -->
   <link href="assets/css/core-base.css?v=<?= e($assetV) ?>" rel="stylesheet">
   <link href="assets/css/core-dark.css?v=<?= e($assetV) ?>" rel="stylesheet">

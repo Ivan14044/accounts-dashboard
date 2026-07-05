@@ -641,8 +641,9 @@ class Dashboard {
             return;
         }
         
-        // Модальные окна для полного содержимого. Значение всегда в DOM (data-full).
-        const fullDataTarget = e.target.closest('[data-full]');
+        // Модальные окна для полного содержимого: data-full (legacy) или
+        // data-clipped (тонкая разметка — значение подгружается по требованию).
+        const fullDataTarget = e.target.closest('[data-full], [data-clipped]');
         if (fullDataTarget && !fullDataTarget.classList.contains('copy-btn')) {
             this.showFullDataModal(fullDataTarget);
             return;
@@ -650,7 +651,7 @@ class Dashboard {
 
         // Редактирование ячеек таблицы
         const editableCell = e.target.closest('#accountsTable td[data-col]');
-        if (editableCell && !e.target.closest('a,button,.pw-toggle,[data-full]')) {
+        if (editableCell && !e.target.closest('a,button,.pw-toggle,[data-full],[data-clipped]')) {
             this.handleCellEdit(editableCell);
             return;
         }
@@ -961,7 +962,9 @@ class Dashboard {
     }
     
     // Рендер ячейки строки таблицы — зеркало серверного templates/partials/table/rows.php.
-    // Полные значения всегда в data-full / data-copy-text — никаких lazy-load.
+    // Разметка тонкая: без per-cell кнопок (их даёт hover-панель cell-actions.js),
+    // полные значения обрезанных полей НЕ кладутся в DOM — берутся из данных строки
+    // (tableModule.getRowValue) или с сервера (field_value.php) по требованию.
     renderCell(col, row) {
         const value = row[col];
         const id = row.id;
@@ -975,15 +978,12 @@ class Dashboard {
         const fieldType = numericCols.indexOf(col) !== -1 ? 'numeric' : 'text';
         const e = (s) => this.escapeHtml(s);
 
-        // Пустое значение — placeholder "—" с кнопкой edit/copy (кроме password/id/actions).
+        // Пустое значение — placeholder "—" (кроме password/id/actions).
         if (value === undefined || value === null || value === '') {
             if (col === 'password' || col === 'email_password') {
                 return `<div class="pw-mask" data-row-id="${id}" data-field="${e(col)}">
                     <span class="pw-dots text-muted">(не задан)</span>
                     <span class="pw-text d-none"></span>
-                    <button type="button" class="pw-toggle" title="Показать/скрыть пароль"><i class="fas fa-eye"></i></button>
-                    <button type="button" class="pw-edit" title="Редактировать пароль"><i class="fas fa-edit"></i></button>
-                    <button type="button" class="copy-btn" data-copy-text="" title="Копировать пароль"><i class="fas fa-copy"></i></button>
                 </div>`;
             }
             if (col === 'id' || col === 'actions') {
@@ -991,30 +991,23 @@ class Dashboard {
             }
             return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
                 <span class="text-muted field-value">—</span>
-                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-                <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>`;
         }
 
-        // ID — read-only, без edit-кнопки.
+        // ID — read-only.
         if (col === 'id') {
-            return `<span class="fw-bold text-primary">#${e(value)}</span>
-                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>`;
+            return `<span class="fw-bold text-primary">#${e(value)}</span>`;
         }
 
         if (col === 'email') {
             return `<div class="editable-field-wrap" data-row-id="${id}" data-field="email" data-field-type="text">
                 <a href="mailto:${e(value)}" class="text-decoration-none field-value">${e(value)}</a>
-                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-                <button class="copy-btn" type="button" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>`;
         }
 
         if (col === 'login') {
             return `<div class="editable-field-wrap" data-row-id="${id}" data-field="login" data-field-type="text">
                 <span class="fw-semibold field-value">${e(value)}</span>
-                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-                <button class="copy-btn" type="button" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>`;
         }
 
@@ -1022,27 +1015,19 @@ class Dashboard {
             return `<div class="pw-mask" data-row-id="${id}" data-field="${e(col)}">
                 <span class="pw-dots">••••••••</span>
                 <span class="pw-text d-none">${e(value)}</span>
-                <button type="button" class="pw-toggle" title="Показать/скрыть пароль"><i class="fas fa-eye"></i></button>
-                <button type="button" class="pw-edit" title="Редактировать пароль"><i class="fas fa-edit"></i></button>
-                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать пароль"><i class="fas fa-copy"></i></button>
             </div>`;
         }
 
-        // token: спец-клип TOKEN_CLIP, полное значение в data-full / data-copy-text.
+        // token: спец-клип TOKEN_CLIP; полное значение — по требованию (data-clipped).
         if (col === 'token') {
             const sval = String(value);
             const clipped = sval.length > TOKEN_CLIP ? sval.substring(0, TOKEN_CLIP) + '…' : sval;
-            return `<div class="d-flex align-items-center gap-2">
-                <span class="truncate mono" title="Нажмите для просмотра" data-full="${e(value)}" data-title="Token">${e(clipped)}</span>
-                <button class="copy-btn" type="button" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
-            </div>`;
+            return `<span class="truncate mono" title="Нажмите для просмотра" data-clipped="1" data-title="Token" data-row-id="${id}" data-field="token">${e(clipped)}</span>`;
         }
 
         if (col === 'status') {
             return `<div class="editable-field-wrap" data-row-id="${id}" data-field="status" data-field-type="text">
                 ${this.renderStatusBadge(value)}
-                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>`;
         }
 
@@ -1051,28 +1036,22 @@ class Dashboard {
                 <a href="${e(value)}" target="_blank" rel="noopener" class="text-decoration-none field-value">
                     <i class="fas fa-external-link-alt me-2"></i>${e(value)}
                 </a>
-                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
             </div>`;
         }
 
-        // Длинное поле: clip до CLIP_LEN, полное значение в data-full / data-copy-text.
+        // Длинное поле: clip до CLIP_LEN; полное значение — по требованию (data-clipped).
         const sval = typeof value === 'string' ? value : String(value);
-        const isLong = sval.length > CLIP_LEN || longFields.indexOf(col) !== -1;
-        if (isLong) {
-            const clipped = sval.length > CLIP_LEN ? sval.substring(0, CLIP_LEN) + '…' : sval;
+        if (sval.length > CLIP_LEN) {
+            const clipped = sval.substring(0, CLIP_LEN) + '…';
             return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
-                <span class="truncate mono field-value" data-full="${e(value)}" data-title="${e(col)}">${e(clipped)}</span>
-                <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-                <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+                <span class="truncate mono field-value" data-clipped="1" data-title="${e(col)}">${e(clipped)}</span>
             </div>`;
         }
 
         // Обычное короткое поле.
+        const monoCls = longFields.indexOf(col) !== -1 ? 'truncate mono ' : '';
         return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
-            <span class="field-value">${e(value)}</span>
-            <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-            <button type="button" class="copy-btn" data-copy-text="${e(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+            <span class="${monoCls}field-value">${e(value)}</span>
         </div>`;
     }
     
@@ -1219,12 +1198,21 @@ class Dashboard {
         }
     }
     
-    // Показ полного содержимого длинных полей. Значение всегда в data-full.
+    // Показ полного содержимого длинных полей. Значение либо в data-full,
+    // либо (data-clipped, тонкая разметка) подгружается по требованию.
     showFullDataModal(target) {
         const title = target.getAttribute('data-title') || 'Данные';
         const full = target.getAttribute('data-full') || '';
-        if (!full) return;
-        this._renderFullDataModal(title, full);
+        if (full) {
+            this._renderFullDataModal(title, full);
+            return;
+        }
+        if (target.hasAttribute('data-clipped') && window.CellValues) {
+            this._renderFullDataModal(title, 'Загружаю…');
+            window.CellValues.getFor(target).then((value) => {
+                this._renderFullDataModal(title, value === null ? 'Не удалось загрузить значение' : value);
+            });
+        }
     }
 
     _renderFullDataModal(title, full) {
