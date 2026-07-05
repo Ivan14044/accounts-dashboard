@@ -40,7 +40,8 @@ class Toast {
         const defaults = {
             type: 'info', // info, success, warning, error
             duration: 3000, // Длительность в мс (0 = бесконечно)
-            closable: true // Показывать кнопку закрытия
+            closable: true, // Показывать кнопку закрытия
+            action: null // { label: 'Отменить', onClick: fn } — кнопка действия в тосте
         };
         
         const config = { ...defaults, ...options };
@@ -82,21 +83,39 @@ class Toast {
                 <div class="toast-progress-fill"></div>
             </div>` : '';
         
+        // Кнопка действия (например, «Отменить»)
+        const actionBtn = config.action && config.action.label ?
+            `<button class="toast-action btn btn-sm btn-outline-secondary ms-2" type="button">${this.escapeHtml(config.action.label)}</button>` : '';
+
         // Структура
         toast.innerHTML = `
             <div class="toast-content">
                 <div class="toast-icon">${icon}</div>
                 <div class="toast-message">${this.escapeHtml(message)}</div>
+                ${actionBtn}
                 ${config.closable ? '<button class="toast-close" type="button" aria-label="Закрыть" title="Закрыть"><i class="fas fa-times"></i></button>' : ''}
             </div>
             ${progressBar}
         `;
-        
+
         // Обработчик закрытия
         if (config.closable) {
             const closeBtn = toast.querySelector('.toast-close');
             closeBtn.addEventListener('click', () => {
                 this.hide(toast);
+            });
+        }
+
+        // Обработчик кнопки действия
+        if (actionBtn) {
+            const btn = toast.querySelector('.toast-action');
+            btn.addEventListener('click', () => {
+                this.hide(toast);
+                try {
+                    config.action.onClick();
+                } catch (e) {
+                    // Ошибка обработчика не должна ломать тосты
+                }
             });
         }
         

@@ -253,8 +253,8 @@ $csrf = getCsrfToken();
       document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
   </script>
   <title>Поиск дублей — Dashboard</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+  <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
   <style>
     body { background: #f6f8fa; }
     .header { background:#fff; border-bottom:1px solid #e5e7eb; padding:1rem 1.5rem; margin-bottom:1.5rem; }

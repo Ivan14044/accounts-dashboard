@@ -151,6 +151,10 @@
         }
         return;
       }
+      // Данные строк храним в JS: разметка больше не несёт полные значения
+      // (copy/edit/просмотр берут их отсюда через getRowValue, иначе — с сервера)
+      this.rowsById = new Map(rows.map(r => [String(r.id), r]));
+
       const urlParams = new URLSearchParams(window.location.search);
       const perPage = parseInt(urlParams.get('per_page') || '25', 10);
       const threshold = this.options.virtualization.threshold;
@@ -218,6 +222,18 @@
       return Array.from(this.table.querySelectorAll('thead th[data-col]')).map(th => th.getAttribute('data-col'));
     }
 
+    /**
+     * Значение поля строки из последнего render() (или null, если данных нет —
+     * например, на первично отрендеренной сервером странице до первого refresh).
+     */
+    getRowValue(rowId, field) {
+      if (!this.rowsById) return null;
+      const row = this.rowsById.get(String(rowId));
+      if (!row || !(field in row)) return null;
+      const v = row[field];
+      return v === null || v === undefined ? '' : String(v);
+    }
+
     emptyStateHtml(colCount) {
       const totalCols = Number(colCount || 0) + 3;
       return `<tr class="ac-row ac-row--empty"><td colspan="${totalCols}" class="text-center text-muted py-5">
@@ -231,7 +247,6 @@
         if (col === 'id') {
           const idCell = `<td class="ac-cell ac-cell--id" data-col="id" data-column="id">
             <span class="fw-bold text-primary">#${this.escape(row[col])}</span>
-            <button type="button" class="copy-btn" data-copy-text="${this.escape(row[col])}" title="Копировать"><i class="fas fa-copy"></i></button>
           </td>`;
           const favoriteCell = `<td class="ac-cell ac-cell--favorite favorite-cell text-center" data-column="favorite" data-account-id="${row.id}">
             <button type="button" class="btn btn-sm btn-link favorite-btn p-0" data-account-id="${row.id}" title="Избранное">
@@ -263,22 +278,16 @@
       if ((value === undefined || value === null || value === '') && !['password', 'email_password', 'id', 'actions'].includes(col)) {
         return `<div class="editable-field-wrap" data-row-id="${row.id}" data-field="${col}">
           <span class="text-muted field-value">—</span>
-          <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-          <button type="button" class="copy-btn" data-copy-text="" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       if (col === 'email') {
         return `<div class="editable-field-wrap" data-row-id="${row.id}" data-field="${col}">
           <a href="mailto:${this.escape(value)}" class="text-decoration-none field-value">${this.escape(value)}</a>
-          <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-          <button class="copy-btn" type="button" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       if (col === 'login') {
         return `<div class="editable-field-wrap" data-row-id="${row.id}" data-field="${col}">
           <span class="fw-semibold field-value">${this.escape(value)}</span>
-          <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-          <button class="copy-btn" type="button" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       if (col === 'password' || col === 'email_password') {
@@ -286,19 +295,13 @@
         return `<div class="pw-mask" data-row-id="${row.id}" data-field="${col}">
           ${displayDots}
           <span class="pw-text d-none">${this.escape(value)}</span>
-          <button type="button" class="pw-toggle" title="Показать/скрыть"><i class="fas fa-eye"></i></button>
-          <button type="button" class="pw-edit" title="Редактировать"><i class="fas fa-edit"></i></button>
-          <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       if (col === 'token') {
         const clipped = this.clip(value, TOKEN_CLIP);
-        return `<div class="d-flex align-items-center gap-2">
-          <span class="truncate mono" title="Нажмите для просмотра" data-full="${this.escape(value)}" data-title="Token">
+        return `<span class="truncate mono" title="Нажмите для просмотра" data-clipped="1" data-title="Token" data-row-id="${row.id}" data-field="token">
             ${this.escape(clipped)}
-          </span>
-          <button class="copy-btn" type="button" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
-        </div>`;
+          </span>`;
       }
       if (col === 'status') {
         const statusValue = String(value || '').toLowerCase();
@@ -316,8 +319,6 @@
         }
         return `<div class="editable-field-wrap" data-row-id="${row.id}" data-field="${col}">
           <span class="badge ${badgeClass} field-value">${this.escape(displayText)}</span>
-          <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-          <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
       if (col === 'social_url' && /^https?:\/\//i.test(String(value || ''))) {
@@ -325,24 +326,20 @@
           <a href="${this.escape(value)}" target="_blank" rel="noopener" class="text-decoration-none field-value">
             <i class="fas fa-external-link-alt me-2"></i>${this.escape(value)}
           </a>
-          <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-          <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
-      if (LONG_FIELDS.includes(col) || (typeof value === 'string' && value.length > CLIP_LEN)) {
+      // Обрезанное значение: полное НЕ кладём в DOM (вес) — оно в rowsData / по требованию
+      if (typeof value === 'string' && value.length > CLIP_LEN) {
         const clipped = this.clip(value, CLIP_LEN);
         return `<div class="editable-field-wrap" data-row-id="${row.id}" data-field="${col}">
-          <span class="truncate mono field-value" data-full="${this.escape(value)}" data-title="${this.escape(col)}">
+          <span class="truncate mono field-value" data-clipped="1" data-title="${this.escape(col)}">
             ${this.escape(clipped)}
           </span>
-          <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-          <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
         </div>`;
       }
+      const monoCls = LONG_FIELDS.includes(col) ? 'truncate mono ' : '';
       return `<div class="editable-field-wrap" data-row-id="${row.id}" data-field="${col}">
-        <span class="field-value">${this.escape(value)}</span>
-        <button type="button" class="field-edit-btn" title="Редактировать"><i class="fas fa-edit"></i></button>
-        <button type="button" class="copy-btn" data-copy-text="${this.escape(value)}" title="Копировать"><i class="fas fa-copy"></i></button>
+        <span class="${monoCls}field-value">${this.escape(value)}</span>
       </div>`;
     }
 

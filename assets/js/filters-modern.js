@@ -613,25 +613,34 @@ document.addEventListener('DOMContentLoaded', function() {
     // Инициализация обёрток быстрых фильтров (клик вне label → toggle checkbox)
     initQuickFilterWrappers();
 
+    // Debounce для чекбоксов: серия быстрых кликов (несколько статусов подряд)
+    // раньше давала запрос на КАЖДЫЙ клик — теперь один запрос после паузы 250мс.
+    var applyDebounceTimer = null;
+    function applyFiltersDebounced() {
+        if (applyDebounceTimer) clearTimeout(applyDebounceTimer);
+        applyDebounceTimer = setTimeout(function() {
+            applyDebounceTimer = null;
+            if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
+        }, 250);
+    }
+
     // Единый change-обработчик: статусы, быстрые фильтры, select
     filtersForm.addEventListener('change', function(e) {
         var target = e.target;
 
         // Чекбоксы статусов
         if (target.classList.contains('status-checkbox')) {
-            setTimeout(function() {
-                if (filtersForm.parentNode) applyFormFiltersWithoutReload(filtersForm);
-            }, 0);
+            applyFiltersDebounced();
             return;
         }
 
         // Быстрые фильтры (toggle switches) — единый обработчик, onclick из HTML убран
         if (target.type === 'checkbox' && QUICK_FILTER_PARAMS.indexOf(target.name) !== -1) {
-            applyFormFiltersWithoutReload(filtersForm);
+            applyFiltersDebounced();
             return;
         }
 
-        // Select (per_page)
+        // Select (per_page) — одиночное действие, применяем сразу
         if (target.tagName === 'SELECT') {
             applyFormFiltersWithoutReload(filtersForm);
             return;

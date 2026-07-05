@@ -375,17 +375,28 @@ class MassTransferService {
         // 3. Обновление в транзакции
         $this->db->begin_transaction();
         try {
-            $affected = $this->updateStatus($searchResult['ids'], $status);
-            
-            // Audit log
+            // Audit log — ДО updateStatus: старые значения читаются из БД,
+            // после обновления они бы совпали с новыми и не записались вовсе.
+            $auditLogger = null;
             try {
                 require_once __DIR__ . '/AuditLogger.php';
                 $auditLogger = AuditLogger::getInstance();
                 if ($auditLogger->isEnabled()) {
-                    $auditLogger->logBulkChange($searchResult['ids'], 'status', null, $status);
+                    $auditLogger->beginAction(
+                        'mass_transfer',
+                        $this->table,
+                        'Массовый перенос в статус «' . $status . '» (' . count($searchResult['ids']) . ' акк.)'
+                    );
+                    $auditLogger->logBulkChange($searchResult['ids'], 'status', null, $status, null, $this->table);
                 }
             } catch (Exception $e) {}
-            
+
+            $affected = $this->updateStatus($searchResult['ids'], $status);
+
+            if ($auditLogger !== null) {
+                try { $auditLogger->finishAction($affected); } catch (Exception $e) {}
+            }
+
             $this->db->commit();
         } catch (Exception $e) {
             $this->db->rollback();

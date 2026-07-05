@@ -801,6 +801,15 @@ function handleDocumentClick(e) {
     var field = wrap.getAttribute('data-field');
     var fieldType = wrap.getAttribute('data-field-type');
     var fieldValue = wrap.querySelector('.field-value');
+    // Тонкая разметка: у обрезанных полей полного значения нет в DOM —
+    // подгружаем (CellValues), кладём во временный data-full и повторяем клик.
+    if (fieldValue && fieldValue.hasAttribute('data-clipped') && !fieldValue.hasAttribute('data-full') && window.CellValues) {
+      window.CellValues.getFor(fieldValue).then(function (v) {
+        fieldValue.setAttribute('data-full', v === null ? fieldValue.textContent.trim() : v);
+        fieldEditBtn.click();
+      });
+      return;
+    }
     var oldVal = '';
     if (fieldType === 'numeric') {
       var textContent = fieldValue.textContent.trim();
@@ -2118,11 +2127,22 @@ function startAutoRefresh() {
   toggleBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
   toggleBtn.title = 'Остановить автообновление';
   
-  // Обновляем каждые 30 секунд; сбросим предыдущий интервал на всякий случай
+  // Обновляем каждые 30 секунд; сбросим предыдущий интервал на всякий случай.
+  // В фоновой вкладке не дёргаем сервер — обновимся сразу при возвращении.
   if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+  let autoRefreshSkipped = false;
   autoRefreshInterval = setInterval(() => {
+    if (document.visibilityState === 'hidden') { autoRefreshSkipped = true; return; }
+    autoRefreshSkipped = false;
     refreshDashboardData();
   }, 30000);
+  document.addEventListener('visibilitychange', function onAutoRefreshVisible() {
+    if (!isAutoRefreshEnabled) { document.removeEventListener('visibilitychange', onAutoRefreshVisible); return; }
+    if (document.visibilityState === 'visible' && autoRefreshSkipped) {
+      autoRefreshSkipped = false;
+      refreshDashboardData();
+    }
+  });
   
   localStorage.setItem('dashboard_auto_refresh', 'enabled');
   // Не показываем уведомление постоянно

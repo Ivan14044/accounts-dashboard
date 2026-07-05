@@ -20,6 +20,7 @@ class TableResolver {
         'account_favorites',
         'saved_filters',
         'user_settings',
+        'user_actions',
     ];
 
     private function __construct($mysqli, string $dbName) {

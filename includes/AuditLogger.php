@@ -10,6 +10,11 @@ class AuditLogger {
     private $mysqli;
     private $enabled = true;
 
+    /** Текущее «действие» (user_actions.id) — проставляется в строки account_history */
+    private $currentActionId = null;
+    /** Таблица, над которой идёт текущее действие */
+    private $currentActionTable = null;
+
     private function __construct() {
         $this->mysqli = Database::getInstance()->getConnection();
         $this->ensureTableExists();
@@ -39,8 +44,105 @@ class AuditLogger {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
             $this->mysqli->query($sql);
         }
+
+        // Миграция под undo: action_id/table_name в account_history + журнал user_actions.
+        // Колонки NULL-able — старые строки истории не трогаем.
+        $col = $this->mysqli->query("SHOW COLUMNS FROM `account_history` LIKE 'action_id'");
+        if ($col && $col->num_rows === 0) {
+            $this->mysqli->query(
+                "ALTER TABLE `account_history`
+                    ADD COLUMN `action_id` INT NULL DEFAULT NULL AFTER `ip_address`,
+                    ADD COLUMN `table_name` VARCHAR(64) NULL DEFAULT NULL AFTER `action_id`,
+                    ADD INDEX `idx_action_id` (`action_id`)"
+            );
+        }
+
+        $this->mysqli->query("CREATE TABLE IF NOT EXISTS `user_actions` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `username` VARCHAR(255) NOT NULL,
+            `action_type` VARCHAR(32) NOT NULL,
+            `table_name` VARCHAR(64) NOT NULL,
+            `description` VARCHAR(500) NOT NULL DEFAULT '',
+            `affected_count` INT NOT NULL DEFAULT 0,
+            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            `undone_at` TIMESTAMP NULL DEFAULT NULL,
+            `undo_action_id` INT NULL DEFAULT NULL,
+            INDEX `idx_user_created` (`username`, `id`),
+            INDEX `idx_user_undone` (`username`, `undone_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     }
-    
+
+    /**
+     * Начало логического «действия» пользователя (для undo и журнала операций).
+     * Все последующие logChange/logBulkChange до finishAction() получат этот action_id.
+     *
+     * @param string $type      Тип: update_status | update_field | bulk_update_field | delete | mass_transfer | undo
+     * @param string $tableName Таблица, над которой идёт действие
+     * @param string $description Человекочитаемое описание для UI
+     * @return int|null ID действия или null при ошибке (логирование не должно ломать операцию)
+     */
+    public function beginAction(string $type, string $tableName, string $description): ?int {
+        if (!$this->enabled || !$this->isValidTableName($tableName)) {
+            return null;
+        }
+        $username = $_SESSION['username'] ?? 'system';
+        $description = mb_substr($description, 0, 500);
+
+        $stmt = $this->mysqli->prepare(
+            "INSERT INTO user_actions (username, action_type, table_name, description) VALUES (?, ?, ?, ?)"
+        );
+        if (!$stmt) {
+            return null;
+        }
+        $stmt->bind_param('ssss', $username, $type, $tableName, $description);
+        $ok = $stmt->execute();
+        $stmt->close();
+        if (!$ok) {
+            return null;
+        }
+
+        $this->currentActionId = (int)$this->mysqli->insert_id;
+        $this->currentActionTable = $tableName;
+        return $this->currentActionId;
+    }
+
+    /**
+     * Завершение действия: фиксирует фактическое число затронутых строк.
+     * Действие без затронутых строк удаляется из журнала (нечего отменять).
+     */
+    public function finishAction(int $affectedCount): void {
+        if ($this->currentActionId === null) {
+            return;
+        }
+        $actionId = $this->currentActionId;
+        $this->currentActionId = null;
+        $this->currentActionTable = null;
+
+        if ($affectedCount <= 0) {
+            $stmt = $this->mysqli->prepare("DELETE FROM user_actions WHERE id = ?");
+            if ($stmt) {
+                $stmt->bind_param('i', $actionId);
+                $stmt->execute();
+                $stmt->close();
+            }
+            return;
+        }
+
+        $stmt = $this->mysqli->prepare("UPDATE user_actions SET affected_count = ? WHERE id = ?");
+        if ($stmt) {
+            $stmt->bind_param('ii', $affectedCount, $actionId);
+            $stmt->execute();
+            $stmt->close();
+        }
+    }
+
+    /**
+     * Валидация имени таблицы (как в TableResolver — защита от SQL-инъекций)
+     */
+    private function isValidTableName(string $name): bool {
+        return (bool) preg_match('/^[a-zA-Z0-9_]+$/', $name) && strlen($name) <= 64;
+    }
+
     public static function getInstance() {
         if (self::$instance === null) {
             self::$instance = new self();
@@ -49,9 +151,10 @@ class AuditLogger {
     }
     
     /**
-     * Список полей, которые не должны логироваться (чувствительные данные)
+     * Список полей, которые не должны логироваться (чувствительные данные).
+     * Публичный static — используется UndoService для исключения полей из отката.
      */
-    private function getSensitiveFields(): array {
+    public static function sensitiveFields(): array {
         return [
             'password',
             'email_password',
@@ -74,7 +177,7 @@ class AuditLogger {
      * @return bool
      */
     private function isSensitiveField(string $fieldName): bool {
-        return in_array(strtolower($fieldName), $this->getSensitiveFields(), true);
+        return in_array(strtolower($fieldName), self::sensitiveFields(), true);
     }
     
     /**
@@ -116,17 +219,17 @@ class AuditLogger {
             return false;
         }
         
-        $sql = "INSERT INTO account_history (account_id, field_name, old_value, new_value, changed_by, ip_address) 
-                VALUES (?, ?, ?, ?, ?, ?)";
-        
+        $sql = "INSERT INTO account_history (account_id, field_name, old_value, new_value, changed_by, ip_address, action_id, table_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+
         $stmt = $this->mysqli->prepare($sql);
         if (!$stmt) {
             require_once __DIR__ . '/Logger.php';
             Logger::error('Audit log: Failed to prepare statement', ['error' => $this->mysqli->error]);
             return false;
         }
-        
-        $stmt->bind_param('isssss', $accountId, $fieldName, $oldValueStr, $newValueStr, $changedBy, $ipAddress);
+
+        $stmt->bind_param('isssssis', $accountId, $fieldName, $oldValueStr, $newValueStr, $changedBy, $ipAddress, $this->currentActionId, $this->currentActionTable);
         $result = $stmt->execute();
         $stmt->close();
         
@@ -141,15 +244,24 @@ class AuditLogger {
      * @param mixed $oldValue Старое значение (может быть массивом)
      * @param mixed $newValue Новое значение
      * @param string $changedBy Пользователь
+     * @param string|null $tableName Таблица, из которой читать старые значения.
+     *                    Если не передана — берётся таблица текущего действия (beginAction).
      * @return int Количество записанных логов
      */
-    public function logBulkChange(array $accountIds, string $fieldName, $oldValue, $newValue, string $changedBy = null): int {
+    public function logBulkChange(array $accountIds, string $fieldName, $oldValue, $newValue, string $changedBy = null, ?string $tableName = null): int {
         if (!$this->enabled || empty($accountIds)) {
             return 0;
         }
 
         // Защита от SQL injection через имя колонки
         if (!preg_match('/^[a-zA-Z0-9_]+$/', $fieldName)) {
+            return 0;
+        }
+
+        // Раньше старые значения всегда читались из `accounts` — для других таблиц
+        // (?table=xxx) история получалась неверной. Теперь таблица обязана быть явной.
+        $tableName = $tableName ?? $this->currentActionTable ?? 'accounts';
+        if (!$this->isValidTableName($tableName)) {
             return 0;
         }
         
@@ -175,7 +287,7 @@ class AuditLogger {
         // Для массовых изменений получаем старые значения из БД (только для нечувствительных полей)
         if (!$isSensitive) {
             $placeholders = implode(',', array_fill(0, count($accountIds), '?'));
-            $sql = "SELECT id, `$fieldName` FROM accounts WHERE id IN ($placeholders)";
+            $sql = "SELECT id, `$fieldName` FROM `$tableName` WHERE id IN ($placeholders)";
             
             $stmt = $this->mysqli->prepare($sql);
             if (!$stmt) {
@@ -218,7 +330,7 @@ class AuditLogger {
         // Чанкуем INSERT, чтобы не упереться в max_allowed_packet
         // при массовых операциях на 10k+ записей.
         $CHUNK = 500;
-        $insertSql = "INSERT INTO account_history (account_id, field_name, old_value, new_value, changed_by, ip_address) VALUES ";
+        $insertSql = "INSERT INTO account_history (account_id, field_name, old_value, new_value, changed_by, ip_address, action_id, table_name) VALUES ";
         $count = 0;
 
         foreach (array_chunk($rowsToInsert, $CHUNK) as $chunk) {
@@ -226,14 +338,16 @@ class AuditLogger {
             $params       = [];
             $types        = '';
             foreach ($chunk as $row) {
-                $placeholders[] = '(?, ?, ?, ?, ?, ?)';
+                $placeholders[] = '(?, ?, ?, ?, ?, ?, ?, ?)';
                 $params[] = $row[0]; // account_id
                 $params[] = $row[1]; // field_name
                 $params[] = $row[2]; // old_value
                 $params[] = $row[3]; // new_value
                 $params[] = $row[4]; // changed_by
                 $params[] = $row[5]; // ip_address
-                $types   .= 'isssss';
+                $params[] = $this->currentActionId;
+                $params[] = $tableName;
+                $types   .= 'isssssis';
             }
 
             $stmt = $this->mysqli->prepare($insertSql . implode(', ', $placeholders));

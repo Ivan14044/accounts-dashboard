@@ -50,8 +50,8 @@ function getStatusClass($status) {
       document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
   </script>
   <title>Account #<?= (int)$row['id'] ?> - Dashboard</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+  <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
   <link href="assets/css/core-base.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-components.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-plugins.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
@@ -445,7 +445,7 @@ function getStatusClass($status) {
   </div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script>
 // Подготовим JSON данных для копирования/скачивания
 const data = <?= json_encode($row, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT) ?>;
