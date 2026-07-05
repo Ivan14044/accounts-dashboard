@@ -5,7 +5,7 @@
  * Запуск: php tests/test_csv_cookies.php <path_to_csv>
  */
 
-$csvFile = $argv[1] ?? 'C:/Users/Knysh/OneDrive/Desktop/account_template_2026-04-04.csv';
+$csvFile = $argv[1] ?? __DIR__ . '/fixtures/account_template.csv';
 
 if (!file_exists($csvFile)) {
     echo "File not found: $csvFile\n";
