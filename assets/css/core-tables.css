@@ -322,6 +322,20 @@
   gap: var(--space-4);
 }
 
+/* Блок быстрого перехода: [Стр.:] [поле] [Перейти].
+   Кнопка не ужимается — иначе flex сжимал её до 44px при нужных 56px, и подпись
+   «Перейти» обрезалась прямо внутри кнопки (замерено на 375, 768 и 1280).
+   Ужимается поле ввода: для номера страницы 3.5rem достаточно. */
+.dashboard-table__footer-select #pageJumpBtn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.dashboard-table__footer-select .dashboard-table__footer-page-input {
+  flex: 0 1 auto;
+  min-width: 3.5rem;
+}
+
 /* Тонкий вертикальный разделитель между per-page и блоком навигации.
    Ширина 1px, высота от align-self:stretch — растягивается по высоте flex-row. */
 .dashboard-table__footer-divider {
