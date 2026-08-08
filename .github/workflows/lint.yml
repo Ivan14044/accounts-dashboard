@@ -46,8 +46,36 @@ jobs:
           fi
           echo "Все PHP-файлы прошли php -l"
 
-      - name: Юнит-тесты (без сети и БД)
+      - name: Юнит-тесты на PHP 7.4 (без сети и БД)
         run: |
           set -uo pipefail
-          # Самодостаточные тесты логики. Падение любого = красный чек = PR не сольётся.
-          php tests/test_validation_classify.php
+          # Все самодостаточные тесты логики. Падение любого = красный чек = PR не сольётся.
+          # Именно glob, а не список: новый tests/test_*.php попадает в гейт автоматически,
+          # без правки workflow (раньше гонялся только один файл из пяти).
+          fail=0
+          for t in tests/test_*.php; do
+            echo "──── $t"
+            php "$t" || fail=1
+          done
+          [ "$fail" -eq 0 ] || { echo "Юнит-тесты FAILED (PHP 7.4)"; exit 1; }
+
+      # Второй прогон на PHP 8: код должен пережить смену версии на хостинге.
+      # Не matrix, а второй setup-php в том же job — имя job обязано остаться "lint",
+      # иначе required status check в branch protection на main перестанет находиться.
+      # Реальный случай, ради которого шаг добавлен: `count()` без аргумента —
+      # на 7.4 это Warning, на 8.x фатальная ArgumentCountError.
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Юнит-тесты на PHP 8.2 (без сети и БД)
+        run: |
+          set -uo pipefail
+          fail=0
+          for t in tests/test_*.php; do
+            echo "──── $t"
+            php "$t" || fail=1
+          done
+          [ "$fail" -eq 0 ] || { echo "Юнит-тесты FAILED (PHP 8.2)"; exit 1; }
