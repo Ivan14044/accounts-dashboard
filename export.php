@@ -30,29 +30,9 @@ if (function_exists('ob_get_level')) {
 
 // Загружаем Logger первым, чтобы можно было логировать ошибки
 require_once __DIR__ . '/includes/Logger.php';
-
-/**
- * Write a CSV row using RFC 4180 rules (no backslash escape).
- * On PHP 7.4+ delegates to fputcsv with escape=''.
- * On PHP < 7.4 writes manually: fields are quoted when they contain
- * the delimiter, a double-quote, or a newline; quotes are escaped as "".
- */
-function writeCsvRow($handle, array $fields, string $delimiter = ';') {
-    if (PHP_VERSION_ID >= 70400) {
-        return fputcsv($handle, $fields, $delimiter, '"', '');
-    }
-    $out = [];
-    foreach ($fields as $field) {
-        $field = (string)$field;
-        if (strpos($field, '"') !== false || strpos($field, $delimiter) !== false
-            || strpos($field, "\n") !== false || strpos($field, "\r") !== false) {
-            $out[] = '"' . str_replace('"', '""', $field) . '"';
-        } else {
-            $out[] = $field;
-        }
-    }
-    return fwrite($handle, implode($delimiter, $out) . "\n");
-}
+// Запись CSV — только через Csv::writeRow (RFC 4180, без слэш-экранирования).
+// Раньше эта обёртка была скопирована сюда и в download_account_template.php.
+require_once __DIR__ . '/includes/Csv.php';
 
 /**
  * Читает параметр из POST или GET (POST приоритет).
@@ -839,7 +819,7 @@ if ($format === 'txt') {
         $columns[$col] = $knownTitles[$col] ?? ucfirst(str_replace('_', ' ', $col));
     }
     // Используем точку с запятой как разделитель для Excel
-    writeCsvRow($output, array_values($columns), ';');
+    Csv::writeRow($output, array_values($columns), ';');
 
     // Санитизация для CSV-инъекций и UTF-8
     $sanitize = function($v) {
@@ -890,7 +870,7 @@ if ($format === 'txt') {
                 $line[] = mb_convert_encoding($sanitized, 'UTF-8', 'UTF-8');
             }
             // Используем точку с запятой как разделитель для Excel
-            writeCsvRow($output, $line, ';');
+            Csv::writeRow($output, $line, ';');
             $exportedCount++;
         }
         
