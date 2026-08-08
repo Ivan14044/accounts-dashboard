@@ -72,6 +72,11 @@ class DatabaseSchemaManager {
                     'birth_year' => 'SMALLINT UNSIGNED NULL',
                     'token' => 'TEXT',
                     'ads_id' => 'VARCHAR(255)',
+                    // FB ID аккаунта. Используется в SQL БЕЗ проверки columnExists()
+                    // (MassTransferService::searchByIdSocAccount, admin_duplicates.php),
+                    // поэтому колонка обязательная, а не опциональная.
+                    // VARCHAR, а не TEXT: idx_id_soc_account создаётся без префикса длины.
+                    'id_soc_account' => 'VARCHAR(255)',
                     'cookies' => 'LONGTEXT',
                     'user_agent' => 'TEXT',
                     'two_fa' => 'VARCHAR(255)',

@@ -260,6 +260,35 @@ class Database {
     }
     
     /**
+     * Индексы, которые приложение создаёт на лету (ensureIndexes()).
+     *
+     * ВАЖНО: каждая колонка отсюда обязана присутствовать в эталонной схеме
+     * DatabaseSchemaManager::getRequiredSchema(), иначе на свежесозданной БД
+     * CREATE INDEX падает с «Key column ... doesn't exist in table» на каждом
+     * запросе. Это проверяет tests/test_schema_index_columns.php.
+     */
+    private const MANAGED_INDEXES = [
+        'accounts' => [
+            'idx_status' => 'status',
+            'idx_created_at' => 'created_at',
+            'idx_updated_at' => 'updated_at',
+            'idx_email' => 'email(255)',
+            'idx_login' => 'login(255)',
+            // Индексы для быстрых точных совпадений при переносе по внешним ID
+            'idx_ads_id' => 'ads_id',
+            'idx_id_soc_account' => 'id_soc_account',
+            'idx_status_created' => 'status, created_at',
+            'idx_compound_search' => 'status, created_at, updated_at',
+            // НОВЫЕ индексы для оптимизации фильтров (2-5x ускорение)
+            'idx_email_status' => 'email(255), status',
+            'idx_two_fa' => 'two_fa(100)',
+            'idx_token' => 'token(255)',
+            // Индекс для soft delete - критически важен для производительности
+            'idx_deleted_at' => 'deleted_at'
+        ]
+    ];
+
+    /**
      * Проверка и создание индексов для производительности.
      * Если флаг .optimization_applied есть (индексы уже применялись через apply_indexes_safe.php),
      * проверка пропускается — иначе при каждом запросе выполняется 12+ запросов к INFORMATION_SCHEMA.
@@ -275,30 +304,9 @@ class Database {
 
         require_once __DIR__ . '/Logger.php';
 
-        $indexes = [
-            'accounts' => [
-                'idx_status' => 'status',
-                'idx_created_at' => 'created_at',
-                'idx_updated_at' => 'updated_at',
-                'idx_email' => 'email(255)',
-                'idx_login' => 'login(255)',
-                // Индексы для быстрых точных совпадений при переносе по внешним ID
-                'idx_ads_id' => 'ads_id',
-                'idx_id_soc_account' => 'id_soc_account',
-                'idx_status_created' => 'status, created_at',
-                'idx_compound_search' => 'status, created_at, updated_at',
-                // НОВЫЕ индексы для оптимизации фильтров (2-5x ускорение)
-                'idx_email_status' => 'email(255), status',
-                'idx_two_fa' => 'two_fa(100)',
-                'idx_token' => 'token(255)',
-                // Индекс для soft delete - критически важен для производительности
-                'idx_deleted_at' => 'deleted_at'
-            ]
-        ];
-        
         Logger::debug('DATABASE: Checking and creating indexes');
-        
-        foreach ($indexes as $table => $tableIndexes) {
+
+        foreach (self::MANAGED_INDEXES as $table => $tableIndexes) {
             foreach ($tableIndexes as $indexName => $columns) {
                 $this->createIndexIfNotExists($table, $indexName, $columns);
             }
