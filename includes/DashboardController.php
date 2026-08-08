@@ -384,7 +384,7 @@ class DashboardController {
             'currentTable' => $this->service->getTableName(),
             'availableTables' => TableResolver::getInstance(
                 Database::getInstance()->getConnection(),
-                Database::getInstance()->getConnection()->query("SELECT DATABASE()")->fetch_row()[0] ?? ''
+                Database::nameOf(Database::getInstance()->getConnection())
             )->getAvailableTables(),
         ];
     }

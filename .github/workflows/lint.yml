@@ -26,6 +26,24 @@ jobs:
   lint:
     name: lint
     runs-on: ubuntu-latest
+
+    # MySQL для интеграционных тестов. Юнит-тесты БД не касаются, но всё, что
+    # реально портит данные (массовые операции, undo, транзакции), без БД не
+    # проверить — и потому раньше не проверялось в CI вообще.
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: dashboard_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,6 +53,7 @@ jobs:
         with:
           php-version: '7.3'
           coverage: none
+          extensions: mysqli
 
       - name: php -l на всех PHP-файлах (нижняя граница — как на проде)
         run: |
@@ -76,6 +95,7 @@ jobs:
         with:
           php-version: '8.2'
           coverage: none
+          extensions: mysqli
 
       - name: Юнит-тесты на PHP 8.2 (без сети и БД)
         run: |
@@ -86,3 +106,29 @@ jobs:
             php "$t" || fail=1
           done
           [ "$fail" -eq 0 ] || { echo "Юнит-тесты FAILED (PHP 8.2)"; exit 1; }
+
+      # Интеграционные тесты: полный путь до реального MySQL.
+      # Гоняем на 8.2 (сервис уже поднят, версия PHP тут вторична — проверяется
+      # логика работы с БД, а не синтаксис). Без TEST_DB_* эти тесты сами
+      # скипаются, поэтому раньше в CI они просто молча ничего не проверяли.
+      - name: Интеграционные тесты на реальном MySQL
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: '3306'
+          TEST_DB_USER: root
+          TEST_DB_PASS: ''
+          TEST_DB_NAME: dashboard_test
+        run: |
+          set -uo pipefail
+          shopt -s nullglob
+          files=(tests/integration_*.php)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "Интеграционных тестов нет — пропускаем"
+            exit 0
+          fi
+          fail=0
+          for t in "${files[@]}"; do
+            echo "──── $t"
+            php "$t" || fail=1
+          done
+          [ "$fail" -eq 0 ] || { echo "Интеграционные тесты FAILED"; exit 1; }

@@ -95,6 +95,41 @@ class Logger {
     }
     
     /**
+     * Идентификатор текущего запроса.
+     *
+     * Нужен, чтобы в общем логе можно было выделить все записи одного запроса:
+     * `grep 'req=a1b2c3d4' logs/2026-08-08.log`. Живёт в рамках процесса, в
+     * CLI-скриптах работает так же.
+     *
+     * @return string 8 hex-символов
+     */
+    public static function requestId(): string {
+        static $id = null;
+
+        if ($id === null) {
+            // Не для криптографии — только для связывания строк лога,
+            // поэтому uniqid без random_bytes достаточно и не требует энтропии.
+            $id = substr(md5(uniqid('', true)), 0, 8);
+        }
+
+        return $id;
+    }
+
+    /**
+     * Сколько миллисекунд прошло с начала запроса.
+     *
+     * @return int
+     */
+    private static function elapsedMs(): int {
+        $start = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
+        if (!is_float($start) && !is_int($start)) {
+            return 0;
+        }
+
+        return (int)round((microtime(true) - (float)$start) * 1000);
+    }
+
+    /**
      * Путь к директории логов
      * @var string
      */
@@ -138,15 +173,27 @@ class Logger {
      */
     private static function log($level, $message, $context) {
         $timestamp = date('Y-m-d H:i:s');
-        $contextStr = !empty($context) ? ' ' . json_encode($context, JSON_UNESCAPED_UNICODE) : '';
-        
+
         // Фильтруем чувствительные данные из контекста
+        $contextStr = '';
         if (!empty($context)) {
             $context = self::filterSensitiveData($context);
             $contextStr = ' ' . json_encode($context, JSON_UNESCAPED_UNICODE);
         }
-        
-        $logMessage = sprintf('[%s] [%s] %s%s', $timestamp, $level, $message, $contextStr);
+
+        // req=<id> +<мс от начала запроса> — без этого записи одного запроса
+        // невозможно отделить от чужих в общем логе, а медленную страницу нельзя
+        // найти по логам вообще. Оба значения дешёвые: id генерируется один раз,
+        // время берётся из REQUEST_TIME_FLOAT.
+        $logMessage = sprintf(
+            '[%s] [%s] [req=%s +%dms] %s%s',
+            $timestamp,
+            $level,
+            self::requestId(),
+            self::elapsedMs(),
+            $message,
+            $contextStr
+        );
         
         // Записываем в системный лог PHP
         error_log($logMessage);
