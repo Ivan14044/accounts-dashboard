@@ -975,7 +975,9 @@ class Dashboard {
         const CLIP_LEN   = Number.isInteger(cfg.clipLen)   ? cfg.clipLen   : 80;
         const TOKEN_CLIP = Number.isInteger(cfg.tokenClip) ? cfg.tokenClip : 20;
 
-        const fieldType = numericCols.indexOf(col) !== -1 ? 'numeric' : 'text';
+        // Атрибут пишем только для числовых: JS сравнивает строго с 'numeric',
+        // отсутствие атрибута читается как text (см. rows.php).
+        const fieldTypeAttr = numericCols.indexOf(col) !== -1 ? ' data-field-type="numeric"' : '';
         const e = (s) => this.escapeHtml(s);
 
         // Пустое значение — placeholder "—" (кроме password/id/actions).
@@ -989,7 +991,7 @@ class Dashboard {
             if (col === 'id' || col === 'actions') {
                 return `<span class="text-muted">—</span>`;
             }
-            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}"${fieldTypeAttr}>
                 <span class="text-muted field-value">—</span>
             </div>`;
         }
@@ -1000,13 +1002,13 @@ class Dashboard {
         }
 
         if (col === 'email') {
-            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="email" data-field-type="text">
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="email">
                 <a href="mailto:${e(value)}" class="text-decoration-none field-value">${e(value)}</a>
             </div>`;
         }
 
         if (col === 'login') {
-            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="login" data-field-type="text">
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="login">
                 <span class="fw-semibold field-value">${e(value)}</span>
             </div>`;
         }
@@ -1026,13 +1028,13 @@ class Dashboard {
         }
 
         if (col === 'status') {
-            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="status" data-field-type="text">
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="status">
                 ${this.renderStatusBadge(value)}
             </div>`;
         }
 
         if (col === 'social_url' && typeof value === 'string' && /^https?:\/\//i.test(value)) {
-            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="social_url" data-field-type="text">
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="social_url">
                 <a href="${e(value)}" target="_blank" rel="noopener" class="text-decoration-none field-value">
                     <i class="fas fa-external-link-alt me-2"></i>${e(value)}
                 </a>
@@ -1043,14 +1045,14 @@ class Dashboard {
         const sval = typeof value === 'string' ? value : String(value);
         if (sval.length > CLIP_LEN) {
             const clipped = sval.substring(0, CLIP_LEN) + '…';
-            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
+            return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}"${fieldTypeAttr}>
                 <span class="truncate mono field-value" data-clipped="1" data-title="${e(col)}">${e(clipped)}</span>
             </div>`;
         }
 
         // Обычное короткое поле.
         const monoCls = longFields.indexOf(col) !== -1 ? 'truncate mono ' : '';
-        return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}" data-field-type="${fieldType}">
+        return `<div class="editable-field-wrap" data-row-id="${id}" data-field="${e(col)}"${fieldTypeAttr}>
             <span class="${monoCls}field-value">${e(value)}</span>
         </div>`;
     }

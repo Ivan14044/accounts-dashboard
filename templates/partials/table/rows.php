@@ -47,7 +47,7 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
       </td>
       <?php foreach ($ALL_COLUMNS as $k => $title): $v = $r[$k]; $isLong = is_string($v) && (strlen($v) > $CLIP_LEN || in_array($k, $LONG_FIELDS, true)); ?>
         <?php if ($k === 'id'): ?>
-          <td class="ac-cell ac-cell--id" data-col="<?= e($k) ?>" data-column="<?= e($k) ?>">
+          <td class="ac-cell ac-cell--id" data-col="<?= e($k) ?>">
             <span class="fw-bold text-primary">#<?= (int)$v ?></span>
           </td>
           <td class="ac-cell ac-cell--favorite favorite-cell text-center" data-column="favorite" data-account-id="<?= (int)$r['id'] ?>">
@@ -61,24 +61,27 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
           </td>
           <?php continue; ?>
         <?php endif; ?>
-        <td class="ac-cell" data-col="<?= e($k) ?>" data-column="<?= e($k) ?>">
-          <?php 
-          // Определяем тип поля для валидации на фронтенде
-          $isNumeric = isset($NUMERIC_COLS) && in_array($k, $NUMERIC_COLS, true);
-          $fieldType = $isNumeric ? 'numeric' : 'text';
+        <td class="ac-cell" data-col="<?= e($k) ?>">
+          <?php
+          // Тип поля нужен фронту только чтобы отличить числовой инпут от текстового.
+          // JS сравнивает строго с 'numeric' (dashboard-init.js), поэтому
+          // data-field-type="text" — это ~45 лишних атрибутов на строку, которые
+          // ничего не значат: отсутствие атрибута читается как text.
+          $isNumeric     = isset($NUMERIC_COLS) && in_array($k, $NUMERIC_COLS, true);
+          $fieldTypeAttr = $isNumeric ? ' data-field-type="numeric"' : '';
           ?>
           <?php if (($v === null || $v === '') && $k !== 'password' && $k !== 'email_password' && $k !== 'id' && $k !== 'actions'): ?>
-            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="<?= e($fieldType) ?>">
+            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>"<?= $fieldTypeAttr ?>>
               <span class="text-muted field-value">—</span>
             </div>
           <?php elseif ($k === 'email'): ?>
-            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="text">
+            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>">
               <a href="mailto:<?= e($v) ?>" class="text-decoration-none field-value">
                 <?= e($v) ?>
               </a>
             </div>
           <?php elseif ($k === 'login'): ?>
-            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="text">
+            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>">
               <span class="fw-semibold field-value"><?= e((string)$v) ?></span>
             </div>
           <?php elseif ($k === 'password' || $k === 'email_password'): ?>
@@ -112,11 +115,11 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
               $legacyClass = 'badge-add_selphi_true';
             }
             ?>
-            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="text">
+            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>">
               <span class="badge <?= $legacyClass ?> field-value" data-tone="<?= e($cellTone) ?>"><?= e($statusDisplay) ?></span>
             </div>
           <?php elseif ($k === 'social_url' && preg_match('~^https?://~i', $v)): ?>
-            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="text">
+            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>">
               <a href="<?= e($v) ?>" target="_blank" rel="noopener" class="text-decoration-none field-value">
                 <i class="fas fa-external-link-alt me-2"></i><?= e($v) ?>
               </a>
@@ -124,13 +127,13 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
           <?php elseif ($isLong && strlen((string)$v) > $CLIP_LEN): ?>
             <?php // Полное значение НЕ кладём в DOM (вес страницы) — подгружается по требованию (data-clipped) ?>
             <?php $clip = mb_substr((string)$v, 0, $CLIP_LEN, 'UTF-8') . '…'; ?>
-            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="<?= e($fieldType) ?>">
+            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>"<?= $fieldTypeAttr ?>>
               <span class="truncate mono field-value" data-clipped="1" data-title="<?= e($title) ?>">
                 <?= e($clip) ?>
               </span>
             </div>
           <?php else: ?>
-            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>" data-field-type="<?= e($fieldType) ?>">
+            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>"<?= $fieldTypeAttr ?>>
               <span class="<?= $isLong ? 'truncate mono ' : '' ?>field-value"><?= e((string)$v) ?></span>
             </div>
           <?php endif; ?>

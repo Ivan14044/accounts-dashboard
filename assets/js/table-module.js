@@ -245,7 +245,7 @@
     renderRow(row, columnKeys) {
       const cellsHtml = columnKeys.map(col => {
         if (col === 'id') {
-          const idCell = `<td class="ac-cell ac-cell--id" data-col="id" data-column="id">
+          const idCell = `<td class="ac-cell ac-cell--id" data-col="id">
             <span class="fw-bold text-primary">#${this.escape(row[col])}</span>
           </td>`;
           const favoriteCell = `<td class="ac-cell ac-cell--favorite favorite-cell text-center" data-column="favorite" data-account-id="${row.id}">
@@ -255,7 +255,7 @@
           </td>`;
           return idCell + favoriteCell;
         }
-        return `<td class="ac-cell" data-col="${col}" data-column="${col}">${this.renderCellContent(col, row)}</td>`;
+        return `<td class="ac-cell" data-col="${col}">${this.renderCellContent(col, row)}</td>`;
       }).join('');
 
       return `<tr class="ac-row" data-id="${row.id}">

@@ -875,6 +875,12 @@ function handleDocumentClick(e) {
     input.style.flex = '1';
     setTimeout(function() {
       input.focus();
+      // input[type=number] не поддерживает выделение: и select(), и
+      // setSelectionRange() бросают InvalidStateError. Уронить редактирование
+      // это не успевает (ошибка вылетает после focus), но в консоли висел
+      // необработанный exception при каждой правке числового поля.
+      var supportsSelection = input.type !== 'number' && input.type !== 'email';
+      if (!supportsSelection) return;
       if (oldVal && oldVal !== '') input.select();
       else if (input.setSelectionRange) input.setSelectionRange(0, 0);
     }, 0);
