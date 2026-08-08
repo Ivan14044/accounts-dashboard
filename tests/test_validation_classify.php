@@ -27,7 +27,11 @@ function check(string $name, array $items, array $results, array $expect): void
     $res = AccountValidationService::classifyItems($items, $results);
 
     $ids = function (array $bucket): array {
-        $out = array_map(static fn($e) => (int)$e['id'], $bucket);
+        // Обычное замыкание вместо `fn() =>`: тест обязан парситься на той же
+        // версии PHP, что и прод (старее 7.4), иначе гейт врёт о совместимости.
+        $out = array_map(static function ($e) {
+            return (int)$e['id'];
+        }, $bucket);
         sort($out);
         return $out;
     };
