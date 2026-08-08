@@ -3,7 +3,8 @@
  *
  * Загружается с defer в конце body. Цели:
  *  1. До рендера (через MutationObserver на .stats-grid) — успеть скрыть карточки,
- *     которые добавляет PHP-шаблон или клиентский код (custom-cards.js).
+ *     которые добавляет PHP-шаблон или клиентский код (кастомные карточки живут
+ *     в dashboard-init.js — renderCustomCardsOnDashboard).
  *  2. После initial load — продолжать наблюдать. Любая логика, которая
  *     перерисовывает карточки в runtime (refreshDashboardData, custom-cards
  *     async добавление, кастомные виджеты), не должна показывать спрятанные.

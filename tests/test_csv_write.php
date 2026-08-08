@@ -49,13 +49,63 @@ function roundTrip(array $fields, string $delimiter = ';'): array
     Csv::writeRow($h, $fields, $delimiter);
     rewind($h);
     $raw = stream_get_contents($h);
-    rewind($h);
-    // Читаем строго по RFC 4180: удвоенная кавычка — единственное экранирование.
-    $read = PHP_VERSION_ID >= 70400
-        ? fgetcsv($h, 0, $delimiter, '"', '')
-        : fgetcsv($h, 0, $delimiter, '"');
     fclose($h);
+
+    // Читаем строго по RFC 4180: удвоенная кавычка — единственное экранирование.
+    // На PHP < 7.4 (а на проде именно такой) fgetcsv не умеет escape='' и портит
+    // обратные слэши, поэтому там разбираем строку сами — ровно так же, как это
+    // делает CsvParser::readCsvRowManual().
+    $read = PHP_VERSION_ID >= 70400
+        ? str_getcsv(rtrim($raw, "\r\n"), $delimiter, '"', '')
+        : parseRfc4180Line(rtrim($raw, "\r\n"), $delimiter);
+
     return [$read === false ? [] : $read, $raw];
+}
+
+/**
+ * Минимальный разбор одной строки CSV по RFC 4180 (для PHP < 7.4).
+ * Обратный слэш — обычный символ; экранирование только через "".
+ *
+ * @param string $line
+ * @param string $delimiter
+ * @return array
+ */
+function parseRfc4180Line(string $line, string $delimiter): array
+{
+    $fields = [];
+    $field = '';
+    $inQuotes = false;
+    $len = strlen($line);
+
+    for ($i = 0; $i < $len; $i++) {
+        $ch = $line[$i];
+
+        if ($inQuotes) {
+            if ($ch === '"') {
+                if ($i + 1 < $len && $line[$i + 1] === '"') {
+                    $field .= '"';
+                    $i++;
+                } else {
+                    $inQuotes = false;
+                }
+            } else {
+                $field .= $ch;
+            }
+            continue;
+        }
+
+        if ($ch === '"') {
+            $inQuotes = true;
+        } elseif ($ch === $delimiter) {
+            $fields[] = $field;
+            $field = '';
+        } else {
+            $field .= $ch;
+        }
+    }
+
+    $fields[] = $field;
+    return $fields;
 }
 
 echo "\n=== Csv::writeRow — round-trip ===\n\n";

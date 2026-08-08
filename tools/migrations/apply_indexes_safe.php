@@ -135,7 +135,12 @@ if ($isMysql8Plus) {
         if ($dropResult) {
             echo "✅ Старый функциональный индекс idx_login_numeric удалён\n";
             // Удаляем из списка существующих, чтобы создать заново как generated column index
-            $existingIndexes = array_filter($existingIndexes, fn($n) => $n !== 'idx_login_numeric');
+            // Обычное замыкание, а не стрелочная функция: PHP на проде старее 7.4
+            // и на `fn() =>` падает с Parse error (проверено 2026-08-08 —
+            // именно этот файл отдавал parse error по HTTP).
+            $existingIndexes = array_filter($existingIndexes, static function ($n) {
+                return $n !== 'idx_login_numeric';
+            });
         } else {
             echo "❌ Не удалось удалить старый idx_login_numeric: " . $mysqli->error . "\n";
         }

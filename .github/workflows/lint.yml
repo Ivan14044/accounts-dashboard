@@ -3,6 +3,13 @@
 # Мерж в main сразу деплоится в прод (deploy.yml), поэтому это защита —
 # не дать fatal-ошибке парсера или регрессии логики уехать на живой сайт.
 # Имя job = "lint" → это имя required status check в branch protection на main.
+#
+# Почему нижняя версия 7.3, а не 7.4:
+# 2026-08-08 прод отдал по HTTP «Parse error: unexpected '=>' ... on line 138»
+# на tools/migrations/apply_indexes_safe.php — это стрелочная функция `fn() =>`,
+# доступная только с 7.4. Значит PHP на проде СТАРЕЕ 7.4, а гейт на 7.4 такую
+# синтаксическую ошибку пропускал: PR зелёный, а на живом сайте fatal.
+# Линтим снизу (7.3) и сверху (8.2), тесты гоняем на обеих границах.
 
 name: lint
 
@@ -23,13 +30,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup PHP 7.4
+      - name: Setup PHP 7.3
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '7.4'
+          php-version: '7.3'
           coverage: none
 
-      - name: php -l на всех PHP-файлах
+      - name: php -l на всех PHP-файлах (нижняя граница — как на проде)
         run: |
           set -uo pipefail
           fail=0
@@ -46,7 +53,7 @@ jobs:
           fi
           echo "Все PHP-файлы прошли php -l"
 
-      - name: Юнит-тесты на PHP 7.4 (без сети и БД)
+      - name: Юнит-тесты на PHP 7.3 (без сети и БД)
         run: |
           set -uo pipefail
           # Все самодостаточные тесты логики. Падение любого = красный чек = PR не сольётся.
@@ -57,13 +64,13 @@ jobs:
             echo "──── $t"
             php "$t" || fail=1
           done
-          [ "$fail" -eq 0 ] || { echo "Юнит-тесты FAILED (PHP 7.4)"; exit 1; }
+          [ "$fail" -eq 0 ] || { echo "Юнит-тесты FAILED (PHP 7.3)"; exit 1; }
 
-      # Второй прогон на PHP 8: код должен пережить смену версии на хостинге.
+      # Второй прогон на PHP 8: код должен пережить и обновление версии на хостинге.
       # Не matrix, а второй setup-php в том же job — имя job обязано остаться "lint",
       # иначе required status check в branch protection на main перестанет находиться.
       # Реальный случай, ради которого шаг добавлен: `count()` без аргумента —
-      # на 7.4 это Warning, на 8.x фатальная ArgumentCountError.
+      # на 7.x это Warning, на 8.x фатальная ArgumentCountError.
       - name: Setup PHP 8.2
         uses: shivammathur/setup-php@v2
         with:
