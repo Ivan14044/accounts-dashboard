@@ -100,11 +100,57 @@ function sort_link(string $col): string {
 }
 
 /**
+ * Разбор тела запроса как JSON. Чистая функция — тестируется без сети и сервера
+ * (tests/test_error_http_codes.php).
+ *
+ * Кидает InvalidArgumentException, а не Exception: кривое тело запроса — это
+ * ошибка клиента, и ErrorHandler превращает её в HTTP 400, а не в 500.
+ *
+ * @param string $raw     Сырое тело запроса
+ * @param int    $maxSize Максимальный размер в байтах
+ * @return array|null Декодированный массив; null для пустого тела и для
+ *                    валидного JSON, который не является массивом
+ * @throws InvalidArgumentException При превышении размера или битом JSON
+ */
+if (!function_exists('decode_json_body')) {
+function decode_json_body(string $raw, int $maxSize = 1048576): ?array {
+    if ($raw === '') {
+        return null;
+    }
+
+    if (strlen($raw) > $maxSize) {
+        require_once __DIR__ . '/Logger.php';
+        Logger::warning('JSON input size exceeded', [
+            'size' => strlen($raw),
+            'max_size' => $maxSize
+        ]);
+        throw new InvalidArgumentException('Input size exceeds maximum allowed size');
+    }
+
+    $data = json_decode($raw, true);
+
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        // Причину забираем ДО любого вызова Logger: внутри него json_encode
+        // контекста сбрасывает json_last_error(), и в сообщение раньше улетало
+        // бессмысленное «Invalid JSON format: No error».
+        $reason = json_last_error_msg();
+
+        require_once __DIR__ . '/Logger.php';
+        Logger::warning('JSON decode error', ['error' => $reason]);
+
+        throw new InvalidArgumentException('Invalid JSON format: ' . $reason);
+    }
+
+    return is_array($data) ? $data : null;
+}
+}
+
+/**
  * Безопасное чтение JSON из php://input с ограничением размера
- * 
+ *
  * @param int $maxSize Максимальный размер в байтах (по умолчанию 1MB)
- * @return array|null Декодированный JSON или null при ошибке
- * @throws Exception При превышении размера или ошибке декодирования
+ * @return array|null Декодированный JSON или null, если тела нет
+ * @throws InvalidArgumentException При превышении размера или ошибке декодирования
  */
 if (!function_exists('read_json_input')) {
 function read_json_input(int $maxSize = 1048576): ?array {
@@ -113,37 +159,14 @@ function read_json_input(int $maxSize = 1048576): ?array {
     if ($method === 'GET') {
         return null;
     }
-    
-    // Читаем данные с ограничением размера
+
+    // Читаем на байт больше лимита, чтобы отличить «ровно лимит» от «больше лимита»
     $input = file_get_contents('php://input', false, null, 0, $maxSize + 1);
-    
-    // Если input пустой, возвращаем null (не ошибка)
-    if ($input === false || $input === '') {
+    if ($input === false) {
         return null;
     }
-    
-    // Проверяем размер
-    if (strlen($input) > $maxSize) {
-        require_once __DIR__ . '/Logger.php';
-        Logger::warning('JSON input size exceeded', [
-            'size' => strlen($input),
-            'max_size' => $maxSize
-        ]);
-        throw new Exception('Input size exceeds maximum allowed size');
-    }
-    
-    // Декодируем JSON
-    $data = json_decode($input, true);
-    
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        require_once __DIR__ . '/Logger.php';
-        Logger::warning('JSON decode error', [
-            'error' => json_last_error_msg()
-        ]);
-        throw new Exception('Invalid JSON format: ' . json_last_error_msg());
-    }
-    
-    return is_array($data) ? $data : null;
+
+    return decode_json_body($input, $maxSize);
 }
 }
 

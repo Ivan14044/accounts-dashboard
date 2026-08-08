@@ -34,41 +34,92 @@ class ErrorHandler {
             'full_message' => $e->getMessage()
         ]);
         
+        $code = self::resolveHttpCode($e, $httpCode);
+
         // Для API запросов - JSON ответ
         if (self::isApiRequest()) {
-            self::sendJsonError($e, $httpCode);
+            self::sendJsonError($e, $code);
             return;
         }
-        
-        // Для обычных запросов - HTML страница
-        self::renderErrorPage($e);
+
+        // Для обычных запросов - HTML страница с тем же кодом.
+        // Раньше здесь всегда был 500, и кривой ввод клиента выглядел как отказ
+        // сервера: мониторинг видел всплеск 500 на ровном месте.
+        self::renderErrorPage($e, $code);
     }
-    
+
     /**
-     * Проверка, является ли запрос API запросом
-     * 
+     * Проверка, является ли запрос API запросом (то есть надо отвечать JSON).
+     *
+     * Публичный метод: решение «JSON или HTML» проверяется тестом
+     * tests/test_error_http_codes.php.
+     *
      * @return bool
      */
-    private static function isApiRequest(): bool {
+    public static function isApiRequest(): bool {
         // Проверка AJAX запроса
-        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) 
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])
             && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
             return true;
         }
-        
-        // Проверка по пути (файлы api_*.php)
-        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-        if (preg_match('/\/api[^\/]*\.php$/', $scriptName)) {
+
+        // Клиент прислал JSON — значит, ждёт JSON в ответ.
+        // Без этой ветки запрос с корректным Content-Type, но без X-Requested-With
+        // получал в ответ HTML-страницу ошибки.
+        $contentType = $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? '');
+        if ($contentType !== '' && stripos($contentType, 'application/json') !== false) {
             return true;
         }
-        
+
+        // Проверка по пути (файлы api_*.php и всё внутри /api/)
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        if (preg_match('#/api[^/]*\.php$|^/api/#', $scriptName)) {
+            return true;
+        }
+
         // Проверка по заголовку Accept
         $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
         if (strpos($accept, 'application/json') !== false) {
             return true;
         }
-        
+
         return false;
+    }
+
+    /**
+     * Выбор HTTP-кода ответа по исключению.
+     *
+     * Явно переданный код всегда побеждает: точка входа знает про свой контракт
+     * больше, чем эвристика по тексту сообщения.
+     *
+     * @param Throwable $e
+     * @param int|null  $explicit Код, переданный вызывающим кодом
+     * @return int
+     */
+    public static function resolveHttpCode(Throwable $e, ?int $explicit = null): int {
+        if ($explicit !== null) {
+            return $explicit;
+        }
+
+        // Ошибка ввода — это вина клиента, а не сервера.
+        if ($e instanceof InvalidArgumentException) {
+            return 400;
+        }
+
+        // mb_strtolower, а не strtolower: последний не понижает регистр кириллицы,
+        // и проверка на «Необходима авторизация» с заглавной буквы не срабатывала —
+        // такие ответы уезжали в 500 вместо 401.
+        $raw = $e->getMessage();
+        $message = function_exists('mb_strtolower') ? mb_strtolower($raw, 'UTF-8') : strtolower($raw);
+
+        if (strpos($message, 'not authenticated') !== false
+            || strpos($message, 'unauthorized') !== false
+            || strpos($message, 'необходима авторизация') !== false
+        ) {
+            return 401;
+        }
+
+        return 500;
     }
     
     /**
@@ -79,27 +130,8 @@ class ErrorHandler {
      * @return void
      */
     private static function sendJsonError(Throwable $e, ?int $httpCode = null): void {
-        // Определяем HTTP код по типу исключения и сообщению
-        if ($httpCode === null) {
-            $message = strtolower($e->getMessage());
-            if ($e instanceof InvalidArgumentException) {
-                $httpCode = 400; // Bad Request для валидационных ошибок
-            } elseif (strpos($message, 'not authenticated') !== false || 
-                      strpos($message, 'unauthorized') !== false ||
-                      strpos($message, 'необходима авторизация') !== false) {
-                $httpCode = 401; // Unauthorized для ошибок авторизации
-            } elseif (strpos($message, 'database connection') !== false ||
-                      strpos($message, 'failed to prepare') !== false ||
-                      strpos($message, 'failed to execute') !== false ||
-                      strpos($message, 'mysqli') !== false) {
-                $httpCode = 500; // Internal Server Error для ошибок БД
-            } elseif ($e instanceof \RuntimeException) {
-                $httpCode = 500; // Internal Server Error
-            } else {
-                $httpCode = 500; // По умолчанию 500
-            }
-        }
-        
+        $httpCode = self::resolveHttpCode($e, $httpCode);
+
         http_response_code($httpCode);
         header('Content-Type: application/json; charset=utf-8');
         
@@ -182,12 +214,13 @@ class ErrorHandler {
     
     /**
      * Отрисовка HTML страницы ошибки
-     * 
+     *
      * @param Throwable $e Исключение
+     * @param int $httpCode Код ответа (400 для ошибок ввода, 500 для сбоев сервера)
      * @return void
      */
-    private static function renderErrorPage(Throwable $e): void {
-        http_response_code(500);
+    private static function renderErrorPage(Throwable $e, int $httpCode = 500): void {
+        http_response_code($httpCode);
         
         // Если есть шаблон ошибки - используем его
         $errorTemplate = __DIR__ . '/../templates/error.php';
@@ -220,10 +253,16 @@ class ErrorHandler {
         echo '<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width, initial-scale=1"><title>Ошибка</title>'
             . $themeInit . $css . '</head><body>';
+        // 4xx — виноват запрос, 5xx — виноват сервер. Текст должен это отражать,
+        // иначе пользователь идёт искать несуществующую поломку в логах.
+        $isClientError = $httpCode >= 400 && $httpCode < 500;
+
         echo '<div class="err-card">';
         echo '<div class="err-ico">&#9888;</div>';
-        echo '<h1>Произошла ошибка</h1>';
-        echo '<p>При обработке запроса возникла ошибка.</p>';
+        echo '<h1>' . ($isClientError ? 'Некорректный запрос' : 'Произошла ошибка') . '</h1>';
+        echo '<p>' . ($isClientError
+            ? 'Сервер не смог обработать запрос: в нём не хватает данных или они неверны.'
+            : 'При обработке запроса возникла ошибка.') . '</p>';
 
         if ($showDetails) {
             echo '<pre>' . htmlspecialchars($e->getMessage()) . '</pre>';
