@@ -2480,13 +2480,49 @@ function hexToRgb(hex) {
 /**
  * Загрузка кастомных карточек из БД с fallback на localStorage
  */
+// Кэш одной загрузки карточек на страницу.
+// Инициализация дёргает loadCustomCardsFromStorage() трижды подряд
+// (renderCustomCardsSettings → renderCustomCardsOnDashboard → registerMissingStatuses),
+// и в сети было три одинаковых GET /api/settings?type=custom_cards.
+// Храним именно Promise, чтобы параллельные вызовы разделили один запрос,
+// а не запустили по своему. Сбрасывается после любой записи карточек.
+let _customCardsPromise = null;
+
+/**
+ * Сбрасывает кэш карточек. Вызывать после любого изменения набора карточек,
+ * иначе следующий рендер покажет устаревшие данные.
+ */
+function invalidateCustomCardsCache() {
+  _customCardsPromise = null;
+}
+
 async function loadCustomCardsFromStorage() {
+  if (!_customCardsPromise) {
+    _customCardsPromise = fetchCustomCardsFromStorage().catch(err => {
+      // Неудачную попытку не кэшируем — следующий вызов попробует снова.
+      _customCardsPromise = null;
+      throw err;
+    });
+  }
+
+  // Копия: вызывающий код фильтрует и сортирует результат, и мутация
+  // не должна протекать в кэш.
+  const cards = await _customCardsPromise;
+  return cards.slice();
+}
+
+/**
+ * Реальная загрузка карточек: БД, при недоступности — localStorage.
+ *
+ * @returns {Promise<Array>} массив карточек (может быть пустым)
+ */
+async function fetchCustomCardsFromStorage() {
   try {
     const response = await fetch('/api/settings?type=custom_cards', {
       method: 'GET',
       credentials: 'same-origin'
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       if (data.success && Array.isArray(data.value)) {
@@ -2503,7 +2539,7 @@ async function loadCustomCardsFromStorage() {
   } catch (error) {
     logger.warn('Error loading from server, using localStorage:', error);
   }
-  
+
   // Fallback на localStorage
   return loadCustomCardsFromLocalStorage();
 }
@@ -2532,7 +2568,10 @@ async function saveCustomCardsToStorage(cards) {
     logger.error('Invalid cards array');
     return false;
   }
-  
+
+  // Набор карточек меняется — кэш чтения больше не актуален.
+  invalidateCustomCardsCache();
+
   // Сохраняем в localStorage сразу
   try {
     localStorage.setItem(LS_KEY_CUSTOM_CARDS, JSON.stringify(cards));

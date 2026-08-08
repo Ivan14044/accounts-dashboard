@@ -10,6 +10,7 @@ require_once __DIR__ . '/includes/Database.php';
 require_once __DIR__ . '/includes/AuditLogger.php';
 require_once __DIR__ . '/includes/Utils.php';
 require_once __DIR__ . '/includes/Validator.php';
+require_once __DIR__ . '/includes/Csv.php';
 
 // Проверяем авторизацию
 requireAuth();
@@ -22,17 +23,14 @@ function e($string) {
 
 /**
  * Защита от CSV/formula injection при открытии в Excel.
- * Префиксуем апострофом любые значения, начинающиеся с опасных символов.
+ * Реализация одна на проект — {@see Csv::sanitizeCell()}; здесь только псевдоним,
+ * чтобы не переписывать вызовы ниже.
+ *
+ * @param mixed $value
+ * @return string
  */
 function sanitizeCsvCell($value): string {
-    $s = (string)($value ?? '');
-    if ($s === '') return $s;
-    $first = $s[0];
-    if ($first === '=' || $first === '+' || $first === '-' || $first === '@'
-        || $first === "\t" || $first === "\r") {
-        return "'" . $s;
-    }
-    return $s;
+    return Csv::sanitizeCell($value);
 }
 
 // ===== Экспорт CSV =====
@@ -121,10 +119,13 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv' && ($_SERVER['REQUEST_ME
         $output = fopen('php://output', 'w');
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
 
-        fputcsv($output, ['ID', 'ID аккаунта', 'Поле', 'Старое значение', 'Новое значение', 'Пользователь', 'Дата/Время', 'IP-адрес']);
+        // Разделитель `,` — исторический формат этой выгрузки, менять нельзя.
+        // Csv::writeRow вместо голого fputcsv: дефолтный escape='\' портит
+        // значения с обратными слэшами (в истории это cookies и token).
+        Csv::writeRow($output, ['ID', 'ID аккаунта', 'Поле', 'Старое значение', 'Новое значение', 'Пользователь', 'Дата/Время', 'IP-адрес'], ',');
 
         while ($row = $result->fetch_assoc()) {
-            fputcsv($output, [
+            Csv::writeRow($output, [
                 sanitizeCsvCell($row['id']),
                 sanitizeCsvCell($row['account_id']),
                 sanitizeCsvCell($row['field_name']),
@@ -133,7 +134,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv' && ($_SERVER['REQUEST_ME
                 sanitizeCsvCell($row['changed_by']),
                 sanitizeCsvCell($row['changed_at']),
                 sanitizeCsvCell($row['ip_address']),
-            ]);
+            ], ',');
         }
 
         fclose($output);

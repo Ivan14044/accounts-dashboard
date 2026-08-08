@@ -145,16 +145,13 @@
 
     btn.addEventListener('click', performUndo);
 
-    // После каждого AJAX-обновления данных проверяем, не появилось ли новое действие
-    const origRefresh = window.refreshDashboardData;
-    if (typeof origRefresh === 'function') {
-      window.refreshDashboardData = function () {
-        const p = origRefresh.apply(this, arguments);
-        Promise.resolve(p).then(function () {
-          refresh({ offerToast: true });
-        }).catch(function () {});
-        return p;
-      };
+    // После каждого AJAX-обновления данных проверяем, не появилось ли новое действие.
+    // Подписка, а не обёртка над window.refreshDashboardData: обёртки от разных
+    // модулей выстраивались в цепочку, зависящую от порядка загрузки скриптов.
+    if (window.DashboardRefresh && typeof window.DashboardRefresh.onAfterRefresh === 'function') {
+      window.DashboardRefresh.onAfterRefresh(function () {
+        refresh({ offerToast: true });
+      });
     }
 
     refresh();

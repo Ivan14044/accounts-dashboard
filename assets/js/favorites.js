@@ -466,23 +466,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Обновляем после обновления данных через refresh
-    if (typeof refreshDashboardData !== 'undefined') {
-        const originalRefresh = window.refreshDashboardData;
-        window.refreshDashboardData = async function(...args) {
-            try {
-                const result = await originalRefresh.apply(this, args);
-                updateFavoritesAfterTableUpdate();
-                return result;
-            } catch (error) {
-                // Игнорируем AbortError - это нормальная отмена запроса
-                if (error.name === 'AbortError' || error.message?.includes('aborted')) {
-                    return;
-                }
-                // Пробрасываем другие ошибки
-                throw error;
-            }
-        };
+    // Обновляем звёздочки после каждого обновления таблицы.
+    // Подписка, а не обёртка над window.refreshDashboardData: прежняя обёртка
+    // глотала AbortError всей цепочки обёрток (в том числе чужих) и зависела от
+    // порядка подключения скриптов. Обработчик подписки изолирован — его падение
+    // не влияет ни на refresh, ни на других подписчиков.
+    if (window.DashboardRefresh && typeof window.DashboardRefresh.onAfterRefresh === 'function') {
+        window.DashboardRefresh.onAfterRefresh(updateFavoritesAfterTableUpdate);
     }
     
     // Обновляем при изменении фильтров/пагинации

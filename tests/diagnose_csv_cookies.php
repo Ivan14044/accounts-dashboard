@@ -1,8 +1,17 @@
 <?php
 /**
- * Тест: анализ повреждения cookies при CSV импорте
+ * ДИАГНОСТИКА (не тест): наглядно показывает, как дефолтный escape='\' в
+ * fgetcsv/fputcsv портит cookies при импорте CSV, и что даёт escape=''.
  *
- * Запуск: php tests/test_csv_cookies.php <path_to_csv>
+ * Печатает отчёт и ВСЕГДА завершается кодом 0 — ничего не утверждает и ничего
+ * не гарантирует. Поэтому файл называется diagnose_*, а не test_*: под маской
+ * tests/test_*.php он попадал в CI-гейт и создавал иллюзию покрытия импорта,
+ * хотя красным стать не мог в принципе.
+ *
+ * Настоящие проверки импорта живут в tests/test_csv_import.php,
+ * записи — в tests/test_csv_write.php.
+ *
+ * Запуск: php tests/diagnose_csv_cookies.php [path_to_csv]
  */
 
 $csvFile = $argv[1] ?? __DIR__ . '/fixtures/account_template.csv';
