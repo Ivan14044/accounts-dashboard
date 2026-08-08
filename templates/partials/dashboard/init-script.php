@@ -10,4 +10,7 @@ window.DashboardConfig = Object.assign(window.DashboardConfig || {}, {
     currentTable: <?= json_encode((string)($currentTable ?? 'accounts'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT) ?>
 });
 </script>
+<!-- Кастомные карточки статистики. Строго ДО dashboard-init.js: тот вызывает
+     initializeCustomCards() и другие функции модуля по имени через window. -->
+<script src="assets/js/modules/custom-cards.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
 <script src="assets/js/dashboard-init.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
