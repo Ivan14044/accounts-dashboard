@@ -331,10 +331,53 @@
         window.updateStickyScrollbar();
       }
       isRefreshing = false;
+      notifyAfterRefresh();
+    }
+  }
+
+  // ── Подписка на «данные обновились» ──────────────────────────────────────
+  // Раньше модули (favorites, undo) оборачивали window.refreshDashboardData
+  // своей функцией. Такая цепочка обёрток зависела от порядка подключения
+  // скриптов, а обёртка в favorites.js глотала AbortError всей цепочки —
+  // ошибку соседнего обработчика было не видно. Теперь — список подписчиков.
+  const afterRefreshHandlers = [];
+
+  /**
+   * Подписаться на завершение обновления таблицы.
+   * Обработчик вызывается ПОСЛЕ обновления — и при успехе, и при ошибке
+   * (данные могли частично обновиться, подписчикам нужно пересчитать своё).
+   * Исключение внутри одного обработчика не мешает остальным.
+   *
+   * @param {Function} handler
+   * @returns {Function} функция отписки
+   */
+  function onAfterRefresh(handler) {
+    if (typeof handler !== 'function') return function () {};
+    afterRefreshHandlers.push(handler);
+    return function unsubscribe() {
+      const i = afterRefreshHandlers.indexOf(handler);
+      if (i !== -1) afterRefreshHandlers.splice(i, 1);
+    };
+  }
+
+  /** Дёргает подписчиков, изолируя падения каждого. */
+  function notifyAfterRefresh() {
+    for (const handler of afterRefreshHandlers.slice()) {
+      try {
+        const result = handler();
+        if (result && typeof result.catch === 'function') {
+          result.catch(err => logErr('Ошибка обработчика afterRefresh:', err));
+        }
+      } catch (err) {
+        logErr('Ошибка обработчика afterRefresh:', err);
+      }
     }
   }
 
   window.refreshDashboardData = refreshDashboardData;
+  window.DashboardRefresh = Object.assign(window.DashboardRefresh || {}, {
+    onAfterRefresh: onAfterRefresh
+  });
   window.collectRefreshParams = collectRefreshParams;
   window.syncNumericRange = syncNumericRange;
   window.setTableLoadingState = setTableLoadingState;
