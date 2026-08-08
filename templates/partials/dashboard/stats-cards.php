@@ -88,7 +88,17 @@
   </div>
 
   <!-- Статистика по статусам -->
-  <?php foreach ($byStatus as $stName => $cnt): $safeKey = preg_replace('~[^a-z0-9_]+~i','_', $stName); ?>
+  <?php
+  foreach ($byStatus as $stName => $cnt):
+    // Пустой статус пропускаем: для него выше есть отдельная карточка
+    // «Пустые статусы» (data-card="empty_status") с тем же числом. Без этого
+    // на дашборде рисовалась вторая карточка с пустым заголовком — рамка,
+    // число и никакой подписи (видно на мобильном скриншоте в аудите).
+    if ($stName === '' || $stName === null) {
+        continue;
+    }
+    $safeKey = preg_replace('~[^a-z0-9_]+~i', '_', $stName);
+  ?>
   <div class="stat-card fade-in" data-card="status:<?= e($safeKey) ?>" data-status="<?= e($stName) ?>">
     <button type="button" class="stat-card-hide-btn" data-card="status:<?= e($safeKey) ?>" title="Скрыть карточку" aria-label="Скрыть карточку">
       <i class="fas fa-eye-slash" aria-hidden="true"></i>

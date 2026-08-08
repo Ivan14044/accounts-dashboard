@@ -194,7 +194,9 @@ class RateLimiter {
             return [];
         }
         
-        $records = @json_decode($content, true);
+        // json_decode не выдаёт warning — при битом JSON просто вернёт null,
+        // и следующая строка это ловит. Подавление здесь было пустышкой.
+        $records = json_decode($content, true);
         return is_array($records) ? $records : [];
     }
     
