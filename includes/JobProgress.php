@@ -54,7 +54,9 @@ class JobProgress
         $content = @file_get_contents($file);
         if ($content === false || $content === '') return null;
 
-        $data = @json_decode($content, true);
+        // json_decode не выдаёт warning: битый файл прогресса даст null, и это
+        // штатно обрабатывается ниже.
+        $data = json_decode($content, true);
         return is_array($data) ? $data : null;
     }
 

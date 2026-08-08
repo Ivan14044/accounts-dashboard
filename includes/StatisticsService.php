@@ -13,6 +13,7 @@ require_once __DIR__ . '/FilterBuilder.php';
 require_once __DIR__ . '/ColumnMetadata.php';
 require_once __DIR__ . '/Config.php';
 require_once __DIR__ . '/Logger.php';
+require_once __DIR__ . '/StatsCache.php';
 
 class StatisticsService {
     private $db;
@@ -33,6 +34,24 @@ class StatisticsService {
      * @return array
      */
     public function getStatistics(FilterBuilder $filter = null): array {
+        $params = $filter ? $filter->getParams() : [];
+        $key = $this->cacheKey('stats', [$params, $filter ? $filter->getWhereClause(false) : '']);
+        $self = $this;
+
+        return StatsCache::remember($key, Config::STATS_FILE_CACHE_TTL, function () use ($self, $filter) {
+            return $self->computeStatistics($filter);
+        });
+    }
+
+    /**
+     * Собственно расчёт статистики — полный скан таблицы.
+     * Публичный только потому, что вызывается из замыкания кэша (PHP 7.3 не даёт
+     * замыканию доступа к private-методам через $self).
+     *
+     * @param FilterBuilder|null $filter
+     * @return array
+     */
+    public function computeStatistics(FilterBuilder $filter = null): array {
         // Проверяем кэш (если включено кэширование статистики)
         $cacheKey = 'stats_' . md5(serialize($filter ? $filter->getParams() : []));
         $cached = $this->db->getCached($cacheKey);
@@ -257,6 +276,21 @@ class StatisticsService {
      * @return array Ассоциативный массив с ключами: status, status_marketplace, currency, geo, status_rk
      */
     public function getUniqueFilterValues(): array {
+        $self = $this;
+
+        return StatsCache::remember(
+            $this->cacheKey('unique_filter_values', []),
+            Config::STATS_FILE_CACHE_TTL,
+            function () use ($self) { return $self->computeUniqueFilterValues(); }
+        );
+    }
+
+    /**
+     * Расчёт уникальных значений фильтров — GROUP BY по всей таблице.
+     *
+     * @return array
+     */
+    public function computeUniqueFilterValues(): array {
         $cacheKey = 'unique_filter_values_' . $this->table;
         $cached = $this->db->getCached($cacheKey);
         if ($cached !== null) {
@@ -514,6 +548,22 @@ class StatisticsService {
      * @return array
      */
     public function getDailyTotals(int $days = 7): array {
+        $self = $this;
+
+        return StatsCache::remember(
+            $this->cacheKey('daily_totals', [$days]),
+            Config::STATS_FILE_CACHE_TTL,
+            function () use ($self, $days) { return $self->computeDailyTotals($days); }
+        );
+    }
+
+    /**
+     * Расчёт графика за N дней — GROUP BY DATE(created_at), индексом не ускоряется.
+     *
+     * @param int $days
+     * @return array
+     */
+    public function computeDailyTotals(int $days = 7): array {
         if ($days < 2) $days = 2;
         if ($days > 90) $days = 90;
 
@@ -563,6 +613,43 @@ class StatisticsService {
 
         $this->db->cache($cacheKey, $result, Config::STATS_CACHE_TTL);
         return $result;
+    }
+
+    /**
+     * Ключ кэша агрегата: база + таблица + аргументы + отпечаток данных.
+     *
+     * Отпечаток — MAX(updated_at) по таблице. Колонка обновляется автоматически
+     * при любой вставке и правке строки (ON UPDATE CURRENT_TIMESTAMP), поэтому
+     * действие пользователя мгновенно делает старый ключ недействительным:
+     * счётчики после смены статуса обновляются сразу, а не через TTL. Сам запрос
+     * дешёвый — читается вершина индекса idx_updated_at.
+     *
+     * Чего отпечаток не ловит: жёсткое удаление строк (MAX не меняется). На этот
+     * случай остаётся TTL.
+     *
+     * @param string $name Имя агрегата
+     * @param array  $args Аргументы, влияющие на результат
+     * @return string
+     */
+    private function cacheKey(string $name, array $args): string {
+        static $fingerprint = null;
+
+        if ($fingerprint === null) {
+            $fingerprint = 'na';
+            if ($this->metadata->columnExists('updated_at')) {
+                try {
+                    $rows = $this->db->prepare("SELECT MAX(updated_at) AS mx FROM `{$this->table}`");
+                    $fingerprint = (string)($rows[0]['mx'] ?? 'empty');
+                } catch (Throwable $e) {
+                    // Не смогли получить отпечаток — работаем на одном TTL.
+                    Logger::debug('STATS CACHE: отпечаток данных недоступен', ['error' => $e->getMessage()]);
+                }
+            }
+        }
+
+        $dbName = Database::nameOf($this->db->getConnection());
+
+        return implode('|', [$dbName, $this->table, $name, $fingerprint, md5(serialize($args))]);
     }
 }
 

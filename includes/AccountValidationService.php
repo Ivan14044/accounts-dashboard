@@ -399,7 +399,9 @@ class AccountValidationService
             return null;
         }
 
-        $json = @json_decode($body, true);
+        // json_decode не выдаёт warning — некорректный ответ внешнего API даст null,
+        // и он логируется ниже как «invalid response». Подавление только мешало читать.
+        $json = json_decode($body, true);
         if (!is_array($json) || !isset($json['data']) || !is_array($json['data'])) {
             Logger::warning('check.fb.tools invalid response', [
                 'body'      => substr((string)$body, 0, 500),
