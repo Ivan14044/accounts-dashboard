@@ -13,7 +13,7 @@ class ColumnMetadata {
     private function __construct($mysqli, string $tableName = 'accounts') {
         $this->mysqli = $mysqli;
         $this->tableName = $tableName;
-        $dbName = $mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? 'unknown';
+        $dbName = self::dbName($mysqli) ?: 'unknown';
         $dbHost = $mysqli->host_info;
         $dbUser = $mysqli->user ?? 'unknown';
         $cacheKey = md5($dbHost . '|' . $dbName . '|' . $dbUser);
@@ -22,7 +22,7 @@ class ColumnMetadata {
     }
 
     public static function getInstance($mysqli, string $tableName = 'accounts') {
-        $dbName = $mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? 'unknown';
+        $dbName = self::dbName($mysqli) ?: 'unknown';
         $dbHost = $mysqli->host_info;
         $dbUser = $mysqli->user ?? 'unknown';
         $instanceKey = md5($dbHost . '|' . $dbName . '|' . $dbUser) . '|' . $tableName;
@@ -50,7 +50,7 @@ class ColumnMetadata {
                         // Это обнаруживает добавление/удаление колонок без ожидания истечения TTL (1 час).
                         $cacheIsValid = false;
                         try {
-                            $dbName = $this->mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? '';
+                            $dbName = self::dbName($this->mysqli);
                             $countStmt = $this->mysqli->prepare(
                                 "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?"
                             );
@@ -102,7 +102,7 @@ class ColumnMetadata {
         
         // Используем INFORMATION_SCHEMA вместо SHOW COLUMNS для большей безопасности
         $tableName = $this->tableName;
-        $dbName = $this->mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? '';
+        $dbName = self::dbName($this->mysqli);
         
         // Безопасный запрос через INFORMATION_SCHEMA
         $sql = "SELECT 
@@ -250,7 +250,7 @@ class ColumnMetadata {
      */
     public static function clearCache($mysqli = null) {
         if ($mysqli !== null) {
-            $dbName = $mysqli->query("SELECT DATABASE()")->fetch_row()[0] ?? 'unknown';
+            $dbName = self::dbName($mysqli) ?: 'unknown';
             $dbHost = $mysqli->host_info;
             $dbUser = $mysqli->user ?? 'unknown';
             $cacheKey = md5($dbHost . '|' . $dbName . '|' . $dbUser);
@@ -325,6 +325,26 @@ class ColumnMetadata {
         }
         
         return $titles;
+    }
+
+    /**
+     * Имя текущей БД с кэшем на соединение — используется в ключах кэша метаданных.
+     * Без кэша один заход на дашборд давал десяток одинаковых `SELECT DATABASE()`.
+     *
+     * @param mysqli $conn
+     * @return string
+     */
+    private static function dbName($conn): string {
+        static $cache = [];
+
+        $key = spl_object_hash($conn);
+        if (!array_key_exists($key, $cache)) {
+            $res = $conn->query('SELECT DATABASE()');
+            $row = $res ? $res->fetch_row() : null;
+            $cache[$key] = (string)($row[0] ?? '');
+        }
+
+        return $cache[$key];
     }
 }
 
