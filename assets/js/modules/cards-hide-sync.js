@@ -18,7 +18,10 @@
  * синхронизирован с реальным состоянием.
  */
 (function() {
-  var LS_KEY = 'dashboard_hidden_cards';
+  // Ключ — из modules/constants.js. Фолбэк оставлен намеренно: этот модуль
+  // должен отработать даже если порядок подключения когда-нибудь изменится и
+  // констант ещё не будет — иначе скрытые карточки моргнут при загрузке.
+  var LS_KEY = window.LS_KEY_HIDDEN_CARDS || 'dashboard_hidden_cards';
 
   function readHidden() {
     try {

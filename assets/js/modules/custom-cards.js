@@ -15,18 +15,17 @@
  *   updateStatValue, loadStatLabels — из dashboard-init.js;
  *   bootstrap.Modal — из вендора.
  *
- * LS_KEY_HIDDEN_CARDS объявлен в dashboard-init.js через const, то есть НЕ виден
- * из другого файла (const не попадает в window). Поэтому здесь своя копия
- * значения — она обязана совпадать с той. Менять ключ — в двух местах.
+ * Ключи localStorage берутся из modules/constants.js (window.LS_KEY_*). Своих
+ * копий здесь нет — раньше были, и это была мина: разъедутся значения, и
+ * пользователь молча потеряет настройки.
  */
 (function () {
   'use strict';
 
-  var LS_KEY_HIDDEN_CARDS = 'dashboard_hidden_cards';
 
   // ===== КАСТОМНЫЕ КАРТОЧКИ СТАТИСТИКИ =====
   // Полностью переписанный функционал с нуля - версия 3.0
-  const LS_KEY_CUSTOM_CARDS = 'dashboard_custom_cards_v3';
+  // Ключи приходят из modules/constants.js — своих копий здесь больше нет.
 
   // Вспомогательная функция для конвертации HEX в RGB
   function hexToRgb(hex) {
