@@ -148,10 +148,9 @@ if (typeof window.showToast !== 'function') {
 // ===== Управление настройками =====
 // Ключи колонок/карточек остаются здесь, а состояние выбранных ID и скрытых карточек
 // перенесено в модули `dashboard-selection.js` и `dashboard-stats.js`
-const LS_KEY_COLUMNS = 'dashboard_visible_columns';
-const LS_KEY_CARDS = 'dashboard_visible_cards';
-const LS_KEY_KNOWN_COLS = 'dashboard_known_columns';
-const LS_KEY_HIDDEN_CARDS = 'dashboard_hidden_cards';
+// Ключи localStorage переехали в modules/constants.js (2026-08-09): const не
+// виден из других файлов, и каждый вынос модуля тянул за собой копию строки.
+// Здесь они доступны как window.LS_KEY_* — обращения по имени ниже работают.
 
 // ===== Управление чекбоксами =====
 // Состояние selectedIds / selectedAllFiltered / filteredTotalLive теперь
