@@ -1,3 +1,8 @@
+<?php
+// Манифест бандлов CSS/JS. Шаблон самодостаточен: не полагаемся на то, что
+// контроллер уже подключил класс.
+require_once __DIR__ . '/../includes/AssetBundles.php';
+?>
 <!DOCTYPE html>
 <html lang="ru" data-bs-theme="light">
 <head>
@@ -17,17 +22,10 @@
   <link rel="alternate icon" href="assets/favicon.svg">
   <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
   <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
-  <!-- CSS Bundles -->
-  <link href="assets/css/core-base.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
-  <link href="assets/css/core-components.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
-  <link href="assets/css/core-plugins.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
-  <link href="assets/css/core-theme.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
-  <link href="assets/css/core-tables.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
-  <link href="assets/css/core-mobile.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
-  <link href="assets/css/core-design-v2.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
-  <link href="assets/css/core-dark.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
-  <link rel="preload" href="assets/css/core-base.css?v=<?= ASSETS_VERSION ?>" as="style">
-  <link rel="preload" href="assets/js/dashboard-init.js?v=<?= ASSETS_VERSION ?>" as="script">
+  <!-- Свой CSS: один бандл, если он собран, иначе исходные core-*.css (см. AssetBundles) -->
+<?= AssetBundles::tags('core.css') ?>
+  <!-- Скрипты подключены в конце body; preload даёт браузеру начать качать их сразу -->
+  <link rel="preload" href="<?= AssetBundles::preloadHref('dashboard.sync.js', 'assets/js/dashboard-init.js') ?>" as="script">
 
 
 
@@ -1222,43 +1220,16 @@
 
 <script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js" defer></script>
+<!-- Инлайны с конфигом. Они ОБЯЗАНЫ выполниться до бандлов: constants.js читает
+     window.DashboardConfig.activeFiltersCount в момент загрузки, и если бандл
+     окажется выше — ACTIVE_FILTERS_COUNT молча станет нулём, без ошибок в консоли. -->
 <?php include __DIR__ . '/partials/dashboard/config-script.php'; ?>
 <?php include __DIR__ . '/partials/dashboard/init-script.php'; ?>
-<!-- Core модули для оптимизации производительности -->
-<script src="assets/js/core/logger.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/core/dom-cache.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/core/performance.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/dashboard-refresh.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/pagination.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<!-- Модули дашборда -->
-<script src="assets/js/modules/dashboard-selection.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/dashboard-export.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/dashboard-filters.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/dashboard-stats.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/dashboard-modals.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/dashboard-validate.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/dashboard-main.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<!-- Основные модули -->
-<script src="assets/js/sticky-scrollbar.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/table-module.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/toast.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/undo.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/cell-actions.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/filters-modern.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/dashboard-upload.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
-<script src="assets/js/dashboard.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/validation.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
-<script src="assets/js/quick-search.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
-<script src="assets/js/saved-filters.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
-<script src="assets/js/favorites.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
-<script src="assets/js/modules/cards-hide-sync.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
-
-<!-- Density toggle (применяется мгновенно, persist в localStorage) -->
-<script src="assets/js/density-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
-<!-- Per-page selector (URL-based, сбрасывает page=1) -->
-<script src="assets/js/per-page.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
-<!-- Переключатель темы (light/dark, persist в localStorage) -->
-<script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
+<!-- Свой JS. Порядок и состав — в includes/AssetBundles.php.
+     Два бандла, а не один: defer-скрипты выполняются после всех обычных, и
+     объединение с ними поменяло бы порядок выполнения. -->
+<?= AssetBundles::tags('dashboard.sync.js') ?>
+<?= AssetBundles::tags('dashboard.defer.js', ' defer') ?>
 </body>
 </html>
 

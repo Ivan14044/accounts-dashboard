@@ -33,6 +33,13 @@ users.json
 Thumbs.db
 desktop.ini
 
+# Собранные бандлы CSS/JS. Генерируются шагом деплоя (tools/build_assets.php)
+# из исходников по манифесту includes/AssetBundles.php — в git не хранятся,
+# чтобы не мержить конфликты в сгенерированных файлах и не держать копию кода.
+/assets/build/core.css
+/assets/build/dashboard.sync.js
+/assets/build/dashboard.defer.js
+
 # Временные файлы
 *.tmp
 *.bak

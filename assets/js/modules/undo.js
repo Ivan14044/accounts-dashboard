@@ -8,6 +8,15 @@
  *
  * Отменяются: правки полей/статусов (в т.ч. массовые), удаление в корзину,
  * массовый перенос. Строки, изменённые после действия, при откате не трогаются.
+ *
+ * Тосты зовутся строго как `window.Toast.*`, а не `Toast.*`. Голое имя `Toast`
+ * резолвится в КЛАСС из assets/js/toast.js (top-level `class Toast` — лексическая
+ * привязка, она приоритетнее свойства window), а у класса нет методов
+ * success/error/warning/info. Из-за этого после успешной отмены модуль падал на
+ * `Toast.success(...)`, улетал в catch, падал там ещё раз на `Toast.error(...)`
+ * и не доходил до refreshDashboardData(): в БД откат происходил, а пользователь
+ * не видел ни тоста, ни обновлённой таблицы. Стережёт
+ * tests/test_toast_global_shadowing.php. (Найдено и починено 2026-08-09.)
  */
 (function () {
   'use strict';
@@ -66,7 +75,7 @@
     updateButton(action);
 
     if (opts.offerToast && action && prevId !== null && action.id !== prevId && window.Toast) {
-      Toast.info('Можно отменить: ' + action.description, {
+      window.Toast.info('Можно отменить: ' + action.description, {
         duration: 8000,
         action: { label: 'Отменить', onClick: performUndo }
       });
@@ -91,7 +100,7 @@
       action = await fetchLastAction(); // всегда свежее состояние
     } catch (e) { /* обработается ниже */ }
     if (!action) {
-      if (window.Toast) Toast.info('Нечего отменять');
+      if (window.Toast) window.Toast.info('Нечего отменять');
       await refresh();
       return;
     }
@@ -121,7 +130,7 @@
 
       const report = formatReport(json);
       if (window.Toast) {
-        Toast[report.hasSkips ? 'warning' : 'success'](report.msg, { duration: 6000 });
+        window.Toast[report.hasSkips ? 'warning' : 'success'](report.msg, { duration: 6000 });
       }
 
       // Обновляем таблицу и карточки; если AJAX-обновления нет — полная перезагрузка
@@ -132,7 +141,7 @@
         return;
       }
     } catch (e) {
-      if (window.Toast) Toast.error('Ошибка отмены: ' + e.message);
+      if (window.Toast) window.Toast.error('Ошибка отмены: ' + e.message);
     } finally {
       undoInProgress = false;
       await refresh();

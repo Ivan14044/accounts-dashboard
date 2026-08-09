@@ -10,13 +10,9 @@ window.DashboardConfig = Object.assign(window.DashboardConfig || {}, {
     currentTable: <?= json_encode((string)($currentTable ?? 'accounts'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT) ?>
 });
 </script>
-<!-- Ключи localStorage и константы конфига. Первым: их читают все остальные. -->
-<script src="assets/js/modules/constants.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<!-- Кастомные карточки статистики. Строго ДО dashboard-init.js: тот вызывает
-     initializeCustomCards() и другие функции модуля по имени через window. -->
-<script src="assets/js/modules/custom-cards.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/inline-edit.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/columns-cards-settings.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/auto-refresh.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/modules/touch-gestures.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-<script src="assets/js/dashboard-init.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
+<!-- Раньше здесь же подключались constants.js, custom-cards.js, inline-edit.js,
+     columns-cards-settings.js, auto-refresh.js, touch-gestures.js и dashboard-init.js.
+     Теперь весь внешний JS дашборда объявлен одним списком в includes/AssetBundles.php
+     и подключается из templates/dashboard.php сразу после этого инлайна — порядок
+     выполнения тот же, а список перестал жить в двух шаблонах сразу.
+     Файл остался инлайн-блоком с конфигом: его значения приходят из PHP. -->

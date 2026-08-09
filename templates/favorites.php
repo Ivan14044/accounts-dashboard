@@ -1,3 +1,8 @@
+<?php
+// Манифест бандлов CSS/JS. Шаблон самодостаточен: не полагаемся на то, что
+// контроллер уже подключил класс.
+require_once __DIR__ . '/../includes/AssetBundles.php';
+?>
 <!DOCTYPE html>
 <html lang="ru" data-bs-theme="light">
 <head>
@@ -12,15 +17,8 @@
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
   <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
-  <!-- CSS Bundles -->
-  <link href="assets/css/core-base.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
-  <link href="assets/css/core-components.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
-  <link href="assets/css/core-plugins.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
-  <link href="assets/css/core-theme.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
-  <link href="assets/css/core-tables.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
-  <link href="assets/css/core-mobile.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
-  <link href="assets/css/core-design-v2.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
-  <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+  <!-- Свой CSS: один бандл, если он собран, иначе исходные core-*.css (см. AssetBundles) -->
+<?= AssetBundles::tags('core.css') ?>
 
   <style>
     /* ── Page surface + nav (tokenized, theme-aware) ── */

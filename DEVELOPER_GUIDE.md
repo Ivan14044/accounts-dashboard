@@ -64,31 +64,55 @@ $rows = Database::getInstance()->prepare("SELECT * FROM accounts WHERE status = 
 
 ## JavaScript модули
 
-### Порядок загрузки скриптов
+### Порядок загрузки скриптов и бандлы
 
-Список ниже — не «примерно», а фактический порядок `<script src=...>` из
-`templates/dashboard.php` (сверено 2026-08-08; проверять так:
-`grep -oE '<script src="[^"]*assets/js/[^"?]*' templates/dashboard.php`).
-Порядок важен: модуль, который подписывается на чужой API, обязан грузиться
-после того, кто этот API объявляет.
+**Единственный источник правды — `includes/AssetBundles.php`.** Там лежит список
+файлов каждого бандла; порядок в списке = порядок выполнения. Раньше этот порядок
+жил в разметке двух шаблонов, а описание здесь успело разойтись с кодом (в списке
+значилось «`dashboard-init.js` — последним», хотя фактически он грузился седьмым,
+до `core/*`). Не переписывай список сюда — смотри манифест.
 
-1. `core/logger.js`, `core/dom-cache.js`, `core/performance.js`
-2. `modules/dashboard-refresh.js` — объявляет `refreshDashboardData` и
-   `DashboardRefresh.onAfterRefresh`
-3. `pagination.js`
-4. `modules/dashboard-selection.js`, `modules/dashboard-export.js`,
-   `modules/dashboard-filters.js`, `modules/dashboard-stats.js`,
-   `modules/dashboard-modals.js`, `modules/dashboard-validate.js`,
-   `modules/dashboard-main.js`
-5. `sticky-scrollbar.js`, `table-module.js`, `toast.js`
-6. `modules/undo.js`, `modules/cell-actions.js` — undo подписывается на
-   `onAfterRefresh`, поэтому идёт после `dashboard-refresh.js`
-7. `filters-modern.js`, `modules/dashboard-upload.js`, `dashboard.js`,
-   `validation.js`, `quick-search.js`, `saved-filters.js`
-8. `favorites.js` — тоже подписчик `onAfterRefresh`
-9. `modules/cards-hide-sync.js`, `density-toggle.js`, `per-page.js`,
-   `theme-toggle.js`
-10. `dashboard-init.js` — последним; в нём же живут кастомные карточки статистики
+Что важно знать, не открывая манифест:
+
+- Бандлов три: `core.css` (весь свой CSS, общий для дашборда, избранного и
+  корзины), `dashboard.sync.js` (26 обычных скриптов) и `dashboard.defer.js`
+  (9 скриптов с `defer`). Разделение sync/defer обязательное: `defer`-скрипты
+  выполняются после всех обычных, свалить их в один бандл — поменять порядок.
+- Инлайновые `<script>` (`partials/dashboard/config-script.php` и
+  `init-script.php`) остаются на своих местах и выполняются ДО бандлов. Они
+  объявляют `window.__DASHBOARD_CONFIG__` и `window.DashboardConfig`, а
+  `modules/constants.js` читает `DashboardConfig.activeFiltersCount` в момент
+  загрузки: окажись бандл выше инлайна — `ACTIVE_FILTERS_COUNT` молча станет нулём.
+- `core/logger.js`, `core/dom-cache.js`, `core/performance.js` идут ПЕРВЫМИ.
+  Они объявляют `logger`, `domCache`, `batchUpdater` через top-level `const`, а
+  в конкатенации такие объявления попадают в temporal dead zone на весь бандл:
+  привычная защита `typeof domCache !== 'undefined'` в файле выше не вернёт
+  `'undefined'`, а бросит `Cannot access 'domCache' before initialization` и
+  оборвёт весь бандл. Инвариант «объявлено раньше, чем использовано» стережёт
+  `tests/test_asset_bundles.php`.
+- Модуль, который подписывается на чужой API, обязан грузиться после того, кто
+  этот API объявляет (`modules/undo.js` и `favorites.js` подписаны на
+  `DashboardRefresh.onAfterRefresh` из `modules/dashboard-refresh.js`).
+
+Как собрать бандлы локально и как их убрать:
+
+```bash
+docker run --rm -v "$PWD":/app -w /app php:7.3-cli php tools/build_assets.php
+```
+
+```bash
+docker run --rm -v "$PWD":/app -w /app php:7.3-cli php tools/build_assets.php --clean
+```
+
+Шаблон подключает бандл, только если файл реально существует, иначе отдаёт
+исходники по одному. Поэтому локальный стенд работает и без сборки, а на проде
+недоехавший бандл не ломает страницу. **Грабли:** собранный бандл сам не
+пересобирается — поправил JS и не видишь изменений, запусти `--clean` или
+пересобери. В проде этого нет: бандлы собираются в GitHub Actions на каждый деплой.
+
+Добавляешь новый JS-файл — добавь его в манифест, а не `<script src>` в шаблон:
+`tests/test_asset_bundles.php` падает, если шаблон подключает бандлируемый ассет
+мимо `AssetBundles`.
 
 ### Обновление таблицы: подписка, а не обёртка
 
