@@ -116,9 +116,24 @@ window.DashboardRefresh.onAfterRefresh(() => {
 | `dashboard-refresh.js` | refreshDashboardData, collectRefreshParams, setTableLoadingState |
 | `dashboard-stats.js` | Скрытие/показ карточек статистики |
 | `table-module.js` | Виртуализация, рендеринг строк |
+| `touch-gestures.js` | Свайп влево по карточке статистики (мобильные) |
 | `dom-cache.js` | Кеширование DOM-элементов |
 | `performance.js` | debounce, batchDOM, BatchUpdater |
 | `logger.js` | Логирование (вместо console) |
+
+### Чем помечены карточки статистики
+
+Атрибуты у карточек разные, и это стык, на котором уже ломался свайп:
+
+| Откуда карточка | Атрибуты |
+|-----------------|----------|
+| `templates/partials/dashboard/stats-cards.php` | `data-card="total"`, `data-card="status:<ключ>"` + `data-status="<статус>"`, `data-card="empty_status"` |
+| `assets/js/modules/custom-cards.js` (создаёт в рантайме) | `data-card="custom:<ключ>"`, `data-card-type="custom"`, `data-card-key="<ключ>"` |
+
+`data-card-type` есть **только** у кастомных карточек — сервер его не рендерит.
+Фильтровать по статусу нужно по `data-status`: в `data-card` лежит ключ,
+безопасный для CSS-селектора (всё, кроме `[a-z0-9_]`, схлопнуто в `_`), а не имя
+статуса. Стык стережёт `tests/test_card_swipe_contract.php`.
 
 ### Глобальные объекты
 
