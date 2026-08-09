@@ -1,5 +1,5 @@
 /**
- * Touch-жесты на мобильных: свайпы по карточкам статистики и по строкам таблицы.
+ * Touch-жесты на мобильных: свайп влево по карточке статистики.
  *
  * Вынесено из dashboard-init.js 2026-08-09 — шестой шаг разбора.
  *
@@ -7,125 +7,178 @@
  * refreshDashboardData и DashboardSelection, и все они берутся из глобальной
  * области в момент жеста, а не при загрузке файла.
  *
- * Осторожно при правках: обработчики touchstart/touchmove вешаются на document,
+ * Осторожно при правках: обработчики touchstart/touchmove висят на document,
  * и любая тяжёлая работа в них выражается прямо в подтормаживании прокрутки на
- * телефоне. Слушатели здесь passive там, где не нужен preventDefault.
+ * телефоне. Слушатели passive — preventDefault здесь не нужен нигде.
+ *
+ * === Почему делегирование, а не слушатели на каждой карточке (фикс 2026-08-09) ===
+ * Раньше жесты вешались на `document.querySelectorAll('.touch-card')`, но класса
+ * `touch-card` нет ни в одном шаблоне и ни в одном CSS — он существовал только
+ * здесь, начиная с первого коммита. Цикл крутился по пустому списку, слушателей
+ * не создавалось, и свайп молча не работал вообще. Карточки помечены классом
+ * `stat-card`.
+ * Заменить один селектор было мало: кастомные карточки создаёт custom-cards.js
+ * уже ПОСЛЕ инициализации (renderCustomCardsOnDashboard асинхронна и пересоздаёт
+ * узлы при каждом рендере), и разовый querySelectorAll их бы не увидел. Поэтому
+ * четыре слушателя на document вместо N×3 на карточках — новые карточки
+ * начинают работать без переинициализации.
+ *
+ * Чего здесь осознанно НЕТ: эмуляции свайпа мышью и hover-эффектов для десктопа.
+ * Тот код висел на том же несуществующем `.touch-card`, то есть не выполнялся
+ * никогда; «заодно» включать его вместе с фиксом мобильного свайпа — значит
+ * менять поведение десктопа, где уже есть и CSS-hover (`.stat-card:hover`), и
+ * клик по кастомной карточке (делегированный обработчик в dashboard-init.js).
+ * Инлайновый transform из тех обработчиков конфликтовал бы с обоими.
  */
 (function () {
   'use strict';
 
+  // Пороги жеста в пикселях.
+  const SWIPE_MIN_X    = 100; // после какого сдвига влево считаем это свайпом
+  const SWIPE_FOLLOW_X = 50;  // с какого сдвига карточка едет за пальцем
+  const SWIPE_MAX_Y    = 50;  // больше — это вертикальная прокрутка, не свайп
+  const TAP_TOLERANCE  = 10;  // палец почти не двигался — это тап
+
+  // Состояние текущего жеста. Один палец = одна карточка, поэтому одного
+  // состояния на модуль достаточно.
+  let activeCard = null;
+  let startX = 0;
+  let startY = 0;
+  let currentX = 0;
+  let currentY = 0;
+
+  /** Снимает следы жеста с карточки и обнуляет состояние. */
+  function resetGesture() {
+    if (activeCard) {
+      activeCard.classList.remove('touching');
+      activeCard.style.transform = '';
+    }
+    activeCard = null;
+  }
+
+  function onTouchStart(e) {
+    const touch = e.touches && e.touches[0];
+    if (!touch) return;
+
+    const target = e.target;
+    const card = target && target.closest ? target.closest('.stat-card') : null;
+    if (!card) {
+      activeCard = null;
+      return;
+    }
+
+    activeCard = card;
+    startX = currentX = touch.clientX;
+    startY = currentY = touch.clientY;
+    card.classList.add('touching');
+  }
+
+  function onTouchMove(e) {
+    if (!activeCard) return;
+    const touch = e.touches && e.touches[0];
+    if (!touch) return;
+
+    currentX = touch.clientX;
+    currentY = touch.clientY;
+
+    const deltaX = currentX - startX;
+    const deltaY = currentY - startY;
+
+    // Карточка едет за пальцем только при явном горизонтальном намерении:
+    // иначе она дёргалась бы при обычной вертикальной прокрутке страницы.
+    if (deltaX < -SWIPE_FOLLOW_X && Math.abs(deltaY) < SWIPE_MAX_Y) {
+      activeCard.style.transform = `translateX(${deltaX}px)`;
+    } else {
+      activeCard.style.transform = '';
+    }
+  }
+
+  function onTouchEnd() {
+    if (!activeCard) return;
+
+    const card = activeCard;
+    const deltaX = currentX - startX;
+    const deltaY = currentY - startY;
+
+    resetGesture();
+
+    // Свайп влево — применить сценарий карточки.
+    if (deltaX < -SWIPE_MIN_X && Math.abs(deltaY) < SWIPE_MAX_Y) {
+      handleCardSwipe(card);
+      return;
+    }
+
+    // Тап — редактирование названия. На дашборде таких меток сейчас нет
+    // (заголовок карточки — `.stat-title`), ветка оставлена для карточек с
+    // редактируемым `.stat-label.editable`. Проверка typeof — потому что
+    // startEditing живёт в dashboard-init.js и грузится отдельным файлом.
+    if (Math.abs(deltaX) < TAP_TOLERANCE && Math.abs(deltaY) < TAP_TOLERANCE) {
+      const label = card.querySelector('.stat-label.editable');
+      if (label && typeof startEditing === 'function') {
+        startEditing(label);
+      }
+    }
+  }
+
   // ===== Touch-жесты и адаптивные карточки =====
   function initializeTouchGestures() {
-    const touchCards = document.querySelectorAll('.touch-card');
-  
-    touchCards.forEach(card => {
-      let startX = 0;
-      let startY = 0;
-      let currentX = 0;
-      let currentY = 0;
-    
-      // Touch события
-      card.addEventListener('touchstart', function(e) {
-        startX = e.touches[0].clientX;
-        startY = e.touches[0].clientY;
-        currentX = startX;
-        currentY = startY;
-      
-        this.classList.add('touching');
-      });
-    
-      card.addEventListener('touchmove', function(e) {
-        currentX = e.touches[0].clientX;
-        currentY = e.touches[0].clientY;
-      
-        const deltaX = currentX - startX;
-        const deltaY = currentY - startY;
-      
-        // Swipe влево - показать детали
-        if (deltaX < -50 && Math.abs(deltaY) < 50) {
-          this.style.transform = `translateX(${deltaX}px)`;
-        }
-      });
-    
-      card.addEventListener('touchend', function(e) {
-        const deltaX = currentX - startX;
-        const deltaY = currentY - startY;
-      
-        this.classList.remove('touching');
-        this.style.transform = '';
-      
-        // Swipe влево - показать детали
-        if (deltaX < -100 && Math.abs(deltaY) < 50) {
-          handleCardSwipe(this);
-        }
-      
-        // Tap - редактирование названия
-        if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
-          const label = this.querySelector('.stat-label.editable');
-          if (label) {
-            startEditing(label);
-          }
-        }
-      });
-    
-      // Mouse события для десктопа
-      card.addEventListener('mousedown', function(e) {
-        startX = e.clientX;
-        startY = e.clientY;
-        this.classList.add('touching');
-      });
-    
-      card.addEventListener('mousemove', function(e) {
-        if (this.classList.contains('touching')) {
-          currentX = e.clientX;
-          currentY = e.clientY;
-        
-          const deltaX = currentX - startX;
-          const deltaY = currentY - startY;
-        
-          if (deltaX < -50 && Math.abs(deltaY) < 50) {
-            this.style.transform = `translateX(${deltaX}px)`;
-          }
-        }
-      });
-    
-      card.addEventListener('mouseup', function(e) {
-        if (this.classList.contains('touching')) {
-          const deltaX = currentX - startX;
-          const deltaY = currentY - startY;
-        
-          this.classList.remove('touching');
-          this.style.transform = '';
-        
-          if (deltaX < -100 && Math.abs(deltaY) < 50) {
-            handleCardSwipe(this);
-          }
-        }
-      });
-    
-      // Hover эффекты для десктопа
-      card.addEventListener('mouseenter', function() {
-        if (!this.classList.contains('touching')) {
-          this.style.transform = 'translateY(-5px) scale(1.02)';
-        }
-      });
-    
-      card.addEventListener('mouseleave', function() {
-        if (!this.classList.contains('touching')) {
-          this.style.transform = '';
-        }
-      });
-    });
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
+    document.addEventListener('touchend', onTouchEnd, { passive: true });
+    document.addEventListener('touchcancel', resetGesture, { passive: true });
+  }
+
+  /**
+   * Определяет, что делать со свайпнутой карточкой.
+   *
+   * Разные карточки помечаются РАЗНЫМИ атрибутами, и это не прихоть:
+   *  - серверные (templates/partials/dashboard/stats-cards.php):
+   *    data-card="total" либо data-card="status:<ключ>" + data-status="<статус>";
+   *  - кастомные (assets/js/modules/custom-cards.js):
+   *    data-card-type="custom" + data-card-key="<ключ>".
+   * До 2026-08-09 функция ветвилась по data-card-type === 'total'|'status', а PHP
+   * такой атрибут не рендерит вовсе — условие не выполнялось никогда, и свайп по
+   * обычной карточке молча ничего не делал.
+   *
+   * @param {Element} card карточка `.stat-card`
+   * @return {string} 'total' | 'status' | 'custom' | '' — если сценария нет
+   */
+  function resolveCardKind(card) {
+    // data-card-type ставит только JS (кастомные карточки) — он и главнее.
+    const explicitType = card.getAttribute('data-card-type');
+    if (explicitType) {
+      return explicitType;
+    }
+
+    const cardId = card.getAttribute('data-card') || '';
+    if (cardId === 'total') {
+      return 'total';
+    }
+    // Фильтровать надо по data-status: в data-card лежит ключ, безопасный для
+    // селектора (пробелы и кириллица заменены на «_»), а не имя статуса.
+    if (cardId.indexOf('status:') === 0 && card.getAttribute('data-status')) {
+      return 'status';
+    }
+
+    return '';
   }
 
   async function handleCardSwipe(card) {
-    const cardType = card.getAttribute('data-card-type');
+    const cardKind = resolveCardKind(card);
     const status = card.getAttribute('data-status');
-  
-    if (cardType === 'total') {
+
+    if (cardKind === '') {
+      // Карточки без сценария фильтрации — например «Пустые статусы» (у неё своя
+      // кнопка «Управление»). Тост не показываем, чтобы случайный свайп по ленте
+      // не сыпал сообщениями, но в отладке видно, что жест дошёл.
+      logger.debug('Card swipe: у карточки нет сценария', card.getAttribute('data-card'));
+      return;
+    }
+
+    if (cardKind === 'total') {
       // Показать общую статистику
       showToast('Показать детальную статистику по всем аккаунтам', 'info');
-    } else if (cardType === 'status') {
+    } else if (cardKind === 'status') {
       // Фильтровать по статусу - БЕЗ перезагрузки страницы
       const url = new URL(window.location);
       // Удаляем все старые статусы (включая индексированные status[N] от http_build_query)
@@ -148,7 +201,7 @@
       window.DashboardSelection && window.DashboardSelection.clearSelection();
       // Обновляем данные через AJAX
       refreshDashboardData();
-    } else if (cardType === 'custom') {
+    } else if (cardKind === 'custom') {
       // Применяем все фильтры из кастомной карточки
       const cardKey = card.getAttribute('data-card-key');
       if (!cardKey) {
