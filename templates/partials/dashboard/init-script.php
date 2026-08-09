@@ -16,4 +16,5 @@ window.DashboardConfig = Object.assign(window.DashboardConfig || {}, {
      initializeCustomCards() и другие функции модуля по имени через window. -->
 <script src="assets/js/modules/custom-cards.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
 <script src="assets/js/modules/inline-edit.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
+<script src="assets/js/modules/columns-cards-settings.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
 <script src="assets/js/dashboard-init.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
