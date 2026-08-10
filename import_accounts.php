@@ -172,10 +172,24 @@ try {
         'available_columns' => count($allColumns)
     ]);
     
-    // ОДИН РАЗ создаём хеш-таблицу для O(1) поиска
+    // ОДИН РАЗ раскладываем заголовки файла по колонкам БД.
+    //
+    // Сопоставление идёт через CsvColumnTitles — тот же класс, которым экспорт
+    // пишет заголовки. Раньше здесь была своя таблица «имя колонки в нижнем
+    // регистре → колонка», и выгруженный нами же файл читался обратно лишь на
+    // девять колонок из сорока четырёх: экспорт писал «First Name», импорт ждал
+    // «first_name». Остальные 35 молча пропускались.
+    require_once __DIR__ . '/includes/CsvColumnTitles.php';
     $columnMapping = [];
-    foreach ($allColumns as $dbCol) {
-        $columnMapping[mb_strtolower($dbCol, 'UTF-8')] = $dbCol;
+    foreach ($data as $probeRow) {
+        foreach (array_keys($probeRow) as $header) {
+            if (array_key_exists($header, $columnMapping)) {
+                continue;
+            }
+            $columnMapping[$header] = CsvColumnTitles::resolve($header, $allColumns);
+        }
+        // Заголовки одинаковы во всех строках — хватает первой
+        break;
     }
     
     Logger::debug('IMPORT ACCOUNTS: Маппинг колонок создан', [
@@ -192,9 +206,10 @@ try {
         $filteredRow = [];
         
         foreach ($row as $key => $value) {
-            $keyLower = mb_strtolower(trim($key), 'UTF-8');
-            $foundKey = $columnMapping[$keyLower] ?? null;
-            
+            // Ключ — исходный заголовок файла: сопоставление уже посчитано выше
+            // один раз на весь файл, в том числе для человекочитаемых названий.
+            $foundKey = isset($columnMapping[$key]) ? $columnMapping[$key] : null;
+
             if ($foundKey && !in_array($foundKey, $systemFields, true)) {
                 $filteredRow[$foundKey] = is_string($value) ? trim($value) : $value;
             } elseif (!$foundKey && !isset($unknownCols[$key])) {
