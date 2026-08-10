@@ -9,6 +9,8 @@
  * @package includes
  */
 class FilterBuilder {
+    /** @var string Имя таблицы аккаунтов — нужно подзапросу избранного */
+    private $table = 'accounts';
     private $conditions = [];
     private $params = [];
     private $columnsList = [];
@@ -25,10 +27,18 @@ class FilterBuilder {
     /** @var int Позиция первого search-параметра в $this->params */
     private $searchParamsOffset = 0;
     
-    public function __construct(array $columns, array $numericColumns = [], array $numericLikeColumns = []) {
+    /**
+     * @param array $columns Колонки таблицы (имя => подпись)
+     * @param array $numericColumns Числовые колонки
+     * @param array $numericLikeColumns Колонки, которые надо сравнивать как числа
+     * @param string $table Имя таблицы аккаунтов. Нужно подзапросу избранного:
+     *   с жёстким `accounts` фильтр падал на любой другой таблице.
+     */
+    public function __construct(array $columns, array $numericColumns = [], array $numericLikeColumns = [], string $table = 'accounts') {
         $this->columnsList = $columns;
         $this->numericColumns = $numericColumns;
         $this->numericLikeColumns = $numericLikeColumns;
+        $this->table = $table;
     }
     
     /**
@@ -240,17 +250,42 @@ class FilterBuilder {
             return $this;
         }
         
-        // Добавляем подзапрос для избранных аккаунтов
-        // Используем EXISTS для проверки наличия записи в account_favorites
-        $this->conditions[] = "EXISTS (
-            SELECT 1 
-            FROM account_favorites 
-            WHERE account_favorites.account_id = accounts.id 
+        // Подзапрос строится общей функцией — она же знает про имя таблицы.
+        $this->conditions[] = self::favoritesExistsClause($this->table);
+        $this->params[] = $userId;
+
+        return $this;
+    }
+
+    /**
+     * Подзапрос «эта запись в избранном у пользователя».
+     *
+     * Имя таблицы обязано быть параметром, а не константой. Вход в панель — это
+     * строка подключения, и одна установка обслуживает сколько угодно таблиц
+     * (выбор через ?table=). С жёстким `accounts.id` фильтр «только избранные»
+     * на любой другой таблице падал: проверено на стенде — ?table=accounts2
+     * отдавал 200, а ?table=accounts2&favorites_only=1 — 500 с
+     * «Unknown column 'accounts.id' in 'where clause'».
+     *
+     * Имя подставляется в SQL строкой: имена таблиц не биндятся как параметры.
+     * Поэтому оно проверяется белым списком символов — всё, что не похоже на
+     * идентификатор, отвергается, а не уезжает в запрос.
+     *
+     * @param string $table Имя таблицы аккаунтов
+     * @return string SQL-условие для WHERE (с одним плейсхолдером под user_id)
+     * @throws InvalidArgumentException При недопустимом имени таблицы
+     */
+    public static function favoritesExistsClause(string $table = 'accounts'): string {
+        if (!preg_match('/^[A-Za-z0-9_]+$/', $table)) {
+            throw new InvalidArgumentException('Недопустимое имя таблицы: ' . $table);
+        }
+
+        return "EXISTS (
+            SELECT 1
+            FROM account_favorites
+            WHERE account_favorites.account_id = `{$table}`.id
             AND account_favorites.user_id = ?
         )";
-        $this->params[] = $userId;
-        
-        return $this;
     }
     
     /**

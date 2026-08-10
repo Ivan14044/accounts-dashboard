@@ -14,7 +14,10 @@ trait AccountsServiceFiltersTrait {
      */
     public function createFilterFromRequest(array $params): FilterBuilder {
         $meta = $this->getColumnMetadata();
-        $filter = new FilterBuilder($meta['columns'], $meta['numeric'], self::getNumericLikeColumns());
+        // Имя таблицы обязательно: подзапрос «только избранные» строит условие
+        // `<таблица>`.id, и с умолчанием accounts он падал на любой другой
+        // таблице (Unknown column 'accounts.id').
+        $filter = new FilterBuilder($meta['columns'], $meta['numeric'], self::getNumericLikeColumns(), $this->table);
 
         // Фильтр по конкретным ID (приоритетный для экспорта выбранных записей)
         if (!empty($params['ids']) && is_array($params['ids'])) {
