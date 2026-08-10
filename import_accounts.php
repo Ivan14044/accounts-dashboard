@@ -148,6 +148,10 @@ try {
 
     $parser = new CsvParser(Config::MAX_IMPORT_ROWS);
     $data = $parser->parse($file['tmp_name']);
+    // Что парсер выбросил по дороге. До 2026-08-10 эти числа жили только в логе,
+    // и пользователь не узнавал, что часть файла не доехала: строка с логином на
+    // «#» считалась комментарием, а файл длиннее предела молча обрезался.
+    $parseStats = $parser->getLastStats();
 
     Logger::debug('IMPORT ACCOUNTS: CSV файл распарсен', [
         'rows_count' => count($data),
@@ -261,6 +265,32 @@ try {
             ]);
         }
         
+        // Предупреждения о том, что часть файла не дошла до импорта вовсе.
+        // Это НЕ ошибки импорта: строки отсеялись ещё при разборе файла, поэтому
+        // отдаём их отдельным списком, а не мешаем с errors.
+        $warnings = [];
+        if (!empty($parseStats['truncated'])) {
+            $warnings[] = sprintf(
+                'Файл обрезан: прочитаны первые %d строк, остальные не импортированы. '
+                . 'Разбейте файл на части.',
+                (int)$parseStats['max_rows']
+            );
+        }
+        if (!empty($parseStats['skipped_comments'])) {
+            $warnings[] = sprintf(
+                'Пропущено строк, начинающихся с «#»: %d. Такая строка считается '
+                . 'комментарием — уберите «#» в начале, если это данные.',
+                (int)$parseStats['skipped_comments']
+            );
+        }
+        if (!empty($parseStats['adjusted_columns'])) {
+            $warnings[] = sprintf(
+                'Строк с числом колонок, не совпадающим с заголовком: %d. '
+                . 'Лишние колонки отброшены, недостающие заполнены пустыми.',
+                (int)$parseStats['adjusted_columns']
+            );
+        }
+
         json_success([
             'message' => sprintf(
                 'Создано: %d, Обновлено: %d, Пропущено: %d, Ошибок: %d',
@@ -269,6 +299,7 @@ try {
                 $result['skipped'],
                 count($result['errors'])
             ),
+            'warnings' => $warnings,
             'created' => $result['created'],
             'updated' => $result['updated'] ?? 0,
             'skipped' => $result['skipped'],

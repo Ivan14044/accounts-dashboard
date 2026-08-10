@@ -10,6 +10,15 @@ class CsvParser {
     private $maxRows = 10000;
     private $encoding = 'UTF-8';
 
+    /**
+     * Что случилось при последнем разборе: сколько строк прочитано и что было
+     * пропущено. Раньше эти числа уходили только в Logger, и пользователь не
+     * узнавал, что часть файла не доехала.
+     *
+     * @var array
+     */
+    private $lastStats = array();
+
     /** @var bool PHP 7.4+ supports empty escape in fgetcsv/fputcsv */
     private $supportsEmptyEscape;
     
@@ -465,7 +474,7 @@ class CsvParser {
             $lineNum++;
             
             // Пропускаем пустые строки
-            if (empty(array_filter($values, function($v) { return trim($v) !== ''; }))) {
+            if (empty(array_filter($values, function($v) { return trim((string)$v) !== ''; }))) {
                 $skippedEmpty++;
                 continue;
             }
@@ -498,18 +507,49 @@ class CsvParser {
             
             $data[] = $row;
         }
-        
-        if (class_exists('Logger')) {
-            Logger::info('CSV Parser: Парсинг завершён', [
-                'total_lines_read' => $lineNum,
-                'rows_parsed' => count($data),
-                'skipped_empty' => $skippedEmpty,
-                'skipped_mismatch' => $skippedMismatch,
-                'skipped_comments' => $skippedComments
-            ]);
+
+        // Достигли предела — но был ли в файле ещё хвост? Пробуем прочитать одну
+        // строку сверх предела: если она есть, файл обрезан. Раньше цикл просто
+        // останавливался, и пользователь не узнавал, что залилось не всё.
+        $truncated = false;
+        if ($lineNum >= $this->maxRows) {
+            $extra = $this->readCsvRow($handle, $delimiter);
+            if ($extra !== false && !empty(array_filter($extra, function ($v) { return trim((string)$v) !== ''; }))) {
+                $truncated = true;
+            }
         }
-        
+
+        $this->lastStats = array(
+            'rows_parsed'      => count($data),
+            'skipped_comments' => $skippedComments,
+            'skipped_empty'    => $skippedEmpty,
+            'adjusted_columns' => $skippedMismatch,
+            'truncated'        => $truncated,
+            'max_rows'         => $this->maxRows,
+        );
+
+        if (class_exists('Logger')) {
+            Logger::info('CSV Parser: Парсинг завершён', $this->lastStats + ['total_lines_read' => $lineNum]);
+        }
+
         return $data;
+    }
+
+    /**
+     * Статистика последнего разбора: сколько строк прочитано и что пропущено.
+     *
+     * Ключи: rows_parsed, skipped_comments, skipped_empty, adjusted_columns,
+     * truncated (bool), max_rows.
+     *
+     * Нужна, чтобы импорт мог показать пользователю, что часть файла не доехала.
+     * До 2026-08-10 эти числа существовали только в логе: строка с логином,
+     * начинающимся на «#», выбрасывалась как комментарий, файл длиннее предела
+     * обрезался, а отчёт говорил «Ошибок: 0».
+     *
+     * @return array Пустой массив, если parse() ещё не вызывали
+     */
+    public function getLastStats(): array {
+        return $this->lastStats;
     }
     
     /**
