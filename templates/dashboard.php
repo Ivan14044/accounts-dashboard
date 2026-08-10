@@ -492,7 +492,6 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
           ?>
           <input type="hidden" name="csrf" value="<?= e($csrfToken) ?>">
           <input type="hidden" name="format" value="csv">
-          <input type="hidden" name="duplicate_action" value="skip">
           
           <div class="mb-3">
             <label for="accountsFile" class="form-label">
@@ -511,7 +510,63 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
               Поддерживаются файлы CSV. Максимальный размер: 20 MB
             </div>
           </div>
-          
+
+          <?php
+          /*
+           * Выбор действия при дубликатах.
+           *
+           * До 2026-08-10 здесь стояло скрытое поле duplicate_action="skip", и
+           * пользователь не мог выбрать ничего: бэкенд поддерживал три режима, а
+           * интерфейс жёстко слал один. Полноценные радиокнопки при этом лежали в
+           * templates/partials/dashboard/modals/add-account-modal.php — партиале,
+           * который не подключён ниоткуда, то есть правка той копии ничего не
+           * меняла для пользователя.
+           *
+           * «Пропустить» остаётся значением по умолчанию как самое безопасное:
+           * оно ничего не перезаписывает. Для «Обновить» модуль загрузки
+           * спрашивает подтверждение — импорт НЕ пишет в журнал отмены, откатить
+           * перезапись нечем.
+           *
+           * Инвариант стережёт tests/test_import_duplicate_action_ui.php.
+           */
+          ?>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">
+              <i class="fas fa-copy me-2"></i>
+              Если аккаунт из файла уже есть в базе:
+            </label>
+
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="duplicate_action" id="dupSkip" value="skip" checked>
+              <label class="form-check-label" for="dupSkip">
+                <strong>Пропустить</strong> — не трогать существующий аккаунт (рекомендуется)
+              </label>
+            </div>
+
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="duplicate_action" id="dupUpdate" value="update">
+              <label class="form-check-label" for="dupUpdate">
+                <strong>Обновить</strong> — записать в существующий аккаунт значения из файла
+              </label>
+            </div>
+
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="duplicate_action" id="dupError" value="error">
+              <label class="form-check-label" for="dupError">
+                <strong>Показать ошибку</strong> — ничего не менять и перечислить дубликаты
+              </label>
+            </div>
+
+            <div class="form-text mt-2">
+              <i class="fas fa-info-circle me-1"></i>
+              Дубликаты ищутся по <code>login</code>, а также по <code>id_soc_account</code>,
+              ID профиля в <code>social_url</code> и <code>c_user</code> из cookies.
+              При «Обновить» меняются только колонки, заполненные в файле: пустая ячейка
+              означает «не трогать это поле», а не «очистить». Отменить импорт нельзя —
+              он не попадает в журнал отмены.
+            </div>
+          </div>
+
         </form>
       </div>
       <div class="modal-footer">
