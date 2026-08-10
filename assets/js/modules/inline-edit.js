@@ -84,6 +84,12 @@
     cancelBtn.className = 'btn btn-sm btn-secondary ms-1';
     cancelBtn.innerHTML = '<i class="fas fa-times"></i>';
     cancelBtn.title = 'Отмена';
+    // Панель действий сейчас — ребёнок этой же обёртки (кнопку .field-edit-btn
+    // пользователь нажал именно в ней). Без отцепления она попадёт в снимок
+    // ниже, и восстановление вклеит её КОПИЮ статической разметкой: ячейка
+    // навсегда станет шире и получит второй комплект кнопок. См. докблок
+    // CellActions.detach и tests/test_cell_hover_panel_layout.php.
+    if (window.CellActions) window.CellActions.detach(wrap);
     var originalContent = wrap.innerHTML;
     var originalValue = oldVal;
     wrap.setAttribute('data-editing', 'true');
