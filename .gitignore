@@ -36,9 +36,11 @@ desktop.ini
 # Собранные бандлы CSS/JS. Генерируются шагом деплоя (tools/build_assets.php)
 # из исходников по манифесту includes/AssetBundles.php — в git не хранятся,
 # чтобы не мержить конфликты в сгенерированных файлах и не держать копию кода.
-/assets/build/core.css
-/assets/build/dashboard.sync.js
-/assets/build/dashboard.defer.js
+# Игнорируем каталог целиком, а не три имени: иначе следующий бандл снова
+# окажется закоммиченным. Так уже было — dashboard.min.css и dashboard.min.js
+# от 2026-07-04 лежали в git, уезжали на прод и отдавались по HTTP, хотя их
+# никто не подключал уже два месяца. Удалены 2026-08-09.
+/assets/build/
 
 # Временные файлы
 *.tmp
