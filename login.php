@@ -135,15 +135,14 @@ function e($string) {
 // Версия ассетов (login.php не подключает config.php — отсюда guard)
 $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) time();
 
-// Цифры для микротекста берём из констант, а не пишем руками: иначе страница
-// начнёт врать в первый же день, когда лимит поменяют в Config/SessionManager.
-$loginAttempts = class_exists('Config') ? (int) Config::LOGIN_RATE_LIMIT : 5;
-$loginWindow   = class_exists('Config') ? (int) Config::RATE_LIMIT_WINDOW : 60;
-$sessionHours  = class_exists('SessionManager') ? (int) round(SessionManager::DEFAULT_LIFETIME / 3600) : 8;
-$rememberDays  = class_exists('SessionManager') ? (int) round(SessionManager::REMEMBER_ME_LIFETIME / 86400) : 30;
+// Срок «запомнить меня» берём из константы, а не пишем руками: иначе подпись
+// у переключателя начнёт врать в первый же день, когда срок поменяют.
+// Настройки безопасности (лимит попыток, длина обычной сессии) на странице
+// намеренно НЕ показываются: постороннему они подсказка, своему — шум.
+$rememberDays = class_exists('SessionManager') ? (int) round(SessionManager::REMEMBER_ME_LIFETIME / 86400) : 30;
 
 /**
- * Склонение существительного при числе: 1 попытка / 2 попытки / 5 попыток.
+ * Склонение существительного при числе: 1 день / 2 дня / 5 дней.
  *
  * @param int    $n     число
  * @param string $one   форма для 1
@@ -160,12 +159,7 @@ function loginPlural($n, $one, $few, $many) {
     return $many;
 }
 
-$attemptsLabel = $loginAttempts . ' ' . loginPlural($loginAttempts, 'попытка', 'попытки', 'попыток');
-$windowLabel   = $loginWindow === 60
-    ? 'в минуту'
-    : 'за ' . $loginWindow . ' ' . loginPlural($loginWindow, 'секунду', 'секунды', 'секунд');
-$hoursLabel    = $sessionHours . ' ' . loginPlural($sessionHours, 'час', 'часа', 'часов');
-$daysLabel     = $rememberDays . ' ' . loginPlural($rememberDays, 'день', 'дня', 'дней');
+$daysLabel = $rememberDays . ' ' . loginPlural($rememberDays, 'день', 'дня', 'дней');
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -225,65 +219,35 @@ $daysLabel     = $rememberDays . ' ' . loginPlural($rememberDays, 'день', '�
 
 <div class="auth">
 
-  <!-- ── Левая сцена: марка, заявление, факты ──────────────────────────── -->
-  <section class="stage" aria-hidden="false">
-    <div class="brand reveal" style="--d:0">
-      <span class="brand__mark" aria-hidden="true">
-        <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round">
-          <circle cx="20" cy="20" r="18" stroke-width="1"/>
-          <path d="M11 14h18M11 20h13M11 26h8" stroke-width="1.6"/>
-          <circle cx="28.5" cy="26" r="1.6" fill="currentColor" stroke="none"/>
-        </svg>
-      </span>
-      <span>
+  <main class="auth__inner">
+
+      <div class="brand reveal" style="--d:0">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round">
+            <circle cx="20" cy="20" r="18" stroke-width="1"/>
+            <path d="M11 14h18M11 20h13M11 26h8" stroke-width="1.6"/>
+            <circle cx="28.5" cy="26" r="1.6" fill="currentColor" stroke="none"/>
+          </svg>
+        </span>
         <span class="brand__name">Accounts Dashboard</span>
-        <span class="brand__sub">Панель управления</span>
-      </span>
-    </div>
-
-    <div>
-      <p class="stage__hero reveal" style="--d:1">Порядок<br>в каждой <em>строке</em>.</p>
-      <p class="stage__lead reveal" style="--d:2">
-        Импорт, проверка, история и экспорт сотен тысяч аккаунтов — в одном окне.
-        Данные остаются в вашей базе: панель только подключается к ней.
-      </p>
-    </div>
-
-    <dl class="facts reveal" style="--d:3">
-      <div class="facts__item">
-        <dt class="facts__key">Подключение</dt>
-        <dd class="facts__val">MySQL</dd>
       </div>
-      <div class="facts__item">
-        <dt class="facts__key">Сессия</dt>
-        <dd class="facts__val"><?= e($hoursLabel) ?></dd>
-      </div>
-      <div class="facts__item">
-        <dt class="facts__key">Защита входа</dt>
-        <dd class="facts__val"><?= e($attemptsLabel) ?> <?= e($windowLabel) ?></dd>
-      </div>
-    </dl>
-  </section>
 
-  <!-- ── Правая панель: форма ──────────────────────────────────────────── -->
-  <main class="panel">
-    <div class="panel__inner">
-
-      <p class="eyebrow reveal" style="--d:2">Авторизация</p>
-      <h1 class="title reveal" style="--d:3">Вход в панель</h1>
-      <p class="subtitle reveal" style="--d:4">Подключитесь к базе данных аккаунтов строкой подключения.</p>
+      <h1 class="title reveal" style="--d:1">Вход в панель</h1>
+      <p class="subtitle reveal" style="--d:2">Подключитесь к базе данных аккаунтов строкой подключения.</p>
 
       <?php if ($message): ?>
-        <div class="note note--ok reveal" style="--d:5" role="status">
+        <div class="note note--ok reveal" style="--d:3" role="status">
+          <!-- Нейтральная «i», а не галочка: через этот же блок приходит
+               «время сессии истекло», и галочка там читалась бы как успех. -->
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M20 6L9 17l-5-5"/>
+            <circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.2"/>
           </svg>
           <span><?= e($message) ?></span>
         </div>
       <?php endif; ?>
 
       <?php if ($error): ?>
-        <div class="note note--error reveal" style="--d:5" role="alert">
+        <div class="note note--error reveal" style="--d:3" role="alert">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="9"/><path d="M12 7.5v5M12 16.2v.2"/>
           </svg>
@@ -294,7 +258,7 @@ $daysLabel     = $rememberDays . ' ' . loginPlural($rememberDays, 'день', '�
       <form id="loginForm" method="post" novalidate>
         <input type="hidden" name="csrf_token" value="<?= e(getCsrfToken()) ?>">
 
-        <div class="field reveal" style="--d:6">
+        <div class="field reveal" style="--d:4">
           <div class="field__head">
             <label class="field__label" for="db_connection_string">Строка подключения</label>
             <button type="button" id="maskToggle" class="ghost-btn" aria-pressed="false" aria-controls="db_connection_string">
@@ -346,7 +310,7 @@ $daysLabel     = $rememberDays . ' ' . loginPlural($rememberDays, 'день', '�
           <p class="field__warn" id="connUnknown" hidden></p>
         </div>
 
-        <div class="hint reveal" style="--d:7" id="connHint">
+        <div class="hint reveal" style="--d:5" id="connHint">
           <button type="button" id="hintToggle" class="hint__toggle" aria-expanded="false" aria-controls="hintBody">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M9 6l6 6-6 6"/>
@@ -359,18 +323,18 @@ $daysLabel     = $rememberDays . ' ' . loginPlural($rememberDays, 'день', '�
           </div>
         </div>
 
-        <label class="remember reveal" style="--d:8">
+        <label class="remember reveal" style="--d:6">
           <input type="checkbox" value="1" id="remember_me" name="remember_me" checked>
           <span class="switch" aria-hidden="true"></span>
           <span class="remember__text">
             Запомнить меня
             <span class="remember__hint" data-remember-hint
                   data-on="Вход сохранится на <?= e($daysLabel) ?>"
-                  data-off="Вход сохранится на <?= e($hoursLabel) ?>">Вход сохранится на <?= e($daysLabel) ?></span>
+                  data-off="Только до конца сеанса">Вход сохранится на <?= e($daysLabel) ?></span>
           </span>
         </label>
 
-        <button type="submit" id="submitBtn" class="submit reveal" style="--d:9">
+        <button type="submit" id="submitBtn" class="submit reveal" style="--d:7">
           Войти
           <svg class="submit__arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M4 12h15M13 6l6 6-6 6"/>
@@ -378,12 +342,6 @@ $daysLabel     = $rememberDays . ' ' . loginPlural($rememberDays, 'день', '�
         </button>
       </form>
 
-      <p class="panel__foot reveal" style="--d:10">
-        Строка подключения уходит только на этот сервер и не сохраняется в браузере.
-        Ограничение на подбор — <?= e($attemptsLabel) ?> <?= e($windowLabel) ?>.
-      </p>
-
-    </div>
   </main>
 </div>
 

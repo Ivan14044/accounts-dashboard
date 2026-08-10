@@ -8,10 +8,15 @@
  * префиксом `--lg-`, чтобы файл нельзя было случайно «переиспользовать» на
  * дашборде и получить конфликт каскада.
  *
+ * Направление: одна колонка по центру, никакого разделения экрана на половины.
+ * Цвета — только чернила и бумага: цветного акцента в палитре нет вообще, вес
+ * держат типографика, воздух и волосяные линии. Единственный цвет во всём
+ * файле — приглушённый сигнальный для ошибок.
+ *
  * Чего здесь осознанно НЕТ:
  *  - зависимости от Bootstrap и FontAwesome (иконки — инлайновый SVG в разметке);
  *  - JS-анимаций: всё движение на CSS и глушится @media (prefers-reduced-motion);
- *  - растровых картинок: фон — градиенты + SVG-зерно в data-URI.
+ *  - растровых картинок: фон — градиент + SVG-зерно в data-URI.
  *
  * Тема переключается атрибутом [data-bs-theme] на <html> — тем же, что на
  * дашборде, поэтому выбор темы на логине переносится внутрь панели.
@@ -22,41 +27,37 @@
    ========================================================================== */
 
 :root {
-  /* Светлая тема — «бумага»: тёплый нейтрал, а не белый лист. */
-  --lg-bg:            #F4F1EC;
-  --lg-stage:         #EFEBE4;
+  /* Светлая тема — «бумага»: чуть тёплый нейтрал, а не белый лист. */
+  --lg-bg:            #F2F1EE;
   --lg-surface:       #FFFFFF;
-  --lg-surface-sunk:  #F7F5F1;
-  --lg-text:          #17181A;
-  --lg-text-soft:     #4E5257;
-  /* Не светлее #666A6F: на бумажном фоне сцены это ровно 4.5:1, светлее — мелкий
-     текст (подписи показаний, факты, подвал) перестаёт проходить AA. Замерено. */
-  --lg-text-muted:    #666A6F;
-  --lg-hairline:      rgba(23, 24, 26, 0.11);
-  --lg-hairline-firm: rgba(23, 24, 26, 0.20);
+  --lg-surface-sunk:  #F7F6F4;
+  --lg-text:          #131416;
+  --lg-text-soft:     #4A4D51;
+  /* Не светлее #666A6E: на фоне бумаги это ровно 4.5:1, светлее — мелкий текст
+     (подписи показаний, подсказки) перестаёт проходить AA. Замерено. */
+  --lg-text-muted:    #666A6E;
+  --lg-hairline:      rgba(19, 20, 22, 0.11);
+  --lg-hairline-firm: rgba(19, 20, 22, 0.22);
 
-  /* Латунь — единственный акцент. На светлом фоне темнее, чтобы держать контраст:
-     надпись «АВТОРИЗАЦИЯ» — 10px, при более светлой латуни она проваливалась ниже 4.5:1. */
-  --lg-accent:        #7C5D25;
-  --lg-accent-soft:   rgba(124, 93, 37, 0.14);
-  --lg-accent-glow:   rgba(124, 93, 37, 0.10);
+  /* «Акцент» намеренно бесцветный: то же чернильное, что и текст. */
+  --lg-accent:        #131416;
+  --lg-accent-soft:   rgba(19, 20, 22, 0.06);
+  --lg-accent-glow:   rgba(19, 20, 22, 0.07);
 
-  --lg-danger:        #A63A2E;
-  --lg-danger-bg:     rgba(166, 58, 46, 0.07);
-  --lg-ok:            #3F6B4A;
-  --lg-ok-bg:         rgba(63, 107, 74, 0.08);
+  /* Единственный цвет в палитре — и только на ошибках. */
+  --lg-danger:        #9E3B2F;
+  --lg-danger-bg:     rgba(158, 59, 47, 0.06);
+  --lg-ok-bg:         rgba(19, 20, 22, 0.04);
 
-  /* Кнопка: на светлой теме чернильная, на тёмной — латунная (см. ниже). */
-  --lg-btn-bg:        #17181A;
-  --lg-btn-bg-hover:  #26282B;
-  --lg-btn-text:      #F4F1EC;
+  --lg-btn-bg:        #131416;
+  --lg-btn-bg-hover:  #24262A;
+  --lg-btn-text:      #F7F6F4;
 
-  --lg-shadow: 0 1px 2px rgba(23, 24, 26, 0.04),
-               0 12px 32px -12px rgba(23, 24, 26, 0.12);
+  --lg-shadow: 0 1px 2px rgba(19, 20, 22, 0.04),
+               0 14px 34px -14px rgba(19, 20, 22, 0.13);
 
   --lg-grain-opacity: 0.05;
-  --lg-light-1: rgba(138, 106, 47, 0.13);
-  --lg-light-2: rgba(23, 24, 26, 0.05);
+  --lg-halo: rgba(19, 20, 22, 0.05);
 
   --lg-font-sans: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --lg-font-display: "Cormorant Garamond", "Times New Roman", Georgia, serif;
@@ -68,41 +69,38 @@
 [data-bs-theme="dark"] {
   /* Тёмная тема — «чернила»: тёплый уголь, а не чистый чёрный (#000 выглядит
      дёшево на OLED и убивает мягкие тени). */
-  --lg-bg:            #0B0C0E;
-  --lg-stage:         #0E1013;
-  --lg-surface:       #131518;
-  --lg-surface-sunk:  #0F1114;
-  --lg-text:          #EDE9E1;
-  --lg-text-soft:     #A9ADB3;
+  --lg-bg:            #0C0D0F;
+  --lg-surface:       #141517;
+  --lg-surface-sunk:  #101113;
+  --lg-text:          #E9E9E7;
+  --lg-text-soft:     #A6A8AC;
   /* Светлее, чем кажется нужным: подписи показаний лежат на приподнятой
-     поверхности #131518, и на ней #767B82 давал только 4.29:1. Замерено. */
+     поверхности #141517, и на ней более тёмный серый давал меньше 4.5:1. */
   --lg-text-muted:    #7E838C;
-  --lg-hairline:      rgba(237, 233, 225, 0.10);
-  --lg-hairline-firm: rgba(237, 233, 225, 0.20);
+  --lg-hairline:      rgba(233, 233, 231, 0.10);
+  --lg-hairline-firm: rgba(233, 233, 231, 0.22);
 
-  --lg-accent:        #C9A86A;
-  --lg-accent-soft:   rgba(201, 168, 106, 0.16);
-  --lg-accent-glow:   rgba(201, 168, 106, 0.13);
+  --lg-accent:        #E9E9E7;
+  --lg-accent-soft:   rgba(233, 233, 231, 0.08);
+  --lg-accent-glow:   rgba(233, 233, 231, 0.09);
 
-  --lg-danger:        #E08A7D;
-  --lg-danger-bg:     rgba(224, 138, 125, 0.09);
-  --lg-ok:            #8DBF9C;
-  --lg-ok-bg:         rgba(141, 191, 156, 0.09);
+  --lg-danger:        #D98A7E;
+  --lg-danger-bg:     rgba(217, 138, 126, 0.08);
+  --lg-ok-bg:         rgba(233, 233, 231, 0.05);
 
-  --lg-btn-bg:        #C9A86A;
-  --lg-btn-bg-hover:  #D8B87C;
-  --lg-btn-text:      #141517;
+  --lg-btn-bg:        #E9E9E7;
+  --lg-btn-bg-hover:  #FFFFFF;
+  --lg-btn-text:      #121315;
 
-  --lg-shadow: 0 1px 2px rgba(0, 0, 0, 0.4),
-               0 24px 48px -24px rgba(0, 0, 0, 0.75);
+  --lg-shadow: 0 1px 2px rgba(0, 0, 0, 0.45),
+               0 26px 52px -26px rgba(0, 0, 0, 0.8);
 
   --lg-grain-opacity: 0.035;
-  --lg-light-1: rgba(201, 168, 106, 0.16);
-  --lg-light-2: rgba(120, 150, 190, 0.07);
+  --lg-halo: rgba(233, 233, 231, 0.045);
 }
 
 /* ==========================================================================
-   2. Каркас
+   2. Каркас — одна колонка по центру
    ========================================================================== */
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -122,6 +120,21 @@ body {
   overflow-x: hidden;
 }
 
+/* Едва различимое пятно света за колонкой — чтобы фон не читался как заливка.
+   Радиальный градиент вместо картинки: ничего не грузится. */
+body::before {
+  content: "";
+  position: fixed;
+  top: -20vh;
+  left: 50%;
+  width: min(1100px, 150vw);
+  height: 110vh;
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side, var(--lg-halo), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* Зерно поверх всего: снимает «пластиковость» плоских заливок.
    pointer-events:none обязателен — иначе слой съедает клики по форме. */
 body::after {
@@ -138,203 +151,64 @@ body::after {
   position: relative;
   z-index: 1;
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 1.08fr 0.92fr;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+
+.auth__inner {
+  width: 100%;
+  max-width: 452px;
 }
 
 /* ==========================================================================
-   3. Левая сцена
+   3. Шапка колонки
    ========================================================================== */
-
-.stage {
-  position: relative;
-  overflow: hidden;
-  background: var(--lg-stage);
-  padding: 56px 60px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 48px;
-}
-
-/* Медленно дышащее пятно света. Один слой, transform-анимация — не вызывает
-   перерисовку макета. */
-.stage::before {
-  content: "";
-  position: absolute;
-  top: -30%;
-  left: -20%;
-  width: 90%;
-  height: 110%;
-  background: radial-gradient(closest-side, var(--lg-light-1), transparent 72%);
-  filter: blur(10px);
-  animation: stageDrift 34s var(--lg-ease) infinite alternate;
-  pointer-events: none;
-}
-
-.stage::after {
-  content: "";
-  position: absolute;
-  right: -25%;
-  bottom: -35%;
-  width: 80%;
-  height: 90%;
-  background: radial-gradient(closest-side, var(--lg-light-2), transparent 70%);
-  animation: stageDrift 44s var(--lg-ease) 2s infinite alternate-reverse;
-  pointer-events: none;
-}
-
-@keyframes stageDrift {
-  from { transform: translate3d(0, 0, 0) scale(1); }
-  to   { transform: translate3d(6%, 8%, 0) scale(1.18); }
-}
-
-.stage > * { position: relative; z-index: 1; }
-
-/* — Марка — */
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  margin-bottom: 34px;
 }
 
 .brand__mark {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   flex: none;
-  color: var(--lg-accent);
+  color: var(--lg-text);
 }
 
 .brand__mark svg { display: block; width: 100%; height: 100%; }
 
 .brand__name {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--lg-text);
-}
-
-.brand__sub {
-  display: block;
-  margin-top: 3px;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--lg-text-muted);
-}
-
-/* — Заявление — */
-
-.stage__hero {
-  max-width: 15ch;
-  margin: 0;
-  font-family: var(--lg-font-display);
-  font-weight: 300;
-  font-size: clamp(2.5rem, 4.6vw, 4.8rem);
-  line-height: 1.04;
-  letter-spacing: -0.015em;
-  color: var(--lg-text);
-}
-
-.stage__hero em {
-  font-style: italic;
-  color: var(--lg-accent);
-}
-
-.stage__lead {
-  max-width: 34ch;
-  margin: 22px 0 0;
-  font-size: 14px;
-  line-height: 1.65;
   color: var(--lg-text-soft);
-}
-
-/* — Нижняя строка фактов — */
-
-.facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0;
-  margin: 0;
-  padding-top: 22px;
-  border-top: 1px solid var(--lg-hairline);
-}
-
-.facts__item {
-  padding-right: 28px;
-  margin-right: 28px;
-  border-right: 1px solid var(--lg-hairline);
-}
-
-.facts__item:last-child { border-right: 0; margin-right: 0; padding-right: 0; }
-
-.facts__key {
-  display: block;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--lg-text-muted);
-}
-
-.facts__val {
-  display: block;
-  margin-top: 5px;
-  font-family: var(--lg-font-mono);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--lg-text-soft);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ==========================================================================
-   4. Правая панель с формой
-   ========================================================================== */
-
-.panel {
-  position: relative;
-  background: var(--lg-bg);
-  border-left: 1px solid var(--lg-hairline);
-  padding: 56px 60px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.panel__inner {
-  width: 100%;
-  max-width: 420px;
-  margin: 0 auto;
-}
-
-.eyebrow {
-  margin: 0 0 10px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--lg-accent);
 }
 
 .title {
   margin: 0 0 8px;
-  font-size: 27px;
-  font-weight: 600;
-  letter-spacing: -0.025em;
-  line-height: 1.2;
+  font-family: var(--lg-font-display);
+  font-weight: 400;
+  font-size: 38px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
   color: var(--lg-text);
 }
 
 .subtitle {
-  margin: 0 0 32px;
+  margin: 0 0 30px;
   font-size: 14px;
   color: var(--lg-text-soft);
 }
 
-/* — Сообщения — */
+/* ==========================================================================
+   4. Сообщения
+   ========================================================================== */
 
 .note {
   display: flex;
@@ -351,11 +225,13 @@ body::after {
 .note svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
 
 .note--error { background: var(--lg-danger-bg); border-left-color: var(--lg-danger); color: var(--lg-danger); }
-.note--ok    { background: var(--lg-ok-bg);     border-left-color: var(--lg-ok);     color: var(--lg-ok); }
+.note--ok    { background: var(--lg-ok-bg);     border-left-color: var(--lg-hairline-firm); color: var(--lg-text-soft); }
 
-/* — Поле строки подключения — */
+/* ==========================================================================
+   5. Поле строки подключения
+   ========================================================================== */
 
-.field { margin-bottom: 18px; }
+.field { margin-bottom: 16px; }
 
 .field__head {
   display: flex;
@@ -394,8 +270,8 @@ body::after {
 .ghost-btn:hover { color: var(--lg-text); background: var(--lg-accent-soft); }
 .ghost-btn svg { width: 13px; height: 13px; }
 
-/* Рамка поля рисуется на обёртке, а не на textarea: внутри лежат и поле,
-   и «показания» разбора — фокус должен подсвечивать их как одно целое. */
+/* Рамка рисуется на обёртке, а не на textarea: внутри лежат и поле, и
+   «показания» разбора — фокус должен подсвечивать их как одно целое. */
 .field__box {
   position: relative;
   background: var(--lg-surface);
@@ -408,7 +284,7 @@ body::after {
 .field__box:hover { border-color: var(--lg-hairline-firm); }
 
 .field__box:focus-within {
-  border-color: var(--lg-accent);
+  border-color: var(--lg-hairline-firm);
   box-shadow: var(--lg-shadow), 0 0 0 4px var(--lg-accent-glow);
 }
 
@@ -420,7 +296,8 @@ body::after {
   right: 14px;
   bottom: -1px;
   height: 1px;
-  background: var(--lg-accent);
+  background: var(--lg-text);
+  opacity: 0.55;
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform 0.45s var(--lg-ease);
@@ -431,7 +308,7 @@ body::after {
 .field__input {
   display: block;
   width: 100%;
-  min-height: 108px;
+  min-height: 104px;
   padding: 14px 16px;
   border: 0;
   border-radius: 14px 14px 0 0;
@@ -457,9 +334,11 @@ body::after {
 
 /* — Показания разбора строки — */
 
+/* Колонки неравные: порт — это четыре цифры, а хосту и базе нужен запас,
+   иначе значения режутся многоточием на ровном месте. */
 .readout {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: 1.25fr 0.62fr 1.25fr 1fr;
   border-top: 1px solid var(--lg-hairline);
 }
 
@@ -501,14 +380,16 @@ body::after {
   margin: 10px 2px 0;
   font-size: 11.5px;
   line-height: 1.5;
-  color: var(--lg-accent);
+  color: var(--lg-danger);
 }
 
 .field__warn[hidden] { display: none; }
 
-/* — Подсказка по формату — */
+/* ==========================================================================
+   6. Подсказка по формату
+   ========================================================================== */
 
-.hint { margin: 0 0 22px; }
+.hint { margin: 0 0 24px; }
 
 .hint__toggle {
   display: inline-flex;
@@ -551,11 +432,11 @@ body::after {
   font-family: var(--lg-font-mono);
   font-size: 11.5px;
   line-height: 1.75;
-  color: var(--lg-text-soft);
+  color: var(--lg-text-muted);
   word-break: break-all;
 }
 
-.hint__code b { color: var(--lg-accent); font-weight: 500; }
+.hint__code b { color: var(--lg-text); font-weight: 500; }
 
 .hint__note {
   margin: 10px 0 0;
@@ -564,7 +445,11 @@ body::after {
   color: var(--lg-text-muted);
 }
 
-/* — Переключатель «запомнить» — */
+.hint__note b { color: var(--lg-text-soft); font-weight: 600; }
+
+/* ==========================================================================
+   7. «Запомнить меня»
+   ========================================================================== */
 
 .remember {
   display: flex;
@@ -606,8 +491,8 @@ body::after {
 }
 
 .remember input:checked + .switch {
-  background: var(--lg-accent);
-  border-color: var(--lg-accent);
+  background: var(--lg-text);
+  border-color: var(--lg-text);
 }
 
 .remember input:checked + .switch::after {
@@ -628,7 +513,9 @@ body::after {
   color: var(--lg-text-muted);
 }
 
-/* — Кнопка входа — */
+/* ==========================================================================
+   8. Кнопка входа
+   ========================================================================== */
 
 .submit {
   position: relative;
@@ -654,22 +541,7 @@ body::after {
 
 .submit:hover:not(:disabled) { background: var(--lg-btn-bg-hover); }
 .submit:active:not(:disabled) { transform: translateY(1px); }
-.submit:disabled { opacity: 0.65; cursor: progress; }
-
-/* Блик, пробегающий по кнопке при наведении. */
-.submit::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -60%;
-  width: 40%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.22), transparent);
-  transform: skewX(-18deg);
-  transition: left 0.65s var(--lg-ease);
-}
-
-.submit:hover:not(:disabled)::before { left: 120%; }
+.submit:disabled { opacity: 0.6; cursor: progress; }
 
 .submit__arrow {
   width: 15px;
@@ -690,19 +562,8 @@ body::after {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* — Подвал формы — */
-
-.panel__foot {
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid var(--lg-hairline);
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--lg-text-muted);
-}
-
 /* ==========================================================================
-   5. Переключатель темы
+   9. Переключатель темы
    ========================================================================== */
 
 .theme-toggle {
@@ -710,24 +571,24 @@ body::after {
   top: 22px;
   right: 24px;
   z-index: 4;
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--lg-hairline);
   border-radius: 10px;
   background: var(--lg-surface);
-  color: var(--lg-text-soft);
+  color: var(--lg-text-muted);
   cursor: pointer;
   transition: color 0.18s var(--lg-ease), border-color 0.18s var(--lg-ease);
 }
 
-.theme-toggle:hover { color: var(--lg-accent); border-color: var(--lg-hairline-firm); }
+.theme-toggle:hover { color: var(--lg-text); border-color: var(--lg-hairline-firm); }
 .theme-toggle svg { width: 16px; height: 16px; }
 
 /* ==========================================================================
-   6. Фокус
+   10. Фокус
    ========================================================================== */
 
 :where(a, button, textarea, input):focus-visible {
@@ -740,7 +601,7 @@ body::after {
 .field__input:focus-visible { outline: none; }
 
 /* ==========================================================================
-   7. Появление
+   11. Появление
    ========================================================================== */
 
 .reveal {
@@ -755,65 +616,30 @@ body::after {
 }
 
 /* ==========================================================================
-   8. Адаптив
+   12. Адаптив
    ========================================================================== */
 
-/* На больших экранах поля растут вместе с макетом, иначе содержимое липнет
-   к краю огромной сцены. */
-@media (min-width: 1600px) {
-  .stage, .panel { padding: 72px 84px; }
-  .panel__inner { max-width: 460px; }
-}
-
-@media (max-width: 1080px) {
-  .stage, .panel { padding: 44px 40px; }
-}
-
-@media (max-width: 900px) {
-  .auth {
-    grid-template-columns: 1fr;
-    min-height: 100vh;
-  }
-  .stage {
-    padding: 34px 28px 30px;
-    gap: 26px;
-  }
-  .stage__hero { max-width: 100%; font-size: clamp(2rem, 8vw, 2.8rem); }
-  .stage__lead { display: none; }
-  .facts { display: none; }
-  .panel {
-    border-left: 0;
-    border-top: 1px solid var(--lg-hairline);
-    padding: 34px 28px 44px;
-    justify-content: flex-start;
-  }
-  /* Не разгоняем форму на всю ширину планшета: строка длиной в 700px читается
-     хуже, а страница перестаёт выглядеть собранной. */
-  .panel__inner { max-width: 560px; }
-  .theme-toggle { top: 16px; right: 16px; }
-}
-
-@media (max-width: 480px) {
-  .stage { padding: 26px 20px 24px; }
-  .panel { padding: 28px 20px 36px; }
-  .title { font-size: 23px; }
+@media (max-width: 560px) {
+  .auth { padding: 40px 20px; align-items: flex-start; }
+  .brand { margin-bottom: 26px; }
+  .title { font-size: 33px; }
   .subtitle { margin-bottom: 24px; }
+  .theme-toggle { top: 14px; right: 14px; }
   /* На двух колонках ячейки перестают резать значения многоточием. */
   .readout { grid-template-columns: 1fr 1fr; }
+  .readout__cell { border-right: 1px solid var(--lg-hairline); }
   .readout__cell:nth-child(2n) { border-right: 0; }
   .readout__cell:nth-child(n + 3) { border-top: 1px solid var(--lg-hairline); }
   /* iOS зумит страницу, если шрифт поля меньше 16px. */
-  .field__input { font-size: 16px; min-height: 122px; }
+  .field__input { font-size: 16px; min-height: 118px; }
 }
 
 /* ==========================================================================
-   9. Меньше движения
+   13. Меньше движения
    ========================================================================== */
 
 @media (prefers-reduced-motion: reduce) {
-  .stage::before, .stage::after { animation: none; }
   .reveal { opacity: 1; animation: none; }
-  .submit::before { display: none; }
   .spinner { animation-duration: 1.6s; }
   *, *::before, *::after {
     transition-duration: 0.01ms !important;
