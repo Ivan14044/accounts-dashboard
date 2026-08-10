@@ -47,10 +47,21 @@ $router->post('/accounts/check-fb', function() {
         return;
     }
 
-    // Берём строки из БД по выбранным ID
-    $service = new AccountsService();
+    // Берём строки из БД по выбранным ID — ОБЯЗАТЕЛЬНО из выбранной таблицы.
+    // Без $tableName и AccountsService, и FilterBuilder молча берут 'accounts':
+    // при работе со второй таблицей проверка читала данные (токен, cookies)
+    // ЧУЖОГО аккаунта с тем же id и возвращала статусы, привязанные к id из
+    // другой таблицы. Проверено пробником на двух таблицах 2026-08-10:
+    //   запрошена accounts2, id=7001 → без таблицы приходил login из accounts.
+    // Инвариант стережёт tests/test_api_routes_table_scope.php.
+    $service = new AccountsService($tableName);
     $meta = $service->getColumnMetadata();
-    $filter = new FilterBuilder($meta['columns'], $meta['numeric']);
+    $filter = new FilterBuilder(
+        $meta['columns'],
+        $meta['numeric'],
+        AccountsService::getNumericLikeColumns(),
+        $tableName
+    );
     $filter->addIdsFilter($ids);
     $rows = $service->getAccounts($filter, 'id', 'ASC', count($ids), 0, false);
 
