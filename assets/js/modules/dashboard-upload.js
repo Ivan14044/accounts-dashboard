@@ -454,6 +454,10 @@
     html += '</div>';
     
     previewContainer.innerHTML = html;
+    // Число строк отдаём отдельным атрибутом, а не оставляем вылавливать из
+    // текста: заголовок предпросмотра начинается с «первые 10 строк из N»,
+    // и регулярка по первому числу доставала 10 вместо N (см. handleUpload).
+    previewContainer.setAttribute('data-total-rows', String(totalRows));
     previewContainer.classList.remove('d-none');
   }
   
@@ -807,8 +811,15 @@
       submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Загрузка...';
 
       try {
-        // Оценка длительности импорта: 1000 строк ≈ 10 секунд
-        const rowCount = parseInt(cache.getById('csvPreviewContainer')?.textContent?.match(/\d+/)?.[0] || '100');
+        // Оценка длительности импорта: 1000 строк ≈ 10 секунд.
+        // Число строк берём из data-total-rows, который проставляет
+        // showCsvPreview. Раньше здесь стоял match(/\d+/) по тексту контейнера,
+        // а заголовок предпросмотра — «первые 10 строк из N»: регулярка всегда
+        // доставала 10, оценка выходила 100 мс, и полоса на первом же тике
+        // прыгала с 0% сразу на 95% независимо от размера файла.
+        // (проверено в браузере 2026-08-10 на файле из 4000 строк)
+        const previewEl = cache.getById('csvPreviewContainer');
+        const rowCount = parseInt((previewEl && previewEl.getAttribute('data-total-rows')) || '100', 10) || 100;
         const estimatedDuration = Math.min(rowCount * 10, 30000); // Максимум 30 секунд
         progressControl = simulateProgress(estimatedDuration);
         
