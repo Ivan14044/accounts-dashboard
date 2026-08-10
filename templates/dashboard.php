@@ -2,9 +2,12 @@
 // Манифест бандлов CSS/JS. Шаблон самодостаточен: не полагаемся на то, что
 // контроллер уже подключил класс.
 require_once __DIR__ . '/../includes/AssetBundles.php';
+// Иконки — свои, инлайновым SVG. Нужны в этом файле раньше, чем подключатся
+// партиалы, поэтому подключаем здесь, а не полагаемся на них.
+require_once __DIR__ . '/ui/icons.php';
 ?>
 <!DOCTYPE html>
-<html lang="ru" data-bs-theme="light">
+<html lang="ru" data-theme="light" data-bs-theme="light">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,6 +15,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
   <script>
     (function(){try{var t=localStorage.getItem('dashboard-theme');
       if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
+      document.documentElement.setAttribute('data-theme',t);
       document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
   </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -20,10 +24,15 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
   <title>Accounts Dashboard</title>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link rel="alternate icon" href="assets/favicon.svg">
-  <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
-  <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
-  <!-- Свой CSS: один бандл, если он собран, иначе исходные core-*.css (см. AssetBundles) -->
-<?= AssetBundles::tags('core.css') ?>
+  <!-- Своя система интерфейса. Ни Bootstrap, ни FontAwesome, ни core-*.css:
+       ui.css содержит собственный сброс, токены и компоненты, иконки —
+       инлайновый SVG (templates/ui/icons.php).
+       Два «мостовых» файла временные, они уйдут вместе с последним куском
+       старой разметки: legacy-icons рисует иконки, которые всё ещё вставляет
+       старый JS, legacy-forms держит вид форм внутри непереписанных модалок. -->
+  <link href="assets/css/ui.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+  <link href="assets/css/ui-legacy-icons.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+  <link href="assets/css/ui-legacy-forms.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <!-- Скрипты подключены в конце body; preload даёт браузеру начать качать их сразу -->
   <link rel="preload" href="<?= AssetBundles::preloadHref('dashboard.sync.js', 'assets/js/dashboard-init.js') ?>" as="script">
 
@@ -43,7 +52,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     /* ================================================================
        DASHBOARD-SPECIFIC STYLES
@@ -287,17 +296,12 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
   </style>
 </head>
 <body>
-  <!-- Прелоадер страницы -->
-  <div class="page-loader" id="pageLoader">
-    <div class="middle">
-      <span class="loader loader-primary"></span>
-    </div>
-  </div>
-  <!-- Современный хедер -->
+  <!-- Прелоадер страницы. Скрывается из dashboard-init.js по классу is-hidden. -->
+  <div class="ui-page-loader" id="pageLoader" aria-hidden="true"><span class="loader"></span></div>
+
   <?php include __DIR__ . '/partials/dashboard/header.php'; ?>
 
-  <!-- Основной контент -->
-  <main class="container-fluid">
+  <main class="ui-page">
     <?php
     /*
      * Сообщение об ошибке прошлого действия.
@@ -313,64 +317,50 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
         $dashboardFlashError = $_SESSION['error_message'];
         unset($_SESSION['error_message']);
     ?>
-      <div class="alert alert-danger shadow-sm rounded-xl" role="alert">
-        <i class="fas fa-triangle-exclamation me-2"></i><?= e($dashboardFlashError) ?>
+      <div class="ui-note" data-tone="danger" role="alert" style="margin-bottom:var(--ui-4)">
+        <?= ui_icon('alert') ?><span><?= e($dashboardFlashError) ?></span>
       </div>
     <?php endif; ?>
 
-    <!-- Статистические карточки -->
-    <?php include __DIR__ . '/partials/dashboard/stats-cards.php'; ?>
-    
-
-
-  <!-- Фильтры (Современный дизайн) -->
-  <?php include __DIR__ . '/partials/dashboard/filters.php'; ?>
-
-    <!-- Панель инструментов — один ряд -->
-    <div class="toolbar">
-      <h2 class="toolbar-title">Управление аккаунтами</h2>
-
-      <div class="toolbar-actions__bulk">
-        <button class="btn btn-sm btn-outline-secondary" id="exportSelectedCsv" disabled>
-          <i class="fas fa-file-csv"></i> CSV
-        </button>
-        <button class="btn btn-sm btn-outline-secondary" id="exportSelectedTxt" disabled>
-          <i class="fas fa-file-alt"></i> TXT
-        </button>
-        <button class="btn btn-sm btn-outline-danger" id="deleteSelected" disabled>
-          <i class="fas fa-trash"></i> Удалить
-        </button>
-        <button class="btn btn-sm btn-outline-secondary" id="changeStatusSelected" disabled>
-          <i class="fas fa-tag"></i> Статус
-        </button>
-        <button class="btn btn-sm btn-outline-secondary" id="bulkEditFieldBtn" disabled>
-          <i class="fas fa-edit"></i> Поле
-        </button>
-      </div>
-
-      <div class="toolbar-actions__main">
-        <button class="btn btn-sm btn-primary" id="addAccountBtn" data-bs-toggle="modal" data-bs-target="#addAccountModal">
-          <i class="fas fa-plus"></i> Добавить аккаунт
-        </button>
-        <button class="btn btn-sm btn-outline-primary" id="validateAccountsBtn" disabled title="Проверка аккаунтов на валидность (check.fb.tools)">
-          <i class="fas fa-check-double"></i> Проверка на валидность
-        </button>
-        <button class="btn btn-sm btn-outline-secondary" id="transferAccountsBtn">
-          <i class="fas fa-exchange-alt"></i> Перенос
-        </button>
-        <button class="btn btn-sm btn-outline-warning" id="undoLastActionBtn" style="display: none;" disabled>
-          <i class="fas fa-undo"></i> Отменить последнее
-        </button>
-      </div>
-
-      <div class="toolbar-selected" id="toolbarSelected">
-        <span class="toolbar-selected__label">Выбрано:</span>
-        <span class="toolbar-selected__count" id="selectedCount">0</span>
-        <button class="btn btn-sm btn-outline-dark toolbar-selected__clear" id="clearAllSelectedBtn" style="display: none;">
-          <i class="fas fa-times-circle"></i> Сбросить
-        </button>
+    <div class="ui-page__head">
+      <div class="ui-page__title">
+        <span class="ui-eyebrow">База <?= e(isset($currentTable) ? $currentTable : 'accounts') ?></span>
+        <h1 class="ui-h1">Аккаунты</h1>
       </div>
     </div>
+
+    <?php include __DIR__ . '/partials/dashboard/stats-cards.php'; ?>
+
+    <?php include __DIR__ . '/partials/dashboard/filters.php'; ?>
+
+    <!-- Панель действий над таблицей. id кнопок — контракт с dashboard-selection.js,
+         dashboard-export.js, dashboard-modals.js и undo.js: их трогать нельзя. -->
+    <section class="ui-actionbar">
+      <h2 class="ui-actionbar__title">Управление аккаунтами</h2>
+
+      <div class="ui-actionbar__group" role="group" aria-label="Действия над выбранными">
+        <button class="ui-btn ui-btn--sm" id="exportSelectedCsv" disabled><?= ui_icon('download', 14) ?>CSV</button>
+        <button class="ui-btn ui-btn--sm" id="exportSelectedTxt" disabled><?= ui_icon('file', 14) ?>TXT</button>
+        <button class="ui-btn ui-btn--sm ui-btn--danger" id="deleteSelected" disabled><?= ui_icon('trash', 14) ?>Удалить</button>
+        <button class="ui-btn ui-btn--sm" id="changeStatusSelected" disabled><?= ui_icon('tag', 14) ?>Статус</button>
+        <button class="ui-btn ui-btn--sm" id="bulkEditFieldBtn" disabled><?= ui_icon('edit', 14) ?>Поле</button>
+      </div>
+
+      <div class="ui-actionbar__spacer"></div>
+
+      <div class="ui-actionbar__group">
+        <button class="ui-btn ui-btn--sm ui-btn--primary" id="addAccountBtn" data-ui-open="addAccountModal"><?= ui_icon('plus', 14) ?>Добавить аккаунт</button>
+        <button class="ui-btn ui-btn--sm" id="validateAccountsBtn" disabled title="Проверка аккаунтов на валидность (check.fb.tools)"><?= ui_icon('check', 14) ?>Проверить</button>
+        <button class="ui-btn ui-btn--sm" id="transferAccountsBtn"><?= ui_icon('arrow-right', 14) ?>Перенос</button>
+        <button class="ui-btn ui-btn--sm" id="undoLastActionBtn" style="display:none" disabled><?= ui_icon('restore', 14) ?>Отменить последнее</button>
+      </div>
+
+      <div class="ui-actionbar__selected" id="toolbarSelected">
+        <span class="ui-muted">Выбрано</span>
+        <span class="ui-actionbar__count" id="selectedCount">0</span>
+        <button class="ui-btn ui-btn--sm ui-btn--ghost" id="clearAllSelectedBtn" style="display:none"><?= ui_icon('close', 14) ?>Сбросить</button>
+      </div>
+    </section>
 
   <!-- Таблица -->
   <?php include __DIR__ . '/partials/table/table.php'; ?>
@@ -382,18 +372,18 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
   </button>
 
 <!-- Модалка полного значения -->
-<div class="modal fade" id="cellModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="cellModalTitle">Полное значение</h5>
+<div class="ui-modal" hidden id="cellModal" tabindex="-1" aria-hidden="true">
+  <div class="ui-modal__box" style="max-width:760px">
+    <div class="ui-modal__inner">
+      <div class="ui-modal__head">
+        <h5 class="ui-modal__title" id="cellModalTitle">Полное значение</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
+      <div class="ui-modal__body">
         <pre class="mono bg-light p-3 rounded" id="cellModalBody" 
              style="white-space: pre-wrap; word-break: break-word;">—</pre>
       </div>
-      <div class="modal-footer">
+      <div class="ui-modal__foot">
         <button type="button" class="btn btn-outline-secondary" id="cellCopyBtn">
           <i class="fas fa-copy me-2"></i>Скопировать
         </button>
@@ -406,20 +396,20 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 <?php require_once __DIR__ . '/partials/dashboard/modals/settings-modal.php'; ?>
 
 <!-- Модалка подтверждения удаления -->
-<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title text-danger">
+<div class="ui-modal" hidden id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="ui-modal__box">
+    <div class="ui-modal__inner">
+      <div class="ui-modal__head">
+        <h5 class="ui-modal__title">
           <i class="fas fa-exclamation-triangle me-2"></i>Подтверждение удаления
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
+      <div class="ui-modal__body">
         <p>Вы действительно хотите удалить <strong id="deleteCount">0</strong> выбранных аккаунтов?</p>
         <p class="text-muted small">Это действие нельзя отменить.</p>
       </div>
-      <div class="modal-footer">
+      <div class="ui-modal__foot">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
         <button type="button" class="btn btn-danger" id="confirmDelete">
           <i class="fas fa-trash me-2"></i>Удалить
@@ -430,16 +420,16 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 </div>
 
 <!-- Модальное окно добавления аккаунта -->
-<div class="modal fade" id="addAccountModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">
+<div class="ui-modal" hidden id="addAccountModal" tabindex="-1" aria-hidden="true">
+  <div class="ui-modal__box" style="max-width:760px">
+    <div class="ui-modal__inner">
+      <div class="ui-modal__head">
+        <h5 class="ui-modal__title">
           <i class="fas fa-plus-circle me-2"></i>Добавить новый аккаунт
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
+      <div class="ui-modal__body">
         <div id="addAccountErrors" class="alert alert-danger d-none" role="alert"></div>
         <div id="addAccountSuccess" class="alert alert-success d-none" role="alert"></div>
         
@@ -620,7 +610,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 
         </form>
       </div>
-      <div class="modal-footer">
+      <div class="ui-modal__foot">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
         <button type="submit" form="uploadAccountsForm" class="btn btn-success" id="uploadAccountsBtn">
           <i class="fas fa-upload me-2"></i>Загрузить аккаунты
@@ -636,16 +626,16 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 <!-- Модалка предварительного просмотра отключена -->
 
 <!-- Модальное окно создания/редактирования кастомной карточки -->
-<div class="modal fade" id="customCardModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">
+<div class="ui-modal" hidden id="customCardModal" tabindex="-1" aria-hidden="true">
+  <div class="ui-modal__box" style="max-width:1000px">
+    <div class="ui-modal__inner">
+      <div class="ui-modal__head">
+        <h5 class="ui-modal__title">
           <i class="fas fa-magic me-2"></i>Создать кастомную карточку статистики
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
+      <div class="ui-modal__body">
         <form id="customCardForm">
           <!-- Название карточки -->
           <div class="mb-3">
@@ -859,7 +849,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
           </div>
         </form>
       </div>
-      <div class="modal-footer">
+      <div class="ui-modal__foot">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
         <button type="button" class="btn btn-primary" id="saveCustomCardBtn">
           <i class="fas fa-save me-2"></i>Сохранить карточку
@@ -870,16 +860,16 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 </div>
 
 <!-- Модалка смены статуса -->
-<div class="modal fade" id="statusModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">
+<div class="ui-modal" hidden id="statusModal" tabindex="-1" aria-hidden="true">
+  <div class="ui-modal__box">
+    <div class="ui-modal__inner">
+      <div class="ui-modal__head">
+        <h5 class="ui-modal__title">
           <i class="fas fa-tag me-2"></i>Изменить статус
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
+      <div class="ui-modal__body">
         <div class="mb-3">
           <label class="form-label">Выберите статус</label>
           <select class="form-select" id="statusSelect">
@@ -895,7 +885,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
           <input type="text" class="form-control" id="statusNewInput" placeholder="Введите новый статус">
         </div>
       </div>
-      <div class="modal-footer">
+      <div class="ui-modal__foot">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
         <button type="button" class="btn btn-primary" id="applyStatusBtn">
           <i class="fas fa-save me-2"></i>Применить
@@ -906,10 +896,10 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 </div>
 
 <!-- Модалка проверки аккаунтов на валидность -->
-<div class="modal fade" id="validateAccountsModal" tabindex="-1" aria-hidden="true">
+<div class="ui-modal" hidden id="validateAccountsModal" tabindex="-1" aria-hidden="true">
   <style>
     /* ─── Validate Modal Styles ─── */
-    #validateAccountsModal .modal-content {
+    #validateAccountsModal .ui-modal__inner {
       border-radius: 12px;
     }
     #validateAccountsModal .modal-header {
@@ -1031,8 +1021,8 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px 20px;
     }
   </style>
-  <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content border-0 shadow">
+  <div class="ui-modal__box" style="max-width:760px">
+    <div class="ui-modal__inner">
 
       <!-- Header: заголовок и крестик закрытия -->
       <div class="modal-header border-0 px-4 pt-4 pb-0">
@@ -1188,17 +1178,17 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 
 <!-- Модалка переноса аккаунтов -->
 <!-- Модальное окно: Массовый перенос аккаунтов (V3.0) -->
-<div class="modal fade" id="transferAccountsModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
+<div class="ui-modal" hidden id="transferAccountsModal" tabindex="-1" aria-hidden="true">
+  <div class="ui-modal__box" style="max-width:760px">
+    <div class="ui-modal__inner">
       <div class="modal-header bg-warning bg-opacity-10">
-        <h5 class="modal-title">
+        <h5 class="ui-modal__title">
           <i class="fas fa-exchange-alt me-2 text-warning"></i>
           Массовый перенос аккаунтов
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
+      <div class="ui-modal__body">
         
         <!-- Информация о лимитах -->
         <div class="alert alert-info small mb-3">
@@ -1286,7 +1276,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
         </div>
         
       </div>
-      <div class="modal-footer">
+      <div class="ui-modal__foot">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
           <i class="fas fa-times me-1"></i>Отмена
         </button>
@@ -1299,14 +1289,14 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 </div>
 
 <!-- Модалка массового редактирования поля -->
-<div class="modal fade" id="bulkFieldModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Массовое изменение поля</h5>
+<div class="ui-modal" hidden id="bulkFieldModal" tabindex="-1" aria-hidden="true">
+  <div class="ui-modal__box">
+    <div class="ui-modal__inner">
+      <div class="ui-modal__head">
+        <h5 class="ui-modal__title"><i class="fas fa-edit me-2"></i>Массовое изменение поля</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
+      <div class="ui-modal__body">
         <div class="mb-3">
           <label class="form-label">Поле</label>
           <select class="form-select" id="bulkFieldSelect">
@@ -1336,7 +1326,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
         </div>
         <div class="form-text">Будет применено ко всем выбранным записям<?= isset($filteredTotal) ? ' или ко всем по фильтру' : '' ?>.</div>
       </div>
-      <div class="modal-footer">
+      <div class="ui-modal__foot">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
         <button type="button" class="btn btn-primary" id="applyBulkFieldBtn"><i class="fas fa-save me-2"></i>Применить</button>
       </div>
@@ -1344,7 +1334,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
   </div>
 </div>
 
-<script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="assets/js/ui.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
 <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js" defer></script>
 <!-- Инлайны с конфигом. Они ОБЯЗАНЫ выполниться до бандлов: constants.js читает
      window.DashboardConfig.activeFiltersCount в момент загрузки, и если бандл

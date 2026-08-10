@@ -1,14 +1,14 @@
 <!-- Модалка настроек -->
-<div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">
+<div class="ui-modal" hidden id="settingsModal" tabindex="-1" aria-hidden="true">
+  <div class="ui-modal__box" style="max-width:760px">
+    <div class="ui-modal__inner">
+      <div class="ui-modal__head">
+        <h5 class="ui-modal__title">
           <i class="fas fa-cog me-2"></i>Настройки дашборда
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
+      <div class="ui-modal__body">
         <div class="row">
           <div class="col-md-6">
             <h6 class="mb-3">
@@ -97,7 +97,7 @@
               <h6 class="mb-0">
                 <i class="fas fa-magic me-2"></i>Кастомные карточки статистики
               </h6>
-              <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#customCardModal" id="addCustomCardBtn">
+              <button type="button" class="btn btn-sm btn-primary" data-ui-open="customCardModal" id="addCustomCardBtn">
                 <i class="fas fa-plus me-1"></i>Создать карточку
               </button>
             </div>
@@ -138,7 +138,7 @@
 
 
       </div>
-      <div class="modal-footer">
+      <div class="ui-modal__foot">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
         <button type="button" class="btn btn-primary" onclick="saveSettings()">
           <i class="fas fa-save me-2"></i>Сохранить настройки

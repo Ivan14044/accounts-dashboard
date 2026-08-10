@@ -1,10 +1,11 @@
+<?php require_once __DIR__ . '/../../ui/icons.php'; ?>
   <!-- Фильтры (Современный дизайн) -->
   <div class="filters-modern">
     <!-- Заголовок -->
     <div class="filters-modern-header">
       <div class="filters-modern-header-left">
         <div class="filters-modern-icon">
-          <i class="fas fa-filter"></i>
+          <?= ui_icon('filter', 14) ?>
         </div>
         <span class="filters-modern-title">Фильтры</span>
         <span class="filters-modern-badge" style="<?= $activeFiltersCount > 0 ? '' : 'display:none' ?>"><?= (int)$activeFiltersCount ?></span>
@@ -12,7 +13,7 @@
       <div class="filters-modern-actions" id="filtersActionsContainer">
         <div id="savedFiltersContainer" style="display: inline-block; margin-right: 8px;"></div>
         <button class="filters-modern-btn primary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersBody" aria-expanded="true">
-          <i class="fas fa-sliders-h"></i>
+          <?= ui_icon('sliders', 14) ?>
           <span class="d-none d-md-inline">Настроить</span>
         </button>
       </div>
@@ -25,13 +26,13 @@
         <button type="button" class="btn btn-sm btn-outline-danger active-filters-reset-btn" id="resetAllFiltersBtn"
                 style="<?= $activeFiltersCount > 0 ? '' : 'display:none' ?>"
                 title="Сбросить все фильтры">
-          <i class="fas fa-times-circle me-1"></i>Сбросить все
+          <?= ui_icon('close', 14) ?>Сбросить все
         </button>
       </div>
       <div class="active-filters-list" id="activeFiltersList">
         <?php if ($q !== ''): ?>
         <div class="filter-chip" data-filter="q">
-          <i class="fas fa-search filter-chip-icon"></i>
+          <?= ui_icon('search', 14) ?>
           <span>Поиск: "<?= e(mb_substr($q, 0, 20)) ?><?= mb_strlen($q) > 20 ? '...' : '' ?>"</span>
           <button class="filter-chip-remove" onclick="removeFilterChip('q')" title="Удалить">&times;</button>
         </div>
@@ -39,7 +40,7 @@
         
         <?php foreach ($statusArray as $selectedStatus): ?>
         <div class="filter-chip" data-filter="status" data-status-value="<?= e($selectedStatus) ?>">
-          <i class="fas fa-tag filter-chip-icon"></i>
+          <?= ui_icon('tag', 14) ?>
           <span><?= e($selectedStatus) ?></span>
           <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
@@ -47,7 +48,7 @@
         
         <?php if (!empty($emptyStatusParam)): ?>
         <div class="filter-chip" data-filter="status" data-status-value="__empty__">
-          <i class="fas fa-exclamation-triangle filter-chip-icon"></i>
+          <?= ui_icon('alert', 14) ?>
           <span>Пустой статус</span>
           <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
@@ -55,7 +56,7 @@
         
         <?php if ($hasEmailParam !== ''): ?>
         <div class="filter-chip" data-filter="has_email">
-          <i class="fas fa-envelope filter-chip-icon"></i>
+          <?= ui_icon('mail', 14) ?>
           <span>Есть Email</span>
           <button class="filter-chip-remove" onclick="removeFilterChip('has_email')" title="Удалить">&times;</button>
         </div>
@@ -63,7 +64,7 @@
         
         <?php if ($hasTwoFaParam !== ''): ?>
         <div class="filter-chip" data-filter="has_two_fa">
-          <i class="fas fa-shield-alt filter-chip-icon"></i>
+          <?= ui_icon('shield', 14) ?>
           <span>Есть 2FA</span>
           <button class="filter-chip-remove" onclick="removeFilterChip('has_two_fa')" title="Удалить">&times;</button>
         </div>
@@ -71,7 +72,7 @@
         
         <?php if (($hasTokenParam ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="has_token">
-          <i class="fas fa-key filter-chip-icon"></i>
+          <?= ui_icon('key', 14) ?>
           <span>Есть Token</span>
           <button class="filter-chip-remove" onclick="removeFilterChip('has_token')" title="Удалить">&times;</button>
         </div>
@@ -79,7 +80,7 @@
         
         <?php if (($hasFanPageParam ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="has_fan_page">
-          <i class="fas fa-flag filter-chip-icon"></i>
+          <?= ui_icon('flag', 14) ?>
           <span>Есть Fan Page</span>
           <button class="filter-chip-remove" onclick="removeFilterChip('has_fan_page')" title="Удалить">&times;</button>
         </div>
@@ -87,7 +88,7 @@
         
         <?php if (!empty($pharmaFrom) || !empty($pharmaTo)): ?>
         <div class="filter-chip" data-filter="pharma">
-          <i class="fas fa-pills filter-chip-icon"></i>
+          <?= ui_icon('pills', 14) ?>
           <span>Pharma: <?= e($pharmaFrom ?: '0') ?>-<?= e($pharmaTo ?: '∞') ?></span>
           <button class="filter-chip-remove" onclick="removeFilterChip('pharma')" title="Удалить">&times;</button>
         </div>
@@ -95,7 +96,7 @@
         
         <?php if (($hasAvatarParam ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="has_avatar">
-          <i class="fas fa-image filter-chip-icon"></i>
+          <?= ui_icon('image', 14) ?>
           <span>Есть Аватар</span>
           <button class="filter-chip-remove" onclick="removeFilterChip('has_avatar')" title="Удалить">&times;</button>
         </div>
@@ -103,7 +104,7 @@
         
         <?php if (($hasPasswordParam ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="has_password">
-          <i class="fas fa-lock filter-chip-icon"></i>
+          <?= ui_icon('lock', 14) ?>
           <span>Есть Пароль</span>
           <button class="filter-chip-remove" onclick="removeFilterChip('has_password')" title="Удалить">&times;</button>
         </div>
@@ -111,7 +112,7 @@
         
         <?php if (isset($ALL_COLUMNS['bm']) && (!empty($bmFrom) || !empty($bmTo))): ?>
         <div class="filter-chip" data-filter="bm_range">
-          <i class="fas fa-briefcase filter-chip-icon"></i>
+          <?= ui_icon('briefcase', 14) ?>
           <span>БМ: <?= e($bmFrom ?: '0') ?>—<?= e($bmTo ?: '∞') ?></span>
           <button class="filter-chip-remove" onclick="removeFilterChip('bm_range')" title="Удалить">&times;</button>
         </div>
@@ -123,7 +124,7 @@
         if (isset($bmStatus) && $bmStatus !== '' && $bmStatus !== 'any' && isset($bmStatusLabels[$bmStatus])):
         ?>
         <div class="filter-chip" data-filter="bm_status">
-          <i class="fas fa-briefcase filter-chip-icon"></i>
+          <?= ui_icon('briefcase', 14) ?>
           <span><?= e($bmStatusLabels[$bmStatus]) ?></span>
           <button class="filter-chip-remove" onclick="removeFilterChip('bm_status')" title="Удалить">&times;</button>
         </div>
@@ -131,7 +132,7 @@
         
         <?php if (($favoritesOnlyParam ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="favorites_only">
-          <i class="fas fa-star filter-chip-icon" style="color: var(--color-warning);"></i>
+          <?= ui_icon('star', 14) ?>
           <span>Только избранные</span>
           <button class="filter-chip-remove" onclick="removeFilterChip('favorites_only')" title="Удалить">&times;</button>
         </div>
@@ -139,7 +140,7 @@
         
         <?php if (($hasCoverParam ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="has_cover">
-          <i class="fas fa-image filter-chip-icon"></i>
+          <?= ui_icon('image', 14) ?>
           <span>Есть Обложка</span>
           <button class="filter-chip-remove" onclick="removeFilterChip('has_cover')" title="Удалить">&times;</button>
         </div>
@@ -147,7 +148,6 @@
         
         <?php if (($fullFilledParam ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="full_filled">
-          <i class="fas fa-check-circle filter-chip-icon"></i>
           <span>Полностью заполненные</span>
           <button class="filter-chip-remove" onclick="removeFilterChip('full_filled')" title="Удалить">&times;</button>
         </div>
@@ -155,7 +155,7 @@
         
         <?php if (!empty($friendsFrom) || !empty($friendsTo)): ?>
         <div class="filter-chip" data-filter="friends">
-          <i class="fas fa-users filter-chip-icon"></i>
+          <?= ui_icon('users', 14) ?>
           <span>Друзья: <?= e($friendsFrom ?: '0') ?>-<?= e($friendsTo ?: '∞') ?></span>
           <button class="filter-chip-remove" onclick="removeFilterChip('friends')" title="Удалить">&times;</button>
         </div>
@@ -163,7 +163,6 @@
         
         <?php if (!empty($yearCreatedFrom) || !empty($yearCreatedTo)): ?>
         <div class="filter-chip" data-filter="year_created">
-          <i class="fas fa-calendar filter-chip-icon"></i>
           <span>Год: <?= e($yearCreatedFrom ?: '∞') ?>-<?= e($yearCreatedTo ?: '∞') ?></span>
           <button class="filter-chip-remove" onclick="removeFilterChip('year_created')" title="Удалить">&times;</button>
         </div>
@@ -171,7 +170,6 @@
         
         <?php if (($limitRkFrom ?? '') !== '' || ($limitRkTo ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="limit_rk">
-          <i class="fas fa-chart-line filter-chip-icon"></i>
           <span>Limit RK: <?= e($limitRkFrom ?: '0') ?>-<?= e($limitRkTo ?: '∞') ?></span>
           <button class="filter-chip-remove" onclick="removeFilterChip('limit_rk')" title="Удалить">&times;</button>
         </div>
@@ -179,7 +177,7 @@
         
         <?php if (($statusMarketplace ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="status_marketplace">
-          <i class="fas fa-store filter-chip-icon"></i>
+          <?= ui_icon('briefcase', 14) ?>
           <span>Marketplace: <?= e($statusMarketplace) ?></span>
           <button class="filter-chip-remove" onclick="removeFilterChip('status_marketplace')" title="Удалить">&times;</button>
         </div>
@@ -187,7 +185,6 @@
         
         <?php if (($currencyFilter ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="currency">
-          <i class="fas fa-coins filter-chip-icon"></i>
           <span>Currency: <?= e($currencyFilter) ?></span>
           <button class="filter-chip-remove" onclick="removeFilterChip('currency')" title="Удалить">&times;</button>
         </div>
@@ -195,7 +192,7 @@
         
         <?php if (($geoFilter ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="geo">
-          <i class="fas fa-globe filter-chip-icon"></i>
+          <?= ui_icon('globe', 14) ?>
           <span>Geo: <?= e($geoFilter === '__empty__' ? 'Не указано' : $geoFilter) ?></span>
           <button class="filter-chip-remove" onclick="removeFilterChip('geo')" title="Удалить">&times;</button>
         </div>
@@ -203,7 +200,7 @@
         
         <?php if (($statusRkFilter ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="status_rk">
-          <i class="fas fa-tag filter-chip-icon"></i>
+          <?= ui_icon('tag', 14) ?>
           <span>Status RK: <?= e($statusRkFilter === '__empty__' ? 'Не указано' : $statusRkFilter) ?></span>
           <button class="filter-chip-remove" onclick="removeFilterChip('status_rk')" title="Удалить">&times;</button>
         </div>
@@ -218,7 +215,7 @@
           <!-- Поисковая строка -->
           <div class="search-field-modern">
             <label class="search-field-modern-label">
-              <i class="fas fa-search me-1"></i>Поиск по всем полям
+              <?= ui_icon('search', 14) ?>Поиск по всем полям
             </label>
             <div class="search-input-wrapper">
               <input 
@@ -229,11 +226,10 @@
                 value="<?= e($q) ?>"
                 id="modernSearchInput"
                 autocomplete="off">
-              <i class="fas fa-search search-input-icon"></i>
+              <?= ui_icon('search', 14) ?>
               <?php if ($q !== ''): ?>
               <button type="button" class="search-input-clear" onclick="clearSearch()" title="Очистить">
-                <i class="fas fa-times"></i>
-              </button>
+                </button>
               <?php endif; ?>
             </div>
           </div>
@@ -241,7 +237,7 @@
           <!-- Статусы (Dropdown) -->
           <div class="form-group-modern mt-4">
             <label class="search-field-modern-label">
-              <i class="fas fa-tag me-1"></i>Статус
+              <?= ui_icon('tag', 14) ?>Статус
             </label>
             <div class="dropdown w-100">
               <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" 
@@ -270,10 +266,10 @@
                 
                 <div class="d-flex gap-2 mb-2 pb-2 border-bottom">
                   <button type="button" class="btn btn-sm btn-outline-primary flex-fill" id="selectAllStatusesBtn">
-                    <i class="fas fa-check-double"></i> Все
+                    Все
                   </button>
                   <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" id="clearAllStatusesBtn">
-                    <i class="fas fa-times"></i> Очистить
+                    Очистить
                   </button>
                 </div>
                 
@@ -281,7 +277,7 @@
                 <div class="form-check status-checkbox-item mb-2 pb-2 border-bottom">
                   <input class="form-check-input status-checkbox" type="checkbox" value="1" id="status_empty" name="empty_status" <?= ($emptyStatusParam??'')!=='' ? 'checked' : '' ?>>
                   <label class="form-check-label w-100 d-flex justify-content-between align-items-center" for="status_empty">
-                    <span><i class="fas fa-exclamation-triangle text-warning me-1"></i>Пустой статус</span>
+                    <span><?= ui_icon('alert', 14) ?>Пустой статус</span>
                     <span class="badge bg-warning status-count" data-status="__empty__">
                       <?= isset($byStatus['']) ? number_format($byStatus['']) : 0 ?>
                     </span>
@@ -306,13 +302,13 @@
           <!-- Быстрые фильтры (Toggle Switches) -->
           <div class="quick-filters-section">
             <label class="quick-filters-label">
-              <i class="fas fa-bolt me-1"></i>Быстрые фильтры
+              Быстрые фильтры
             </label>
             <div class="quick-filters-grid">
               <!-- Email -->
               <div class="toggle-switch-wrapper <?= $hasEmailParam !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
-                  <i class="fas fa-envelope toggle-switch-icon"></i>
+                  <?= ui_icon('mail', 14) ?>
                   <span class="toggle-switch-label">Email</span>
                 </div>
                 <label class="toggle-switch">
@@ -324,7 +320,7 @@
               <!-- 2FA -->
               <div class="toggle-switch-wrapper <?= $hasTwoFaParam !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
-                  <i class="fas fa-shield-alt toggle-switch-icon"></i>
+                  <?= ui_icon('shield', 14) ?>
                   <span class="toggle-switch-label">2FA</span>
                 </div>
                 <label class="toggle-switch">
@@ -336,7 +332,7 @@
               <!-- Token -->
               <div class="toggle-switch-wrapper <?= ($hasTokenParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
-                  <i class="fas fa-key toggle-switch-icon"></i>
+                  <?= ui_icon('key', 14) ?>
                   <span class="toggle-switch-label">Token</span>
                 </div>
                 <label class="toggle-switch">
@@ -348,7 +344,7 @@
               <!-- Fan Page -->
               <div class="toggle-switch-wrapper <?= ($hasFanPageParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
-                  <i class="fas fa-flag toggle-switch-icon"></i>
+                  <?= ui_icon('flag', 14) ?>
                   <span class="toggle-switch-label">Fan Page</span>
                 </div>
                 <label class="toggle-switch">
@@ -361,7 +357,7 @@
               <!-- Avatar -->
               <div class="toggle-switch-wrapper <?= ($hasAvatarParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
-                  <i class="fas fa-user-circle toggle-switch-icon"></i>
+                  <?= ui_icon('user', 14) ?>
                   <span class="toggle-switch-label">Avatar</span>
                 </div>
                 <label class="toggle-switch">
@@ -374,7 +370,7 @@
               <!-- Password -->
               <div class="toggle-switch-wrapper <?= ($hasPasswordParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
-                  <i class="fas fa-lock toggle-switch-icon"></i>
+                  <?= ui_icon('lock', 14) ?>
                   <span class="toggle-switch-label">Password</span>
                 </div>
                 <label class="toggle-switch">
@@ -386,7 +382,7 @@
               <!-- Избранное -->
               <div class="toggle-switch-wrapper <?= ($favoritesOnlyParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
-                  <i class="fas fa-star toggle-switch-icon" style="color: var(--color-warning);"></i>
+                  <?= ui_icon('star', 14) ?>
                   <span class="toggle-switch-label">Избранное</span>
                 </div>
                 <label class="toggle-switch">
@@ -413,13 +409,13 @@
           <?php if ($hasRangeFilters): ?>
           <div class="mt-4">
             <label class="search-field-modern-label mb-3">
-              <i class="fas fa-sliders-h me-1"></i>Дополнительные фильтры
+              <?= ui_icon('sliders', 14) ?>Дополнительные фильтры
             </label>
             <div class="range-filters-grid">
               <?php if (isset($ALL_COLUMNS['scenario_pharma'])): ?>
               <div class="range-filter-group">
                 <div class="range-filter-label">
-                  <i class="fas fa-pills"></i>
+                  <?= ui_icon('pills', 14) ?>
                   Сценарий фарма
                 </div>
                 <div class="range-inputs">
@@ -433,7 +429,6 @@
               <?php if (isset($ALL_COLUMNS['quantity_friends'])): ?>
               <div class="range-filter-group">
                 <div class="range-filter-label">
-                  <i class="fas fa-user-friends"></i>
                   Количество друзей
                 </div>
                 <div class="range-inputs">
@@ -452,7 +447,7 @@
               ?>
               <div class="range-filter-group range-filter-group--bm">
                 <div class="range-filter-label">
-                  <i class="fas fa-briefcase"></i>
+                  <?= ui_icon('briefcase', 14) ?>
                   Количество БМ
                 </div>
                 <div class="bm-filter-row">
@@ -463,7 +458,7 @@
                   </div>
                   <?php if ($hasBmStatusCols): ?>
                   <div class="bm-status-inline">
-                    <label class="bm-status-label"><i class="fas fa-shield-alt"></i> Статус</label>
+                    <label class="bm-status-label"><?= ui_icon('shield', 14) ?> Статус</label>
                     <select id="bm_status" name="bm_status" class="form-select form-select-sm bm-status-select">
                       <option value="any"<?= $currentBmStatus === '' || $currentBmStatus === 'any' ? ' selected' : '' ?>>Любые</option>
                       <option value="has_valid"<?= $currentBmStatus === 'has_valid'  ? ' selected' : '' ?>>Есть валидный</option>
@@ -479,7 +474,6 @@
               <?php if (isset($ALL_COLUMNS['year_created'])): ?>
               <div class="range-filter-group">
                 <div class="range-filter-label">
-                  <i class="fas fa-calendar"></i>
                   Год создания
                 </div>
                 <div class="range-inputs">
@@ -493,7 +487,6 @@
               <?php if (isset($ALL_COLUMNS['limit_rk'])): ?>
               <div class="range-filter-group">
                 <div class="range-filter-label">
-                  <i class="fas fa-chart-line"></i>
                   Limit RK
                 </div>
                 <div class="range-inputs">
@@ -507,7 +500,7 @@
               <?php if (isset($ALL_COLUMNS['status_marketplace']) && (!empty($statusesMarketplace) || $emptyMarketplaceStatusCount > 0)): ?>
               <div class="range-filter-group">
                 <div class="range-filter-label">
-                  <i class="fas fa-store"></i>
+                  <?= ui_icon('briefcase', 14) ?>
                   Статус Marketplace
                 </div>
                 <div class="range-inputs">
@@ -574,7 +567,6 @@
               <?php if (isset($ALL_COLUMNS['currency']) && (!empty($currenciesList) || $emptyCurrencyCount > 0)): ?>
               <div class="range-filter-group">
                 <div class="range-filter-label">
-                  <i class="fas fa-coins"></i>
                   Валюта
                 </div>
                 <div class="range-inputs">
@@ -641,7 +633,7 @@
               <?php if (isset($ALL_COLUMNS['geo']) && (!empty($geosList) || $emptyGeoCount > 0)): ?>
               <div class="range-filter-group">
                 <div class="range-filter-label">
-                  <i class="fas fa-globe"></i>
+                  <?= ui_icon('globe', 14) ?>
                   Гео аккаунта
                 </div>
                 <div class="range-inputs">
@@ -708,7 +700,7 @@
               <?php if (isset($ALL_COLUMNS['status_rk']) && (!empty($statusRkList) || $emptyStatusRkCount > 0)): ?>
               <div class="range-filter-group">
                 <div class="range-filter-label">
-                  <i class="fas fa-tag"></i>
+                  <?= ui_icon('tag', 14) ?>
                   Status RK
                 </div>
                 <div class="range-inputs">
@@ -775,28 +767,24 @@
           </div>
           <?php endif; ?>
           
-          <!-- Разделитель -->
-          <div style="height: 1px; background: var(--border-light); margin: var(--space-4) 0;"></div>
-          
+          <div class="filters-modern-sep"></div>
+
           <!-- На странице и кнопка применения -->
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-            <div>
-              <label class="form-label small text-muted">Записей на странице</label>
-              <select name="per_page" class="form-select form-select-sm" style="width: auto;">
+          <div class="filters-modern-foot">
+            <div class="ui-field" style="max-width:180px">
+              <label class="ui-label" for="perPageFilterSelect">Записей на странице</label>
+              <select name="per_page" id="perPageFilterSelect" class="ui-select">
                 <?php foreach ([25,50,100,200] as $__pp): ?>
                   <option value="<?= $__pp ?>" <?= $perPage===$__pp ? 'selected' : '' ?>><?= $__pp ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
             
-            <div class="d-flex flex-column align-items-end gap-1">
-              <button type="submit" class="btn btn-sm btn-outline-primary" title="Принудительное обновление страницы" id="applyFiltersBtn">
-                <i class="fas fa-sync-alt me-1"></i>
-                Обновить
+            <div class="filters-modern-foot__right">
+              <button type="submit" class="ui-btn ui-btn--sm" title="Принудительное обновление страницы" id="applyFiltersBtn">
+                <?= ui_icon('refresh', 14) ?>Обновить
               </button>
-              <small class="text-muted" style="font-size: 10px;">
-                <i class="fas fa-magic me-1"></i>Фильтры применяются автоматически
-              </small>
+              <span class="ui-muted" style="font-size:11px">Фильтры применяются автоматически</span>
             </div>
           </div>
         </form>

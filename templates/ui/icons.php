@@ -53,6 +53,11 @@ function ui_icon($name, $size = 16)
             'mail'        => '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/>',
             'key'         => '<circle cx="8" cy="14" r="4"/><path d="M11 11l9-9M17.5 4.5l2 2M15 7l2 2"/>',
             'shield'      => '<path d="M12 3l7.5 3v5.5c0 4.5-3 8.3-7.5 9.5-4.5-1.2-7.5-5-7.5-9.5V6L12 3z"/>',
+            'lock'        => '<rect x="4.5" y="10" width="15" height="10" rx="2"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/>',
+            'flag'        => '<path d="M5 21V4.5c3-1.5 6-1.5 9 0s6 1.5 9 0V15c-3 1.5-6 1.5-9 0s-6-1.5-9 0"/>',
+            'image'       => '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M4 16l4.5-4 3.5 3 3-2.5 5 4.5"/><circle cx="9" cy="9" r="1.4"/>',
+            'globe'       => '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.2 2.4 3.3 5.3 3.3 8.5S14.2 18.1 12 20.5c-2.2-2.4-3.3-5.3-3.3-8.5S9.8 5.9 12 3.5z"/>',
+            'pills'       => '<circle cx="8" cy="16" r="4.5"/><circle cx="16.5" cy="8" r="4.5"/>',
             'link'        => '<path d="M10 13a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7L11.5 6"/><path d="M14 11a4 4 0 0 0-5.7 0L5.5 13.8a4 4 0 0 0 5.7 5.7L12.5 18"/>',
 
             // ── действия ──
@@ -64,6 +69,9 @@ function ui_icon($name, $size = 16)
             'download'    => '<path d="M12 4v11M7.5 11.5L12 16l4.5-4.5"/><path d="M4.5 19.5h15"/>',
             'upload'      => '<path d="M12 20V9M7.5 12.5L12 8l4.5 4.5"/><path d="M4.5 4.5h15"/>',
             'plus'        => '<path d="M12 5v14M5 12h14"/>',
+            'tag'         => '<path d="M12.6 3H21v8.4L11 21.4 2.6 13 12.6 3z"/><circle cx="17" cy="7" r="1.3"/>',
+            'edit'        => '<path d="M4 20h4L20 8l-4-4L4 16v4z"/><path d="M14.5 5.5l4 4"/>',
+            'sliders'     => '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
             'settings'    => '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/>',
             'logout'      => '<path d="M15 4.5h3.5a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H15"/><path d="M10 16.5L14.5 12 10 7.5"/><path d="M14 12H3.5"/>',
             'eye'         => '<path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/>',

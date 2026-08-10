@@ -1,14 +1,14 @@
 <!-- Модальное окно настроек экспорта -->
-<div class="modal fade" id="exportSettingsModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content border-0 shadow-lg">
-      <div class="modal-header bg-success text-white border-0">
-        <h5 class="modal-title">
+<div class="ui-modal" hidden id="exportSettingsModal" tabindex="-1" aria-hidden="true">
+  <div class="ui-modal__box">
+    <div class="ui-modal__inner">
+      <div class="ui-modal__head">
+        <h5 class="ui-modal__title">
           <i class="fas fa-file-export me-2"></i>Настройки экспорта
         </h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body p-4">
+      <div class="ui-modal__body">
         <form id="exportSettingsForm">
           <input type="hidden" id="exportFormat" name="format" value="csv">
           
@@ -55,7 +55,7 @@
           </div>
         </form>
       </div>
-      <div class="modal-footer border-0 p-4 pt-0">
+      <div class="ui-modal__foot">
         <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Отмена</button>
         <button type="button" class="btn btn-success px-4 fw-bold" id="confirmExportBtn">
            <i class="fas fa-download me-2"></i>Скачать файл

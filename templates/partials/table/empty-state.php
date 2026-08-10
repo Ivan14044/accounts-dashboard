@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../ui/icons.php';
 /**
  * Строка «Ничего не найдено» — тело таблицы, когда выборка пустая.
  * Включается из partials/table/rows.php.
@@ -11,7 +12,7 @@ $emptyStateColspan = (isset($ALL_COLUMNS) && is_array($ALL_COLUMNS) ? count($ALL
 ?>
 <tr class="ac-row ac-row--empty">
   <td colspan="<?= $emptyStateColspan ?>" class="text-center text-muted py-5">
-    <i class="fas fa-search fa-2x mb-3 text-muted"></i>
+    <?= ui_icon('search', 14) ?>
     <div>Ничего не найдено</div>
   </td>
 </tr>

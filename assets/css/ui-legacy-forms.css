@@ -1,0 +1,200 @@
+/**
+ * ui-legacy-forms.css — временный мост для остатков bootstrap-разметки.
+ *
+ * Зачем. Дашборд переписан на ui.css, но внутри восьми модальных окон ещё
+ * лежит старая разметка с классами `form-control`, `form-select`, `btn`,
+ * `alert`, `form-check` — это сотни строк форм (импорт файла, кастомная
+ * карточка, проверка на валидность, перенос). Их перевод идёт окно за окном.
+ * Пока он не закончен, эти классы должны выглядеть как компоненты ui, иначе
+ * при открытии окна человек увидит голый HTML.
+ *
+ * Здесь НЕТ новых решений о внешнем виде: каждое правило просто повторяет
+ * соответствующий компонент из ui.css. Меняется вид — меняется ui.css, а сюда
+ * приходит копия. Дублирование осознанное и временное.
+ *
+ * ЭТОТ ФАЙЛ УДАЛЯЕТСЯ, когда в разметке не останется bootstrap-классов.
+ * Проверить, сколько осталось:
+ *     grep -rno "class=\"[^\"]*\(btn\|form-control\|form-select\|alert\)" templates/ | wc -l
+ */
+
+/* ── Поля ── */
+.form-control, .form-select, .form-control-sm, .form-select-sm {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px var(--ui-3);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-md);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-size: 13.5px;
+  transition: border-color 0.16s var(--ui-ease), box-shadow 0.16s var(--ui-ease);
+}
+
+.form-control:focus, .form-select:focus {
+  outline: none;
+  border-color: var(--ui-line-firm);
+  box-shadow: 0 0 0 4px var(--ui-accent-ring);
+}
+
+.form-control::placeholder { color: var(--ui-text-muted); opacity: 0.8; }
+
+textarea.form-control { min-height: 96px; font-family: var(--ui-mono); font-size: 13px; }
+
+.form-label {
+  display: block;
+  margin-bottom: var(--ui-2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+
+.form-text { font-size: 11.5px; color: var(--ui-text-muted); }
+
+.form-check { display: flex; align-items: center; gap: var(--ui-2); }
+.form-check-label { font-size: 13px; color: var(--ui-text-soft); }
+
+.form-check-input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin: 0;
+  border: 1px solid var(--ui-line-firm);
+  border-radius: var(--ui-r-xs);
+  background: var(--ui-surface);
+  cursor: pointer;
+}
+
+.form-check-input:checked {
+  background: var(--ui-text) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FFFFFF' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E") center / 11px no-repeat;
+  border-color: var(--ui-text);
+}
+
+:root[data-theme="dark"] .form-check-input:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23121315' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+}
+
+/* ── Кнопки ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-2);
+  height: 36px;
+  padding: 0 var(--ui-4);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-md);
+  background: var(--ui-surface);
+  color: var(--ui-text-soft);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn:hover { color: var(--ui-text); border-color: var(--ui-line-firm); }
+
+.btn-primary, .btn-success {
+  background: var(--ui-btn-bg);
+  border-color: var(--ui-btn-bg);
+  color: var(--ui-btn-text);
+}
+
+.btn-primary:hover, .btn-success:hover {
+  background: var(--ui-btn-bg-hover);
+  border-color: var(--ui-btn-bg-hover);
+  color: var(--ui-btn-text);
+}
+
+.btn-danger, .btn-outline-danger {
+  background: transparent;
+  border-color: var(--ui-danger-line);
+  color: var(--ui-danger);
+}
+
+.btn-danger:hover, .btn-outline-danger:hover {
+  background: var(--ui-danger-bg);
+  border-color: var(--ui-danger);
+  color: var(--ui-danger);
+}
+
+.btn-sm { height: 30px; padding: 0 var(--ui-3); font-size: 12px; }
+.btn:disabled, .btn.disabled { opacity: 0.45; pointer-events: none; }
+
+.btn-close {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-r-sm);
+  background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666A6E' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'/%3E%3C/svg%3E") center / 15px no-repeat;
+  cursor: pointer;
+}
+
+:root[data-theme="dark"] .btn-close {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237E838C' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'/%3E%3C/svg%3E");
+}
+
+.btn-close:hover { background-color: var(--ui-accent-soft); }
+
+/* ── Сообщения ── */
+.alert {
+  padding: var(--ui-3) var(--ui-4);
+  border: 1px solid var(--ui-line);
+  border-left-width: 2px;
+  border-radius: var(--ui-r-md);
+  background: var(--ui-surface-sunk);
+  color: var(--ui-text-soft);
+  font-size: 13px;
+}
+
+.alert-warning { border-left-color: var(--ui-warn); background: var(--ui-warn-bg); }
+.alert-danger  { border-left-color: var(--ui-danger); background: var(--ui-danger-bg); color: var(--ui-danger); }
+.alert-success { border-left-color: var(--ui-ok); background: var(--ui-ok-bg); }
+.alert-info    { border-left-color: var(--ui-line-firm); }
+
+/* ── Мелочи, которые встречаются в старой разметке окон ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-surface-sunk);
+  color: var(--ui-text-soft);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.text-muted { color: var(--ui-text-muted) !important; }
+.text-danger { color: var(--ui-danger) !important; }
+.text-success { color: var(--ui-ok) !important; }
+.text-warning { color: var(--ui-warn) !important; }
+
+.progress { height: 6px; border-radius: var(--ui-r-pill); background: var(--ui-surface-sunk); overflow: hidden; }
+.progress-bar { height: 100%; background: var(--ui-text); }
+
+.table { width: 100%; font-size: 13px; }
+.table th, .table td { padding: var(--ui-2) var(--ui-3); border-bottom: 1px solid var(--ui-line); text-align: left; }
+
+/* Bootstrap-раскладка внутри окон: только то, что реально встречается. */
+.row { display: flex; flex-wrap: wrap; gap: var(--ui-3); }
+.col, .col-md-6 { flex: 1 1 240px; min-width: 0; }
+.mb-1 { margin-bottom: var(--ui-1); }
+.mb-2 { margin-bottom: var(--ui-2); }
+.mb-3 { margin-bottom: var(--ui-3); }
+.mb-4 { margin-bottom: var(--ui-4); }
+.mt-2 { margin-top: var(--ui-2); }
+.mt-3 { margin-top: var(--ui-3); }
+.me-1 { margin-right: var(--ui-1); }
+.me-2 { margin-right: var(--ui-2); }
+.d-none { display: none !important; }
+.d-flex { display: flex; }
+.gap-2 { gap: var(--ui-2); }
+.w-100 { width: 100%; }
+.fw-bold, .fw-semibold { font-weight: 600; }
+.small { font-size: 12px; }
+.text-center { text-align: center; }

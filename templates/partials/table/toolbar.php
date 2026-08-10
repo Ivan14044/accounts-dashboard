@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../ui/icons.php';
 /**
  * Toolbar для таблицы аккаунтов
  * Включает счётчики и уведомление о выборе строк
@@ -23,7 +24,7 @@
 
   <!-- Уведомление о выборе всех строк (интегрировано в toolbar) -->
   <div class="dashboard-table__selection-notice d-none" id="selectAllNotice">
-    <i class="fas fa-info-circle"></i>
+    <?= ui_icon('info', 14) ?>
     <span class="dashboard-table__selection-text"></span>
   </div>
 </div>

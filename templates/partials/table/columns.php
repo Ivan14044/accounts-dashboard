@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../ui/icons.php';
 /**
  * COLGROUP + THEAD для таблицы аккаунтов
  */
@@ -44,7 +45,7 @@ $activeDir = $dir ?? 'asc';
       </th>
       <?php if ($key === 'id'): ?>
         <th scope="col" class="ac-cell ac-cell--favorite" data-column="favorite" aria-label="Избранное">
-          <i class="fas fa-star"></i>
+          <?= ui_icon('star', 14) ?>
         </th>
       <?php endif; ?>
     <?php endforeach; ?>

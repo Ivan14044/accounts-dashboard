@@ -1,118 +1,100 @@
-<!-- Статистические карточки -->
-<div class="stats-grid" id="statsRow">
-  <!-- Прелоадер для статистических карточек (скрыт по умолчанию, показывается только при обновлении) -->
-  <div class="stats-loading-overlay" id="statsLoading" style="display: none;">
-    <div class="text-center">
-      <span class="loader loader-primary"></span>
-    </div>
-  </div>
-  <!-- Общая статистика -->
-  <div class="stat-card fade-in" data-card="total">
-    <button type="button" class="stat-card-hide-btn" data-card="total" title="Скрыть карточку" aria-label="Скрыть карточку">
-      <i class="fas fa-eye-slash" aria-hidden="true"></i>
-    </button>
-    <div class="stat-header">
-      <h3 class="stat-title">Всего аккаунтов</h3>
-    </div>
-    <div class="stat-value"><?= number_format((int)$totals['all']) ?></div>
+<?php
+/**
+ * Карточки статистики. Разметка своя (ui.css), FontAwesome и bootstrap-классов нет.
+ *
+ * Контракт с JS сохранён дословно, его трогать нельзя:
+ *   #statsRow, #statsLoading, #emptyStatusCount — по id ищут
+ *   dashboard-stats.js и dashboard-refresh.js;
+ *   data-card / data-status / .stat-card / .stat-card-hide-btn — по ним
+ *   работают скрытие карточек, свайп на мобильном и фильтрация по статусу
+ *   (стык описан в DEVELOPER_GUIDE, стережёт tests/test_card_swipe_contract.php).
+ * Классы .stat-card и .stat-value оставлены рядом с ui-* именно поэтому:
+ *   первое — хук поведения, второе — оформление.
+ */
+require_once __DIR__ . '/../../ui/icons.php';
+
+$totals          = isset($totals) && is_array($totals) ? $totals : array('all' => 0);
+$byStatus        = isset($byStatus) && is_array($byStatus) ? $byStatus : array();
+$recentByStatus  = isset($recentByStatus) && is_array($recentByStatus) ? $recentByStatus : array();
+$emptyStatusCount = isset($emptyStatusCount) ? (int) $emptyStatusCount : 0;
+$countEmailTwoFa = isset($countEmailTwoFa) ? (int) $countEmailTwoFa : 0;
+$recentAll       = isset($recentAll) ? $recentAll : null;
+$dailyTotals     = isset($dailyTotals) && is_array($dailyTotals) ? $dailyTotals : array();
+?>
+<div class="ui-stats-grid" id="statsRow">
+
+  <div class="ui-stats-loading" id="statsLoading" style="display:none" aria-hidden="true"></div>
+
+  <!-- Всего аккаунтов -->
+  <div class="ui-stat stat-card" data-card="total">
+    <button type="button" class="ui-stat__hide stat-card-hide-btn" data-card="total" title="Скрыть карточку" aria-label="Скрыть карточку"><?= ui_icon('eye-off', 14) ?></button>
+    <span class="ui-stat__label">Всего аккаунтов</span>
+    <span class="ui-stat__value stat-value"><?= number_format((int) $totals['all'], 0, '.', ' ') ?></span>
     <?php if ($recentAll !== null): ?>
-    <div class="stat-change positive">
-      <i class="fas fa-arrow-up" aria-hidden="true"></i>
-      <span>+<?= number_format((int)$recentAll) ?> за 24ч</span>
-    </div>
+      <span class="ui-stat__foot">+<?= number_format((int) $recentAll, 0, '.', ' ') ?> за сутки</span>
     <?php endif; ?>
+
     <?php
-    /* === 7-day sparkline ===
-       $dailyTotals — массив из 7 кумулятивных значений (StatisticsService::getDailyTotals).
-       Рендерим только если есть данные и есть видимая динамика.  */
-    if (!empty($dailyTotals) && count($dailyTotals) >= 2):
-      $sMin = min($dailyTotals);
-      $sMax = max($dailyTotals);
-      $sRange = max(1, $sMax - $sMin);
-      $w = 100; // viewBox width
-      $h = 32;  // viewBox height
-      $stepX = $w / (count($dailyTotals) - 1);
-      $points = [];
-      foreach ($dailyTotals as $i => $val) {
-          $x = $i * $stepX;
-          $y = $h - (($val - $sMin) / $sRange) * ($h - 4) - 2; // 2px breathing space
-          $points[] = round($x, 2) . ',' . round($y, 2);
-      }
-      $linePath = 'M ' . implode(' L ', $points);
-      $areaPath = $linePath . ' L ' . round($w, 2) . ',' . $h . ' L 0,' . $h . ' Z';
-      $lastPoint = end($points);
-      [$lastX, $lastY] = array_map('floatval', explode(',', $lastPoint));
+    /* Спарклайн за 7 дней. $dailyTotals — кумулятивные значения из
+       StatisticsService::getDailyTotals(). Рисуем только если точек хотя бы две:
+       по одной точке линия не строится. */
+    if (count($dailyTotals) >= 2):
+        $sMin   = min($dailyTotals);
+        $sMax   = max($dailyTotals);
+        $sRange = max(1, $sMax - $sMin);
+        $w = 100;
+        $h = 28;
+        $stepX = $w / (count($dailyTotals) - 1);
+        $points = array();
+        foreach ($dailyTotals as $i => $val) {
+            $x = $i * $stepX;
+            $y = $h - (($val - $sMin) / $sRange) * ($h - 4) - 2;
+            $points[] = round($x, 2) . ',' . round($y, 2);
+        }
+        $linePath = 'M ' . implode(' L ', $points);
+        $last = explode(',', end($points));
     ?>
-    <svg class="sparkline" viewBox="0 0 <?= $w ?> <?= $h ?>" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="sparkline-gradient" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.25"/>
-          <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
-        </linearGradient>
-      </defs>
-      <path class="sparkline__area" d="<?= e($areaPath) ?>"/>
-      <path class="sparkline__path" d="<?= e($linePath) ?>"/>
-      <circle class="sparkline__dot" cx="<?= e((string)$lastX) ?>" cy="<?= e((string)$lastY) ?>" r="2.2"/>
-    </svg>
+      <svg class="ui-spark" viewBox="0 0 <?= $w ?> <?= $h ?>" preserveAspectRatio="none" aria-hidden="true">
+        <path class="ui-spark__line" d="<?= e($linePath) ?>"/>
+        <circle class="ui-spark__dot" cx="<?= e($last[0]) ?>" cy="<?= e($last[1]) ?>" r="1.8"/>
+      </svg>
     <?php endif; ?>
   </div>
 
   <!-- Пустые статусы -->
-  <div class="stat-card fade-in <?= $emptyStatusCount > 0 ? '' : 'd-none force-hidden' ?>" data-card="empty_status" <?= $emptyStatusCount > 0 ? '' : 'hidden' ?>>
-    <button type="button" class="stat-card-hide-btn" data-card="empty_status" title="Скрыть карточку" aria-label="Скрыть карточку">
-      <i class="fas fa-eye-slash" aria-hidden="true"></i>
-    </button>
-    <div class="stat-header">
-      <h3 class="stat-title">Пустые статусы</h3>
-    </div>
-    <div class="stat-value" id="emptyStatusCount"><?= $emptyStatusCount > 0 ? number_format($emptyStatusCount) : '-' ?></div>
+  <div class="ui-stat stat-card<?= $emptyStatusCount > 0 ? '' : ' d-none force-hidden' ?>" data-card="empty_status" <?= $emptyStatusCount > 0 ? '' : 'hidden' ?>>
+    <button type="button" class="ui-stat__hide stat-card-hide-btn" data-card="empty_status" title="Скрыть карточку" aria-label="Скрыть карточку"><?= ui_icon('eye-off', 14) ?></button>
+    <span class="ui-stat__label">Пустые статусы</span>
+    <span class="ui-stat__value stat-value" id="emptyStatusCount"><?= $emptyStatusCount > 0 ? number_format($emptyStatusCount, 0, '.', ' ') : '—' ?></span>
     <?php if ($emptyStatusCount > 0): ?>
-    <div class="stat-action">
-      <a href="empty_status_page.php" class="btn btn-sm btn-warning">
-        <i class="fas fa-edit me-1"></i>
-        Управление
-      </a>
-    </div>
+      <a class="ui-btn ui-btn--sm" href="empty_status_page.php" style="margin-top:var(--ui-2);align-self:flex-start">Управление</a>
     <?php endif; ?>
   </div>
 
   <!-- Email + 2FA -->
-  <div class="stat-card fade-in" data-card="custom:email_twofa">
-    <button type="button" class="stat-card-hide-btn" data-card="custom:email_twofa" title="Скрыть карточку" aria-label="Скрыть карточку">
-      <i class="fas fa-eye-slash" aria-hidden="true"></i>
-    </button>
-    <div class="stat-header">
-      <h3 class="stat-title">Email + 2FA</h3>
-    </div>
-    <div class="stat-value"><?= number_format($countEmailTwoFa) ?></div>
+  <div class="ui-stat stat-card" data-card="custom:email_twofa">
+    <button type="button" class="ui-stat__hide stat-card-hide-btn" data-card="custom:email_twofa" title="Скрыть карточку" aria-label="Скрыть карточку"><?= ui_icon('eye-off', 14) ?></button>
+    <span class="ui-stat__label">Email + 2FA</span>
+    <span class="ui-stat__value stat-value"><?= number_format($countEmailTwoFa, 0, '.', ' ') ?></span>
   </div>
 
-  <!-- Статистика по статусам -->
-  <?php
-  foreach ($byStatus as $stName => $cnt):
-    // Пустой статус пропускаем: для него выше есть отдельная карточка
-    // «Пустые статусы» (data-card="empty_status") с тем же числом. Без этого
-    // на дашборде рисовалась вторая карточка с пустым заголовком — рамка,
-    // число и никакой подписи (видно на мобильном скриншоте в аудите).
-    if ($stName === '' || $stName === null) {
-        continue;
-    }
-    $safeKey = preg_replace('~[^a-z0-9_]+~i', '_', $stName);
-  ?>
-  <div class="stat-card fade-in" data-card="status:<?= e($safeKey) ?>" data-status="<?= e($stName) ?>">
-    <button type="button" class="stat-card-hide-btn" data-card="status:<?= e($safeKey) ?>" title="Скрыть карточку" aria-label="Скрыть карточку">
-      <i class="fas fa-eye-slash" aria-hidden="true"></i>
-    </button>
-    <div class="stat-header">
-      <h3 class="stat-title"><?= e($stName) ?></h3>
+  <!-- По статусам -->
+  <?php foreach ($byStatus as $stName => $cnt): ?>
+    <?php
+      // Пустой статус пропускаем: для него есть отдельная карточка выше.
+      // Без этого рисовалась вторая карточка без заголовка — рамка и число.
+      if ($stName === '' || $stName === null) {
+          continue;
+      }
+      $safeKey = preg_replace('~[^a-z0-9_]+~i', '_', $stName);
+    ?>
+    <div class="ui-stat stat-card" data-card="status:<?= e($safeKey) ?>" data-status="<?= e($stName) ?>">
+      <button type="button" class="ui-stat__hide stat-card-hide-btn" data-card="status:<?= e($safeKey) ?>" title="Скрыть карточку" aria-label="Скрыть карточку"><?= ui_icon('eye-off', 14) ?></button>
+      <span class="ui-stat__label"><?= e($stName) ?></span>
+      <span class="ui-stat__value stat-value"><?= number_format($cnt, 0, '.', ' ') ?></span>
+      <?php if (isset($recentByStatus[$stName])): ?>
+        <span class="ui-stat__foot">+<?= number_format((int) $recentByStatus[$stName], 0, '.', ' ') ?> за сутки</span>
+      <?php endif; ?>
     </div>
-    <div class="stat-value"><?= number_format($cnt) ?></div>
-    <?php if (!empty($recentByStatus) && isset($recentByStatus[$stName])): ?>
-    <div class="stat-change positive">
-      <i class="fas fa-arrow-up" aria-hidden="true"></i>
-      <span>+<?= number_format((int)$recentByStatus[$stName]) ?> за 24ч</span>
-    </div>
-    <?php endif; ?>
-  </div>
   <?php endforeach; ?>
 </div>

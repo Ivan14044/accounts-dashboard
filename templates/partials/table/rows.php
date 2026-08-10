@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../ui/icons.php';
 /**
  * Рендер тела таблицы
  */
@@ -56,7 +57,7 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
               class="btn btn-sm btn-link favorite-btn p-0" 
               data-account-id="<?= (int)$r['id'] ?>"
               title="Избранное">
-              <i class="far fa-star"></i>
+              <?= ui_icon('star', 14) ?>
             </button>
           </td>
           <?php continue; ?>
@@ -121,7 +122,7 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
           <?php elseif ($k === 'social_url' && preg_match('~^https?://~i', $v)): ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>">
               <a href="<?= e($v) ?>" target="_blank" rel="noopener" class="text-decoration-none field-value">
-                <i class="fas fa-external-link-alt me-2"></i><?= e($v) ?>
+                <?= ui_icon('external', 14) ?><?= e($v) ?>
               </a>
             </div>
           <?php elseif ($isLong && strlen((string)$v) > $CLIP_LEN): ?>
@@ -141,7 +142,7 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
       <?php endforeach; ?>
       <td class="ac-cell ac-cell--actions text-end" data-column="actions">
         <a class="btn-table-open" href="view.php?id=<?= (int)$r['id'] ?>">
-          <i class="fas fa-arrow-right"></i> Открыть
+          <?= ui_icon('arrow-right', 14) ?> Открыть
         </a>
       </td>
     </tr>

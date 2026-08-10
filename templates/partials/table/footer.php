@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../../ui/icons.php';
 /**
  * Футер таблицы с пагинацией и summary
  * $page      — текущая страница (скорректированная сервером, не сырой URL-параметр)
@@ -68,7 +69,7 @@ $page        = isset($page)  ? (int)$page  : 1;
       <span id="showingCount" class="d-none"><?= $showingCount ?></span>
     <?php endif; ?>
     <span id="virtualizationHint" class="ms-2 d-none">
-      <i class="fas fa-info-circle text-info" title="Виртуализация активна"></i>
+      <?= ui_icon('info', 14) ?>
       <span id="virtualizationStats">Видно <span id="visibleRowsCount">0</span> из <span id="totalRowsOnPage">0</span> строк</span>
     </span>
   </div>
@@ -81,7 +82,7 @@ $page        = isset($page)  ? (int)$page  : 1;
     <!-- Per-page селектор (URL-based: смена сбрасывает page → 1) -->
     <div class="dashboard-table__per-page" data-base-qs="<?= e(http_build_query($__ppQs)) ?>">
       <label class="form-label mb-0 small text-muted" for="perPageSelect" title="Строк на странице">
-        <i class="fas fa-list-ol me-1" aria-hidden="true"></i>Строк:
+        <?= ui_icon('table', 14) ?>Строк:
       </label>
       <select class="form-select form-select-sm" id="perPageSelect" aria-label="Записей на странице">
         <?php foreach ($__allowedPerPage as $pp): ?>
@@ -135,7 +136,7 @@ $page        = isset($page)  ? (int)$page  : 1;
              href="<?= pgHref($__qs, 1) ?>"
              data-page="1"
              aria-label="Первая">
-            <i class="fas fa-angle-double-left"></i>
+            <?= ui_icon('arrow-left', 14) ?>
           </a>
         </li>
 
@@ -145,7 +146,7 @@ $page        = isset($page)  ? (int)$page  : 1;
              href="<?= pgHref($__qs, (int)$prev) ?>"
              data-page="<?= (int)$prev ?>"
              aria-label="Предыдущая">
-            <i class="fas fa-angle-left"></i>
+            <?= ui_icon('arrow-left', 14) ?>
           </a>
         </li>
 
@@ -192,7 +193,7 @@ $page        = isset($page)  ? (int)$page  : 1;
              href="<?= pgHref($__qs, (int)$next) ?>"
              data-page="<?= (int)$next ?>"
              aria-label="Следующая">
-            <i class="fas fa-angle-right"></i>
+            <?= ui_icon('arrow-right', 14) ?>
           </a>
         </li>
 
@@ -202,7 +203,7 @@ $page        = isset($page)  ? (int)$page  : 1;
              href="<?= pgHref($__qs, (int)$pages) ?>"
              data-page="<?= (int)$pages ?>"
              aria-label="Последняя">
-            <i class="fas fa-angle-double-right"></i>
+            <?= ui_icon('arrow-right', 14) ?>
           </a>
         </li>
 

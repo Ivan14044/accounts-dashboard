@@ -129,8 +129,13 @@ $js   = jsWithoutComments(__DIR__ . '/../assets/js/modules/touch-gestures.js');
 echo "\n=== Разметка карточек (stats-cards.php) ===\n\n";
 
 ok(
+    // Проверяем класс как ТОКЕН, а не как начало атрибута: у карточки их
+    // теперь два — `ui-stat` задаёт вид, `stat-card` остаётся хуком поведения,
+    // и порядок в атрибуте значения не имеет. Прежняя проверка на
+    // `class="stat-card` ловила только один конкретный порядок и упала на
+    // перестановке, хотя контракт был цел.
     'карточки помечены классом stat-card',
-    strpos($html, 'class="stat-card') !== false
+    preg_match('~class="[^"]*\bstat-card\b~', $html) === 1
 );
 
 ok(

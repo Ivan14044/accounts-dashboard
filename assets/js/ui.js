@@ -230,6 +230,43 @@
     init();
   }
 
+  /* ------------------------------------------------- совместимость со старым JS
+
+     Модули дашборда (dashboard-modals.js, custom-cards.js, saved-filters.js
+     и другие) открывают окна через `new bootstrap.Modal(el).show()`. Разметка
+     этих окон уже своя, Bootstrap на странице нет — но переписывать разом
+     тридцать модулей значит поймать десяток тихих поломок. Поэтому здесь
+     минимальная замена: те же три метода, внутри — наши окна.
+
+     Это ВРЕМЕННЫЙ мост. Он уходит вместе с последним вызовом bootstrap.* в
+     assets/js — проверяется грепом `grep -rn "bootstrap\." assets/js`.
+  */
+  function ModalShim(el) {
+    this.el = typeof el === 'string' ? document.querySelector(el) : el;
+  }
+
+  ModalShim.prototype.show = function () { if (this.el) openModal(this.el.id); };
+  ModalShim.prototype.hide = function () { if (this.el) closeModal(this.el.id); };
+  ModalShim.prototype.dispose = function () { /* нечего освобождать */ };
+
+  ModalShim.getInstance = function (el) { return new ModalShim(el); };
+  ModalShim.getOrCreateInstance = function (el) { return new ModalShim(el); };
+
+  if (!window.bootstrap) {
+    window.bootstrap = { Modal: ModalShim };
+  }
+
+  // Кнопки со старым атрибутом data-bs-dismiss тоже должны закрывать окно.
+  document.addEventListener('click', function (e) {
+    var dismiss = e.target.closest ? e.target.closest('[data-bs-dismiss="modal"]') : null;
+    if (!dismiss) return;
+    var owner = dismiss.closest('.ui-modal');
+    if (owner) {
+      e.preventDefault();
+      closeModal(owner.id);
+    }
+  });
+
   window.UI = {
     toast: toast,
     openModal: openModal,
