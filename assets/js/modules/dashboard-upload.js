@@ -476,10 +476,26 @@
     }
     
     const { created = 0, updated = 0, skipped = 0, skipped_details = [], errors = [], total = 0 } = result;
+    const warnings = Array.isArray(result.warnings) ? result.warnings : [];
     const hasErrors = errors.length > 0;
     const hasSkipped = skipped_details.length > 0;
-    
+
     let html = '<div class="import-results-summary">';
+
+    // Предупреждения разбора файла — первым делом, до цифр: это про то, что
+    // часть файла вообще не дошла до импорта. Тост исчезает, а разбираться
+    // пользователь будет здесь, поэтому дублируем сюда.
+    if (warnings.length) {
+      html += '<div class="alert alert-warning" role="alert">';
+      html += '<i class="fas fa-triangle-exclamation me-2"></i><strong>Не весь файл попал в импорт:</strong>';
+      html += '<ul class="mb-0 mt-2">';
+      warnings.forEach(w => {
+        const div = document.createElement('div');
+        div.textContent = w;                 // экранирование: текст приходит с сервера
+        html += '<li>' + div.innerHTML + '</li>';
+      });
+      html += '</ul></div>';
+    }
     
     // Общая статистика
     html += '<div class="row g-3 mb-4">';
@@ -867,6 +883,12 @@
           if (created > 0) toastMsg += `✅ Добавлено: ${created}`;
           if (updated > 0) toastMsg += (toastMsg ? '\n' : '') + `🔄 Обновлено: ${updated}`;
           if (duplicates > 0) toastMsg += (toastMsg ? '\n' : '') + `⚠️ Пропущено (дубликаты): ${duplicates}`;
+          // Предупреждения разбора файла: строки, которые вообще не дошли до
+          // импорта (обрезанный файл, строки-«комментарии», несовпадение колонок).
+          // Показываем обязательно: раньше они были только в логе, и пользователь
+          // считал, что залил весь файл целиком.
+          const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+          warnings.forEach(w => { toastMsg += (toastMsg ? '\n' : '') + '⚠️ ' + w; });
           if (errorsCount > 0) {
             const keys = Object.keys(errorGroups);
             const hr = keys[0] === 'Status is required' ? 'отсутствует статус' : keys[0] === 'Login is required' ? 'отсутствует логин' : keys[0].toLowerCase();
