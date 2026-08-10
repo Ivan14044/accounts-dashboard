@@ -67,22 +67,22 @@ require_once __DIR__ . '/ui/icons.php';
     }
 
     /* ── Stat card per-type accent bars (solid, семантика — без градиентов) ── */
-    .stat-card[data-card="total"]::before             { background: var(--primary-500); }
-    .stat-card[data-card="custom:email_twofa"]::before { background: var(--primary-500); }
-    .stat-card[data-status="INVALID_EMAIL"]::before    { background: var(--danger-500); }
-    .stat-card[data-status="NEW_TAR"]::before          { background: var(--success-500); }
-    .stat-card[data-card="empty_status"]::before       { background: var(--warning-500); }
+    .stat-card[data-card="total"]::before             { background: var(--ui-text); }
+    .stat-card[data-card="custom:email_twofa"]::before { background: var(--ui-text); }
+    .stat-card[data-status="INVALID_EMAIL"]::before    { background: var(--ui-danger); }
+    .stat-card[data-status="NEW_TAR"]::before          { background: var(--ui-ok); }
+    .stat-card[data-card="empty_status"]::before       { background: var(--ui-warn); }
     .stat-card[data-card^="custom:"][style*="--card-color"]::before {
       background: var(--card-color);
     }
 
     /* ── Custom card modal select ── */
     #customCardStatuses {
-      border: 1px solid var(--gray-200);
+      border: 1px solid var(--ui-line);
       border-radius: 0.375rem;
     }
-    #customCardStatuses option { padding: 0.5rem; border-bottom: 1px solid var(--gray-100); }
-    #customCardStatuses option:checked { background: var(--primary-600); color: white; font-weight: 600; }
+    #customCardStatuses option { padding: 0.5rem; border-bottom: 1px solid var(--ui-surface-sunk); }
+    #customCardStatuses option:checked { background: var(--ui-text); color: white; font-weight: 600; }
 
     /* ── Dropdown checkbox items (status, currency, geo, etc.) ── */
     .status-dropdown-menu,
@@ -91,7 +91,7 @@ require_once __DIR__ . '/ui/icons.php';
     .status-rk-dropdown-menu,
     .status-marketplace-dropdown-menu {
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-      border: 1px solid var(--gray-200);
+      border: 1px solid var(--ui-line);
       border-radius: 12px;
       padding: 0.5rem;
     }
@@ -109,14 +109,14 @@ require_once __DIR__ . '/ui/icons.php';
       min-height: 36px;
       display: flex;
       align-items: center;
-      color: var(--gray-900);
+      color: var(--ui-text);
     }
     .status-checkbox-item:hover,
     .currency-item:hover,
     .geo-item:hover,
     .status-rk-item:hover,
     .status-marketplace-item:hover {
-      background-color: var(--gray-50);
+      background-color: var(--ui-surface-sunk);
     }
 
     /* Dropdown badges always indigo */
@@ -149,23 +149,23 @@ require_once __DIR__ . '/ui/icons.php';
       font-size: 0.875rem;
       flex: 1;
       line-height: 1.3;
-      color: var(--gray-900);
+      color: var(--ui-text);
     }
     .status-checkbox-item .form-check-input:checked ~ .form-check-label {
       font-weight: 500;
-      color: var(--primary-600);
+      color: var(--ui-text);
     }
 
     /* Dropdown button unified style */
     #statusDropdown, #currencyDropdown, #geoDropdown, #statusRkDropdown, #statusMarketplaceDropdown {
       min-height: 31px;
-      border-color: var(--gray-300);
+      border-color: var(--ui-line-firm);
       font-size: 0.875rem;
-      color: var(--gray-900);
+      color: var(--ui-text);
     }
 
     .currency-item label, .geo-item label, .status-rk-item label, .status-marketplace-item label {
-      cursor: pointer; user-select: none; font-size: 0.875rem; color: var(--gray-900);
+      cursor: pointer; user-select: none; font-size: 0.875rem; color: var(--ui-text);
     }
 
     .currency-item.active, .geo-item.active, .status-rk-item.active, .status-marketplace-item.active {
@@ -175,48 +175,48 @@ require_once __DIR__ . '/ui/icons.php';
 
     /* Scrollbar for dropdown */
     .status-dropdown-menu::-webkit-scrollbar { width: 5px; }
-    .status-dropdown-menu::-webkit-scrollbar-track { background: var(--gray-50); border-radius: 3px; }
-    .status-dropdown-menu::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
-    .status-dropdown-menu::-webkit-scrollbar-thumb:hover { background: var(--gray-400); }
+    .status-dropdown-menu::-webkit-scrollbar-track { background: var(--ui-surface-sunk); border-radius: 3px; }
+    .status-dropdown-menu::-webkit-scrollbar-thumb { background: var(--ui-line-firm); border-radius: 3px; }
+    .status-dropdown-menu::-webkit-scrollbar-thumb:hover { background: var(--ui-text-muted); }
 
     /* ── Password field ── */
-    .pw-mask { display: flex; align-items: center; gap: var(--space-2); }
-    .pw-dots { letter-spacing: 0.1em; font-weight: 600; color: var(--gray-500); }
-    .pw-text:empty::before { content: '(пусто)'; color: var(--gray-400); font-style: italic; }
+    .pw-mask { display: flex; align-items: center; gap: var(--ui-2); }
+    .pw-dots { letter-spacing: 0.1em; font-weight: 600; color: var(--ui-text-muted); }
+    .pw-text:empty::before { content: '(пусто)'; color: var(--ui-text-muted); font-style: italic; }
 
     .pw-toggle, .pw-edit {
-      border: 1px solid var(--gray-300);
-      background: var(--gray-50);
+      border: 1px solid var(--ui-line-firm);
+      background: var(--ui-surface-sunk);
       padding: 2px 6px;
       border-radius: 6px;
       cursor: pointer;
-      color: var(--gray-500);
+      color: var(--ui-text-muted);
       font-size: 0.875rem;
       opacity: 0.6;
     }
     .pw-mask:hover .pw-toggle, .pw-mask:hover .pw-edit { opacity: 1; }
-    .pw-toggle:hover { background: var(--primary-50); color: var(--primary-600); border-color: var(--primary-300); }
-    .pw-edit:hover   { background: var(--success-50); color: var(--success-600); border-color: var(--success-500); }
+    .pw-toggle:hover { background: var(--ui-accent-soft); color: var(--ui-text); border-color: var(--ui-line-firm); }
+    .pw-edit:hover   { background: var(--ui-ok-bg); color: var(--ui-ok); border-color: var(--ui-ok); }
 
     /* ── Editable fields ── */
-    .editable-field-wrap { display: flex; align-items: center; gap: var(--space-2); }
+    .editable-field-wrap { display: flex; align-items: center; gap: var(--ui-2); }
     .field-edit-btn {
-      border: 1px solid var(--gray-300);
-      background: var(--gray-50);
+      border: 1px solid var(--ui-line-firm);
+      background: var(--ui-surface-sunk);
       padding: 2px 6px;
       border-radius: 6px;
       cursor: pointer;
-      color: var(--gray-500);
+      color: var(--ui-text-muted);
       font-size: 0.875rem;
       opacity: 0.5;
     }
     .editable-field-wrap:hover .field-edit-btn { opacity: 1; }
-    .field-edit-btn:hover { background: var(--success-50); color: var(--success-600); border-color: var(--success-500); }
+    .field-edit-btn:hover { background: var(--ui-ok-bg); color: var(--ui-ok); border-color: var(--ui-ok); }
 
     .copy-btn {
       border: none;
       background: rgba(37, 99, 235, 0.08);
-      color: var(--primary-600);
+      color: var(--ui-text);
       padding: 2px 6px;
       border-radius: 6px;
       font-size: 0.75rem;
@@ -225,15 +225,15 @@ require_once __DIR__ . '/ui/icons.php';
     .copy-btn:hover { background: rgba(37, 99, 235, 0.15); }
 
     .truncate { max-width: 200px; display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-    .truncate:hover { color: var(--primary-600); }
+    .truncate:hover { color: var(--ui-text); }
 
     /* ── Selected rows ── */
     .table tbody tr[data-id] { cursor: pointer; }
-    .table tbody tr[data-id]:hover:not(.row-selected) { background: var(--gray-100) !important; }
-    .table tbody tr[data-id].row-selected { background-color: var(--primary-50) !important; border-left: 4px solid var(--primary-600) !important; }
-    .table tbody tr[data-id].row-selected td { background-color: var(--primary-50) !important; }
-    .table tbody tr[data-id].row-selected:hover { background-color: var(--primary-100) !important; }
-    .table tbody tr[data-id].row-selected:hover td { background-color: var(--primary-100) !important; }
+    .table tbody tr[data-id]:hover:not(.row-selected) { background: var(--ui-surface-sunk) !important; }
+    .table tbody tr[data-id].row-selected { background-color: var(--ui-accent-soft) !important; border-left: 4px solid var(--ui-text) !important; }
+    .table tbody tr[data-id].row-selected td { background-color: var(--ui-accent-soft) !important; }
+    .table tbody tr[data-id].row-selected:hover { background-color: var(--ui-accent-soft) !important; }
+    .table tbody tr[data-id].row-selected:hover td { background-color: var(--ui-accent-soft) !important; }
 
     /* ── Compact filters ── */
     .filters-compact .card-body { padding: 0.75rem; }
@@ -253,7 +253,7 @@ require_once __DIR__ . '/ui/icons.php';
     }
     .loading-overlay.show { opacity: 1; pointer-events: all; }
     .loading-overlay .loader { width: 48px; height: 48px; }
-    .loading-overlay .loading-text { font-size: 0.875rem; color: var(--gray-600); margin-top: 0.5rem; }
+    .loading-overlay .loading-text { font-size: 0.875rem; color: var(--ui-text-soft); margin-top: 0.5rem; }
 
     .stats-loading-overlay { display: none !important; }
 
@@ -263,7 +263,7 @@ require_once __DIR__ . '/ui/icons.php';
     .scroll-to-top {
       position: fixed; bottom: 2rem; right: 2rem;
       width: 3rem; height: 3rem;
-      background: var(--primary-600);
+      background: var(--ui-text);
       color: white; border: none; border-radius: 50%;
       box-shadow: 0 4px 16px rgba(37, 99, 235, 0.28);
       cursor: pointer; z-index: 1000;
@@ -273,12 +273,12 @@ require_once __DIR__ . '/ui/icons.php';
       font-size: 1.125rem;
     }
     .scroll-to-top.show { opacity: 1; visibility: visible; transform: translateY(0); }
-    .scroll-to-top:hover { background: var(--primary-700); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37, 99, 235, 0.36); }
+    .scroll-to-top:hover { background: var(--ui-text); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37, 99, 235, 0.36); }
 
     /* ── Page loader ── */
     .page-loader {
       position: fixed; inset: 0;
-      background: var(--bg-primary);
+      background: var(--ui-surface);
       z-index: 9999;
       display: flex; align-items: center; justify-content: center;
       transition: opacity 300ms ease, visibility 300ms ease;
@@ -287,7 +287,7 @@ require_once __DIR__ . '/ui/icons.php';
     .page-loader .middle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 
     /* ── Textarea inside table ── */
-    #accountsTable td textarea { min-height: 80px; font-family: var(--font-family-mono); font-size: 0.875rem; }
+    #accountsTable td textarea { min-height: 80px; font-family: var(--ui-mono); font-size: 0.875rem; }
 
     /* ── Responsive ── */
     @media (max-width: 768px) {

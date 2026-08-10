@@ -226,10 +226,9 @@
                 value="<?= e($q) ?>"
                 id="modernSearchInput"
                 autocomplete="off">
-              <?= ui_icon('search', 14) ?>
+              <span class="search-input-icon"><?= ui_icon('search', 15) ?></span>
               <?php if ($q !== ''): ?>
-              <button type="button" class="search-input-clear" onclick="clearSearch()" title="Очистить">
-                </button>
+              <button type="button" class="search-input-clear" onclick="clearSearch()" title="Очистить" aria-label="Очистить поиск"><?= ui_icon('close', 14) ?></button>
               <?php endif; ?>
             </div>
           </div>
@@ -240,12 +239,7 @@
               <?= ui_icon('tag', 14) ?>Статус
             </label>
             <div class="dropdown w-100">
-              <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" 
-                      type="button" 
-                      id="statusDropdown" 
-                      data-bs-toggle="dropdown" 
-                      aria-expanded="false"
-                      style="min-height: 40px; border-radius: var(--radius-lg); border-width: 1.5px;">
+              <button class="dropdown-toggle" type="button" id="statusDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                 <span id="statusDropdownLabel">
                   <?php if (empty($statusArray) && empty($emptyStatusParam)): ?>
                     Все статусы
@@ -256,6 +250,7 @@
                     Выбрано: <?= $selectedCount ?>
                   <?php endif; ?>
                 </span>
+              <?= ui_icon('chevron-down', 14) ?>
               </button>
               <div class="dropdown-menu p-2 status-dropdown-menu" aria-labelledby="statusDropdown" style="min-width: 320px; max-height: 450px; overflow-y: auto;">
                 <?php if (count($statuses) > 8): ?>
@@ -505,12 +500,7 @@
                 </div>
                 <div class="range-inputs">
                   <div class="dropdown w-100">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" 
-                            type="button" 
-                            id="statusMarketplaceDropdown" 
-                            data-bs-toggle="dropdown" 
-                            aria-expanded="false"
-                            style="font-size: 0.875rem;">
+                    <button class="dropdown-toggle" type="button" id="statusMarketplaceDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                       <span id="statusMarketplaceDropdownLabel">
                         <?php 
                         if (($statusMarketplace ?? '') === '') {
@@ -571,12 +561,7 @@
                 </div>
                 <div class="range-inputs">
                   <div class="dropdown w-100">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" 
-                            type="button" 
-                            id="currencyDropdown" 
-                            data-bs-toggle="dropdown" 
-                            aria-expanded="false"
-                            style="font-size: 0.875rem;">
+                    <button class="dropdown-toggle" type="button" id="currencyDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                       <span id="currencyDropdownLabel">
                         <?php 
                         if (($currencyFilter ?? '') === '') {
@@ -638,12 +623,7 @@
                 </div>
                 <div class="range-inputs">
                   <div class="dropdown w-100">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" 
-                            type="button" 
-                            id="geoDropdown" 
-                            data-bs-toggle="dropdown" 
-                            aria-expanded="false"
-                            style="font-size: 0.875rem;">
+                    <button class="dropdown-toggle" type="button" id="geoDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                       <span id="geoDropdownLabel">
                         <?php 
                         if (($geoFilter ?? '') === '') {
@@ -705,12 +685,7 @@
                 </div>
                 <div class="range-inputs">
                   <div class="dropdown w-100">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" 
-                            type="button" 
-                            id="statusRkDropdown" 
-                            data-bs-toggle="dropdown" 
-                            aria-expanded="false"
-                            style="font-size: 0.875rem;">
+                    <button class="dropdown-toggle" type="button" id="statusRkDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                       <span id="statusRkDropdownLabel">
                         <?php 
                         if (($statusRkFilter ?? '') === '') {

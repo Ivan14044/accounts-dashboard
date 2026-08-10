@@ -899,7 +899,28 @@ code, kbd, samp, pre { font-family: var(--ui-mono); font-size: 0.9em; }
 /* — Поле поиска — */
 
 .search-field-modern { margin-bottom: var(--ui-4); }
-.search-field-modern-label { display: block; margin-bottom: var(--ui-2); font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ui-text-muted); }
+
+/* Подписи с иконкой: flex + gap, иначе иконка липнет к первой букве
+   («🏷СТАТУС»), а при letter-spacing это особенно заметно. */
+.search-field-modern-label,
+.quick-filters-label,
+.form-group-modern > label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: var(--ui-2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+
+.search-field-modern-label svg,
+.quick-filters-label svg,
+.form-group-modern > label svg { color: var(--ui-text-muted); flex: none; }
+
+.form-group-modern { margin-top: var(--ui-4); }
 .search-input-wrapper { position: relative; }
 
 .search-input-modern {
@@ -965,6 +986,9 @@ code, kbd, samp, pre { font-family: var(--ui-mono); font-size: 0.9em; }
 }
 
 .dropdown-toggle:hover { border-color: var(--ui-line-firm); }
+.dropdown-toggle > span:first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dropdown-toggle > svg { flex: none; color: var(--ui-text-muted); }
+.dropdown-toggle[aria-expanded="true"] > svg { transform: rotate(180deg); }
 
 .dropdown-menu {
   position: absolute;
@@ -1011,8 +1035,7 @@ code, kbd, samp, pre { font-family: var(--ui-mono); font-size: 0.9em; }
 
 /* — Быстрые фильтры-переключатели — */
 
-.quick-filters-section { margin-top: var(--ui-4); }
-.quick-filters-label { display: block; margin-bottom: var(--ui-2); font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ui-text-muted); }
+.quick-filters-section { margin-top: var(--ui-5); }
 
 .quick-filters-grid {
   display: grid;
@@ -1332,14 +1355,24 @@ code, kbd, samp, pre { font-family: var(--ui-mono); font-size: 0.9em; }
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23121315' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
 }
 
-.favorite-btn {
+/* В разметке у звезды ещё висят классы `btn btn-sm btn-link` — их подхватывает
+   мост ui-legacy-forms и рисует рамку вокруг иконки. Пока разметку строк не
+   переписали, гасим это адресно: у звезды не должно быть коробки. */
+.favorite-btn,
+.btn.favorite-btn {
   display: inline-flex;
-  padding: 4px;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border: 0;
   background: none;
   color: var(--ui-line-firm);
   cursor: pointer;
 }
+
+.favorite-btn:hover, .btn.favorite-btn:hover { color: var(--ui-text-muted); background: none; border: 0; }
 
 .favorite-btn.active, .favorite-btn .fas.fa-star { color: var(--ui-text-soft); }
 
@@ -1378,7 +1411,29 @@ code, kbd, samp, pre { font-family: var(--ui-mono); font-size: 0.9em; }
 .dashboard-table__footer-controls { display: flex; align-items: center; gap: var(--ui-3); flex-wrap: wrap; }
 .dashboard-table__footer-divider { width: 1px; height: 20px; background: var(--ui-line); }
 .dashboard-table__footer-pageinfo { font-size: 12.5px; color: var(--ui-text-muted); }
-.dashboard-table__footer-page-input { width: 64px; text-align: center; }
+.dashboard-table__footer-nav { display: flex; align-items: center; gap: var(--ui-3); flex-wrap: wrap; }
+
+/* Подписи в подвале: те же flex + gap, что и у подписей фильтров, иначе
+   иконка липнет к тексту («⊟СТРОК:»). */
+.dashboard-table__per-page,
+.dashboard-table__footer-select { display: flex; align-items: center; gap: var(--ui-2); }
+
+.dashboard-table__per-page label,
+.dashboard-table__footer-select label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+  white-space: nowrap;
+}
+
+.dashboard-table__per-page select { width: auto; min-width: 74px; }
+.dashboard-table__footer-page-input { width: 66px; text-align: center; }
 
 .pagination { display: flex; align-items: center; gap: var(--ui-1); }
 .page-item.disabled .page-link { opacity: 0.4; pointer-events: none; }
@@ -1668,10 +1723,25 @@ code, kbd, samp, pre { font-family: var(--ui-mono); font-size: 0.9em; }
   .ui-topbar { padding: 0 var(--ui-4); }
 }
 
+@media (max-width: 720px) {
+  /* На узком экране шапка не влезала: имя пользователя и плашка состояния
+     базы вместе давали ~100px переполнения (замерено: scrollWidth 489 при
+     ширине 390). Прячем именно их — кнопки действий важнее. */
+  .ui-conn { display: none; }
+  .ui-topbar__username { display: none; }
+  .ui-topbar__user { padding-right: var(--ui-1); }
+}
+
 @media (max-width: 560px) {
   .ui-page { padding: var(--ui-5) var(--ui-3) var(--ui-8); }
   .ui-topbar { padding: 0 var(--ui-3); gap: var(--ui-2); }
   .ui-topbar__brand span { display: none; }
+  .ui-actionbar { gap: var(--ui-2); }
+  .ui-actionbar__title { width: 100%; margin-bottom: var(--ui-1); }
+  .ui-actionbar__selected { margin-left: auto; }
+  .filters-modern-header { flex-wrap: wrap; }
+  .dashboard-table__toolbar { gap: var(--ui-2); }
+  .dashboard-table__footer { gap: var(--ui-2); }
   .ui-stats-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   .ui-modal { padding: var(--ui-3); align-items: flex-end; }
   .ui-modal__box { max-height: calc(100vh - var(--ui-8)); }

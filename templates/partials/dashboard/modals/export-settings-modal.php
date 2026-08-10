@@ -67,7 +67,7 @@
 
 <style>
 .custom-option-check:hover {
-    background-color: var(--gray-50);
+    background-color: var(--ui-surface-sunk);
 }
 .custom-option-check input:checked + label .fw-bold {
     color: var(--primary);
