@@ -49,10 +49,19 @@ class TrashSettings {
      * Текущие настройки с дефолтами. Никогда не бросает — при любой ошибке
      * возвращает безопасные значения по умолчанию.
      *
-     * @return array{enabled:bool,days:int,last_purge_at:?string}
+     * @return array{enabled:bool,days:int,last_purge_at:?string,last_purge_deleted:int}
      */
     public static function get(): array {
-        $defaults = ['enabled' => true, 'days' => self::DEFAULT_DAYS, 'last_purge_at' => null];
+        $defaults = [
+            'enabled'            => true,
+            'days'               => self::DEFAULT_DAYS,
+            'last_purge_at'      => null,
+            // Сколько записей снёс прошлый прогон. Нужен, чтобы сообщить об этом
+            // пользователю: очистка идёт в shutdown, уже ПОСЛЕ отрисовки страницы,
+            // поэтому на текущей странице показать результат физически нельзя —
+            // только на следующем заходе.
+            'last_purge_deleted' => 0,
+        ];
         try {
             $mysqli = self::db();
             self::ensureTable($mysqli);
@@ -76,6 +85,7 @@ class TrashSettings {
                 'enabled'       => array_key_exists('enabled', $val) ? (bool)$val['enabled'] : true,
                 'days'          => self::clampDays($val['days'] ?? self::DEFAULT_DAYS),
                 'last_purge_at' => isset($val['last_purge_at']) && $val['last_purge_at'] !== '' ? (string)$val['last_purge_at'] : null,
+                'last_purge_deleted' => isset($val['last_purge_deleted']) ? max(0, (int)$val['last_purge_deleted']) : 0,
             ];
         } catch (Throwable $e) {
             Logger::warning('TrashSettings::get failed', ['error' => $e->getMessage()]);
@@ -86,23 +96,35 @@ class TrashSettings {
     /**
      * Сохраняет enabled + days, сохраняя текущую метку last_purge_at.
      *
-     * @return array{enabled:bool,days:int,last_purge_at:?string} новое состояние
+     * @return array{enabled:bool,days:int,last_purge_at:?string,last_purge_deleted:int} новое состояние
      */
     public static function save(bool $enabled, int $days): array {
         $current = self::get();
         $payload = [
-            'enabled'       => $enabled,
-            'days'          => self::clampDays($days),
-            'last_purge_at' => $current['last_purge_at'],
+            'enabled'            => $enabled,
+            'days'               => self::clampDays($days),
+            'last_purge_at'      => $current['last_purge_at'],
+            'last_purge_deleted' => $current['last_purge_deleted'],
         ];
         self::write($payload);
         return $payload;
     }
 
-    /** Обновляет метку последнего прогона авто-purge. */
-    public static function markPurged(?string $when = null): void {
+    /**
+     * Обновляет метку последнего прогона авто-purge и его результат.
+     *
+     * Число удалённых сохраняется, чтобы страница корзины могла сообщить о нём
+     * на следующем заходе: сама очистка выполняется в shutdown, когда страница
+     * уже отдана пользователю, и показать результат сразу невозможно.
+     *
+     * @param string|null $when Метка времени; по умолчанию — сейчас
+     * @param int $deleted Сколько записей удалено этим прогоном
+     * @return void
+     */
+    public static function markPurged(?string $when = null, int $deleted = 0): void {
         $current = self::get();
         $current['last_purge_at'] = $when ?? date('Y-m-d H:i:s');
+        $current['last_purge_deleted'] = max(0, $deleted);
         self::write($current);
     }
 

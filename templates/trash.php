@@ -102,6 +102,22 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
     }
     [data-bs-theme="dark"] .trash-warning { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.25); border-left-color: var(--warning-500); color: #fcd34d; }
 
+    /* Нейтральное уведомление (итог прошлой автоочистки). Зеркалит .trash-warning
+       по геометрии, но не кричит цветом: это отчёт о уже случившемся, а не угроза. */
+    .trash-notice {
+      background: var(--bg-secondary);
+      border: 1px solid var(--color-border);
+      border-left: 3px solid var(--gray-400);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4) var(--space-5);
+      margin-bottom: var(--space-6);
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+      color: var(--color-text-secondary);
+    }
+    [data-bs-theme="dark"] .trash-notice { background: rgba(255,255,255,0.04); border-color: var(--color-border); border-left-color: var(--gray-500); }
+
     /* Бейджи "возраст / автоудаление" */
     .age-badge { font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
     .age-sub { font-size: 0.7rem; opacity: 0.75; display: block; margin-top: 2px; }
@@ -215,6 +231,78 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
     <div class="alert alert-danger shadow-sm rounded-xl" role="alert">
       <i class="fas fa-exclamation-circle me-2"></i>
       <strong>Ошибка:</strong> <?= htmlspecialchars($errorMessage) ?>
+    </div>
+    <?php endif; ?>
+
+    <?php
+    /*
+     * Автоочистка корзины: предупреждение ДО и отчёт ПОСЛЕ.
+     *
+     * Очистка включена по умолчанию (30 дней) и запускается сама при заходе сюда.
+     * Удаление физическое: записи не попадают ни в account_history, ни в журнал
+     * отмены — восстановить их нечем. До 2026-08-10 единственным следом была
+     * строчка в логе, и пользователь узнавал о потере только по отсутствию строк.
+     *
+     * Два разных сообщения, и порядок важен:
+     *  - «будет удалено» показываем ПЕРЕД тем, как это случится: сама очистка
+     *    выполняется в shutdown, уже после отрисовки этой страницы, так что у
+     *    пользователя есть время передумать и продлить срок хранения;
+     *  - «удалено» — результат ПРОШЛОГО прогона, показать его в момент удаления
+     *    невозможно по той же причине.
+     *
+     * Партиал самодостаточен: нормализуем вход, чтобы Warning не оборвал рендер.
+     */
+    $purgeDueCount    = isset($purgeDueCount) ? (int)$purgeDueCount : 0;
+    $lastPurgeDeleted = isset($lastPurgeDeleted) ? (int)$lastPurgeDeleted : 0;
+    $retentionDays    = isset($retentionDays) ? (int)$retentionDays : 30;
+    $lastPurgeAt      = isset($lastPurgeAt) ? $lastPurgeAt : null;
+
+    /**
+     * Русская форма слова по числу: 1 запись, 3 записи, 5 записей.
+     * Без этого выходило «3 записей» — мелочь, но текст про безвозвратное
+     * удаление должен читаться как написанный человеком.
+     *
+     * @param int $n Число
+     * @param string $one Форма для 1 (запись)
+     * @param string $few Форма для 2–4 (записи)
+     * @param string $many Форма для 0, 5–20 (записей)
+     * @return string Подходящая форма
+     */
+    if (!function_exists('trashPlural')) {
+        function trashPlural($n, $one, $few, $many) {
+            $n = abs((int)$n) % 100;
+            if ($n >= 11 && $n <= 14) return $many;
+            $n %= 10;
+            if ($n === 1) return $one;
+            if ($n >= 2 && $n <= 4) return $few;
+            return $many;
+        }
+    }
+    ?>
+
+    <?php if ($purgeDueCount > 0): ?>
+    <div class="trash-warning" role="alert">
+      <i class="fas fa-triangle-exclamation fs-5 mt-1"></i>
+      <div>
+        <strong>Автоочистка удалит <?= number_format($purgeDueCount, 0, '.', ' ') ?>
+          <?= trashPlural($purgeDueCount, 'запись', 'записи', 'записей') ?> безвозвратно.</strong>
+        Это те, что лежат в корзине дольше <?= $retentionDays ?> дн.
+        Восстановить их после удаления будет нельзя — отмена на автоочистку не действует.
+        Чтобы этого не произошло, восстановите нужное сейчас или увеличьте срок
+        хранения в настройках корзины.
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($lastPurgeDeleted > 0): ?>
+    <div class="trash-notice" role="status">
+      <i class="fas fa-circle-info fs-5 mt-1"></i>
+      <div>
+        Прошлая автоочистка удалила безвозвратно
+        <strong><?= number_format($lastPurgeDeleted, 0, '.', ' ') ?></strong>
+        <?= trashPlural($lastPurgeDeleted, 'запись', 'записи', 'записей') ?><?php if ($lastPurgeAt): ?>
+        — <?= htmlspecialchars((string)$lastPurgeAt) ?><?php endif; ?>.
+      </div>
     </div>
     <?php endif; ?>
 

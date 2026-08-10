@@ -340,10 +340,30 @@ trait AccountsRepoDeleteTrait {
         if (!$this->metadata->columnExists('deleted_at')) {
             return 0;
         }
-        $days = max(1, $days);
+        return $this->deleteScopedInChunks(self::retentionWhereClause($days), [], '', $maxRows, $chunkSize);
+    }
+
+    /**
+     * Условие «эта запись подлежит автоочистке» — одно на предупреждение и на
+     * само удаление.
+     *
+     * Раньше эта строка была написана дважды: в purgeOlderThan() и в
+     * countOlderThan(). Пока копии совпадают, всё хорошо; как только разойдутся,
+     * страница корзины начнёт обещать одно, а удаляться будет другое — то есть
+     * предупреждение станет враньём, что хуже его отсутствия. Поэтому источник
+     * один, а tests/test_trash_purge_warning.php следит, чтобы оба звали его и
+     * не собирали INTERVAL сами.
+     *
+     * Дни зажимаются снизу до 1: 0 или отрицательное значение означало бы
+     * «удалить всё, что в корзине, прямо сейчас».
+     *
+     * @param int $days Порог хранения в днях
+     * @return string SQL-условие для WHERE
+     */
+    public static function retentionWhereClause(int $days): string {
         // INTERVAL не биндится как параметр в старых MySQL → инлайним проверенный int.
-        $whereClause = "deleted_at IS NOT NULL AND deleted_at < (NOW() - INTERVAL $days DAY)";
-        return $this->deleteScopedInChunks($whereClause, [], '', $maxRows, $chunkSize);
+        $days = max(1, $days);
+        return "deleted_at IS NOT NULL AND deleted_at < (NOW() - INTERVAL $days DAY)";
     }
 
     /**
@@ -353,9 +373,8 @@ trait AccountsRepoDeleteTrait {
         if (!$this->metadata->columnExists('deleted_at')) {
             return 0;
         }
-        $days = max(1, $days);
         $sql = "SELECT COUNT(*) AS cnt FROM {$this->table}
-                WHERE deleted_at IS NOT NULL AND deleted_at < (NOW() - INTERVAL $days DAY)";
+                WHERE " . self::retentionWhereClause($days);
         $res = $this->db->getConnection()->query($sql);
         if (!$res) return 0;
         $row = $res->fetch_assoc();
