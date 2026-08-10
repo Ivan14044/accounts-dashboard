@@ -359,12 +359,38 @@ class StatisticsService {
     }
     
     /**
-     * Получение всех счётчиков пустых значений фильтров одним запросом (вместо 4 отдельных).
-     * Ключи: status_marketplace, currency, geo, status_rk.
+     * Счётчики пустых значений фильтров: status_marketplace, currency, geo, status_rk.
+     *
+     * Ходит через тот же файловый кэш, что и остальные агрегаты. Раньше не ходил —
+     * и это была почти вся стоимость прогретой страницы на проде: запрос сканирует
+     * 84 042 строки С ДОСТУПОМ К ДАННЫМ (четыре SUM(CASE) по четырём разным
+     * колонкам, одним индексом такое не покрыть) и выполнялся на каждый заход,
+     * даже когда все прочие агрегаты приходили из кэша.
+     * Замер на стенде с прод-формой данных (182 021 строка): 0,23 с на запрос.
+     *
+     * Инвариант стережёт tests/test_stats_aggregates_cached.php.
      *
      * @return array<string, int>
      */
     public function getEmptyFilterCounts(): array {
+        $key  = $this->cacheKey('empty_filter_counts', []);
+        $self = $this;
+
+        return StatsCache::remember($key, Config::STATS_FILE_CACHE_TTL, function () use ($self) {
+            return $self->computeEmptyFilterCounts();
+        });
+    }
+
+    /**
+     * Собственно расчёт счётчиков пустых значений — полный проход по таблице.
+     *
+     * Публичный только потому, что вызывается из замыкания кэша: PHP 7.3 не даёт
+     * замыканию доступа к private-методам через $self (та же причина, что у
+     * computeStatistics выше).
+     *
+     * @return array<string, int>
+     */
+    public function computeEmptyFilterCounts(): array {
         $deletedCondition = '';
         if ($this->metadata->columnExists('deleted_at')) {
             $deletedCondition = 'WHERE deleted_at IS NULL';

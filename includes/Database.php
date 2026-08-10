@@ -289,8 +289,63 @@ class Database {
             // фильтруют по deleted_at и группируют по status; с обратным порядком
             // (idx_status_deleted) оптимизатор их не использует и строит temporary table.
             // Замер на 180 300 строк: 497 мс → 18 мс. (проверено 2026-08-08)
-            'idx_deleted_status' => 'deleted_at, status'
+            'idx_deleted_status' => 'deleted_at, status',
+            // (deleted_at, status, updated_at, created_at) — idx_deleted_status
+            // с хвостом из дат. Нужен потому, что главный агрегат дашборда
+            // считает не только COUNT по статусу, но и «сколько за 24 часа»:
+            //   SUM(CASE WHEN COALESCE(updated_at, created_at) >= NOW()-1day ...)
+            // Двухколоночного индекса для этого мало — за датами приходится
+            // лезть в сами строки (Using index condition), и запрос стоил 0,788 с.
+            // С хвостом он читается целиком из индекса (Using index): 0,042 с,
+            // то есть в 19 раз быстрее. Тот же индекс закрывает и оба запроса
+            // спарклайна (COUNT по created_at) — отдельный idx_deleted_created
+            // проверен и оказался лишним, поэтому его здесь нет.
+            // Замер на 182 021 строке. (проверено 2026-08-10)
+            'idx_deleted_status_dates' => 'deleted_at, status, updated_at, created_at',
+            // Покрывающие индексы под сбор значений фильтров
+            // (StatisticsService::computeUniqueFilterValues — UNION ALL из пяти
+            // GROUP BY). Порядок тот же, что у idx_deleted_status и по той же
+            // причине: сначала deleted_at, по которому фильтруем, потом колонка,
+            // по которой группируем — тогда запрос читается прямо из индекса.
+            // Замер на стенде с прод-формой данных (182 021 строка): весь
+            // UNION ALL 1,195 с → 0,100 с. Разница именно в покрытии: у status
+            // индекс был и он отрабатывал 25 мс, четыре остальные колонки шли
+            // полным сканом с Using temporary по 124–147 мс каждая.
+            // (проверено 2026-08-10)
+            'idx_deleted_status_marketplace' => 'deleted_at, status_marketplace',
+            'idx_deleted_currency'           => 'deleted_at, currency',
+            'idx_deleted_geo'                => 'deleted_at, geo',
+            'idx_deleted_status_rk'          => 'deleted_at, status_rk',
         ]
+    ];
+
+    /**
+     * Колонки, которые есть на проде, но которых НЕТ в эталонной схеме
+     * DatabaseSchemaManager::getRequiredSchema().
+     *
+     * Так исторически сложилось: их когда-то завели на боевой БД руками, а в
+     * эталон не внесли. Весь читающий код (StatisticsService, FilterBuilder)
+     * ходит к ним через columnExists(), поэтому на стенде, поднятом эталоном,
+     * соответствующие фильтры просто отсутствуют. Из-за этого прод и не
+     * воспроизводился локально: тяжёлые запросы по этим колонкам там были,
+     * а на стенде их не было вовсе.
+     *
+     * Здесь список нужен ровно для двух вещей:
+     *  1. ensureIndexes() молча пропускает индекс, если колонки в этой БД нет —
+     *     иначе CREATE INDEX падал бы и писал ERROR в лог на каждом стенде;
+     *  2. tests/test_schema_index_columns.php знает, что для этих колонок
+     *     расхождение с эталоном — осознанное, а не забытая колонка.
+     *
+     * ВАЖНО: добавлять сюда колонку можно, только если ВСЕ её читатели идут
+     * через columnExists(). Иначе колонку надо заводить в эталон, а не сюда.
+     *
+     * @var string[]
+     */
+    public const OPTIONAL_INDEX_COLUMNS = [
+        'status_marketplace',
+        'currency',
+        'geo',
+        'status_rk',
     ];
 
     /**
@@ -346,10 +401,97 @@ class Database {
     private function indexFlagPath(): string {
         $signature = substr(md5(json_encode(self::MANAGED_INDEXES)), 0, 12);
         $project   = md5(dirname(__DIR__));
+        // Имя БД обязано входить в ключ. Вход в панель — это строка подключения,
+        // то есть одна установка обслуживает СКОЛЬКО УГОДНО разных баз. Пока
+        // ключа по базе не было, флаг, поставленный первой посещённой базой,
+        // глушил ensureIndexes() для всех остальных: они оставались вообще без
+        // управляемых индексов и работали полным сканом.
+        // Воспроизведено на стенде 2026-08-10: вторая база получила только те
+        // индексы, что создаёт сама схема (6 штук), и ни одного из MANAGED_INDEXES
+        // (11 штук); после сброса флага все создались.
+        $db = md5((string)self::nameOf($this->mysqli));
 
-        return sys_get_temp_dir() . '/dashboard_idx_' . $project . '_' . $signature . '.applied';
+        return sys_get_temp_dir() . '/dashboard_idx_' . $project . '_' . $db . '_' . $signature . '.applied';
     }
     
+    /**
+     * Какие из колонок индекса отсутствуют в таблице.
+     *
+     * Спецификация колонок в MANAGED_INDEXES бывает с длиной префикса
+     * («email(255), status») — её надо отрезать, в INFORMATION_SCHEMA лежит
+     * голое имя колонки.
+     *
+     * @param string $table Имя таблицы (уже провалидировано вызывающим)
+     * @param string $columns Спецификация колонок индекса через запятую
+     * @return string[] Отсутствующие колонки; пустой массив — все на месте
+     */
+    private function missingIndexColumns($table, $columns) {
+        $names = [];
+        foreach (explode(',', $columns) as $part) {
+            $name = trim(preg_replace('/\(\d+\)\s*$/', '', trim($part)), " \t`");
+            if ($name !== '') {
+                $names[] = $name;
+            }
+        }
+        if ($names === []) {
+            return [];
+        }
+
+        $existing = $this->tableColumnNames($table);
+        // Не смогли прочитать список колонок — не выдумываем, ведём себя как
+        // раньше: пусть CREATE INDEX сам решает. Молчаливый пропуск нужного
+        // индекса хуже, чем одна строчка в логе.
+        if ($existing === null) {
+            return [];
+        }
+
+        $missing = [];
+        foreach ($names as $name) {
+            if (!isset($existing[strtolower($name)])) {
+                $missing[] = $name;
+            }
+        }
+        return $missing;
+    }
+
+    /**
+     * Имена колонок таблицы в нижнем регистре, в виде набора для isset().
+     *
+     * Кэшируется на процесс: ensureIndexes() зовёт это для каждого индекса,
+     * а список колонок за один запрос не меняется.
+     *
+     * @param string $table Имя таблицы (уже провалидировано вызывающим)
+     * @return array<string, true>|null null — не удалось прочитать
+     */
+    private function tableColumnNames($table) {
+        static $cache = [];
+        if (array_key_exists($table, $cache)) {
+            return $cache[$table];
+        }
+
+        $cache[$table] = null;
+        $stmt = $this->mysqli->prepare(
+            'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?'
+        );
+        if (!$stmt) {
+            return null;
+        }
+        $dbName = self::nameOf($this->mysqli);
+        $stmt->bind_param('ss', $dbName, $table);
+        if ($stmt->execute()) {
+            $res = $stmt->get_result();
+            $names = [];
+            while ($res && ($row = $res->fetch_assoc())) {
+                $names[strtolower($row['COLUMN_NAME'])] = true;
+            }
+            $cache[$table] = $names === [] ? null : $names;
+        }
+        $stmt->close();
+
+        return $cache[$table];
+    }
+
     private function createIndexIfNotExists($table, $indexName, $columns) {
         // Безопасная проверка существования индекса через INFORMATION_SCHEMA
         $dbName = self::nameOf($this->mysqli);
@@ -368,8 +510,23 @@ class Database {
             return;
         }
         
+        // Индекс по колонке, которой в этой БД нет, создать нельзя: MySQL ответит
+        // «Key column '...' doesn't exist in table», а мы напишем ERROR в лог.
+        // Ровно так уже ломался idx_id_soc_account. Для колонок из
+        // OPTIONAL_INDEX_COLUMNS отсутствие — норма (см. докблок константы),
+        // поэтому просто молча пропускаем индекс.
+        $missing = $this->missingIndexColumns($table, $columns);
+        if ($missing !== []) {
+            require_once __DIR__ . '/Logger.php';
+            Logger::debug('DATABASE: index skipped, columns absent', [
+                'index'   => $indexName,
+                'columns' => implode(', ', $missing),
+            ]);
+            return;
+        }
+
         // Проверяем существование индекса через INFORMATION_SCHEMA
-        $sql = "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.STATISTICS 
+        $sql = "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.STATISTICS
                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?";
         $stmt = $this->mysqli->prepare($sql);
         

@@ -90,6 +90,10 @@ ok('в списке есть якорный idx_status', isset($indexes['account
 ok('в списке есть idx_id_soc_account (регрессия этого бага)',
    isset($indexes['accounts']['idx_id_soc_account']));
 
+// Прод-онли колонки: их нет в эталоне намеренно, индекс по ним пропускается.
+$optionalColumns = (new ReflectionClass('Database'))->getConstants()['OPTIONAL_INDEX_COLUMNS'] ?? [];
+ok('список прод-онли колонок прочитан', is_array($optionalColumns));
+
 $anyColumns = false;
 foreach ($indexes as $table => $tableIndexes) {
     $required = requiredColumns($table);
@@ -99,16 +103,65 @@ foreach ($indexes as $table => $tableIndexes) {
 
     foreach ($tableIndexes as $indexName => $spec) {
         foreach (indexColumns($spec) as $col) {
+            // Колонка может отсутствовать в эталоне ОСОЗНАННО: см. докблок
+            // Database::OPTIONAL_INDEX_COLUMNS. Это прод-онли колонки, заведённые
+            // на боевой БД руками; все их читатели ходят через columnExists(),
+            // а ensureIndexes() пропускает индекс, если колонки в этой БД нет.
+            if (in_array($col, $optionalColumns, true)) {
+                ok(
+                    "$table.$indexName → колонка `$col` помечена как прод-онли (пропуск индекса штатный)",
+                    true
+                );
+                continue;
+            }
             ok(
                 "$table.$indexName → колонка `$col` есть в эталонной схеме",
                 isset($required[$col]),
-                "колонка `$col` отсутствует в getRequiredSchema()['$table']['columns'] — "
-                . "CREATE INDEX `$indexName` упадёт на свежей БД"
+                "колонка `$col` отсутствует ни в getRequiredSchema()['$table']['columns'], "
+                . "ни в Database::OPTIONAL_INDEX_COLUMNS — CREATE INDEX `$indexName` "
+                . "упадёт на свежей БД и напишет ERROR в лог"
             );
         }
     }
 }
 ok('колонки эталона прочитаны', $anyColumns);
+
+/*
+ * Флаг «индексы проверены» обязан быть отдельным для КАЖДОЙ базы.
+ *
+ * Вход в панель — это строка подключения, то есть одна установка обслуживает
+ * сколько угодно разных баз. Пока имя базы не входило в ключ флага, флаг,
+ * поставленный первой посещённой базой, глушил ensureIndexes() для всех
+ * остальных: они оставались вообще без управляемых индексов и работали полным
+ * сканом. Воспроизведено на стенде 2026-08-10: вторая база получила только
+ * 6 индексов, которые создаёт сама схема, и ни одного из 11 MANAGED_INDEXES;
+ * после сброса флага создались все.
+ */
+// Комментарии вырезаем: проверка должна ловить код, а не текст объяснения рядом.
+$dbSrc = '';
+foreach (token_get_all(file_get_contents(__DIR__ . '/../includes/Database.php')) as $tok) {
+    if (is_array($tok)) {
+        $dbSrc .= ($tok[0] === T_COMMENT || $tok[0] === T_DOC_COMMENT) ? "\n" : $tok[1];
+        continue;
+    }
+    $dbSrc .= $tok;
+}
+$flagAt = strpos($dbSrc, 'function indexFlagPath');
+$flagBody = '';
+if ($flagAt !== false) {
+    $open = strpos($dbSrc, '{', $flagAt);
+    $depth = 0;
+    for ($i = $open, $n = strlen($dbSrc); $i < $n; $i++) {
+        if ($dbSrc[$i] === '{') { $depth++; }
+        elseif ($dbSrc[$i] === '}') { $depth--; if ($depth === 0) { $flagBody = substr($dbSrc, $open, $i - $open + 1); break; } }
+    }
+}
+ok('indexFlagPath() найден', $flagBody !== '');
+ok(
+    'ключ флага индексов включает имя базы',
+    strpos($flagBody, 'nameOf') !== false,
+    'без имени базы в ключе вторая и последующие базы останутся без индексов'
+);
 
 echo "\nИтог: passed=$passed, failed=$failures\n";
 exit($failures > 0 ? 1 : 0);
