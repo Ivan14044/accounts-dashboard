@@ -127,7 +127,8 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 
     /* Кто удалил */
     .who-cell { font-size: 0.8125rem; }
-    .who-unknown { color: var(--gray-400, #9ca3af); font-style: italic; }
+    /* gray-400 — декоративный тон, для текста он не проходит AA (2.6:1). */
+    .who-unknown { color: var(--gray-500, #6b7280); font-style: italic; }
 
     /* Баннер "выбрать все по фильтру" */
     .select-all-banner {

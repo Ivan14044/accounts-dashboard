@@ -59,6 +59,7 @@ function getStatusClass($status) {
   <link href="assets/css/core-mobile.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-design-v2.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <link href="assets/css/core-dark.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
+  <link href="assets/css/redesign.css?v=<?= ASSETS_VERSION ?>" rel="stylesheet">
   <style>
     /* Premium View Layout */
     body { 
@@ -269,13 +270,16 @@ function getStatusClass($status) {
       .toolbar-view .btn-group .btn { border-radius: var(--radius-lg) !important; width: 100%; }
     }
 
-    /* ===== Тёмная тема ===== */
-    [data-bs-theme="dark"] .account-id { color: #60a5fa; }
-    [data-bs-theme="dark"] .field-row:hover { background: rgba(59,130,246,0.10); }
+    /* ===== Тёмная тема =====
+       Синие значения (#60a5fa, rgba(59,130,246,…), #93c5fd) были прописаны мимо
+       токенов и оставались единственным цветным пятном после редизайна.
+       Теперь всё через нейтральную шкалу — тема меняется вместе с палитрой. */
+    [data-bs-theme="dark"] .account-id { color: var(--gray-900); }
+    [data-bs-theme="dark"] .field-row:hover { background: var(--bg-hover); }
     [data-bs-theme="dark"] .field-value .mono,
     [data-bs-theme="dark"] .field-value pre.mono { background: var(--gray-100); color: var(--gray-700); border-color: var(--color-border); }
-    [data-bs-theme="dark"] .copy-btn { background: rgba(59,130,246,0.14); color: #93c5fd; border-color: rgba(59,130,246,0.30); }
-    [data-bs-theme="dark"] .copy-btn:hover { background: var(--primary-600); color: #fff; border-color: var(--primary-600); }
+    [data-bs-theme="dark"] .copy-btn { background: var(--gray-100); color: var(--gray-800); border-color: var(--gray-300); }
+    [data-bs-theme="dark"] .copy-btn:hover { background: var(--gray-900); color: #121315; border-color: var(--gray-900); }
     [data-bs-theme="dark"] .btn-white { background: var(--bg-primary); color: var(--gray-700); }
   </style>
 </head>

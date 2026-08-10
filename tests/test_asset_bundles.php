@@ -257,6 +257,10 @@ foreach ($bundles as $bundle => $files) {
         $bad = array();
         foreach ($files as $i => $rel) {
             $code = file_get_contents($ROOT . '/' . $rel);
+            // Комментарии вырезаем ДО поиска: слово @import в шапке файла
+            // («@import здесь запрещён») — не правило, и ронять на нём сборку
+            // нельзя. На этом тест уже один раз ложно упал.
+            $code = preg_replace('~/\*.*?\*/~s', '', $code);
             if (strpos($code, '@import') === false) {
                 continue;
             }

@@ -227,6 +227,7 @@ function highlightLevel($line) {
   <link href="assets/css/core-mobile.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <link href="assets/css/core-design-v2.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+  <link href="assets/css/redesign.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 
   <style>
     .log-container {
@@ -260,24 +261,28 @@ function highlightLevel($line) {
       margin-right: 8px;
     }
     
+    /* Уровень лога — единственное место в панели, где цвет реально несёт
+       смысл при беглом просмотре: ошибку нужно увидеть, не читая строку.
+       Поэтому цвет остаётся, но в приглушённой палитре редизайна, а INFO и
+       DEBUG становятся нейтральными — «всё идёт как обычно» не сигнал. */
     .log-error {
-      background: rgba(220, 38, 38, 0.2);
-      color: #dc2626;
+      background: var(--danger-50);
+      color: var(--danger-600);
     }
-    
+
     .log-warning {
-      background: rgba(245, 158, 11, 0.2);
-      color: #f59e0b;
+      background: var(--warning-50);
+      color: var(--warning-600);
     }
-    
+
     .log-info {
-      background: rgba(37, 99, 235, 0.2);
-      color: #2563eb;
+      background: var(--gray-100);
+      color: var(--gray-600);
     }
-    
+
     .log-debug {
-      background: rgba(107, 114, 128, 0.2);
-      color: #6b7280;
+      background: var(--gray-50);
+      color: var(--gray-500);
     }
     
     .filters-panel {
@@ -297,10 +302,10 @@ function highlightLevel($line) {
       margin-left: var(--space-2);
     }
     
-    .stats-error { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
-    .stats-warning { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-    .stats-info { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
-    .stats-debug { background: rgba(107, 114, 128, 0.1); color: #6b7280; }
+    .stats-error { background: var(--danger-50); color: var(--danger-600); }
+    .stats-warning { background: var(--warning-50); color: var(--warning-600); }
+    .stats-info { background: var(--gray-100); color: var(--gray-600); }
+    .stats-debug { background: var(--gray-50); color: var(--gray-500); }
 
     /* Audit value boxes (старое/новое значение) */
     .audit-box { padding: 0.5rem; border-radius: 4px; }
@@ -308,17 +313,17 @@ function highlightLevel($line) {
     .audit-box.new { background: #d1e7dd; }
 
     /* ===== Тёмная тема (контраст для хардкод-цветов) ===== */
-    [data-bs-theme="dark"] .audit-box.old { background: rgba(245,158,11,0.14); }
-    [data-bs-theme="dark"] .audit-box.new { background: rgba(16,185,129,0.14); }
-    [data-bs-theme="dark"] .audit-box code { color: #E0E3E8; }
-    [data-bs-theme="dark"] .log-error   { color: #f87171; }
-    [data-bs-theme="dark"] .log-warning { color: #fbbf24; }
-    [data-bs-theme="dark"] .log-info    { color: #60a5fa; }
-    [data-bs-theme="dark"] .log-debug   { color: #9ca3af; }
-    [data-bs-theme="dark"] .stats-error   { color: #f87171; }
-    [data-bs-theme="dark"] .stats-warning { color: #fbbf24; }
-    [data-bs-theme="dark"] .stats-info    { color: #60a5fa; }
-    [data-bs-theme="dark"] .stats-debug   { color: #9ca3af; }
+    [data-bs-theme="dark"] .audit-box.old { background: var(--bg-secondary); }
+    [data-bs-theme="dark"] .audit-box.new { background: var(--gray-100); }
+    [data-bs-theme="dark"] .audit-box code { color: var(--gray-800); }
+    [data-bs-theme="dark"] .log-error   { color: var(--danger-600); }
+    [data-bs-theme="dark"] .log-warning { color: var(--warning-500); }
+    [data-bs-theme="dark"] .log-info    { color: var(--gray-600); }
+    [data-bs-theme="dark"] .log-debug   { color: var(--gray-500); }
+    [data-bs-theme="dark"] .stats-error   { color: var(--danger-600); }
+    [data-bs-theme="dark"] .stats-warning { color: var(--warning-500); }
+    [data-bs-theme="dark"] .stats-info    { color: var(--gray-600); }
+    [data-bs-theme="dark"] .stats-debug   { color: var(--gray-500); }
   </style>
 </head>
 <body>

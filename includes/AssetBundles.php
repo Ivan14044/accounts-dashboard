@@ -54,6 +54,7 @@ class AssetBundles
             'assets/css/core-mobile.css',     // мобильные оверрайды — после базовых
             'assets/css/core-design-v2.css',  // слой полировки дизайна
             'assets/css/core-dark.css',       // тёмная тема — последней
+            'assets/css/redesign.css',        // слой редизайна — поверх всего, включая тёмную
         ),
 
         // ── JS без defer: выполняются по ходу парсинга, строго в этом порядке ──
