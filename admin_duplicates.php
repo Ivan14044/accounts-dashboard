@@ -255,81 +255,42 @@ $csrf = getCsrfToken();
   <title>Поиск дублей — Dashboard</title>
   <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
   <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
+  <link href="assets/css/core-base.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+  <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+  <link href="assets/css/redesign.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
   <style>
-    body { background: #f6f8fa; }
-    .header { background:#fff; border-bottom:1px solid #e5e7eb; padding:1rem 1.5rem; margin-bottom:1.5rem; }
-    .group-card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:1rem; overflow:hidden; }
-    .group-head { padding:.75rem 1rem; background:#f3f4f6; border-bottom:1px solid #e5e7eb; font-weight:600; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
-    .group-head .fbids { font-family:monospace; font-size:.85rem; color:#6b7280; word-break:break-all; }
-    .acc-row { padding:.5rem 1rem; border-bottom:1px solid #f3f4f6; display:grid; grid-template-columns: 32px 80px 1.4fr 130px 1.8fr 1.3fr 80px; gap:.75rem; align-items:center; font-size:.9rem; }
+    /* Страница писала свою палитру напрямую (#f6f8fa, #10b981, #1e40af…) и не
+       подключала токены вовсе — после редизайна она была единственной, что
+       выбивалась. Теперь цвета берутся из дизайн-системы, поэтому обе темы
+       получаются сами собой, без второго набора правил. */
+    body { background: var(--body-bg); color: var(--gray-800); font-family: var(--font-family-base); }
+    .header { background: var(--bg-primary); border-bottom:1px solid var(--gray-200); padding:1rem 1.5rem; margin-bottom:1.5rem; }
+    .header h4 { font-family: var(--font-display); font-weight:400; font-size:1.6rem; }
+    .header i { color: var(--gray-500); }
+    .group-card { background: var(--bg-primary); border:1px solid var(--gray-200); border-radius: var(--radius-xl); margin-bottom:1rem; overflow:hidden; }
+    .group-head { padding:.75rem 1rem; background: transparent; border-bottom:1px solid var(--gray-200); font-weight:600; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+    .group-head .fbids { font-family: var(--font-family-mono); font-size:.8rem; color: var(--gray-500); word-break:break-all; }
+    .acc-row { padding:.5rem 1rem; border-bottom:1px solid var(--gray-100); display:grid; grid-template-columns: 32px 80px 1.4fr 130px 1.8fr 1.3fr 80px; gap:.75rem; align-items:center; font-size:.9rem; }
     .acc-row:last-child { border-bottom:none; }
-    .acc-row.keep { background:#ecfdf5; }
-    .acc-row.del  { background:#fff7ed; }
-    .acc-id { font-weight:600; color:#1e40af; }
+    /* Какую строку оставляем, а какую удаляем, читается по метке в конце строки;
+       подложка нужна лишь чтобы разделить их взглядом — отсюда нейтральные тона. */
+    .acc-row.keep { background: var(--bg-secondary); }
+    .acc-row.del  { background: transparent; opacity: .72; }
+    .acc-id { font-weight:600; color: var(--gray-900); font-family: var(--font-family-mono); }
     .acc-login { font-weight:500; word-break:break-all; }
-    .acc-meta { color:#6b7280; font-size:.825rem; word-break:break-all; }
-    .badge-keep { background:#10b981; color:#fff; font-size:.7rem; padding:.15rem .4rem; border-radius:4px; }
-    .badge-del  { background:#f59e0b; color:#fff; font-size:.7rem; padding:.15rem .4rem; border-radius:4px; }
+    .acc-meta { color: var(--gray-500); font-size:.825rem; word-break:break-all; }
+    .badge-keep { background: var(--gray-900); color: var(--bg-primary); font-size:.7rem; padding:.15rem .45rem; border-radius: var(--radius-xs); }
+    .badge-del  { background: transparent; color: var(--danger-600); border:1px solid var(--danger-200); font-size:.7rem; padding:.15rem .45rem; border-radius: var(--radius-xs); }
     /* Цветовая семантика статуса — в одном стиле с основной таблицей. */
-    .status-pill { display:inline-block; padding:.2rem .55rem; border-radius:999px; font-size:.72rem; font-weight:600; line-height:1.2; word-break:break-all; max-width:100%; }
-    .status-pill[data-tone="success"] { background:#d1fae5; color:#065f46; }
-    .status-pill[data-tone="danger"]  { background:#fee2e2; color:#991b1b; }
-    .status-pill[data-tone="warning"] { background:#fef3c7; color:#92400e; }
-    .status-pill[data-tone="muted"]   { background:#e5e7eb; color:#374151; }
-    .status-pill.is-empty { background:#f3f4f6; color:#9ca3af; font-style:italic; }
-    .empty-state { text-align:center; padding:4rem; background:#fff; border-radius:8px; border:1px solid #e5e7eb; }
-    .actions-bar { position:sticky; top:0; background:#fff; border-bottom:1px solid #e5e7eb; padding:.75rem 1.5rem; margin-bottom:1.5rem; z-index:10; box-shadow:0 1px 3px rgba(0,0,0,.05); }
-
-    /* ===== Тёмная тема ===== */
-    [data-bs-theme="dark"] body { background:#0A0A0F; color:#C6CBD2; }
-    [data-bs-theme="dark"] .header,
-    [data-bs-theme="dark"] .actions-bar { background:#15161A; border-bottom-color:#2C2E36; }
-    [data-bs-theme="dark"] .group-card,
-    [data-bs-theme="dark"] .empty-state { background:#15161A; border-color:#2C2E36; }
-    [data-bs-theme="dark"] .group-head { background:#1B1C21; border-bottom-color:#2C2E36; }
-    [data-bs-theme="dark"] .group-head .fbids,
-    [data-bs-theme="dark"] .acc-meta { color:#8C929C; }
-    [data-bs-theme="dark"] .acc-row { border-bottom-color:#2C2E36; }
-    [data-bs-theme="dark"] .acc-row.keep { background: rgba(16,185,129,0.10); }
-    [data-bs-theme="dark"] .acc-row.del  { background: rgba(245,158,11,0.10); }
-    [data-bs-theme="dark"] .acc-id { color:#60a5fa; }
-    [data-bs-theme="dark"] .status-pill[data-tone="success"] { background: rgba(16,185,129,0.16); color:#6ee7b7; }
-    [data-bs-theme="dark"] .status-pill[data-tone="danger"]  { background: rgba(248,113,113,0.16); color:#fca5a5; }
-    [data-bs-theme="dark"] .status-pill[data-tone="warning"] { background: rgba(245,158,11,0.16); color:#fcd34d; }
-    [data-bs-theme="dark"] .status-pill[data-tone="muted"]   { background:#23252B; color:#C6CBD2; }
-    [data-bs-theme="dark"] .status-pill.is-empty { background:#1B1C21; color:#8C929C; }
-
-    /* ===== Мобильная адаптация ===== */
-    @media (max-width: 768px) {
-      .header { padding: .85rem 1rem; margin-bottom: 1rem; }
-      .header h1.h4 { font-size: 1.05rem; }
-      .actions-bar { padding: .6rem 1rem; margin-bottom: 1rem; }
-      .container-fluid { padding-left: 12px; padding-right: 12px; }
-      .group-head { padding: .65rem .85rem; font-size: .9rem; }
-
-      /* 7-колоночный grid → вертикальный стек, радио в углу */
-      .acc-row {
-        display: block;
-        position: relative;
-        padding: .85rem 1rem .85rem 2.6rem;
-        font-size: .9rem;
-      }
-      .acc-row > input[type="radio"] {
-        position: absolute;
-        left: 1rem;
-        top: 1rem;
-        width: 1.1rem;
-        height: 1.1rem;
-      }
-      .acc-row > div { margin-bottom: .4rem; }
-      .acc-row > div:last-child { margin-bottom: 0; }
-      .acc-id { font-size: 1rem; }
-    }
-
-    @media (max-width: 480px) {
-      .header .d-flex { flex-wrap: wrap; gap: .5rem; }
-      .empty-state { padding: 2.5rem 1rem; }
-    }
+    .status-pill { display:inline-block; padding:.2rem .55rem; border-radius:999px; font-size:.72rem; font-weight:600; line-height:1.2; word-break:break-all; max-width:100%; border:1px solid transparent; }
+    .status-pill[data-tone="success"] { background: var(--success-50); color: var(--success-700); border-color: var(--success-200); }
+    .status-pill[data-tone="danger"]  { background: var(--danger-50);  color: var(--danger-700);  border-color: var(--danger-200); }
+    .status-pill[data-tone="warning"] { background: var(--warning-50); color: var(--warning-600); border-color: var(--warning-200); }
+    .status-pill[data-tone="muted"]   { background: var(--gray-100);   color: var(--gray-700);    border-color: var(--gray-200); }
+    .status-pill.is-empty { background: var(--gray-50); color: var(--gray-500); font-style:italic; }
+    .empty-state { text-align:center; padding:4rem; background: var(--bg-primary); border-radius: var(--radius-xl); border:1px solid var(--gray-200); }
+    .empty-state .fa-check-circle, .empty-state .fa-circle-check { color: var(--gray-400) !important; }
+    .actions-bar { position:sticky; top:0; background: var(--bg-primary); border-bottom:1px solid var(--gray-200); padding:.75rem 1.5rem; margin-bottom:1.5rem; z-index:10; box-shadow:none; }
   </style>
 </head>
 <body>

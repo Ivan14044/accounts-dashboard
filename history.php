@@ -47,24 +47,35 @@ $history = $auditLogger->getAccountHistory($accountId, 200);
     <link href="assets/css/core-mobile.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
     <link href="assets/css/core-design-v2.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
     <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+    <link href="assets/css/redesign.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
     <style>
+        /* Цвета берём из токенов дизайн-системы, а не из палитры Bootstrap:
+           синие и кислотные подложки (#0d6efd, #fff3cd, #d1e7dd) выбивались из
+           панели. «Было» и «Стало» различаются плотностью подложки и рамкой,
+           а не цветом — этого достаточно, чтобы прочитать изменение. */
         .history-item {
-            border-left: 3px solid #0d6efd;
+            border-left: 2px solid var(--gray-300);
             padding-left: 1rem;
             margin-bottom: 1rem;
         }
-        .history-item.old-value {
-            background: #fff3cd;
-        }
-        .history-item.new-value {
-            background: #d1e7dd;
-        }
         .field-name {
             font-weight: 600;
-            color: #0d6efd;
+            color: var(--gray-900);
+            font-family: var(--font-family-mono);
+            font-size: .8125rem;
         }
-        .old-value { background: #fff3cd; }
-        .new-value { background: #d1e7dd; }
+        .old-value {
+            background: var(--bg-secondary);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+        }
+        .old-value code { color: var(--gray-500); text-decoration: line-through; text-decoration-thickness: 1px; }
+        .new-value {
+            background: var(--bg-primary);
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-md);
+        }
+        .new-value code { color: var(--gray-900); }
         /* Длинные значения (токены, cookies) переносятся, а не ломают вёрстку */
         .old-value code,
         .new-value code {
@@ -80,12 +91,12 @@ $history = $auditLogger->getAccountHistory($accountId, 200);
         }
 
         /* ===== Тёмная тема ===== */
-        [data-bs-theme="dark"] .old-value { background: rgba(245,158,11,0.14); }
-        [data-bs-theme="dark"] .new-value { background: rgba(16,185,129,0.14); }
-        [data-bs-theme="dark"] .old-value code,
-        [data-bs-theme="dark"] .new-value code { color: #E0E3E8; }
-        [data-bs-theme="dark"] .field-name { color: #60a5fa; }
-        [data-bs-theme="dark"] .history-item { border-left-color: #3b82f6; }
+        [data-bs-theme="dark"] .old-value { background: var(--gray-50); border-color: var(--gray-200); }
+        [data-bs-theme="dark"] .new-value { background: var(--gray-100); border-color: var(--gray-300); }
+        [data-bs-theme="dark"] .old-value code { color: var(--gray-500); }
+        [data-bs-theme="dark"] .new-value code { color: var(--gray-900); }
+        [data-bs-theme="dark"] .field-name { color: var(--gray-900); }
+        [data-bs-theme="dark"] .history-item { border-left-color: var(--gray-300); }
     </style>
 </head>
 <body>

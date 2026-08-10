@@ -470,9 +470,12 @@ function activePeriod(): string {
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
+    <link href="assets/css/core-base.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
     <link href="assets/css/core-theme.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
     <link href="assets/css/core-mobile.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
     <link href="assets/css/core-design-v2.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+    <link href="assets/css/core-dark.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
+    <link href="assets/css/redesign.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 
     <style>
         :root {
@@ -739,57 +742,161 @@ function activePeriod(): string {
             .stats-grid { grid-template-columns: 1fr; }
         }
 
-        /* ===== Тёмная тема (самодостаточно; Bootstrap-компоненты темит data-bs-theme) ===== */
+        /* ===== Тёмная тема =====
+           Раньше здесь была вторая, полностью независимая палитра: полсотни
+           правил с #2563eb, rgba(59,130,246,…), #fca5a5, #6ee7b7. Она жила
+           отдельно от дизайн-системы и не менялась вместе с ней.
+           Теперь тёмная тема — это те же токены: ниже осталось только то,
+           чего нельзя выразить одним значением переменной. */
         [data-bs-theme="dark"] {
-            --log-bg: #15161A;
-            --log-border: #2C2E36;
-            --log-hover: #1B1C21;
-            --log-stripe: #15161A;
+            --log-bg: var(--bg-primary);
+            --log-border: var(--gray-200);
+            --log-hover: var(--bg-hover);
+            --log-stripe: transparent;
         }
-        [data-bs-theme="dark"] body { background: #0A0A0F; color: #C6CBD2; }
-        [data-bs-theme="dark"] .stat-card .stat-number { color: #F1F2F4; }
-        [data-bs-theme="dark"] .stat-card .stat-label { color: #8C929C; }
-        [data-bs-theme="dark"] .stat-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.55); }
-        [data-bs-theme="dark"] .period-btn { background: var(--log-bg); border-color: var(--log-border); color: #C6CBD2; }
-        [data-bs-theme="dark"] .period-btn:hover { background: rgba(59,130,246,0.14); border-color: #3b82f6; color: #93c5fd; }
-        [data-bs-theme="dark"] .period-btn.active { background: #2563eb; border-color: #2563eb; color: #fff; }
-        [data-bs-theme="dark"] .filters-card .form-label { color: #A9AFB9; }
-        [data-bs-theme="dark"] .filters-card .form-control,
-        [data-bs-theme="dark"] .filters-card .form-select { background: var(--log-bg); border-color: var(--log-border); color: #E0E3E8; }
-        [data-bs-theme="dark"] .filters-card .form-control:focus,
-        [data-bs-theme="dark"] .filters-card .form-select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.25); }
-        [data-bs-theme="dark"] .card-header-custom { background: #1B1C21; }
-        [data-bs-theme="dark"] .log-table thead th { background: #1B1C21; color: #8C929C; border-bottom-color: var(--log-border); }
-        [data-bs-theme="dark"] .log-table tbody tr { border-bottom-color: var(--log-border); }
-        [data-bs-theme="dark"] .log-table tbody tr:hover,
-        [data-bs-theme="dark"] .log-table tbody tr:nth-child(even):hover { background: rgba(59,130,246,0.10); }
-        [data-bs-theme="dark"] .value-old { background: rgba(248,113,113,0.14); color: #fca5a5; }
-        [data-bs-theme="dark"] .value-new { background: rgba(16,185,129,0.14); color: #6ee7b7; }
-        [data-bs-theme="dark"] .user-badge { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.30); color: #93c5fd; }
-        [data-bs-theme="dark"] .user-badge .user-dot { background: #3b82f6; }
-        [data-bs-theme="dark"] .account-link { color: #C6CBD2; }
-        [data-bs-theme="dark"] .account-link:hover { background: rgba(59,130,246,0.14); color: #93c5fd; }
-        [data-bs-theme="dark"] .action-btn { background: var(--log-bg); border-color: var(--log-border); color: #8C929C; }
-        [data-bs-theme="dark"] .action-btn:hover { background: rgba(59,130,246,0.14); border-color: #3b82f6; color: #93c5fd; }
-        [data-bs-theme="dark"] .ip-badge { color: #6E737D; }
-        [data-bs-theme="dark"] .pagination-wrapper { background: #1B1C21; border-top-color: var(--log-border); }
-        [data-bs-theme="dark"] .pagination .page-link { background: var(--log-bg); border-color: var(--log-border); color: #C6CBD2; }
-        [data-bs-theme="dark"] .pagination .page-item.active .page-link { background: #2563eb; border-color: #2563eb; color: #fff; }
-        [data-bs-theme="dark"] .user-stat-chip { background: var(--log-bg); border-color: var(--log-border); color: #C6CBD2; }
-        [data-bs-theme="dark"] .user-stat-chip:hover { background: rgba(59,130,246,0.12); border-color: #3b82f6; }
-        [data-bs-theme="dark"] .user-stat-chip.active-chip { background: #2563eb; border-color: #2563eb; color: #fff; }
-        [data-bs-theme="dark"] .user-stat-chip .chip-count { background: rgba(255,255,255,0.08); color: #C6CBD2; }
-        [data-bs-theme="dark"] .user-stat-chip.active-chip .chip-count { background: rgba(255,255,255,0.2); color: #fff; }
-        [data-bs-theme="dark"] .empty-state { color: #8C929C; }
+        [data-bs-theme="dark"] body { background: var(--body-bg); color: var(--gray-700); }
+        [data-bs-theme="dark"] .stat-card:hover { box-shadow: var(--shadow-card-hover); }
         [data-bs-theme="dark"] .detail-modal .modal-header,
-        [data-bs-theme="dark"] .detail-modal .modal-footer { background: #1B1C21 !important; border-color: var(--log-border) !important; }
-        [data-bs-theme="dark"] .detail-modal .detail-row { background: #1B1C21; }
-        [data-bs-theme="dark"] .detail-modal .detail-label { color: #8C929C; }
-        [data-bs-theme="dark"] .detail-modal .detail-value { color: #E0E3E8; }
-        [data-bs-theme="dark"] .detail-modal .value-block.old { background: rgba(248,113,113,0.12); color: #fca5a5; border-color: rgba(248,113,113,0.25); }
-        [data-bs-theme="dark"] .detail-modal .value-block.new { background: rgba(16,185,129,0.12); color: #6ee7b7; border-color: rgba(16,185,129,0.25); }
-        [data-bs-theme="dark"] .auto-refresh-indicator.inactive { background: #1B1C21; color: #8C929C; }
-        [data-bs-theme="dark"] .auto-refresh-indicator.active { background: rgba(16,185,129,0.14); color: #6ee7b7; }
+        [data-bs-theme="dark"] .detail-modal .modal-footer { background: transparent !important; border-color: var(--gray-200) !important; }
+        [data-bs-theme="dark"] .detail-modal .value-block.old { background: var(--bg-secondary); color: var(--gray-500); border-color: var(--gray-200); }
+        [data-bs-theme="dark"] .detail-modal .value-block.new { background: var(--gray-100); color: var(--gray-900); border-color: var(--gray-300); }
+        [data-bs-theme="dark"] .auto-refresh-indicator.inactive { background: var(--bg-secondary); color: var(--gray-500); }
+        [data-bs-theme="dark"] .auto-refresh-indicator.active { background: var(--success-50); color: var(--success-600); }
+
+        /* ============================================================
+           РЕДИЗАЙН. Страница писалась со своей палитрой (123 хардкод-цвета:
+           #1e293b, #3b82f6, #eff6ff и т.д.) и не подключала токены вовсе.
+           Ниже — перевод на общую систему: те же элементы, но цвет берётся
+           из дизайн-токенов, поэтому страница живёт вместе с темой.
+           Блок стоит последним в собственном <style>: перекрыть инлайновые
+           правила из подключённого файла нельзя, каскад тут сильнее.
+           ============================================================ */
+        :root {
+            --log-bg: var(--bg-primary);
+            --log-border: var(--gray-200);
+            --log-hover: var(--bg-hover);
+            --log-stripe: transparent;
+        }
+
+        body { background: var(--body-bg); font-family: var(--font-family-base); color: var(--gray-800); }
+
+        .page-header {
+            background: var(--bg-primary);
+            color: var(--gray-900);
+            border: 1px solid var(--gray-200);
+            box-shadow: none;
+            border-radius: var(--radius-xl);
+        }
+        .page-header h1 {
+            font-family: var(--font-display);
+            font-weight: 400;
+            font-size: 2rem;
+            color: var(--gray-900);
+        }
+        .page-header .subtitle { color: var(--gray-500); opacity: 1; }
+
+        .stat-card { border-radius: var(--radius-xl); border-color: var(--gray-200); }
+        .stat-card:hover { transform: none; box-shadow: var(--shadow-card-hover); }
+        .stat-card .stat-icon { color: var(--gray-400); }
+        .stat-card .stat-number {
+            font-family: var(--font-display);
+            font-weight: 400;
+            font-size: 2.4rem;
+            color: var(--gray-900);
+        }
+        .stat-card .stat-label {
+            color: var(--gray-500);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+        }
+
+        .period-btn { color: var(--gray-600); border-color: var(--gray-200); background: var(--bg-primary); }
+        .period-btn:hover { background: var(--bg-hover); border-color: var(--gray-300); color: var(--gray-900); }
+        .period-btn.active { background: var(--gray-900); border-color: var(--gray-900); color: var(--bg-primary); }
+
+        .filters-card { border-radius: var(--radius-xl); border-color: var(--gray-200); }
+        .filters-card .form-label { color: var(--gray-500); letter-spacing: 0.14em; font-size: 10px; }
+        .filters-card .form-control,
+        .filters-card .form-select { border-color: var(--gray-200); border-radius: var(--radius-md); background: var(--bg-primary); color: var(--gray-900); }
+        .filters-card .form-control:focus,
+        .filters-card .form-select:focus { border-color: var(--gray-400); box-shadow: var(--shadow-focus); }
+
+        .logs-card { border-radius: var(--radius-xl); border-color: var(--gray-200); }
+        .logs-card .card-header-custom { background: transparent; border-bottom: 1px solid var(--gray-200); }
+
+        .log-table thead th {
+            background: transparent;
+            color: var(--gray-500);
+            border-bottom: 1px solid var(--gray-200);
+            font-size: 10px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+        .log-table tbody tr { border-bottom: 1px solid var(--gray-100); }
+        .log-table tbody tr:hover,
+        .log-table tbody tr:nth-child(even):hover { background: var(--bg-hover); }
+        .log-table tbody tr:nth-child(even) { background: transparent; }
+        .log-table td { color: var(--gray-800); }
+
+        /* Тип действия различался цветом плашки (синяя, зелёная, розовая,
+           фиолетовая). Текст в плашке и так называет действие, поэтому
+           оставляем один нейтральный чип с волосяной рамкой. */
+        .field-badge {
+            background: var(--bg-secondary) !important;
+            color: var(--gray-700) !important;
+            border: 1px solid var(--gray-200);
+            font-weight: 600;
+        }
+        .field-badge i { color: var(--gray-400); }
+
+        .value-old {
+            background: var(--bg-secondary);
+            color: var(--gray-500);
+            border: 1px solid var(--gray-200);
+            text-decoration: line-through;
+        }
+        .value-new {
+            background: var(--bg-primary);
+            color: var(--gray-900);
+            border: 1px solid var(--gray-300);
+        }
+
+        .user-badge { background: var(--bg-secondary); color: var(--gray-700); border: 1px solid var(--gray-200); }
+        .user-badge .user-dot { background: var(--gray-400); }
+
+        .account-link { color: var(--gray-900); font-family: var(--font-family-mono); }
+        .account-link:hover { background: var(--bg-hover); color: var(--gray-900); }
+
+        .action-btn { background: var(--bg-primary); color: var(--gray-500); border-color: var(--gray-200); }
+        .action-btn:hover,
+        .action-btn.view-btn:hover,
+        .action-btn.history-btn:hover,
+        .action-btn.filter-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--gray-400);
+            color: var(--gray-900);
+        }
+
+        .ip-badge { color: var(--gray-500); font-family: var(--font-family-mono); }
+
+        .pagination-wrapper { background: transparent; border-top: 1px solid var(--gray-200); }
+        .pagination .page-link { border-color: var(--gray-200); color: var(--gray-700); background: var(--bg-primary); }
+        .pagination .page-item.active .page-link { background: var(--gray-900); border-color: var(--gray-900); color: var(--bg-primary); }
+
+        .user-stat-chip { background: var(--bg-primary); border-color: var(--gray-200); color: var(--gray-700); }
+        .user-stat-chip:hover { background: var(--bg-hover); border-color: var(--gray-300); }
+        .user-stat-chip.active-chip { background: var(--gray-900); border-color: var(--gray-900); color: var(--bg-primary); }
+        .user-stat-chip .chip-count { background: var(--bg-secondary); color: var(--gray-700); }
+        .user-stat-chip.active-chip .chip-count { background: rgba(255,255,255,0.18); color: var(--bg-primary); }
+
+        .empty-state { color: var(--gray-500); }
+        .empty-state i { color: var(--gray-300); }
+
+        .detail-modal .modal-header { background: transparent; border-bottom: 1px solid var(--gray-200); }
+        .detail-modal .detail-row { background: var(--bg-secondary); }
+        .detail-modal .detail-label { color: var(--gray-500); }
+        .detail-modal .detail-value { color: var(--gray-900); }
     </style>
 </head>
 <body>
@@ -836,27 +943,27 @@ function activePeriod(): string {
         <!-- Статистика -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="stat-icon" style="color: #3b82f6;"><i class="fas fa-list-alt"></i></div>
+                <div class="stat-icon"><i class="fas fa-list-alt"></i></div>
                 <div class="stat-number"><?= number_format($totalCount) ?></div>
                 <div class="stat-label">По фильтрам</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="color: #22c55e;"><i class="fas fa-calendar-day"></i></div>
+                <div class="stat-icon"><i class="fas fa-calendar-day"></i></div>
                 <div class="stat-number"><?= number_format($todayCount) ?></div>
                 <div class="stat-label">Сегодня</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="color: #8b5cf6;"><i class="fas fa-users"></i></div>
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
                 <div class="stat-number"><?= count($statsUsers) ?></div>
                 <div class="stat-label">Сотрудников</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="color: #f59e0b;"><i class="fas fa-tags"></i></div>
+                <div class="stat-icon"><i class="fas fa-tags"></i></div>
                 <div class="stat-number"><?= count($statsFields) ?></div>
                 <div class="stat-label">Типов действий</div>
             </div>
             <div class="stat-card">
-                <div class="stat-icon" style="color: #64748b;"><i class="fas fa-copy"></i></div>
+                <div class="stat-icon"><i class="fas fa-copy"></i></div>
                 <div class="stat-number"><?= $totalPages ?></div>
                 <div class="stat-label">Страниц</div>
             </div>
@@ -1253,12 +1360,12 @@ function activePeriod(): string {
 
             body += '<div class="col-md-6">';
             body += '<div class="mb-2" style="font-size: 0.82rem; font-weight: 600; color: #991b1b;"><i class="fas fa-arrow-left me-1"></i> Было:</div>';
-            body += '<div class="value-block old">' + (log.old_value ? esc(log.old_value) : '<span style="color: #94a3b8;">(пусто)</span>') + '</div>';
+            body += '<div class="value-block old">' + (log.old_value ? esc(log.old_value) : '<span class="text-muted">(пусто)</span>') + '</div>';
             body += '</div>';
 
             body += '<div class="col-md-6">';
             body += '<div class="mb-2" style="font-size: 0.82rem; font-weight: 600; color: #166534;"><i class="fas fa-arrow-right me-1"></i> Стало:</div>';
-            body += '<div class="value-block new">' + (log.new_value ? esc(log.new_value) : '<span style="color: #94a3b8;">(пусто)</span>') + '</div>';
+            body += '<div class="value-block new">' + (log.new_value ? esc(log.new_value) : '<span class="text-muted">(пусто)</span>') + '</div>';
             body += '</div>';
 
             body += '</div>';
