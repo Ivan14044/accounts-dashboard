@@ -556,6 +556,63 @@ trait AccountsRepoBulkTrait {
     }
 
     /**
+     * Какие поля реально обновлять при импорте в режиме «Обновить».
+     *
+     * ПРАВИЛО: пустое значение в файле означает «не трогать это поле», а не
+     * «очистить его». Обновляются только колонки, которые есть в загруженной
+     * строке и непустые.
+     *
+     * Зачем так (баг, найденный 2026-08-10). Пользователь скачивает шаблон — а в
+     * нём в заголовке ВСЕ колонки — заполняет login и status и выбирает
+     * «Обновить». До этой функции у существующего аккаунта обнулялись password,
+     * email, first_name, id_soc_account, extra_info_1 и все прочие, а отчёт
+     * говорил «Обновлено: 1» без предупреждений. Причин было две:
+     *  1. CsvParser добивает короткую строку пустыми значениями и присваивает ''
+     *     каждому заголовку, а AccountsRepository превращает '' в NULL для
+     *     nullable-колонок — UPDATE честно писал NULL поверх данных;
+     *  2. $allowedFields собирается для СОЗДАНИЯ записи и дополнительно добирает
+     *     значения по умолчанию для NOT NULL колонок, которых в файле нет вовсе;
+     *     в UPDATE они переписывали существующие значения дефолтами.
+     * Восстановить было нечем: импорт не пишет в журнал отмены.
+     *
+     * Осознанный размен: очистить поле импортом теперь нельзя. Цена ошибки в
+     * другую сторону — молчаливая невосстановимая потеря данных — несопоставимо
+     * выше. Очистка поля делается точечно в интерфейсе.
+     *
+     * Ноль (`0` и строка `'0'`) пустотой НЕ считается — это значимое значение,
+     * поэтому проверяем именно на пустую строку, а не через empty().
+     *
+     * @param array    $data Загруженная строка: колонка => значение из файла
+     * @param string[] $allowedFields Поля-кандидаты, отобранные под создание записи
+     * @return string[] Поля для SET, в порядке $allowedFields, без повторов
+     */
+    public static function fieldsToUpdateFromImport(array $data, array $allowedFields): array {
+        $skip = array('id', 'created_at', 'updated_at', 'deleted_at', 'login');
+        $result = array();
+
+        foreach ($allowedFields as $field) {
+            // login — ключ поиска, системные поля не из файла
+            if (in_array($field, $skip, true) || in_array($field, $result, true)) {
+                continue;
+            }
+            // Колонки нет в файле — значит про неё ничего не сказано.
+            if (!array_key_exists($field, $data)) {
+                continue;
+            }
+            $value = $data[$field];
+            if ($value === null) {
+                continue;
+            }
+            if (is_string($value) && trim($value) === '') {
+                continue;
+            }
+            $result[] = $field;
+        }
+
+        return $result;
+    }
+
+    /**
      * Обновляет существующий аккаунт по логину
      * Используется при duplicate_action = 'update'
      *
@@ -594,18 +651,24 @@ trait AccountsRepoBulkTrait {
             throw new Exception('No valid fields to update');
         }
 
-        // Формируем SET часть запроса
-        $setParts = [];
-        foreach ($allowedFields as $field) {
-            if ($field === 'login') {
-                // Не обновляем login (это ключ для поиска)
-                continue;
-            }
-            $setParts[] = "`{$field}` = ?";
+        // Что именно обновляем. Список считается ОДИН раз и дальше используется
+        // и для SET, и для привязки параметров — иначе два цикла разъедутся и
+        // значения уедут не в свои колонки.
+        // Пустые поля сюда не попадают: см. докблок fieldsToUpdateFromImport.
+        $updateFields = self::fieldsToUpdateFromImport($data, $allowedFields);
+
+        if (empty($updateFields)) {
+            throw new Exception(
+                'В строке нет ни одного заполненного поля для обновления '
+                . '(кроме login). Пустые значения при обновлении игнорируются, '
+                . 'чтобы не затереть данные.'
+            );
         }
 
-        if (empty($setParts)) {
-            throw new Exception('No fields to update (only login provided)');
+        // Формируем SET часть запроса
+        $setParts = [];
+        foreach ($updateFields as $field) {
+            $setParts[] = "`{$field}` = ?";
         }
 
         $setClause = implode(', ', $setParts);
@@ -624,11 +687,7 @@ trait AccountsRepoBulkTrait {
         $paramTypes = '';
         $paramValues = [];
 
-        foreach ($allowedFields as $field) {
-            if ($field === 'login') {
-                continue;
-            }
-
+        foreach ($updateFields as $field) {
             $normalized = $fieldData[$field];
             $val = $normalized['value'];
 
