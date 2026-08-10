@@ -1,0 +1,944 @@
+/**
+ * ui.css — собственная система интерфейса панели. Написана с нуля.
+ *
+ * Это НЕ слой поверх core-*.css и не тема для Bootstrap. Страницы, собранные
+ * на ней, не подключают ни Bootstrap, ни FontAwesome, ни core-*.css вообще:
+ * здесь свой сброс, свои токены, своя типографика и свои компоненты, а иконки
+ * — инлайновый SVG (templates/ui/icons.php).
+ *
+ * Язык — тот же, что на странице входа: чернила и бумага, вес держат
+ * типографика, воздух и волосяные линии. Цвет появляется только там, где несёт
+ * смысл: статус аккаунта, уровень лога, опасное действие.
+ *
+ * Именование: все классы с префиксом `ui-`. Это не косметика — на страницах
+ * ещё какое-то время будут соседствовать старая разметка и новая, и префикс
+ * гарантирует, что правила не пересекутся с bootstrap-классами и core-*.
+ *
+ * Чего здесь осознанно НЕТ:
+ *  - утилитарных классов на все случаи (`.mt-3`, `.d-flex` и т.п.). Раскладка
+ *    задаётся компонентами; иначе через месяц это снова Bootstrap, только свой;
+ *  - !important. Файл ни с чем не конкурирует, перекрывать нечего;
+ *  - JS-зависимостей: всё состояние — атрибуты (`aria-expanded`, `hidden`,
+ *    `data-*`), поведение живёт в assets/js/ui.js.
+ *
+ * Тема переключается атрибутом `data-theme` на <html>. Старый `data-bs-theme`
+ * тоже поддержан: пока не переехали все страницы, ключ localStorage общий.
+ */
+
+/* ==========================================================================
+   1. Токены
+   ========================================================================== */
+
+:root {
+  /* Бумага: тёплый нейтрал, а не белый лист. */
+  --ui-bg:            #F2F1EE;
+  --ui-surface:       #FFFFFF;
+  --ui-surface-sunk:  #F7F6F4;
+  --ui-surface-raised:#FFFFFF;
+
+  --ui-text:          #131416;
+  --ui-text-soft:     #4A4D51;
+  --ui-text-muted:    #666A6E;   /* 4.5:1 на бумаге — светлее нельзя */
+
+  --ui-line:          rgba(19, 20, 22, 0.10);
+  --ui-line-firm:     rgba(19, 20, 22, 0.22);
+
+  /* «Акцент» бесцветный: то же чернильное, что и текст. */
+  --ui-accent:        #131416;
+  --ui-accent-soft:   rgba(19, 20, 22, 0.06);
+  --ui-accent-ring:   rgba(19, 20, 22, 0.08);
+
+  /* Единственные цвета в системе — и только на смысле. */
+  --ui-danger:        #9E3B2F;
+  --ui-danger-bg:     rgba(158, 59, 47, 0.07);
+  --ui-danger-line:   rgba(158, 59, 47, 0.28);
+  --ui-warn:          #7A6134;
+  --ui-warn-bg:       rgba(122, 97, 52, 0.08);
+  --ui-warn-line:     rgba(122, 97, 52, 0.26);
+  --ui-ok:            #3F6B4A;
+  --ui-ok-bg:         rgba(63, 107, 74, 0.08);
+  --ui-ok-line:       rgba(63, 107, 74, 0.26);
+
+  --ui-btn-bg:        #131416;
+  --ui-btn-bg-hover:  #26282B;
+  --ui-btn-text:      #F7F6F4;
+
+  --ui-shadow-sm: 0 1px 2px rgba(19, 20, 22, 0.04);
+  --ui-shadow:    0 1px 2px rgba(19, 20, 22, 0.04), 0 14px 34px -18px rgba(19, 20, 22, 0.16);
+  --ui-shadow-lg: 0 1px 2px rgba(19, 20, 22, 0.05), 0 28px 60px -28px rgba(19, 20, 22, 0.28);
+
+  --ui-r-xs: 4px;
+  --ui-r-sm: 7px;
+  --ui-r-md: 10px;
+  --ui-r-lg: 14px;
+  --ui-r-pill: 999px;
+
+  /* Шаг сетки — 4px. Все отступы кратны ему. */
+  --ui-1: 4px;
+  --ui-2: 8px;
+  --ui-3: 12px;
+  --ui-4: 16px;
+  --ui-5: 20px;
+  --ui-6: 24px;
+  --ui-8: 32px;
+  --ui-10: 40px;
+  --ui-12: 48px;
+
+  --ui-sans: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --ui-display: "Cormorant Garamond", "Times New Roman", Georgia, serif;
+  --ui-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --ui-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ui-grain: 0.045;
+
+  --ui-topbar-h: 60px;
+}
+
+:root[data-theme="dark"],
+:root[data-bs-theme="dark"] {
+  /* Чернила: тёплый уголь, а не чистый чёрный — #000 съедает мягкие тени. */
+  --ui-bg:            #0C0D0F;
+  --ui-surface:       #141517;
+  --ui-surface-sunk:  #101113;
+  --ui-surface-raised:#181A1D;
+
+  --ui-text:          #E9E9E7;
+  --ui-text-soft:     #A6A8AC;
+  --ui-text-muted:    #7E838C;   /* с запасом на приподнятой поверхности */
+
+  --ui-line:          rgba(233, 233, 231, 0.10);
+  --ui-line-firm:     rgba(233, 233, 231, 0.22);
+
+  --ui-accent:        #E9E9E7;
+  --ui-accent-soft:   rgba(233, 233, 231, 0.08);
+  --ui-accent-ring:   rgba(233, 233, 231, 0.10);
+
+  --ui-danger:        #D98A7E;
+  --ui-danger-bg:     rgba(217, 138, 126, 0.10);
+  --ui-danger-line:   rgba(217, 138, 126, 0.30);
+  --ui-warn:          #C0A377;
+  --ui-warn-bg:       rgba(192, 163, 119, 0.10);
+  --ui-warn-line:     rgba(192, 163, 119, 0.28);
+  --ui-ok:            #8DBF9C;
+  --ui-ok-bg:         rgba(141, 191, 156, 0.10);
+  --ui-ok-line:       rgba(141, 191, 156, 0.28);
+
+  --ui-btn-bg:        #E9E9E7;
+  --ui-btn-bg-hover:  #FFFFFF;
+  --ui-btn-text:      #121315;
+
+  --ui-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --ui-shadow:    0 1px 2px rgba(0, 0, 0, 0.5), 0 20px 44px -22px rgba(0, 0, 0, 0.8);
+  --ui-shadow-lg: 0 1px 2px rgba(0, 0, 0, 0.6), 0 36px 72px -32px rgba(0, 0, 0, 0.9);
+
+  --ui-grain: 0.03;
+}
+
+/* ==========================================================================
+   2. Сброс и основа
+   ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"], :root[data-bs-theme="dark"] { color-scheme: dark; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family: var(--ui-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  letter-spacing: -0.003em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Зерно поверх страницы — то же, что на входе: снимает «пластиковость»
+   плоских заливок. Ниже модалок (z 1000) и уведомлений (z 1100). */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+  opacity: var(--ui-grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+h1, h2, h3, h4, p, figure, ul, ol, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+
+a { color: inherit; text-decoration: none; }
+a:hover { text-decoration: none; }
+
+img, svg { display: block; max-width: 100%; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+table { border-collapse: collapse; border-spacing: 0; }
+
+code, kbd, samp, pre { font-family: var(--ui-mono); font-size: 0.9em; }
+
+::selection { background: var(--ui-accent-soft); color: var(--ui-text); }
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+  border-radius: var(--ui-r-xs);
+}
+
+/* ==========================================================================
+   3. Типографика
+   ========================================================================== */
+
+/* Сериф — только на заголовке страницы и крупных числах. В таблицах и
+   кнопках он читался бы хуже гротеска, поэтому туда не лезет. */
+.ui-h1 {
+  font-family: var(--ui-display);
+  font-weight: 400;
+  font-size: clamp(1.8rem, 2.6vw, 2.15rem);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  color: var(--ui-text);
+}
+
+.ui-h2 {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ui-text);
+}
+
+.ui-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+
+/* Текст только для скринридера: подпись у колонки-иконки, где визуально
+   заголовок не нужен, а вслух его прочитать надо. */
+.ui-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.ui-muted { color: var(--ui-text-muted); }
+.ui-soft  { color: var(--ui-text-soft); }
+.ui-mono  { font-family: var(--ui-mono); font-variant-numeric: tabular-nums; }
+
+.ui-num {
+  font-family: var(--ui-display);
+  font-weight: 400;
+  font-size: 2.5rem;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ui-text);
+}
+
+/* ==========================================================================
+   4. Каркас страницы
+   ========================================================================== */
+
+.ui-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 800;
+  height: var(--ui-topbar-h);
+  display: flex;
+  align-items: center;
+  gap: var(--ui-4);
+  padding: 0 var(--ui-6);
+  background: color-mix(in srgb, var(--ui-bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--ui-line);
+}
+
+/* color-mix понимают не все версии Safari; запасной вариант — плотный фон. */
+@supports not (background: color-mix(in srgb, red 50%, blue)) {
+  .ui-topbar { background: var(--ui-bg); }
+}
+
+.ui-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ui-text);
+  white-space: nowrap;
+}
+
+.ui-topbar__brand svg { width: 22px; height: 22px; color: var(--ui-text-soft); }
+
+.ui-topbar__spacer { flex: 1 1 auto; }
+
+.ui-topbar__actions { display: flex; align-items: center; gap: var(--ui-1); }
+
+.ui-page {
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: var(--ui-8) var(--ui-6) var(--ui-12);
+}
+
+.ui-page__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ui-4);
+  margin-bottom: var(--ui-6);
+}
+
+.ui-page__title { display: flex; flex-direction: column; gap: var(--ui-1); }
+
+.ui-stack  { display: flex; flex-direction: column; gap: var(--ui-4); }
+.ui-row    { display: flex; align-items: center; gap: var(--ui-2); flex-wrap: wrap; }
+.ui-row--tight { gap: var(--ui-1); }
+.ui-row--end { justify-content: flex-end; }
+
+/* ==========================================================================
+   5. Кнопки
+   ========================================================================== */
+
+.ui-btn {
+  --btn-h: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-2);
+  height: var(--btn-h);
+  padding: 0 var(--ui-4);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-md);
+  background: var(--ui-surface);
+  color: var(--ui-text-soft);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.16s var(--ui-ease),
+              border-color 0.16s var(--ui-ease),
+              color 0.16s var(--ui-ease),
+              transform 0.1s var(--ui-ease);
+}
+
+.ui-btn svg { width: 15px; height: 15px; flex: none; }
+
+.ui-btn:hover { color: var(--ui-text); border-color: var(--ui-line-firm); }
+.ui-btn:active { transform: translateY(1px); }
+
+.ui-btn[disabled], .ui-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Основное действие на экране — ровно одно, поэтому оно чернильное. */
+.ui-btn--primary {
+  background: var(--ui-btn-bg);
+  border-color: var(--ui-btn-bg);
+  color: var(--ui-btn-text);
+}
+
+.ui-btn--primary:hover {
+  background: var(--ui-btn-bg-hover);
+  border-color: var(--ui-btn-bg-hover);
+  color: var(--ui-btn-text);
+}
+
+.ui-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ui-text-muted);
+}
+
+.ui-btn--ghost:hover { background: var(--ui-accent-soft); color: var(--ui-text); }
+
+/* Опасное действие — единственная кнопка с цветом. */
+.ui-btn--danger {
+  background: transparent;
+  border-color: var(--ui-danger-line);
+  color: var(--ui-danger);
+}
+
+.ui-btn--danger:hover {
+  background: var(--ui-danger-bg);
+  border-color: var(--ui-danger);
+  color: var(--ui-danger);
+}
+
+.ui-btn--sm { --btn-h: 30px; padding: 0 var(--ui-3); font-size: 12px; }
+.ui-btn--lg { --btn-h: 44px; padding: 0 var(--ui-6); font-size: 14px; }
+
+/* Квадратная кнопка-иконка: в топбаре и в строках таблицы. */
+.ui-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ui-r-md);
+  background: transparent;
+  color: var(--ui-text-muted);
+  cursor: pointer;
+  transition: background-color 0.16s var(--ui-ease), color 0.16s var(--ui-ease), border-color 0.16s var(--ui-ease);
+}
+
+.ui-icon-btn svg { width: 16px; height: 16px; }
+.ui-icon-btn:hover { background: var(--ui-accent-soft); color: var(--ui-text); border-color: var(--ui-line); }
+.ui-icon-btn--sm { width: 28px; height: 28px; }
+.ui-icon-btn--sm svg { width: 14px; height: 14px; }
+
+/* ==========================================================================
+   6. Поля ввода
+   ========================================================================== */
+
+.ui-field { display: flex; flex-direction: column; gap: var(--ui-2); min-width: 0; }
+
+.ui-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+
+.ui-input,
+.ui-select,
+.ui-textarea {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px var(--ui-3);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-md);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-size: 13.5px;
+  transition: border-color 0.16s var(--ui-ease), box-shadow 0.16s var(--ui-ease);
+}
+
+.ui-textarea { min-height: 96px; resize: vertical; font-family: var(--ui-mono); font-size: 13px; }
+
+.ui-input::placeholder, .ui-textarea::placeholder { color: var(--ui-text-muted); opacity: 0.8; }
+
+.ui-input:hover, .ui-select:hover, .ui-textarea:hover { border-color: var(--ui-line-firm); }
+
+.ui-input:focus, .ui-select:focus, .ui-textarea:focus {
+  outline: none;
+  border-color: var(--ui-line-firm);
+  box-shadow: 0 0 0 4px var(--ui-accent-ring);
+}
+
+/* Стрелка у select рисуется фоном: нативная выглядит по-разному в каждой ОС. */
+.ui-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: var(--ui-8);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23666A6E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--ui-3) center;
+}
+
+:root[data-theme="dark"] .ui-select, :root[data-bs-theme="dark"] .ui-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237E838C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* Поле с иконкой поиска слева. */
+.ui-search { position: relative; }
+.ui-search > svg {
+  position: absolute;
+  left: var(--ui-3);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: var(--ui-text-muted);
+  pointer-events: none;
+}
+.ui-search .ui-input { padding-left: var(--ui-8); }
+
+/* — Переключатель — */
+
+.ui-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ui-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+.ui-switch__track {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 21px;
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-surface-sunk);
+  border: 1px solid var(--ui-line-firm);
+  transition: background-color 0.2s var(--ui-ease), border-color 0.2s var(--ui-ease);
+}
+
+.ui-switch__track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--ui-text-muted);
+  transition: transform 0.2s var(--ui-ease), background-color 0.2s var(--ui-ease);
+}
+
+.ui-switch input:checked + .ui-switch__track {
+  background: var(--ui-text);
+  border-color: var(--ui-text);
+}
+
+.ui-switch input:checked + .ui-switch__track::after {
+  transform: translateX(15px);
+  background: var(--ui-surface);
+}
+
+.ui-switch input:focus-visible + .ui-switch__track {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 3px;
+}
+
+.ui-switch__text { font-size: 13px; color: var(--ui-text-soft); }
+
+/* — Флажок — */
+
+.ui-check {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 1px solid var(--ui-line-firm);
+  border-radius: var(--ui-r-xs);
+  background: var(--ui-surface);
+  cursor: pointer;
+  transition: background-color 0.15s var(--ui-ease), border-color 0.15s var(--ui-ease);
+}
+
+.ui-check:checked {
+  background: var(--ui-text) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FFFFFF' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E") center / 11px no-repeat;
+  border-color: var(--ui-text);
+}
+
+:root[data-theme="dark"] .ui-check:checked, :root[data-bs-theme="dark"] .ui-check:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23121315' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+}
+
+/* ==========================================================================
+   7. Поверхности
+   ========================================================================== */
+
+.ui-card {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-lg);
+  box-shadow: var(--ui-shadow-sm);
+}
+
+.ui-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-4);
+  padding: var(--ui-4) var(--ui-5);
+  border-bottom: 1px solid var(--ui-line);
+}
+
+.ui-card__body { padding: var(--ui-5); }
+.ui-card__body--flush { padding: 0; }
+
+/* Карточка-показатель. Крупное число серифом — то же, что на входе. */
+.ui-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-2);
+  padding: var(--ui-5);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-lg);
+  min-width: 0;
+  transition: border-color 0.18s var(--ui-ease);
+}
+
+.ui-stat:hover { border-color: var(--ui-line-firm); }
+
+.ui-stat__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-stat__value { font-family: var(--ui-display); font-weight: 400; font-size: 2.4rem; line-height: 1; font-variant-numeric: tabular-nums lining-nums; }
+
+.ui-stat__foot { font-size: 11.5px; color: var(--ui-text-muted); }
+
+.ui-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: var(--ui-3);
+}
+
+/* ==========================================================================
+   8. Таблица
+   ========================================================================== */
+
+.ui-table-wrap {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-lg);
+  overflow: hidden;
+}
+
+/* Широкая таблица скроллится ВНУТРИ себя — у страницы горизонтального
+   скролла быть не должно ни на одной ширине. */
+.ui-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.ui-table { width: 100%; font-size: 13px; }
+
+.ui-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: var(--ui-3) var(--ui-4);
+  background: var(--ui-surface);
+  border-bottom: 1px solid var(--ui-line-firm);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ui-table td {
+  padding: var(--ui-3) var(--ui-4);
+  border-bottom: 1px solid var(--ui-line);
+  color: var(--ui-text-soft);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ui-table tbody tr:last-child td { border-bottom: 0; }
+
+/* Полосатости нет намеренно: на широкой таблице чередование фона читается
+   как рябь. Ряды разделяет волосяная линия, а наведение — фоном. */
+.ui-table tbody tr { transition: background-color 0.12s var(--ui-ease); }
+.ui-table tbody tr:hover td { background: var(--ui-surface-sunk); }
+
+.ui-table td.ui-td-strong { color: var(--ui-text); font-weight: 600; }
+.ui-table td.ui-td-mono { font-family: var(--ui-mono); font-size: 12px; }
+.ui-table .ui-td-num { text-align: right; font-variant-numeric: tabular-nums; }
+.ui-table .ui-td-actions { text-align: right; }
+
+.ui-table__empty {
+  padding: var(--ui-12) var(--ui-6);
+  text-align: center;
+  color: var(--ui-text-muted);
+}
+
+.ui-table__empty svg { width: 28px; height: 28px; margin: 0 auto var(--ui-3); color: var(--ui-line-firm); }
+
+/* ==========================================================================
+   9. Метки состояния
+   ========================================================================== */
+
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-1);
+  padding: 3px 9px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-surface-sunk);
+  color: var(--ui-text-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.ui-badge[data-tone="ok"]     { background: var(--ui-ok-bg);     border-color: var(--ui-ok-line);     color: var(--ui-ok); }
+.ui-badge[data-tone="warn"]   { background: var(--ui-warn-bg);   border-color: var(--ui-warn-line);   color: var(--ui-warn); }
+.ui-badge[data-tone="danger"] { background: var(--ui-danger-bg); border-color: var(--ui-danger-line); color: var(--ui-danger); }
+.ui-badge[data-tone="empty"]  { color: var(--ui-text-muted); font-style: italic; }
+
+.ui-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-text-muted);
+  flex: none;
+}
+
+.ui-dot[data-tone="ok"] { background: var(--ui-ok); }
+
+/* ==========================================================================
+   10. Сообщения
+   ========================================================================== */
+
+.ui-note {
+  display: flex;
+  gap: var(--ui-3);
+  padding: var(--ui-3) var(--ui-4);
+  border: 1px solid var(--ui-line);
+  border-left-width: 2px;
+  border-radius: var(--ui-r-md);
+  background: var(--ui-surface);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ui-text-soft);
+}
+
+.ui-note svg { width: 16px; height: 16px; flex: none; margin-top: 1px; color: var(--ui-text-muted); }
+
+.ui-note[data-tone="danger"] { border-left-color: var(--ui-danger); background: var(--ui-danger-bg); color: var(--ui-danger); }
+.ui-note[data-tone="danger"] svg { color: var(--ui-danger); }
+.ui-note[data-tone="warn"]   { border-left-color: var(--ui-warn); background: var(--ui-warn-bg); }
+.ui-note[data-tone="ok"]     { border-left-color: var(--ui-ok); background: var(--ui-ok-bg); }
+
+/* ==========================================================================
+   11. Выпадающее меню
+   ========================================================================== */
+
+.ui-menu-wrap { position: relative; }
+
+.ui-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 850;
+  min-width: 190px;
+  padding: var(--ui-1);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-md);
+  background: var(--ui-surface-raised);
+  box-shadow: var(--ui-shadow);
+}
+
+.ui-menu[hidden] { display: none; }
+
+.ui-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-3);
+  width: 100%;
+  padding: 8px var(--ui-3);
+  border: 0;
+  border-radius: var(--ui-r-sm);
+  background: none;
+  color: var(--ui-text-soft);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ui-menu__item svg { width: 15px; height: 15px; color: var(--ui-text-muted); }
+.ui-menu__item:hover { background: var(--ui-accent-soft); color: var(--ui-text); }
+.ui-menu__item[data-tone="danger"] { color: var(--ui-danger); }
+.ui-menu__item[data-tone="danger"] svg { color: var(--ui-danger); }
+
+.ui-menu__sep { height: 1px; margin: var(--ui-1) 0; background: var(--ui-line); }
+
+/* ==========================================================================
+   12. Модальное окно
+   ========================================================================== */
+
+.ui-modal[hidden] { display: none; }
+
+.ui-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ui-6);
+  background: rgba(10, 11, 12, 0.45);
+  backdrop-filter: blur(2px);
+  animation: ui-fade 0.18s var(--ui-ease);
+}
+
+.ui-modal__box {
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100vh - var(--ui-12));
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-lg);
+  box-shadow: var(--ui-shadow-lg);
+  animation: ui-rise 0.22s var(--ui-ease);
+}
+
+.ui-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-4);
+  padding: var(--ui-5) var(--ui-5) var(--ui-4);
+  border-bottom: 1px solid var(--ui-line);
+}
+
+.ui-modal__title { font-family: var(--ui-display); font-weight: 400; font-size: 1.5rem; letter-spacing: -0.005em; }
+.ui-modal__body { padding: var(--ui-5); overflow-y: auto; }
+.ui-modal__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ui-2);
+  padding: var(--ui-4) var(--ui-5);
+  border-top: 1px solid var(--ui-line);
+}
+
+@keyframes ui-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ui-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ==========================================================================
+   13. Уведомления
+   ========================================================================== */
+
+.ui-toasts {
+  position: fixed;
+  right: var(--ui-5);
+  bottom: var(--ui-5);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-2);
+  width: min(360px, calc(100vw - var(--ui-10)));
+}
+
+.ui-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-3);
+  padding: var(--ui-3) var(--ui-4);
+  border: 1px solid var(--ui-line);
+  border-left-width: 2px;
+  border-radius: var(--ui-r-md);
+  background: var(--ui-surface-raised);
+  box-shadow: var(--ui-shadow);
+  font-size: 13px;
+  color: var(--ui-text-soft);
+  animation: ui-rise 0.22s var(--ui-ease);
+}
+
+.ui-toast[data-tone="ok"]     { border-left-color: var(--ui-ok); }
+.ui-toast[data-tone="danger"] { border-left-color: var(--ui-danger); }
+.ui-toast__close { margin-left: auto; }
+
+/* ==========================================================================
+   14. Постраничная навигация
+   ========================================================================== */
+
+.ui-pager { display: flex; align-items: center; gap: var(--ui-1); flex-wrap: wrap; }
+
+.ui-pager__link {
+  min-width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--ui-2);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-r-sm);
+  background: var(--ui-surface);
+  color: var(--ui-text-soft);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-pager__link:hover { border-color: var(--ui-line-firm); color: var(--ui-text); }
+
+.ui-pager__link[aria-current="page"] {
+  background: var(--ui-text);
+  border-color: var(--ui-text);
+  color: var(--ui-surface);
+}
+
+/* ==========================================================================
+   15. Вкладки
+   ========================================================================== */
+
+.ui-tabs { display: flex; gap: var(--ui-5); border-bottom: 1px solid var(--ui-line); }
+
+.ui-tab {
+  padding: var(--ui-3) 0;
+  border-bottom: 2px solid transparent;
+  color: var(--ui-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ui-tab:hover { color: var(--ui-text-soft); }
+.ui-tab[aria-selected="true"] { color: var(--ui-text); border-bottom-color: var(--ui-text); }
+
+/* ==========================================================================
+   16. Адаптив
+   ========================================================================== */
+
+@media (max-width: 900px) {
+  .ui-page { padding: var(--ui-6) var(--ui-4) var(--ui-10); }
+  .ui-topbar { padding: 0 var(--ui-4); }
+}
+
+@media (max-width: 560px) {
+  .ui-page { padding: var(--ui-5) var(--ui-3) var(--ui-8); }
+  .ui-topbar { padding: 0 var(--ui-3); gap: var(--ui-2); }
+  .ui-topbar__brand span { display: none; }
+  .ui-stats-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .ui-modal { padding: var(--ui-3); align-items: flex-end; }
+  .ui-modal__box { max-height: calc(100vh - var(--ui-8)); }
+  /* iOS зумит страницу, если шрифт поля меньше 16px. */
+  .ui-input, .ui-select, .ui-textarea { font-size: 16px; }
+}
+
+/* ==========================================================================
+   17. Меньше движения
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

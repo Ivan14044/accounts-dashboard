@@ -1,278 +1,265 @@
 <?php
-// Манифест бандлов CSS/JS. Шаблон самодостаточен: не полагаемся на то, что
-// контроллер уже подключил класс.
-require_once __DIR__ . '/../includes/AssetBundles.php';
+/**
+ * Страница «Избранные аккаунты». Собрана на собственной системе интерфейса
+ * (assets/css/ui.css + assets/js/ui.js), с нуля.
+ *
+ * Что это значит по факту: страница НЕ подключает bootstrap.min.css,
+ * bootstrap.bundle.js, FontAwesome и core-*.css. Ни одного класса `btn`,
+ * `card`, `badge`, `col-*` в разметке нет — только собственные `ui-*`.
+ * Иконки — инлайновый SVG (templates/ui/icons.php).
+ *
+ * Из шаблона ожидаются переменные контроллера (favorites.php в корне):
+ *   $rows, $filteredTotal, $q, $page, $pages, $prev, $next, $pageNumbers,
+ *   $errorMessage (необязательная).
+ * Нормализуем их в начале файла: партиал обязан быть самодостаточным, иначе
+ * при изменении контроллера получим Warning прямо в проде.
+ */
+
+require_once __DIR__ . '/ui/icons.php';
+
+$rows          = isset($rows) && is_array($rows) ? $rows : array();
+$filteredTotal = isset($filteredTotal) ? (int) $filteredTotal : 0;
+$q             = isset($q) ? (string) $q : '';
+$page          = isset($page) ? (int) $page : 1;
+$pages         = isset($pages) ? max(1, (int) $pages) : 1;
+$prev          = isset($prev) ? (int) $prev : 1;
+$next          = isset($next) ? (int) $next : 1;
+$pageNumbers   = isset($pageNumbers) && is_array($pageNumbers) ? $pageNumbers : array(1);
+$errorMessage  = isset($errorMessage) ? (string) $errorMessage : '';
+$assetV        = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) time();
+
+$username = 'Пользователь';
+if (function_exists('getCurrentUser')) {
+    try {
+        $username = getCurrentUser();
+    } catch (Exception $e) {
+        $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Пользователь';
+    }
+}
+
+/** Ссылка на страницу списка с сохранением поискового запроса. */
+function fav_page_url($n, $q)
+{
+    $url = '?page=' . (int) $n;
+    if ($q !== '') {
+        $url .= '&q=' . urlencode($q);
+    }
+    return $url;
+}
+
+/** Тон метки статуса: цвет появляется только там, где он что-то значит. */
+function fav_status_tone($status)
+{
+    $s = mb_strtolower(trim((string) $status), 'UTF-8');
+    if ($s === '') {
+        return 'empty';
+    }
+    if (strpos($s, 'invalid') !== false || strpos($s, 'ban') !== false || strpos($s, 'error') !== false) {
+        return 'danger';
+    }
+    if (strpos($s, 'valid') !== false || strpos($s, 'new') !== false || strpos($s, 'active') !== false) {
+        return 'ok';
+    }
+    if (strpos($s, 'check') !== false || strpos($s, 'work') !== false || strpos($s, 'wait') !== false) {
+        return 'warn';
+    }
+    return '';
+}
 ?>
 <!DOCTYPE html>
-<html lang="ru" data-bs-theme="light">
+<html lang="ru">
 <head>
-  <meta charset="utf-8"/>
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script>
-    (function(){try{var t=localStorage.getItem('dashboard-theme');
-      if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
-      document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
-  </script>
-  <title>Избранные аккаунты - Dashboard</title>
+  <meta name="color-scheme" content="light dark">
+  <title>Избранное — Accounts Dashboard</title>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-  <link href="assets/vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
-  <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
-  <!-- Свой CSS: один бандл, если он собран, иначе исходные core-*.css (см. AssetBundles) -->
-<?= AssetBundles::tags('core.css') ?>
 
-  <style>
-    /* ── Page surface + nav (tokenized, theme-aware) ── */
-    body { background: var(--gray-50); }
-    [data-bs-theme="dark"] body { background: #0A0A0F; }
-    .page-nav {
-      background: var(--bg-primary);
-      border-bottom: 1px solid var(--color-border);
-      box-shadow: var(--shadow-xs);
-    }
-    .page-theme-toggle {
-      width: 38px; height: 38px;
-      display: inline-flex; align-items: center; justify-content: center;
-      border: 1px solid var(--color-border); border-radius: var(--radius-md);
-      background: var(--bg-primary); color: var(--color-text-secondary);
-      cursor: pointer;
-      transition: color .15s ease, border-color .15s ease, background-color .15s ease;
-    }
-    .page-theme-toggle:hover { color: var(--color-text); border-color: var(--color-border-hover); }
-    .page-theme-toggle:active { transform: scale(0.96); }
-    .page-theme-toggle:focus-visible { outline: 2px solid var(--primary-500); outline-offset: 2px; }
+  <!-- Тема выставляется ДО первой отрисовки, иначе тёмная мигает белым. -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('dashboard-theme');
+        if (t !== 'dark' && t !== 'light') {
+          t = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', t);
+        document.documentElement.setAttribute('data-bs-theme', t);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    })();
+  </script>
 
-    /* ── Favorites header — чистый, с warning-акцентом (без glassmorphism/градиента) ── */
-    .favorites-header {
-      display: flex; align-items: center; justify-content: space-between;
-      flex-wrap: wrap; gap: var(--space-4);
-      background: var(--bg-primary);
-      border: 1px solid var(--color-border);
-      border-left: 3px solid var(--warning-500);
-      border-radius: var(--radius-xl);
-      padding: var(--space-5) var(--space-6);
-      margin-bottom: var(--space-6);
-      box-shadow: var(--shadow-sm);
-    }
-    .favorites-header h1 {
-      margin: 0; font-size: var(--font-size-2xl); font-weight: 700; letter-spacing: -0.02em;
-      color: var(--color-text); display: flex; align-items: center; gap: var(--space-3);
-    }
-    .favorites-header h1 i { color: var(--warning-500); }
-    .favorites-count {
-      font-size: var(--font-size-sm); font-weight: 500; color: var(--color-text-secondary);
-      background: var(--bg-secondary); border: 1px solid var(--color-border);
-      padding: var(--space-2) var(--space-4); border-radius: var(--radius-full);
-    }
-    .favorites-count strong { color: var(--warning-600); font-weight: 700; }
-    [data-bs-theme="dark"] .favorites-count strong { color: #fbbf24; }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="assets/css/ui.css?v=<?= e($assetV) ?>" rel="stylesheet">
 </head>
-<body class="favorites-page">
+<body>
 
-  <!-- Навигация -->
-  <nav class="navbar navbar-expand page-nav mb-4" style="height: 64px;">
-    <div class="container-fluid px-4">
-      <a class="navbar-brand fw-bold" href="index.php">
-        <i class="fas fa-chart-line text-primary me-2"></i>
-        Dashboard
-      </a>
-      <div class="d-flex align-items-center gap-3">
-        <span class="text-muted small fw-medium">
-          <i class="fas fa-user-circle me-1 text-primary"></i>
-          <?php 
-          $username = 'Пользователь';
-          if (function_exists('getCurrentUser')) {
-              try {
-                  $username = getCurrentUser();
-              } catch (Exception $e) {
-                  $username = $_SESSION['username'] ?? 'Пользователь';
-              }
-          } else {
-              $username = $_SESSION['username'] ?? 'Пользователь';
-          }
-          echo htmlspecialchars($username, ENT_QUOTES, 'UTF-8');
-          ?>
-        </span>
-        <div class="vr mx-1"></div>
-        <button type="button" id="themeToggle" class="page-theme-toggle" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему">
-          <i class="fas fa-moon"></i>
-        </button>
-        <a href="index.php" class="btn btn-sm btn-outline-primary rounded-pill">
-          <i class="fas fa-arrow-left me-1"></i> Назад
-        </a>
-        <form method="POST" action="logout.php" style="margin:0;display:inline">
-          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(getCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
-          <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle" title="Выйти из системы" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
-            <i class="fas fa-sign-out-alt"></i>
-          </button>
-        </form>
-      </div>
-    </div>
-  </nav>
+<header class="ui-topbar">
+  <a class="ui-topbar__brand" href="index.php">
+    <?= ui_icon('logo', 22) ?>
+    <span>Accounts Dashboard</span>
+  </a>
 
-  <!-- Основной контент -->
-  <main class="container-fluid px-4 pb-5">
-    
-    <!-- Заголовок -->
-    <div class="favorites-header">
-      <h1>
-        <i class="fas fa-star"></i>
-        Избранные аккаунты
-      </h1>
-      <div class="favorites-count">
-        Всего: <strong><?= number_format($filteredTotal) ?></strong>
+  <div class="ui-topbar__spacer"></div>
+
+  <div class="ui-topbar__actions">
+    <span class="ui-muted ui-row ui-row--tight" style="font-size:12.5px;margin-right:var(--ui-2)">
+      <?= ui_icon('user', 15) ?><?= e($username) ?>
+    </span>
+
+    <button type="button" class="ui-icon-btn" data-ui-theme aria-pressed="false" aria-label="Переключить тему" title="Тёмная тема">
+      <span data-ui-theme-icon="moon"><?= ui_icon('moon') ?></span>
+      <span data-ui-theme-icon="sun" style="display:none"><?= ui_icon('sun') ?></span>
+    </button>
+
+    <a class="ui-btn ui-btn--sm" href="index.php"><?= ui_icon('arrow-left', 14) ?>Дашборд</a>
+
+    <form method="POST" action="logout.php" style="margin:0">
+      <input type="hidden" name="csrf_token" value="<?= e(getCsrfToken()) ?>">
+      <button type="submit" class="ui-icon-btn" title="Выйти" aria-label="Выйти из системы"><?= ui_icon('logout') ?></button>
+    </form>
+  </div>
+</header>
+
+<main class="ui-page">
+
+  <div class="ui-page__head">
+    <div class="ui-page__title">
+      <span class="ui-eyebrow">Подборка</span>
+      <h1 class="ui-h1">Избранные аккаунты</h1>
+    </div>
+    <div class="ui-row ui-row--tight ui-muted" style="font-size:12.5px">
+      <?= ui_icon('star', 14) ?>
+      <span>Всего: <strong class="ui-mono" data-fav-total style="color:var(--ui-text)"><?= number_format($filteredTotal, 0, '.', ' ') ?></strong></span>
+    </div>
+  </div>
+
+  <?php if ($errorMessage !== ''): ?>
+    <div class="ui-note" data-tone="danger" role="alert" style="margin-bottom:var(--ui-4)">
+      <?= ui_icon('alert') ?><span><?= e($errorMessage) ?></span>
+    </div>
+  <?php endif; ?>
+
+  <?php if (empty($rows) && $q === ''): ?>
+
+    <div class="ui-card">
+      <div class="ui-table__empty">
+        <?= ui_icon('star', 28) ?>
+        <p class="ui-h2" style="margin-bottom:var(--ui-2)">Пока пусто</p>
+        <p style="max-width:46ch;margin:0 auto var(--ui-5)">
+          Отметьте аккаунт звёздочкой в таблице дашборда — он появится здесь.
+        </p>
+        <a class="ui-btn ui-btn--primary" href="index.php"><?= ui_icon('arrow-left', 14) ?>К дашборду</a>
       </div>
     </div>
-    
-    <?php if (isset($errorMessage)): ?>
-    <div class="alert alert-danger shadow-sm rounded-xl">
-      <i class="fas fa-exclamation-triangle me-2"></i>
-      <?= htmlspecialchars($errorMessage) ?>
-    </div>
-    <?php endif; ?>
-    
-    <?php if (empty($rows)): ?>
-    <div class="empty-state">
-      <i class="fas fa-star empty-state-icon" style="background: linear-gradient(135deg, var(--warning-300), var(--warning-500)); -webkit-background-clip: text;"></i>
-      <h3 class="empty-state-title">Нет избранных аккаунтов</h3>
-      <p class="empty-state-desc">У вас пока нет любимых аккаунтов. Добавьте их в избранное, нажав на звездочку в главной таблице дашборда.</p>
-      <a href="index.php" class="btn btn-primary rounded-pill">
-        <i class="fas fa-arrow-left me-2"></i> Вернуться к дашборду
-      </a>
-    </div>
-    <?php else: ?>
-    
-    <!-- Поиск -->
-    <div class="card card-modern mb-4">
-      <div class="card-body p-3">
-        <form method="get" class="d-flex gap-2">
-          <div class="flex-grow-1 position-relative">
-            <i class="fas fa-search position-absolute text-muted" style="top: 50%; left: 16px; transform: translateY(-50%);"></i>
-            <input 
-              type="search" 
-              name="q" 
-              class="form-control" 
-              placeholder="Поиск по логину, email, имени..." 
-              value="<?= htmlspecialchars($q) ?>"
-              style="padding-left: 40px; border-radius: var(--radius-lg);"
-            >
-          </div>
-          <button type="submit" class="btn btn-primary" style="border-radius: var(--radius-lg); padding: 0 24px;">
-            Найти
-          </button>
-          <?php if ($q !== ''): ?>
-          <a href="favorites.php" class="btn btn-outline-secondary" title="Сбросить поиск" style="border-radius: var(--radius-lg);">
-            <i class="fas fa-times"></i>
-          </a>
-          <?php endif; ?>
-        </form>
+
+  <?php else: ?>
+
+    <form method="get" class="ui-row" style="margin-bottom:var(--ui-4);gap:var(--ui-2)">
+      <div class="ui-search" style="flex:1 1 320px;min-width:0">
+        <?= ui_icon('search') ?>
+        <input class="ui-input" type="search" name="q" value="<?= e($q) ?>"
+               placeholder="Логин, email, имя…" aria-label="Поиск по избранному">
       </div>
-    </div>
-    
-    <!-- Таблица (Premium Glassmorphism) -->
-    <div class="dashboard-table">
-      <div class="dashboard-table__inner">
-        <div class="dashboard-table__scroll" style="max-height: 60vh;">
-          <table class="ac-table" id="accountsTable">
-            <thead>
+      <button class="ui-btn ui-btn--primary" type="submit">Найти</button>
+      <?php if ($q !== ''): ?>
+        <a class="ui-btn" href="favorites.php" title="Сбросить поиск"><?= ui_icon('close', 14) ?>Сбросить</a>
+      <?php endif; ?>
+    </form>
+
+    <div class="ui-table-wrap">
+      <div class="ui-table-scroll">
+        <table class="ui-table" id="favoritesTable">
+          <thead>
+            <tr>
+              <th style="width:76px">ID</th>
+              <th style="width:52px"><span class="ui-visually-hidden">Избранное</span></th>
+              <th style="min-width:150px">Логин</th>
+              <th style="min-width:210px">Email</th>
+              <th style="min-width:120px">Имя</th>
+              <th style="min-width:120px">Фамилия</th>
+              <th style="min-width:130px">Статус</th>
+              <th class="ui-td-actions" style="min-width:110px">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if (empty($rows)): ?>
               <tr>
-                <th style="min-width: 80px;">ID</th>
-                <th class="text-center ac-cell--checkbox" style="width:60px;" title="Избранное"><i class="fas fa-star text-warning"></i></th>
-                <th style="min-width: 150px;">Логин</th>
-                <th style="min-width: 200px;">Email</th>
-                <th style="min-width: 120px;">Имя</th>
-                <th style="min-width: 120px;">Фамилия</th>
-                <th style="min-width: 140px;">Статус</th>
-                <th class="ac-cell--actions text-center">Действия</th>
+                <td colspan="8">
+                  <div class="ui-table__empty">
+                    <?= ui_icon('search', 28) ?>
+                    <p>По запросу «<?= e($q) ?>» ничего не нашлось.</p>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
+            <?php else: ?>
               <?php foreach ($rows as $r): ?>
-              <tr data-id="<?= (int)$r['id'] ?>">
-                <td class="fw-bold text-primary">#<?= (int)$r['id'] ?></td>
-                <td class="favorite-cell text-center ac-cell--checkbox" data-account-id="<?= (int)$r['id'] ?>">
-                  <button
-                    type="button"
-                    class="btn btn-link favorite-btn p-0 active"
-                    data-account-id="<?= (int)$r['id'] ?>"
-                    title="Удалить из избранного"
-                    style="font-size: 1.25rem;">
-                    <i class="fas fa-star text-warning filter-drop-shadow"></i>
-                  </button>
-                </td>
-                <td class="fw-medium"><?= htmlspecialchars($r['login'] ?? '') ?></td>
-                <td><span class="text-muted"><i class="fas fa-envelope me-2 opacity-50"></i><?= htmlspecialchars($r['email'] ?? '') ?></span></td>
-                <td><?= htmlspecialchars($r['first_name'] ?? '') ?></td>
-                <td><?= htmlspecialchars($r['last_name'] ?? '') ?></td>
-                <td>
-                  <?php $st = $r['status'] ?? ''; ?>
-                  <span class="badge <?= $st !== '' ? 'bg-secondary' : 'badge-empty-status' ?> px-3 py-2 rounded-pill shadow-sm">
-                    <?= $st !== '' ? htmlspecialchars($st) : 'Пустой статус' ?>
-                  </span>
-                </td>
-                <td class="ac-cell--actions text-center">
-                  <a href="view.php?id=<?= (int)$r['id'] ?>" class="btn-table-open">
-                    <i class="fas fa-arrow-right"></i> Открыть
-                  </a>
-                </td>
-              </tr>
+                <?php
+                  $id     = isset($r['id']) ? (int) $r['id'] : 0;
+                  $status = isset($r['status']) ? (string) $r['status'] : '';
+                  $tone   = fav_status_tone($status);
+                ?>
+                <tr data-id="<?= $id ?>">
+                  <td class="ui-td-mono ui-td-strong">#<?= $id ?></td>
+                  <td>
+                    <button type="button"
+                            class="ui-icon-btn ui-icon-btn--sm favorite-btn is-on"
+                            data-account-id="<?= $id ?>"
+                            aria-pressed="true"
+                            title="Убрать из избранного"
+                            aria-label="Убрать аккаунт #<?= $id ?> из избранного">
+                      <?= ui_icon_filled('star', 15) ?>
+                    </button>
+                  </td>
+                  <td class="ui-td-strong"><?= e(isset($r['login']) ? $r['login'] : '') ?></td>
+                  <td class="ui-td-mono"><?= e(isset($r['email']) ? $r['email'] : '') ?></td>
+                  <td><?= e(isset($r['first_name']) ? $r['first_name'] : '') ?></td>
+                  <td><?= e(isset($r['last_name']) ? $r['last_name'] : '') ?></td>
+                  <td>
+                    <span class="ui-badge"<?= $tone !== '' ? ' data-tone="' . e($tone) . '"' : '' ?>>
+                      <?= $status !== '' ? e($status) : 'без статуса' ?>
+                    </span>
+                  </td>
+                  <td class="ui-td-actions">
+                    <a class="ui-btn ui-btn--sm" href="view.php?id=<?= $id ?>">
+                      Открыть<?= ui_icon('arrow-right', 14) ?>
+                    </a>
+                  </td>
+                </tr>
               <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
+            <?php endif; ?>
+          </tbody>
+        </table>
       </div>
-      
-      <?php if ($pages > 1): ?>
-      <div class="dashboard-table__footer">
-        <div class="dashboard-table__counter">
-          Найдено: <span class="dashboard-table__counter-value"><?= number_format($filteredTotal) ?></span>
-          <span class="ms-2">Стр. <strong><?= $page ?></strong> из <?= $pages ?></span>
-        </div>
-        <nav>
-          <ul class="pagination pagination-modern m-0">
-            <li class="page-item <?= $page==1?'disabled':'' ?>">
-              <a class="page-link" href="?page=1<?= $q !== '' ? '&q=' . urlencode($q) : '' ?>">
-                <i class="fas fa-angle-double-left"></i>
-              </a>
-            </li>
-            <li class="page-item <?= $page==1?'disabled':'' ?>">
-              <a class="page-link" href="?page=<?= $prev ?><?= $q !== '' ? '&q=' . urlencode($q) : '' ?>">
-                <i class="fas fa-angle-left"></i>
-              </a>
-            </li>
-            <?php foreach ($pageNumbers as $pnum): ?>
-            <li class="page-item <?= $pnum==$page?'active':'' ?>">
-              <a class="page-link" href="?page=<?= $pnum ?><?= $q !== '' ? '&q=' . urlencode($q) : '' ?>">
-                <?= $pnum ?>
-              </a>
-            </li>
-            <?php endforeach; ?>
-            <li class="page-item <?= $page==$pages?'disabled':'' ?>">
-              <a class="page-link" href="?page=<?= $next ?><?= $q !== '' ? '&q=' . urlencode($q) : '' ?>">
-                <i class="fas fa-angle-right"></i>
-              </a>
-            </li>
-            <li class="page-item <?= $page==$pages?'disabled':'' ?>">
-              <a class="page-link" href="?page=<?= $pages ?><?= $q !== '' ? '&q=' . urlencode($q) : '' ?>">
-                <i class="fas fa-angle-double-right"></i>
-              </a>
-            </li>
-          </ul>
+    </div>
+
+    <?php if ($pages > 1): ?>
+      <div class="ui-row" style="justify-content:space-between;margin-top:var(--ui-4)">
+        <span class="ui-muted" style="font-size:12.5px">
+          Страница <strong class="ui-mono" style="color:var(--ui-text)"><?= $page ?></strong> из <?= $pages ?>
+        </span>
+        <nav class="ui-pager" aria-label="Постраничная навигация">
+          <a class="ui-pager__link" href="<?= e(fav_page_url($prev, $q)) ?>" aria-label="Предыдущая страница"><?= ui_icon('arrow-left', 14) ?></a>
+          <?php foreach ($pageNumbers as $pnum): ?>
+            <a class="ui-pager__link" href="<?= e(fav_page_url($pnum, $q)) ?>"<?= (int) $pnum === $page ? ' aria-current="page"' : '' ?>><?= (int) $pnum ?></a>
+          <?php endforeach; ?>
+          <a class="ui-pager__link" href="<?= e(fav_page_url($next, $q)) ?>" aria-label="Следующая страница"><?= ui_icon('arrow-right', 14) ?></a>
         </nav>
       </div>
-      <?php endif; ?>
-    </div>
-    
     <?php endif; ?>
-  </main>
-  
-  <script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
-  <script src="assets/js/toast.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-  <script>
-    window.DashboardConfig = window.DashboardConfig || {};
-    window.DashboardConfig.csrfToken = <?= json_encode((string)getCsrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
-  </script>
-  <script src="assets/js/favorites.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
-  <script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
+
+  <?php endif; ?>
+</main>
+
+<script>
+  window.DashboardConfig = window.DashboardConfig || {};
+  window.DashboardConfig.csrfToken = <?= json_encode((string) getCsrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
+</script>
+<script src="assets/js/ui.js?v=<?= e($assetV) ?>" defer></script>
+<script src="assets/js/pages/favorites.js?v=<?= e($assetV) ?>" defer></script>
 </body>
 </html>

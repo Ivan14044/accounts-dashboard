@@ -105,12 +105,16 @@ foreach ($bundles as $bundle => $files) {
 }
 
 // ── 2. Шаблоны не подключают бандлируемые ассеты в обход манифеста ────────────
-// Какой шаблон какие бандлы подключает. favorites.php и trash.php берут только CSS:
-// своих JS у них по три штуки, бандлить там нечего, а dashboard.sync.js им не нужен
+// Какой шаблон какие бандлы подключает. trash.php берёт только CSS: своих JS у
+// него три штуки, бандлить там нечего, а dashboard.sync.js ему не нужен
 // (поэтому toast.js/theme-toggle.js там подключаются поштучно — это не нарушение).
+//
+// templates/favorites.php в списке нет намеренно: страница переехала на
+// собственную систему интерфейса (assets/css/ui.css) и не подключает бандлы
+// вообще. Проверка всё равно осталась бы зелёной, но запись в этом списке
+// означала бы «страница пользуется core.css», а это уже неправда.
 $templateBundles = array(
     'templates/dashboard.php'                        => array('core.css', 'dashboard.sync.js', 'dashboard.defer.js'),
-    'templates/favorites.php'                        => array('core.css'),
     'templates/trash.php'                            => array('core.css'),
     'templates/partials/dashboard/init-script.php'   => array('dashboard.sync.js', 'dashboard.defer.js'),
     'templates/partials/dashboard/config-script.php' => array('dashboard.sync.js', 'dashboard.defer.js'),
