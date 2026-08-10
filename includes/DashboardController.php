@@ -32,13 +32,26 @@ class DashboardController {
             return false;
         }
 
-        // Проверка CSRF токена (массовое обновление требует защиты)
+        // Проверка CSRF токена (массовое обновление требует защиты).
+        //
+        // Обязательно в try: validateCsrfToken() НЕ возвращает false, а бросает
+        // InvalidArgumentException. Из-за этого ветка ниже была мёртвым кодом,
+        // исключение улетало наружу мимо try в prepareDashboardData(), а
+        // index.php зовёт handleApplyStatus() тоже вне try. Глобального
+        // обработчика исключений в проекте нет (ErrorHandler::register() не
+        // вызывается ниоткуда), поэтому с display_errors Off на проде
+        // пользователь получал HTTP 500 и полностью пустую страницу.
+        // Проверено на стенде 2026-08-10: тело ответа было 0 байт.
+        // Как это ловил живой пользователь: вкладка провисела до перевыпуска
+        // сессии, затем клик по кастомной карточке статуса.
         require_once __DIR__ . '/Validator.php';
+        require_once __DIR__ . '/Logger.php';
         $csrf = $_GET['csrf_token'] ?? '';
-        if (!Validator::validateCsrfToken($csrf)) {
-            require_once __DIR__ . '/Logger.php';
-            Logger::warning('APPLY_STATUS: CSRF validation failed');
-            $_SESSION['error_message'] = 'CSRF validation failed. Please try again.';
+        try {
+            Validator::validateCsrfToken($csrf);
+        } catch (InvalidArgumentException $e) {
+            Logger::warning('APPLY_STATUS: CSRF validation failed', ['reason' => $e->getMessage()]);
+            $_SESSION['error_message'] = 'Срок действия страницы истёк. Обновите её и повторите действие.';
             return false;
         }
 
