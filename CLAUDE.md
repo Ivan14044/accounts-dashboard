@@ -186,35 +186,56 @@ docker run --rm -v "$PWD":/app -w /app php:7.3-cli bash -c 'for t in tests/test_
 
 ## Локальный стенд
 
-*(Рецепт поднят и проверен целиком 2026-08-08 в этом воркспейсе.)*
+*(Рецепт поднят и проверен целиком 2026-08-08; имена и порт сделаны уникальными
+и перепроверены 2026-08-10 — стенд поднят ОДНОВРЕМЕННО с чужим, оба работали.)*
 
 Полноценный дашборд поднимается локально за пару минут — используй его для живой
 проверки вместо гаданий и вместо экспериментов на проде.
 
+**Имена контейнеров и порт обязаны быть уникальными на воркспейс.** Раньше рецепт
+использовал фиксированные `dash-php`/`dash-mysql`/`dash-local` и порт 8099, и две
+параллельные сессии дрались за них: вторая либо не поднималась, либо перетирала
+стенд первой. Так и случилось 2026-08-10 — соседняя сессия пересоздала контейнеры
+с теми же именами. Имена теперь берутся из имени каталога воркспейса, а порт
+выдаёт сам Docker (`-p 0:8080`), поэтому свободный он всегда.
+
 ```bash
-docker network create dash-local
-docker run -d --name dash-mysql --network dash-local -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -e MYSQL_DATABASE=dashboard mysql:8.0
-docker run -d --name dash-php --network dash-local -p 8099:8080 -v "$PWD":/app -w /app php:7.4-cli sh -c 'docker-php-ext-install mysqli >/dev/null 2>&1; PHP_CLI_SERVER_WORKERS=4 php -S 0.0.0.0:8080'
+DASH_ID=$(basename "$PWD")
+DASH_NET="dash-net-$DASH_ID"; DASH_DB="dash-mysql-$DASH_ID"; DASH_PHP="dash-php-$DASH_ID"
+
+docker network create "$DASH_NET"
+docker run -d --name "$DASH_DB" --network "$DASH_NET" -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -e MYSQL_DATABASE=dashboard mysql:8.0
+docker run -d --name "$DASH_PHP" --network "$DASH_NET" -p 0:8080 -v "$PWD":/app -w /app php:7.4-cli sh -c 'docker-php-ext-install mysqli >/dev/null 2>&1; PHP_CLI_SERVER_WORKERS=4 php -S 0.0.0.0:8080'
+
+# Порт спрашиваем у Docker. Переменные оболочки между вызовами не живут —
+# в каждой новой оболочке пересчитывай эти три строки, они идемпотентны.
+DASH_PORT=$(docker port "$DASH_PHP" 8080 | head -1 | sed 's/.*://')
+echo "стенд: http://localhost:$DASH_PORT/login.php"
 ```
 
 Важные детали, подтверждённые на практике:
+- **Никогда не удаляй контейнеры `dash-*`, чьё имя не совпадает с твоим
+  `$DASH_ID`.** Это чужой стенд из параллельной сессии; проверить можно так:
+  `docker inspect <имя> --format '{{range .Mounts}}{{.Source}}{{end}}'` — там
+  будет путь к другому воркспейсу.
 - **Схему создавать руками не нужно.** `sql/create_all_tables.sql` падает на пустой
   базе (`account_history` ссылается на ещё не существующую `accounts`). Таблицу
   `accounts` и индексы создаёт само приложение при первом заходе —
   `includes/DatabaseSchemaManager.php::validateAndMigrate()`.
-- Вход — только строка подключения (пароль пользователя не нужен, БД без пароля):
-  `server=dash-mysql;port=3306;user id=root;password=;database=dashboard`.
+- Вход — только строка подключения (пароль пользователя не нужен, БД без пароля).
+  Хост — это имя КОНТЕЙНЕРА с базой, то есть `$DASH_DB`:
+  `server=$DASH_DB;port=3306;user id=root;password=;database=dashboard`.
 - Логин скриптом (без формы) — забрать CSRF и отправить POST:
 
 ```bash
-TOKEN=$(curl -s -c cj.txt http://localhost:8099/login.php | grep -o 'name="csrf_token" value="[^"]*"' | sed 's/.*value="//;s/"//'); curl -s -b cj.txt -c cj.txt -o /dev/null -w "%{http_code} %{redirect_url}\n" -d "csrf_token=$TOKEN" -d "db_connection_string=server=dash-mysql;port=3306;user id=root;password=;database=dashboard" http://localhost:8099/login.php
+TOKEN=$(curl -s -c cj.txt "http://localhost:$DASH_PORT/login.php" | grep -o 'name="csrf_token" value="[^"]*"' | sed 's/.*value="//;s/"//'); curl -s -b cj.txt -c cj.txt -o /dev/null -w "%{http_code} %{redirect_url}\n" -d "csrf_token=$TOKEN" -d "db_connection_string=server=$DASH_DB;port=3306;user id=root;password=;database=dashboard" "http://localhost:$DASH_PORT/login.php"
 ```
 
 - Тестовые строки наливай сам (`INSERT INTO accounts ...`) — только заведомо
   фейковые данные, никаких боевых дампов на локалку.
 - Ошибки PHP пишутся в `php_errors.log` в корне (в `.gitignore`). Перед проверкой
   чисти его (`: > php_errors.log`) и после сценария смотри, что он пуст.
-- Убрать за собой: `docker rm -f dash-php dash-mysql && docker network rm dash-local`.
+- Убрать за собой (только своё): `docker rm -f "$DASH_PHP" "$DASH_DB" && docker network rm "$DASH_NET"`.
 
 ---
 
@@ -233,7 +254,9 @@ TOKEN=$(curl -s -c cj.txt http://localhost:8099/login.php | grep -o 'name="csrf_
   пароли и токены. Любое действие, меняющее данные на проде, — сначала спросить.
 
 Проверенный порядок работы со встроенным браузером:
-1. `preview_start` с `url: http://localhost:8099/login.php`.
+1. `preview_start` с `url: http://localhost:$DASH_PORT/login.php` — порт свой у
+   каждого воркспейса, узнаётся через `docker port "$DASH_PHP" 8080`
+   (см. «Локальный стенд»).
 2. Размер вьюпорта задавать **числами**: `resize_window {width: 1280, height: 800}`.
    Пресет `desktop` в этой сессии дал вьюпорт `0x0` — замеры были бы мусором.
    После установки размера всегда сверяйся: `innerWidth/innerHeight` не нулевые.
