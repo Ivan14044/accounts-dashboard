@@ -448,7 +448,33 @@
       }
     }
 
+    /**
+     * Снимает ранее навешенные scroll/resize.
+     *
+     * Вызывается перед КАЖДОЙ повторной привязкой. Раньше и enable(), и
+     * enableFromData() вешали слушателей безусловно, а снимал их только
+     * disable(), которого перед повторным включением никто не звал. Замерено в
+     * браузере: четыре обновления таблицы при per_page=100 дали 4 scroll-слушателя
+     * на #tableWrap и 4 resize на window, ни одного снятого. С автообновлением
+     * раз в 30 секунд это +2 слушателя каждые полминуты бессрочно, и каждый на
+     * каждом кадре скролла дёргает updateVisibleRows().
+     * Инвариант стережёт tests/test_virtualization_listeners.php.
+     */
+    detachScrollListeners() {
+      if (this.scrollHandler) {
+        const target = this.useWindowScroll ? window : this.scrollTarget;
+        target.removeEventListener('scroll', this.scrollHandler);
+        this.scrollHandler = null;
+      }
+      if (this.resizeHandler) {
+        window.removeEventListener('resize', this.resizeHandler);
+        this.resizeHandler = null;
+      }
+    }
+
     enable(currentRows) {
+      // Снимаем прошлые слушатели: повторное включение без этого их копило.
+      this.detachScrollListeners();
       this.rowsData = [];
       this.renderRowFn = null;
       this.columnKeys = [];
@@ -477,6 +503,8 @@
 
     enableFromData(rowsData, columnKeys, renderRowFn) {
       if (!rowsData.length || !renderRowFn || !this.tbody) return;
+      // Снимаем прошлые слушатели: этот метод зовётся на КАЖДОЕ AJAX-обновление.
+      this.detachScrollListeners();
       this.rowsData = rowsData;
       this.columnKeys = columnKeys;
       this.renderRowFn = renderRowFn;
@@ -507,15 +535,7 @@
       this.rowsData = [];
       this.renderRowFn = null;
       this.columnKeys = [];
-      if (this.scrollHandler) {
-        const target = this.useWindowScroll ? window : this.scrollTarget;
-        target.removeEventListener('scroll', this.scrollHandler);
-        this.scrollHandler = null;
-      }
-      if (this.resizeHandler) {
-        window.removeEventListener('resize', this.resizeHandler);
-        this.resizeHandler = null;
-      }
+      this.detachScrollListeners();
       if (this.spacerTop) {
         this.spacerTop.remove();
         this.spacerTop = null;
