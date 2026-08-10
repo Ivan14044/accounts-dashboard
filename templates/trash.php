@@ -184,7 +184,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 <body class="bg-light">
 
   <!-- Навигация -->
-  <nav class="navbar navbar-expand bg-white border-bottom shadow-sm mb-4" style="height: 64px;">
+  <nav class="navbar navbar-expand bg-white border-bottom shadow-sm mb-4">
     <div class="container-fluid px-4">
       <a class="navbar-brand fw-bold" href="index.php">
         <i class="fas fa-chart-line text-primary me-2"></i>

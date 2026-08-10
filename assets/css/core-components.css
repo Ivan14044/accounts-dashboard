@@ -237,3 +237,49 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
 }
+
+
+/* ── ШАПКА СТРАНИЦЫ (корзина, избранное) ──
+   `navbar-expand` БЕЗ брейкпоинта означает «никогда не сворачиваться»: Bootstrap
+   ставит контейнеру flex-wrap: nowrap. Вместе с прибитой инлайном высотой это
+   давало горизонтальный вылет — содержимому некуда было переноситься.
+   Замер в браузере 2026-08-10 на 375 px: контейнеру доступно 343 px, а бренд и
+   правая группа требуют 143 + 296 = 439. `body.scrollWidth - clientWidth` был
+   108 на корзине и 110 на избранном; со скрытой шапкой — 0.
+   Инлайновая высота убрана из шаблонов (инлайн победил бы этот CSS), высота
+   держится min-height, содержимое умеет переноситься на вторую строку.
+   Инвариант стережёт tests/test_page_nav_no_overflow.php. */
+.navbar.navbar-expand {
+  min-height: 64px;
+  height: auto;
+}
+.navbar.navbar-expand > .container-fluid {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+/* Правая группа (имя пользователя и кнопки) переносится целиком, но ВНУТРИ
+   остаётся одной строкой: пусть сжимается имя, а не разъезжаются кнопки.
+   Сначала я разрешил переносы и внутри группы — замер показал, что так хуже:
+   имя (253 px из 343 доступных) занимало строку целиком и выдавливало кнопки
+   на два отдельных ряда, шапка на телефоне становилась трёхэтажной. */
+.navbar.navbar-expand > .container-fluid > .d-flex {
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
+}
+/* Имя пользователя — это строка подключения, она бывает очень длинной.
+   min-width: 0 обязателен: без него flex-элемент не сжимается меньше своего
+   содержимого, и обрезка многоточием не срабатывает. */
+.navbar.navbar-expand > .container-fluid > .d-flex > span {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Кнопки не сжимаем — иконки поехали бы. */
+.navbar.navbar-expand > .container-fluid > .d-flex > a,
+.navbar.navbar-expand > .container-fluid > .d-flex > form,
+.navbar.navbar-expand > .container-fluid > .d-flex > button {
+  flex: 0 0 auto;
+}
