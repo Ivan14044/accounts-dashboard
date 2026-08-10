@@ -804,22 +804,13 @@ if ($format === 'txt') {
     // Экспорт в CSV
     $output = fopen('php://output', 'w');
     
-    // Заголовки и соответствие полей (динамически из базы)
-    $knownTitles = [
-      'id' => 'ID', 'login' => 'Login', 'email' => 'Email', 'first_name' => 'First Name',
-      'last_name' => 'Last Name', 'status' => 'Status', 'password' => 'Password',
-      'email_password' => 'Email Password', 'birth_day' => 'Birth Day', 'birth_month' => 'Birth Month',
-      'birth_year' => 'Birth Year', 'social_url' => 'Social URL', 'ads_id' => 'Ads ID',
-      'user_agent' => 'User Agent', 'two_fa' => '2FA', 'token' => 'Token', 'cookies' => 'Cookies',
-      'extra_info_1' => 'Extra Info 1', 'extra_info_2' => 'Extra Info 2', 'extra_info_3' => 'Extra Info 3',
-      'extra_info_4' => 'Extra Info 4', 'created_at' => 'Created At', 'updated_at' => 'Updated At'
-    ];
-    $columns = [];
-    foreach ($allCols as $col) {
-        $columns[$col] = $knownTitles[$col] ?? ucfirst(str_replace('_', ' ', $col));
-    }
+    // Заголовки — из CsvColumnTitles, общего источника правды с импортом.
+    // Раньше карта названий жила здесь своей копией, а импорт сопоставлял
+    // заголовок с именем колонки в БД: совпадали 9 колонок из 44, остальные
+    // при обратной загрузке файла молча терялись.
+    require_once __DIR__ . '/includes/CsvColumnTitles.php';
     // Используем точку с запятой как разделитель для Excel
-    Csv::writeRow($output, array_values($columns), ';');
+    Csv::writeRow($output, CsvColumnTitles::titlesFor($allCols), ';');
 
     // Санитизация для CSV-инъекций и UTF-8
     $sanitize = function($v) {
@@ -863,7 +854,10 @@ if ($format === 'txt') {
         // Обрабатываем и выводим порцию
         foreach ($accounts as $row) {
             $line = [];
-            foreach ($columns as $key => $_) {
+            // Порядок значений обязан совпадать с порядком заголовков выше:
+            // и там, и тут источник один — $allCols. Раньше здесь перебирался
+            // отдельный массив $columns, собранный из своей карты названий.
+            foreach ($allCols as $key) {
                 $cellValue = $row[$key] ?? '';
                 // Убеждаемся, что данные в UTF-8
                 $sanitized = $sanitize($cellValue);
