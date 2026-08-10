@@ -57,8 +57,92 @@ class AccountsRepository {
      * @param mixed $value Значение для нормализации
      * @return array ['value' => mixed, 'type' => string] — нормализованное значение и тип для bind_param
      */
+    /**
+     * Предел длины для типа колонки: символы для VARCHAR/CHAR, байты для TEXT.
+     *
+     * @param string $columnType Тип колонки как его отдаёт INFORMATION_SCHEMA,
+     *   например «varchar(50)» или «mediumtext»
+     * @return int|null Предел или null, если ограничивать нечего
+     */
+    public static function maxLengthForType(string $columnType) {
+        $type = strtolower(trim($columnType));
+
+        // VARCHAR(N) / CHAR(N) — предел в СИМВОЛАХ
+        if (preg_match('/^(var)?char\s*\(\s*(\d+)\s*\)/', $type, $m)) {
+            return (int)$m[2];
+        }
+
+        // Семейство TEXT — предел в БАЙТАХ, длина в типе не указывается
+        $textLimits = array(
+            'tinytext'   => 255,
+            'text'       => 65535,
+            'mediumtext' => 16777215,
+            'longtext'   => 4294967295,
+        );
+        foreach ($textLimits as $name => $limit) {
+            if (strpos($type, $name) === 0) {
+                return $limit;
+            }
+        }
+
+        // Числа, даты и прочее по длине не ограничиваем: там свои правила,
+        // и «обрезки строки» в нашем смысле не бывает.
+        return null;
+    }
+
+    /**
+     * Помещается ли значение в колонку такого типа.
+     *
+     * Зачем это вообще нужно. sql_mode приложения — без STRICT
+     * (includes/Database.php), поэтому MySQL не отвергает слишком длинное
+     * значение, а молча обрезает его и отдаёт Warning, которого никто не читает.
+     * Проверено на стенде: статус в 60 символов в колонку VARCHAR(50) дал
+     * ответ {"success":true,"affected":1} и 50 символов в базе.
+     * Хуже того, такую правку потом не откатить: в account_history попадает
+     * отправленное значение (60), а UndoService откатывает только при точном
+     * совпадении с тем, что сейчас в БД (50) — откат уходит в skipped_conflict.
+     *
+     * Считаем символы для VARCHAR/CHAR и байты для TEXT — ровно как считает
+     * сама MySQL. Если считать байты везде, кириллица начнёт «не помещаться»
+     * в колонки, куда она на самом деле влезает.
+     *
+     * @param mixed $value Значение
+     * @param string $columnType Тип колонки
+     * @return bool false — значение будет обрезано, записывать нельзя
+     */
+    public static function valueFitsColumnType($value, string $columnType): bool {
+        if (!is_string($value)) {
+            return true;
+        }
+        $limit = self::maxLengthForType($columnType);
+        if ($limit === null) {
+            return true;
+        }
+
+        $type = strtolower(trim($columnType));
+        if (preg_match('/^(var)?char/', $type)) {
+            $length = function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
+        } else {
+            $length = strlen($value); // TEXT считается в байтах
+        }
+
+        return $length <= $limit;
+    }
+
     private function normalizeValueByColumnType(string $field, $value): array {
         $columnInfo = $this->metadata->getColumn($field);
+
+        // Значение, которое не помещается в колонку, — это ошибка ввода, а не
+        // повод тихо укоротить данные. Без STRICT sql_mode MySQL обрезал бы его
+        // молча (см. докблок valueFitsColumnType).
+        if ($columnInfo && isset($columnInfo['type'])
+            && !self::valueFitsColumnType($value, (string)$columnInfo['type'])) {
+            $limit = self::maxLengthForType((string)$columnInfo['type']);
+            throw new InvalidArgumentException(
+                "Значение поля «{$field}» длиннее допустимого ({$limit}). "
+                . 'Сохранение отменено, чтобы значение не обрезалось молча.'
+            );
+        }
 
         if (!$columnInfo) {
             // Если метаданные недоступны, возвращаем как строку
