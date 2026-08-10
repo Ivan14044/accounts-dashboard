@@ -481,6 +481,9 @@ function handleDocumentClick(e) {
     cancelBtn.className = 'btn btn-sm btn-secondary ms-1';
     cancelBtn.innerHTML = '<i class="fas fa-times"></i>';
     cancelBtn.title = 'Отмена';
+    // См. inline-edit.js: панель действий сейчас внутри pwWrap, и без отцепления
+    // её копия запечётся в ячейку при восстановлении из снимка.
+    if (window.CellActions) window.CellActions.detach(pwWrap);
     var originalContent = pwWrap.innerHTML;
     pwWrap.innerHTML = '';
     pwWrap.appendChild(input);

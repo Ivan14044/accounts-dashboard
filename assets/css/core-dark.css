@@ -160,6 +160,12 @@
 [data-bs-theme="dark"] .ac-table tr.row-selected .ac-cell--actions {
   background: rgba(59, 130, 246, 0.10);
 }
+/* Фон плавающей панели действий ячейки — должен совпадать с фоном строки
+   под курсором, иначе кнопки лягут светлым пятном на тёмную строку.
+   Значения те же, что у tr:hover / tr.row-selected выше. */
+[data-bs-theme="dark"] .ac-table tbody tr { --cha-bg: var(--bg-secondary); }
+[data-bs-theme="dark"] .ac-table tbody tr.row-selected { --cha-bg: var(--bg-active); }
+
 [data-bs-theme="dark"] .table tbody tr[data-id].row-selected,
 [data-bs-theme="dark"] .table tbody tr[data-id].row-selected td {
   background-color: var(--bg-active) !important;

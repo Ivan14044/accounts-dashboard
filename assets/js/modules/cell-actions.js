@@ -15,6 +15,16 @@
  *     (.field-edit-btn, .pw-edit, .pw-toggle) — легаси-обработчики в
  *     dashboard-init.js/dashboard.js работают без изменений (closest от кнопки).
  *     Копирование — собственная кнопка .cha-copy (умеет обрезанные значения).
+ *
+ * ДВА ИНВАРИАНТА, которые нельзя нарушать (оба уже ломались, см.
+ * tests/test_cell_hover_panel_layout.php):
+ *  - панель обязана оставаться ВНЕ ПОТОКА (position:absolute из CSS). Иначе она
+ *    меняет max-content ячейки, а таблица — table-layout:auto, и вся раскладка
+ *    50×50 пересчитывается на каждое наведение: строка «скачет» под курсором;
+ *  - панель обязана оставаться ПОТОМКОМ .editable-field-wrap / .pw-mask, потому
+ *    что легаси-обработчики ищут контекст через closest() от кнопки. Поэтому
+ *    вынести её в body нельзя, а перед снятием innerHTML в редакторах её надо
+ *    отцеплять — для этого наружу торчит CellActions.detach().
  */
 (function () {
   'use strict';
@@ -79,7 +89,12 @@
   function buildPanel() {
     const span = document.createElement('span');
     span.className = 'cell-hover-actions';
-    span.style.display = 'contents'; // кнопки ложатся в flex-лейаут wrap'а как раньше
+    // Геометрия панели — в CSS (.cell-hover-actions в core-tables.css):
+    // position:absolute поверх правого края ячейки. Инлайнового display здесь
+    // осознанно НЕТ: раньше стоял display:contents, кнопки становились
+    // flex-элементами обёртки и меняли ширину колонки на каждое наведение
+    // (table-layout:auto) — см. комментарий у правила в CSS и
+    // tests/test_cell_hover_panel_layout.php.
     span.innerHTML =
       '<button type="button" class="pw-toggle" title="Показать/скрыть пароль"><i class="fas fa-eye"></i></button>' +
       '<button type="button" class="pw-edit" title="Редактировать пароль"><i class="fas fa-edit"></i></button>' +
@@ -104,6 +119,30 @@
   function removePanel() {
     if (panel && panel.parentElement) panel.parentElement.removeChild(panel);
   }
+
+  /**
+   * Отцепляет панель от ячейки, если она сейчас внутри указанного элемента.
+   *
+   * Нужна редакторам (modules/inline-edit.js и ветка .pw-edit в
+   * dashboard-init.js): они сохраняют `container.innerHTML`, чтобы вернуть
+   * ячейку после сохранения/отмены. Панель в этот момент — ребёнок этого же
+   * контейнера, поэтому попадала в снимок, а восстановление вклеивало её КОПИЮ
+   * статической разметкой. Копию не убирал никто: removePanel() знает только про
+   * живой узел. Ячейка навсегда становилась шире (замерено на стенде:
+   * last_name 108,9 → 174,3 px, password 102,8 → 213,5 px) и получала второй
+   * комплект кнопок; эффект копился с каждой правкой.
+   *
+   * @param {Element} [container] Если задан — отцепляем, только когда панель
+   *   действительно внутри него. Без аргумента — отцепляем безусловно.
+   * @returns {void}
+   */
+  function detachPanel(container) {
+    if (!panel || !panel.parentElement) return;
+    if (container && !container.contains(panel)) return;
+    panel.parentElement.removeChild(panel);
+  }
+
+  window.CellActions = { detach: detachPanel };
 
   function onMouseOver(e) {
     const t = e.target;
