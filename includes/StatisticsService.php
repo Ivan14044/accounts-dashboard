@@ -44,6 +44,38 @@ class StatisticsService {
     }
 
     /**
+     * Разбирает строки `GROUP BY status` в общее число и счётчики по статусам.
+     *
+     * NULL и пустая строка — это одно и то же «без статуса», поэтому они
+     * складываются в одну группу с ключом ''. Так же поступает и разбор
+     * отфильтрованной статистики ниже — иначе одна и та же запись считалась бы
+     * по-разному в двух местах.
+     *
+     * Общее число берётся суммой групп, а не отдельной строкой ROLLUP: строка
+     * ROLLUP приходит с NULL в status и неотличима от настоящей группы пустых
+     * статусов — ровно на этом и ломался счётчик «Без статуса».
+     * Стережёт tests/test_empty_status_counter.php.
+     *
+     * @param array $rows Строки вида ['status' => ?string, 'status_count' => int|string]
+     * @return array{total:int,byStatus:array<string,int>}
+     */
+    public static function splitStatusGroups(array $rows): array {
+        $total = 0;
+        $byStatus = [];
+
+        foreach ($rows as $row) {
+            $count = (int)($row['status_count'] ?? 0);
+            $total += $count;
+
+            $raw = array_key_exists('status', $row) ? $row['status'] : null;
+            $key = ($raw === null) ? '' : (string)$raw;
+            $byStatus[$key] = ($byStatus[$key] ?? 0) + $count;
+        }
+
+        return ['total' => $total, 'byStatus' => $byStatus];
+    }
+
+    /**
      * Собственно расчёт статистики — полный скан таблицы.
      * Публичный только потому, что вызывается из замыкания кэша (PHP 7.3 не даёт
      * замыканию доступа к private-методам через $self).
@@ -163,36 +195,34 @@ class StatisticsService {
                 $unfilteredWhere = 'WHERE deleted_at IS NULL';
             }
             
-            // Объединяем два запроса в один с подзапросом для оптимизации
+            // Нефильтрованная статистика: обычный GROUP BY, общее число складываем
+            // из групп в PHP.
+            //
+            // Раньше здесь был WITH ROLLUP и COALESCE(status,''), а разбор шёл по
+            // правилу «status пустой — значит это итоговая строка ROLLUP». Беда в
+            // том, что COALESCE делает пустыми ОБЕ строки: итоговую (у неё
+            // status = NULL) и настоящую группу пустых статусов. Проверено
+            // запросом на стенде — приходили обе, со счётчиками 182 021 и 36.
+            // Настоящая группа при этом не попадала в список вовсе, и карточка
+            // «Без статуса» показывала «-», стоило применить любой фильтр.
+            //
+            // GROUPING() здесь не помощник: он есть только в MySQL 8 (версия
+            // прода неизвестна) и всё равно не отличил бы итоговую строку от
+            // настоящей группы со status IS NULL — обе приходят с NULL.
+            // Без ROLLUP неоднозначности нет вообще, а запрос остаётся один.
             $unfilteredSql = "
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN status IS NULL OR status = '' THEN 1 ELSE 0 END) as empty_status,
-                COALESCE(status, '') as status,
-                COUNT(*) as status_count
+            SELECT status, COUNT(*) as status_count
             FROM {$this->table}
             $unfilteredWhere
-            GROUP BY status WITH ROLLUP
+            GROUP BY status
             ";
-            
+
             $unfilteredStats = $this->db->prepare($unfilteredSql, [], 'unfiltered_stats_combined');
-            
-            $totalUnfiltered = 0;
-            $byStatusUnfiltered = [];
-            
-            // Обрабатываем результаты: WITH ROLLUP создает итоговую строку с NULL в status
-            foreach ($unfilteredStats as $row) {
-                $status = $row['status'] ?? '';
-                $count = (int)($row['status_count'] ?? 0);
-                
-                if ($status === '') {
-                    // Это итоговая строка от WITH ROLLUP
-                    $totalUnfiltered = $count;
-                } else {
-                    $byStatusUnfiltered[$status] = $count;
-                }
-            }
-            
+
+            $split = self::splitStatusGroups($unfilteredStats);
+            $totalUnfiltered    = $split['total'];
+            $byStatusUnfiltered = $split['byStatus'];
+
             // Если WITH ROLLUP не сработал, делаем отдельные запросы
             if ($totalUnfiltered === 0) {
                 $unfilteredSql = "
