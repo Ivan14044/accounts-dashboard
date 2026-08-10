@@ -62,26 +62,46 @@ class CsvParser {
         while (($chunk = fgets($handle)) !== false) {
             $raw .= $chunk;
 
-            // Count unescaped quotes to determine if we're inside a quoted field
-            $quoteCount = 0;
+            // Определяем, осталась ли строка «недочитанной» — то есть открыто ли
+            // закавыченное поле, внутрь которого попал перенос строки.
+            //
+            // ВАЖНО (баг, найденный 2026-08-10): кавычка открывает поле, только
+            // если стоит В НАЧАЛЕ поля — в начале строки или сразу после
+            // разделителя. Кавычка внутри незакавыченного поля (`user3";active`)
+            // по RFC 4180 — обычный символ, и fgetcsv на PHP >= 7.4 так её и
+            // читает. Раньше здесь любая кавычка включала режим «внутри поля»,
+            // и ридер склеивал строки до следующей кавычки или до конца файла:
+            // файл из 10 строк с одной лишней кавычкой в третьей давал 3 строки
+            // на PHP 7.3 и 10 на PHP 8.2. Прод старее 7.4, то есть при импорте
+            // такого CSV все строки после кавычки молча пропадали.
+            // Разбор полей (parseCsvLine) это правило соблюдал всегда —
+            // расходилась только склейка строк.
             $len = strlen($raw);
             $i = 0;
             $inQ = false;
+            $atFieldStart = true;
             while ($i < $len) {
                 $ch = $raw[$i];
                 if ($inQ) {
                     if ($ch === '"') {
-                        // Look ahead: "" means escaped quote, otherwise end of field
+                        // Заглядываем вперёд: "" — экранированная кавычка
                         if ($i + 1 < $len && $raw[$i + 1] === '"') {
-                            $i += 2; // skip ""
+                            $i += 2;
                             continue;
                         }
                         $inQ = false;
+                        $atFieldStart = false;
                     }
+                } elseif ($ch === '"' && $atFieldStart) {
+                    $inQ = true;
+                    $atFieldStart = false;
+                } elseif ($ch === $delimiter) {
+                    $atFieldStart = true;
+                } elseif ($ch === "\n" || $ch === "\r") {
+                    // Перенос вне кавычек — начало новой строки, значит и нового поля
+                    $atFieldStart = true;
                 } else {
-                    if ($ch === '"') {
-                        $inQ = true;
-                    }
+                    $atFieldStart = false;
                 }
                 $i++;
             }
