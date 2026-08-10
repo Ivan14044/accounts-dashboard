@@ -34,9 +34,19 @@ $NUMERIC_COLS = [];
 $LONG_FIELDS = ['cookies', 'first_cookie', 'token', 'user_agent', 'social_url'];
 $meta = ['all' => [], 'columns' => [], 'numeric' => []];
 
-// Retention / автоочистка
-$trashSettings = ['enabled' => true, 'days' => TrashSettings::DEFAULT_DAYS, 'last_purge_at' => null];
-$retentionDays = TrashSettings::DEFAULT_DAYS;
+// Retention / автоочистка.
+// Значения по умолчанию нужны на случай, когда ниже случилась ошибка и до
+// реального чтения настроек дело не дошло: шаблон всё равно отрисуется.
+$trashSettings = [
+    'enabled' => true,
+    'days' => TrashSettings::DEFAULT_DAYS,
+    'last_purge_at' => null,
+    'last_purge_deleted' => 0,
+];
+$retentionDays    = TrashSettings::DEFAULT_DAYS;
+$purgeDueCount    = 0;   // сколько будет удалено НАВСЕГДА ближайшей автоочисткой
+$lastPurgeDeleted = 0;   // сколько удалил прошлый прогон
+$lastPurgeAt      = null;
 
 // Параметры trash-фильтра (для режима "выбрать все по фильтру" и сохранения в форме)
 $trashFilterParams = [];
@@ -64,6 +74,31 @@ try {
     // Настройки retention (для колонки "возраст" и UI настройки)
     $trashSettings = TrashSettings::get();
     $retentionDays = $trashSettings['days'];
+
+    // Сколько записей уже перешагнуло срок хранения и будет удалено НАВСЕГДА
+    // ближайшей автоочисткой. Показываем это ДО удаления: purgeOlderThan()
+    // удаляет физически, не пишет ни в account_history, ни в журнал отмены —
+    // восстановить нечем. Раньше единственным следом была строчка в логе,
+    // и пользователь узнавал о потере только по отсутствию записей.
+    // Считаем ровно по тому же условию, по которому удаляем
+    // (AccountsRepository::retentionWhereClause) — иначе предупреждение врало бы.
+    $purgeDueCount = 0;
+    if (!empty($trashSettings['enabled'])) {
+        try {
+            $purgeDueCount = $service->countTrashOlderThan((int)$retentionDays);
+        } catch (Throwable $e) {
+            // Не смогли посчитать — не показываем предупреждение вовсе.
+            // Соврать числом хуже, чем промолчать; сам факт пишем в лог.
+            Logger::warning('Trash: не удалось посчитать записи под автоочистку', [
+                'error' => $e->getMessage(),
+            ]);
+            $purgeDueCount = 0;
+        }
+    }
+    // Результат ПРОШЛОГО прогона: очистка выполняется в shutdown, уже после
+    // отрисовки страницы, поэтому показать её итог можно только на следующем заходе.
+    $lastPurgeDeleted = (int)($trashSettings['last_purge_deleted'] ?? 0);
+    $lastPurgeAt      = $trashSettings['last_purge_at'] ?? null;
 
     // Параметры, влияющие на trash-фильтр — прокидываем в шаблон для
     // режима "выбрать все по фильтру" (клиент шлёт их обратно в restore/delete).
@@ -214,7 +249,9 @@ if (!isset($errorMessage) && TrashSettings::shouldAutoPurge()) {
             }
             $svc = new AccountsService($tableName);
             $deleted = $svc->purgeTrashOlderThan((int)$settings['days'], 50000);
-            TrashSettings::markPurged();
+            // Число удалённых сохраняем, чтобы показать его пользователю на
+            // следующем заходе: сюда мы попадаем уже после отрисовки страницы.
+            TrashSettings::markPurged(null, $deleted);
             if ($deleted > 0) {
                 Logger::info('Trash auto-purge completed', [
                     'days' => $settings['days'],
