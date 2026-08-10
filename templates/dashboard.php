@@ -568,6 +568,56 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
             </div>
           </div>
 
+          <?php
+          /*
+           * Предпросмотр выбранного файла и прогресс импорта.
+           *
+           * Разметку сюда перенесли 2026-08-10. До этого она существовала только
+           * в неподключённом партиале modals/add-account-modal.php, то есть на
+           * странице её не было вовсе: dashboard-upload.js искал эти элементы,
+           * не находил и молча ничего не показывал. Ошибки при этом не было —
+           * все обращения в модуле защищены проверками на существование, поэтому
+           * пропажа разметки не проявляла себя ничем.
+           *
+           * Контракт с dashboard-upload.js (менять только вместе с ним):
+           *   #csvPreviewContainer     — модуль кладёт в него HTML предпросмотра
+           *                              и снимает d-none (showCsvPreview);
+           *   #importProgressContainer — показывается на время импорта;
+           *   #importProgressBar       — модуль меняет style.width и aria-valuenow;
+           *   #importProgressPercent   — текст с процентами;
+           *   #cancelImportBtn         — прерывает запрос через AbortController.
+           * Разметку стережёт tests/test_upload_dom_contract.php: он собирает id
+           * из самого JS и требует их наличия в подключённых шаблонах.
+           *
+           * Счётчика «Обработано: N / M» здесь осознанно НЕТ: в старой копии он
+           * был, но модуль его никогда не обновлял — показывать пользователю
+           * вечный «0 / 0» хуже, чем не показывать ничего.
+           */
+          ?>
+          <div id="csvPreviewContainer" class="d-none mt-3"></div>
+
+          <div id="importProgressContainer" class="d-none mt-3">
+            <div class="alert alert-info d-flex align-items-center mb-2">
+              <i class="fas fa-spinner fa-spin me-2"></i>
+              <strong>Импорт в процессе…</strong>
+            </div>
+            <div class="progress" style="height: 30px;">
+              <div id="importProgressBar"
+                   class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+                   role="progressbar"
+                   style="width: 0%"
+                   aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"
+                   aria-label="Прогресс импорта">
+                <span id="importProgressPercent">0%</span>
+              </div>
+            </div>
+            <div class="mt-2 text-center">
+              <button type="button" class="btn btn-sm btn-outline-danger" id="cancelImportBtn">
+                <i class="fas fa-times me-1"></i>Отменить импорт
+              </button>
+            </div>
+          </div>
+
         </form>
       </div>
       <div class="modal-footer">
