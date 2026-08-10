@@ -171,7 +171,14 @@ class ApiRouter {
             $this->callHandler($route['handler'], $route['params']);
             
         } catch (Throwable $e) {
-            ErrorHandler::handleError($e, 'API Router', 500);
+            // Код НЕ передаём: явный аргумент побеждает любую эвристику
+            // (см. докблок ErrorHandler::resolveHttpCode), и жёсткий 500 здесь
+            // превращал в «отказ сервера» каждую ошибку клиента — кривой JSON,
+            // отсутствующий или протухший CSRF, невалидный scope. Проверено
+            // curl'ом 2026-08-10: до правки все они отдавали 500.
+            // Пусть код выбирает resolveHttpCode: ввод → 400, CSRF → 403,
+            // отсутствие авторизации → 401, всё остальное → 500.
+            ErrorHandler::handleError($e, 'API Router');
         }
     }
 }

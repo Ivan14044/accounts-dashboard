@@ -101,6 +101,16 @@ class ErrorHandler {
             return $explicit;
         }
 
+        // Провал CSRF — это запрет, а не «неправильно заполненное поле».
+        // Маршруты (api/routes/favorites.php, filters.php, settings.php,
+        // accounts.php) и писали json_error(..., 403) — только код туда никогда
+        // не доходил: Validator::validateCsrfToken не возвращает false, а бросает
+        // InvalidArgumentException, поэтому все эти ветки — мёртвый код.
+        // Проверяем ДО общей ветки InvalidArgumentException, иначе получим 400.
+        if ($e instanceof InvalidArgumentException && stripos($e->getMessage(), 'csrf') !== false) {
+            return 403;
+        }
+
         // Ошибка ввода — это вина клиента, а не сервера.
         if ($e instanceof InvalidArgumentException) {
             return 400;

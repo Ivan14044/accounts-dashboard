@@ -112,6 +112,101 @@ check('слишком большое тело → InvalidArgumentException', (st
     return false;
 })());
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────
+ * Кто на самом деле выбирает код ответа: точки входа, а не только resolveHttpCode.
+ *
+ * Прошлая версия этого теста давала ложную уверенность: она дёргала
+ * resolveHttpCode() в изоляции, где ошибка ввода честно превращалась в 400,
+ * а на живом стенде тот же запрос отдавал 500. Причина была в двух местах
+ * ВЫШЕ этой функции, и ни одно из них тест не видел. Проверено curl'ом
+ * 2026-08-10 на стенде — до фикса:
+ *   POST /api/accounts, тело `{broken`      → HTTP 500
+ *   POST /api/accounts, неверный CSRF       → HTTP 500
+ *   GET  /index.php?apply_status=x&csrf=bad → HTTP 500, тело 0 байт (белый экран)
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Тело метода/функции из исходника с вырезанными комментариями.
+ *
+ * @param string $file Путь к файлу
+ * @param string $needle Сигнатура, с которой начинать поиск
+ * @return string Тело в фигурных скобках или '' если не найдено
+ */
+function ehcBody(string $file, string $needle): string
+{
+    $src = '';
+    foreach (token_get_all(file_get_contents($file)) as $tok) {
+        if (is_array($tok)) {
+            $src .= ($tok[0] === T_COMMENT || $tok[0] === T_DOC_COMMENT) ? "\n" : $tok[1];
+            continue;
+        }
+        $src .= $tok;
+    }
+    $at = strpos($src, $needle);
+    if ($at === false) {
+        return '';
+    }
+    $open = strpos($src, '{', $at);
+    if ($open === false) {
+        return '';
+    }
+    $depth = 0;
+    for ($i = $open, $n = strlen($src); $i < $n; $i++) {
+        if ($src[$i] === '{') {
+            $depth++;
+        } elseif ($src[$i] === '}') {
+            $depth--;
+            if ($depth === 0) {
+                return substr($src, $open, $i - $open + 1);
+            }
+        }
+    }
+    return '';
+}
+
+// 1. ApiRouter не должен навязывать 500: явный код в handleError() побеждает
+//    любую эвристику (см. докблок resolveHttpCode), поэтому «500» в этом вызове
+//    превращал КАЖДУЮ ошибку ввода в отказ сервера.
+$dispatch = ehcBody(__DIR__ . '/../includes/ApiRouter.php', 'function dispatch');
+check('ApiRouter::dispatch() найден', $dispatch !== '');
+check(
+    'ApiRouter::dispatch() не передаёт жёсткий 500 в handleError',
+    preg_match('~handleError\s*\([^)]*,\s*500\s*\)~', $dispatch) !== 1,
+    'явный 500 перебивает resolveHttpCode, и кривой JSON отдаётся как отказ сервера'
+);
+
+// 2. CSRF — это не «неверный ввод вообще», а запрет. Маршруты и писали 403
+//    (json_error(..., 403)), только код туда не доходил: validateCsrfToken
+//    не возвращает false, а бросает.
+check(
+    'провал CSRF → 403',
+    ErrorHandler::resolveHttpCode(new InvalidArgumentException('CSRF token validation failed')) === 403,
+    'получили ' . ErrorHandler::resolveHttpCode(new InvalidArgumentException('CSRF token validation failed'))
+);
+check(
+    'отсутствующий CSRF → 403',
+    ErrorHandler::resolveHttpCode(new InvalidArgumentException('CSRF token is required')) === 403
+);
+check(
+    'прочие ошибки ввода остаются 400',
+    ErrorHandler::resolveHttpCode(new InvalidArgumentException('Invalid JSON format: Syntax error')) === 400
+);
+
+// 3. handleApplyStatus() зовёт validateCsrfToken(), которая БРОСАЕТ. Вызов стоял
+//    вне try, а index.php зовёт handleApplyStatus() тоже вне try, и глобального
+//    обработчика исключений в проекте нет (ErrorHandler::register() не вызывается
+//    ниоткуда) — поэтому пользователь получал пустую страницу с кодом 500.
+$apply = ehcBody(__DIR__ . '/../includes/DashboardController.php', 'function handleApplyStatus');
+check('DashboardController::handleApplyStatus() найден', $apply !== '');
+$csrfAt = strpos($apply, 'validateCsrfToken');
+$tryAt  = strpos($apply, 'try');
+check(
+    'проверка CSRF в handleApplyStatus() обёрнута в try',
+    $csrfAt !== false && $tryAt !== false && $tryAt < $csrfAt,
+    'validateCsrfToken бросает исключение; без try протухший токен даёт белый экран 500'
+);
+
 echo "\n──────────────────────────────────────────────────\n";
 echo "Результат: $passed пройдено, $failures провалено\n";
 echo "──────────────────────────────────────────────────\n\n";

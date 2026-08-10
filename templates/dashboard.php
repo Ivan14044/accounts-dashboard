@@ -298,6 +298,26 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 
   <!-- Основной контент -->
   <main class="container-fluid">
+    <?php
+    /*
+     * Сообщение об ошибке прошлого действия.
+     *
+     * DashboardController кладёт его в сессию в двух местах (протухший CSRF при
+     * клике по кастомной карточке и сбой массовой смены статуса), но до
+     * 2026-08-10 его НИКТО не читал: grep по всему проекту находил только записи.
+     * То есть массовая смена статуса могла упасть, а пользователь видел обычную
+     * страницу и думал, что всё применилось.
+     * Показываем один раз и сразу забываем — это flash-сообщение.
+     */
+    if (!empty($_SESSION['error_message'])):
+        $dashboardFlashError = $_SESSION['error_message'];
+        unset($_SESSION['error_message']);
+    ?>
+      <div class="alert alert-danger shadow-sm rounded-xl" role="alert">
+        <i class="fas fa-triangle-exclamation me-2"></i><?= e($dashboardFlashError) ?>
+      </div>
+    <?php endif; ?>
+
     <!-- Статистические карточки -->
     <?php include __DIR__ . '/partials/dashboard/stats-cards.php'; ?>
     
