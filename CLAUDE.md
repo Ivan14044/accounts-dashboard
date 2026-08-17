@@ -482,11 +482,18 @@ JSON.stringify({
   сертификат `CN=accdash.com` от Google Trust Services, verify code 0.)*
   Старый `panel.account-factory.site` пока тоже отвечает, но HTTPS на нём битый.
   Детали и грабли переезда — `docs/DOMAIN_MIGRATION.md`.
-- **Cloudflare подмешивает свой beacon, и наша CSP его блокирует.** Новые зоны
-  автоматически попадают в аккаунт-уровневый Web Analytics («Automatic setup»),
-  edge вставляет `static.cloudflareinsights.com/beacon.min.js` в HTML, а
-  `script-src` его не пускает → ошибка в консоли на каждой странице. Данные
-  наружу при этом не уходят. Важно для диагностики: beacon подмешивается только
+- **Cloudflare подмешивает свой beacon, и наша CSP его блокирует.** Edge
+  вставляет `static.cloudflareinsights.com/beacon.min.js` в HTML проксируемой
+  зоны, а `script-src` его не пускает → ошибка в консоли на каждой странице.
+  Скрипт при этом не загружается, данные наружу не уходят.
+  **Выключателя в дашборде нет — не ищи заново.** Проверено 2026-08-17 на
+  `accdash.com`: зоны нет в аккаунт-уровневом списке Web Analytics (перебраны
+  все 35 сайтов на 4 страницах), RUM в зоне показан выключенным, Speed Brain и
+  остальные оптимизации выключены, а токен в beacon не равен `site_tag` записей
+  из списка (у `welmaria.com` site_tag `778168921b…`, токен beacon `5624bd4f…`),
+  поэтому `/web-analytics/edit/<токен>` редиректит на список. Варианты решения
+  и их цена — в `docs/DOMAIN_MIGRATION.md`.
+  Важно для диагностики: beacon подмешивается только
   в ответы на «браузероподобные» запросы — `curl -A "Mozilla/5.0"` его не
   увидит, нужны ещё `Accept: text/html,…` и `Sec-Fetch-*`. *(проверено
   2026-08-17: без этих заголовков grep по HTML пуст, с ними — beacon есть.)*
