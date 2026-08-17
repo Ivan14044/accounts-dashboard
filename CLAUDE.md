@@ -466,6 +466,26 @@ JSON.stringify({
   только после установки собственного сертификата на origin (иначе 526).
   Текущая зона стоит в Full: запрос через прокси-адреса Cloudflare отдал 302 с
   `Location: https://…` и cookie `secure`, а не 526. *(проверено 2026-08-17.)*
+- **Боевой адрес панели — `https://panel.accdash.com`** (переезд выполнен
+  2026-08-17). Домен куплен у Cloudflare Registrar, зона `accdash.com` на их
+  NS, запись `panel A 185.104.45.9` проксируется, SSL-режим Full, Universal SSL
+  активен и покрывает `*.accdash.com`. На хостинге домен подключён
+  **псевдонимом** к сайту `panel.account-factory.site` — каталог остался
+  `/home/if592995/panel.account-factory.site/www/`, поэтому FTP-деплой и
+  `server_dir: ./` не менялись. *(проверено: `/login.php` → 200, `/index.php` →
+  302 на `https://panel.accdash.com/login.php` с cookie `secure`,
+  `deployed-version.txt` → 200, `tools/`,`includes/`,`sql/`,`*.md` → 403,
+  сертификат `CN=accdash.com` от Google Trust Services, verify code 0.)*
+  Старый `panel.account-factory.site` пока тоже отвечает, но HTTPS на нём битый.
+  Детали и грабли переезда — `docs/DOMAIN_MIGRATION.md`.
+- **Cloudflare подмешивает свой beacon, и наша CSP его блокирует.** Новые зоны
+  автоматически попадают в аккаунт-уровневый Web Analytics («Automatic setup»),
+  edge вставляет `static.cloudflareinsights.com/beacon.min.js` в HTML, а
+  `script-src` его не пускает → ошибка в консоли на каждой странице. Данные
+  наружу при этом не уходят. Важно для диагностики: beacon подмешивается только
+  в ответы на «браузероподобные» запросы — `curl -A "Mozilla/5.0"` его не
+  увидит, нужны ещё `Accept: text/html,…` и `Sec-Fetch-*`. *(проверено
+  2026-08-17: без этих заголовков grep по HTML пуст, с ними — beacon есть.)*
 - **PHP на проде старее 7.4.** Точный номер по-прежнему не виден (`X-Powered-By`
   скрыт, заголовки отдаёт только nginx хостинга + `x-ray`), но верхняя
   граница доказана: `tools/migrations/apply_indexes_safe.php` отдавал по HTTP
