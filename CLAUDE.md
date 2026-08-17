@@ -441,9 +441,33 @@ JSON.stringify({
   `tests/test_toast_global_shadowing.php`.)*
 - Прод отдаёт ассеты по **HTTP/2 с brotli**, `cache-control: max-age=14400`
   (4 часа, не год). `core-base.css`: 40 400 байт сырых → 8 836 по сети.
-  *(проверено `curl -I --compressed` к панели 2026-08-09.)*
+  *(проверено `curl -I --compressed` к панели 2026-08-09 — тогда трафик шёл
+  через Cloudflare. С 2026-08-17 это уже не так, см. следующий пункт: brotli и
+  HTTP/2 приходили от Cloudflare, а не от хостинга.)*
+- **Cloudflare сейчас НЕ в цепочке, и HTTPS на проде сломан.** `dig +trace` от
+  корня показывает делегирование `account-factory.site` на неймсерверы самого
+  хостинга (`ns14/ns24/ns34.inhostedns.*`, `185.104.44.31` — соседняя подсеть с
+  origin `185.104.45.9`), а не на Cloudflare. Регистратор сбросил NS, когда
+  домен ушёл в `clientHold` после истечения 2026-08-16. Трафик идёт напрямую на
+  origin, а тот на **любое** имя домена (`panel.`, `www.`, apex, `dashboard.`)
+  отдаёт заглушку `CN=default-ssl.default-host.net` → обычный `curl` падает с
+  «no alternative certificate subject name matches». Зона в Cloudflare при этом
+  жива (edge-сертификат `CN=account-factory.site` от Google Trust Services
+  действует до 2026-11-03), но домен на неё не делегирован.
+  *(проверено 2026-08-17. Осторожно: `dig +short NS` через системный резолвер
+  ещё отдавал закэшированные NS Cloudflare — верить надо `+trace` от корня.)*
+  Переезд на новый домен описан в `docs/DOMAIN_MIGRATION.md`.
+- **Origin не доверяет `X-Forwarded-Proto` / `CF-Visitor`.** Запрос к
+  `185.104.45.9` по HTTP с этими заголовками и без них даёт одинаковый ответ:
+  `Location: http://…` и cookie без флага `secure`. То есть `$_SERVER['HTTPS']`
+  выставляется только реальным TLS до origin. **Следствие: SSL-режим Cloudflare
+  «Flexible» для панели непригоден** — редирект `index.php → login.php` уедет на
+  `http://`, а cookie сессии потеряет `secure`. Нужен Full; `Full (strict)` —
+  только после установки собственного сертификата на origin (иначе 526).
+  Текущая зона стоит в Full: запрос через прокси-адреса Cloudflare отдал 302 с
+  `Location: https://…` и cookie `secure`, а не 526. *(проверено 2026-08-17.)*
 - **PHP на проде старее 7.4.** Точный номер по-прежнему не виден (`X-Powered-By`
-  скрыт, `curl -I` отдаёт только Cloudflare и security-заголовки), но верхняя
+  скрыт, заголовки отдаёт только nginx хостинга + `x-ray`), но верхняя
   граница доказана: `tools/migrations/apply_indexes_safe.php` отдавал по HTTP
   `Parse error: syntax error, unexpected '=>' (T_DOUBLE_ARROW) ... on line 138`,
   а на строке 138 стояла стрелочная функция `fn($n) => ...`, доступная только с

@@ -23,11 +23,18 @@ jobs:
       max-parallel: 1
       matrix:
         target:
-          # FTP login приземляет в /home/if592995/panel.account-factory.site/www/.
-          # Это единственный live домен (dashboard.account-factory.site больше
-          # не используется — там лежит замороженная копия, не подвязанная к FTP).
+          # FTP login приземляет в домашний каталог сайта, поэтому server_dir: ./.
+          # Каталог остаётся прежним (/home/if592995/panel.account-factory.site/www/)
+          # даже после переезда на panel.accdash.com: новый домен подключён алиасом
+          # к тому же сайту, а не отдельным сайтом. Заведёшь отдельный — путь станет
+          # /home/if592995/panel.accdash.com/www/, и его придётся прописать явно
+          # либо перенастроить домашний каталог FTP-пользователя.
+          # См. docs/DOMAIN_MIGRATION.md.
+          #
+          # host нигде в шагах не используется — это только подсказка, по какому
+          # адресу смотреть deployed-version.txt.
           - name: panel
-            host: panel.account-factory.site
+            host: panel.accdash.com
             server_dir: ./
     steps:
       - name: Checkout
