@@ -1,6 +1,6 @@
 # Деплой на хостинг по FTP
 
-При пуше в ветки `feature/dashboard-load-optimization` или `main` GitHub Actions запускает workflow **Deploy to FTP** и заливает файлы на хостинг.
+При пуше в `main` GitHub Actions запускает workflow **Deploy to FTP** и заливает файлы на хостинг. Мёрдж в `main` = деплой в прод.
 
 ## Однократная настройка
 
@@ -11,11 +11,13 @@
    - **FTP_PASSWORD** — пароль от FTP.
 3. Сохраните.
 
-Путь на сервере задаётся в `.github/workflows/deploy.yml` в переменной `FTP_SERVER_DIR` (по умолчанию `/home/if592995/panel.account-factory.site/www/`). При необходимости измените его в файле workflow.
+Каталог назначения **не задаётся в workflow**: там стоит `server_dir: ./`, а FTP-логин сам приземляется в домашний каталог сайта (`/home/if592995/panel.account-factory.site/www/`). Менять путь надо в настройках FTP-пользователя на хостинге; явный `server_dir` в `deploy.yml` нужен, только если домашний каталог не совпадает с каталогом сайта.
+
+Переезд панели на другой домен описан в `docs/DOMAIN_MIGRATION.md`.
 
 ## Как это работает
 
-- При `git push` в `main` или `feature/dashboard-load-optimization` запускается **Deploy to FTP**.
+- При `git push` в `main` запускается **Deploy to FTP**.
 - Файлы из репозитория синхронизируются в каталог на сервере.
 - Папки и файлы из списка `exclude` не заливаются (`.git`, `.github`, `node_modules`, `.env` и др.).
 
