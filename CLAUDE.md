@@ -468,8 +468,12 @@ JSON.stringify({
   `Location: https://…` и cookie `secure`, а не 526. *(проверено 2026-08-17.)*
 - **Боевой адрес панели — `https://panel.accdash.com`** (переезд выполнен
   2026-08-17). Домен куплен у Cloudflare Registrar, зона `accdash.com` на их
-  NS, запись `panel A 185.104.45.9` проксируется, SSL-режим Full, Universal SSL
-  активен и покрывает `*.accdash.com`. На хостинге домен подключён
+  NS, запись `panel A 185.104.45.9` проксируется, SSL-режим **Full (strict)**,
+  Universal SSL активен и покрывает `*.accdash.com`. На origin стоит Cloudflare
+  Origin Certificate (SAN `*.accdash.com`, `accdash.com`, до 2041-08-13), ключ
+  генерировался локально и Cloudflare не передавался. Let's Encrypt на этом
+  хостинге при включённом проксировании выпустить нельзя — adm.tools отказывает
+  прямым текстом. На хостинге домен подключён
   **псевдонимом** к сайту `panel.account-factory.site` — каталог остался
   `/home/if592995/panel.account-factory.site/www/`, поэтому FTP-деплой и
   `server_dir: ./` не менялись. *(проверено: `/login.php` → 200, `/index.php` →
