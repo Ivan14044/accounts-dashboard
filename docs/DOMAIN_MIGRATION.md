@@ -158,14 +158,66 @@ analytics (для приватной панели статистика посе�
 `Accept: text/html,…` и заголовки `Sec-Fetch-*`. Если ищешь beacon в HTML и не
 находишь — это не значит, что его нет.
 
-## Шаг 6. Закрыть origin своим сертификатом
-
-Выпустить Origin Certificate у Cloudflare (живёт 15 лет) и поставить его на
-хостинге для `panel.accdash.com`. После этого перевести SSL-режим в
-**Full (strict)** и перепроверить по чеклисту шага 5.
+## Шаг 6. Закрыть origin своим сертификатом — сделано 2026-08-17
 
 Без этого шага участок Cloudflare → origin шифруется, но сертификат на нём не
 проверяется, то есть MITM между Cloudflare и хостингом технически возможен.
+
+**Let's Encrypt тут не вариант.** adm.tools сам это пишет на странице
+Настройки SSL: «Домен обслуживается на NS Cloudflare. При включённом
+проксировании сертификат Let's Encrypt невозможно установить или продлить».
+Остаётся Origin Certificate от Cloudflare.
+
+Как сделано — порядок важен, менять нельзя:
+
+1. **Ключ и CSR сгенерированы локально**, приватный ключ на серверы Cloudflare
+   не отправлялся:
+
+   ```bash
+   openssl req -new -newkey rsa:2048 -nodes \
+     -keyout origin.key -out origin.csr -subj "/CN=panel.accdash.com"
+   ```
+
+2. Cloudflare → SSL/TLS → Origin Server → Create Certificate → **Use my private
+   key and CSR**, вставить `origin.csr`. Hostnames по умолчанию уже
+   `*.accdash.com` + `accdash.com` — этого достаточно, `panel.accdash.com`
+   покрыт wildcard-ом. Срок 15 лет.
+
+3. Перед установкой проверить, что сертификат и ключ — одна пара; иначе получишь
+   нерабочий HTTPS на origin и потом долго будешь искать причину:
+
+   ```bash
+   openssl x509 -in origin.crt -noout -modulus | openssl md5
+   openssl rsa  -in origin.key -noout -modulus | openssl md5   # должны совпасть
+   ```
+
+4. adm.tools → Настройки SSL → вкладка **«Ваш сертификат»** → загрузить оба
+   файла (`origin.crt`, `origin.key`), пароль ключа пустой (генерировали с
+   `-nodes`), галочку «Добавить промежуточные сертификаты» можно оставить.
+
+5. **Дождаться, пока origin реально начнёт отдавать новый сертификат**, и только
+   потом переключать режим. Панель пишет «в течение часа», по факту это заняло
+   ~5 минут. Проверка:
+
+   ```bash
+   echo | openssl s_client -servername panel.accdash.com \
+     -connect 185.104.45.9:443 2>/dev/null | openssl x509 -noout -issuer
+   # ждём: CloudFlare Origin SSL Certificate Authority
+   ```
+
+6. Cloudflare → SSL/TLS → Overview → Configure → **Full (Strict)** → и
+   обязательно нажать **Save**. Грабля: выбор радиокнопки сам по себе ничего не
+   меняет — правая панель «Mode details» сразу показывает Full (strict), и
+   выглядит это как применённая настройка, но на Overview остаётся Full.
+   Подтверждение того, что сохранилось: на Overview
+   «Current encryption mode: **Full (strict)**» и «Mode last changed».
+
+7. Перепроверить по чеклисту шага 5. Если появился **526** — сертификат на
+   origin не подхватился; вернуть режим Full и вернуться к пункту 5.
+
+Приватный ключ после установки удалён с локальной машины: он больше не нужен, а
+хранить его в открытом виде незачем. Если сертификат на хостинге когда-нибудь
+потеряется — быстрее выпустить новый по этой же инструкции, чем хранить старый.
 
 ## Шаг 7. Правки в репозитории
 
