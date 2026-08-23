@@ -235,24 +235,16 @@ class DashboardController {
         // Параметры фильтров для передачи в шаблон
         $filterParams = RequestHandler::getFilterParams();
         
-        // Обработка множественного выбора статусов для UI
-        $selectedStatuses = [];
-        if (isset($_GET['status'])) {
-            if (is_array($_GET['status'])) {
-                $selectedStatuses = array_map('trim', $_GET['status']);
-            } elseif (is_string($_GET['status']) && $_GET['status'] !== '') {
-                $selectedStatuses = explode(',', $_GET['status']);
-            }
-        }
-        $selectedStatuses = array_filter($selectedStatuses);
+        // Обработка множественного выбора статусов для UI.
+        // Разбор обеих форм (`status[]=A&status[]=B` и `status=A,B`) живёт в
+        // get_param_array() — здесь его дублировать не нужно, $filterParams
+        // уже содержит готовый список.
+        $selectedStatuses = $filterParams['status'];
         $statusArray = $selectedStatuses; // Для совместимости с шаблоном
         $emptyStatusParam = get_param('empty_status');
         
         // Подсчет активных фильтров
         $activeFiltersCount = RequestHandler::countActiveFilters($filterParams);
-        
-        // URL для экспорта
-        $exportUrl = 'export.php?' . http_build_query(array_filter($filterParams));
         
         // CSRF токен
         $csrfToken = getCsrfToken();
@@ -342,7 +334,6 @@ class DashboardController {
             'emptyStatusParam' => $emptyStatusParam,
             'activeFiltersCount' => $activeFiltersCount,
             'q' => $q,
-            'exportUrl' => $exportUrl,
             'csrfToken' => $csrfToken,
             'page' => $page,
             'pages' => $pages,

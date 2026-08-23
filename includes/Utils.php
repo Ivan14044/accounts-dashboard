@@ -44,15 +44,84 @@ function e($value): string {
 }
 
 /**
- * Получение GET-параметра с дефолтным значением
- * 
+ * Получение GET-параметра с дефолтным значением.
+ *
+ * Всегда возвращает СТРОКУ. Если параметр пришёл массивом
+ * (`?status[]=A&status[]=B` → `$_GET['status']` — массив), возвращается
+ * $default, а не «первый элемент».
+ *
+ * Почему именно $default, а не первый элемент:
+ *   - раньше здесь было `trim((string)$_GET[$key])`, и приведение массива к
+ *     строке давало `Notice: Array to string conversion` (на 8.x — Warning)
+ *     плюс бессмысленное значение "Array". На проде error_reporting=E_ALL,
+ *     поэтому фронт, который канонически шлёт статусы как `status[]`
+ *     (assets/js/filters-modern.js), засорял php_errors.log на каждом заходе
+ *     с фильтром по статусу;
+ *   - у всех вызывающих get_param() параметров значение одиночное
+ *     (sort, dir, page, q, id, format...). Массив там — ошибка клиента или
+ *     попытка что-то подсунуть; молча «понимать» её, беря первый элемент,
+ *     значит прятать баг;
+ *   - ровно такую же семантику давно реализует export_param() в export.php —
+ *     держим одно правило на проект.
+ *
+ * Для честно многозначных параметров есть get_param_array().
+ *
  * @param string $key Ключ параметра
- * @param string $default Значение по умолчанию
+ * @param string $default Значение по умолчанию (отдаётся, если ключа нет или
+ *                        значение не скалярное)
  * @return string
  */
 if (!function_exists('get_param')) {
 function get_param(string $key, string $default = ''): string { 
-    return isset($_GET[$key]) ? trim((string)$_GET[$key]) : $default; 
+    if (!isset($_GET[$key]) || !is_scalar($_GET[$key])) {
+        return $default;
+    }
+    return trim((string)$_GET[$key]); 
+}
+}
+
+/**
+ * Получение многозначного GET-параметра списком строк.
+ *
+ * Понимает обе формы, в которых статусы реально приходят от фронта и из
+ * сохранённых фильтров:
+ *   - `?status[]=A&status[]=B` → ['A', 'B'];
+ *   - `?status=A,B`            → ['A', 'B'] (историческая форма, её же
+ *                                строят старые сохранённые ссылки).
+ *
+ * Значения тримятся, пустые отбрасываются, ключи перенумеровываются с нуля.
+ * Не-скалярные элементы (вложенные массивы из `?status[][]=x`) отбрасываются —
+ * иначе trim() на массиве снова дал бы Notice.
+ *
+ * @param string $key Ключ параметра
+ * @return array Список непустых строк; пустой массив, если параметра нет
+ */
+if (!function_exists('get_param_array')) {
+function get_param_array(string $key): array {
+    if (!isset($_GET[$key])) {
+        return [];
+    }
+
+    $raw = $_GET[$key];
+    if (!is_array($raw)) {
+        if (!is_scalar($raw)) {
+            return [];
+        }
+        $raw = explode(',', (string)$raw);
+    }
+
+    $out = [];
+    foreach ($raw as $value) {
+        if (!is_scalar($value)) {
+            continue;
+        }
+        $value = trim((string)$value);
+        if ($value !== '') {
+            $out[] = $value;
+        }
+    }
+
+    return $out;
 }
 }
 

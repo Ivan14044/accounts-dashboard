@@ -20,16 +20,38 @@ class RequestHandler {
         'year_created_from', 'year_created_to',
         'bm_status'
     ];
+
+    /**
+     * Фильтры, у которых значение честно многозначное.
+     *
+     * Сейчас это только статус: фронт канонически шлёт его как
+     * `status[]=A&status[]=B` (assets/js/filters-modern.js). Такие ключи
+     * читаются через get_param_array() и остаются МАССИВОМ, остальные —
+     * через get_param() и остаются строкой.
+     *
+     * Почему status не выкинут из $allowedFilters, хотя сама выборка читает
+     * `$_GET['status']` в обход RequestHandler (DashboardController): от этого
+     * списка зависит countActiveFilters(), которая обязана посчитать каждый
+     * выбранный статус отдельным фильтром. Раньше она получала строку "Array"
+     * и по случайности насчитывала ровно 1 — теперь считает реальное число.
+     */
+    private static $multiValueFilters = ['status'];
     
     /**
      * Получить все параметры фильтров
      * 
-     * @return array Ассоциативный массив параметров фильтров
+     * @return array Ассоциативный массив параметров фильтров. Значение —
+     *               строка для одиночных фильтров и массив строк для тех,
+     *               что перечислены в self::$multiValueFilters.
      */
     public static function getFilterParams(): array {
         $params = [];
         foreach (self::$allowedFilters as $key) {
-            $params[$key] = get_param($key);
+            if (in_array($key, self::$multiValueFilters, true)) {
+                $params[$key] = get_param_array($key);
+            } else {
+                $params[$key] = get_param($key);
+            }
         }
         return $params;
     }
