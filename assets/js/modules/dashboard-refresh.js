@@ -11,12 +11,17 @@
   const log = (...args) => (typeof logger !== 'undefined' && logger.debug ? logger.debug(...args) : (typeof console !== 'undefined' && console.debug && console.debug(...args)));
   const logErr = (...args) => (typeof logger !== 'undefined' && logger.error ? logger.error(...args) : (typeof console !== 'undefined' && console.error && console.error(...args)));
 
+  /**
+   * Контроллер ЖИВОГО запроса или null. Обнуляется владельцем по завершении,
+   * поэтому «не null» действительно означает «есть что отменять».
+   * Раньше он не обнулялся никогда, и каждый новый refresh звал abort() по уже
+   * завершённому контроллеру — безобидно, но маскировало реальную картину.
+   *
+   * Порядок применения ответов гарантирован именно им: новый refresh отменяет
+   * предыдущий СИНХРОННО, до своего первого await, поэтому живой запрос всегда
+   * один. Отдельный счётчик «поколений» для этого не нужен — см. applyDataToDom.
+   */
   let refreshController = null;
-  let refreshQueued = false;
-  let isRefreshing = false;
-  let overlayShownAt = 0;
-  /** Номер «поколения» refresh — защита от устаревшего setTimeout при быстрой смене фильтров */
-  let refreshGeneration = 0;
 
   function collectRefreshParams() {
     const params = new URLSearchParams(window.location.search);
@@ -65,7 +70,6 @@
       if (tableOverlay) {
         tableOverlay.style.display = '';
         tableOverlay.classList.add('show');
-        overlayShownAt = Date.now();
       }
       if (statsOverlay) {
         statsOverlay.style.display = '';
@@ -89,7 +93,6 @@
       performance.mark('refresh-start');
     }
     if (refreshController) {
-      refreshQueued = true;
       try { refreshController.abort(); } catch(_) {}
     }
     const params = new URLSearchParams(window.location.search);
@@ -97,8 +100,9 @@
       params.set('light', '1');
     }
     const url = 'refresh.php?' + params.toString();
-    refreshController = new AbortController();
-    const signal = refreshController.signal;
+    const myController = new AbortController();
+    refreshController = myController;
+    const signal = myController.signal;
 
     const isLight = options && (options.light === true || options.light === 'true');
     if (!isLight) {
@@ -118,9 +122,6 @@
       if (typeof performance !== 'undefined' && performance.mark) {
         performance.mark('refresh-data-received');
       }
-
-      const myGeneration = ++refreshGeneration;
-      if (myGeneration !== refreshGeneration) return;
 
       const rowsLen = Array.isArray(data.rows) ? data.rows.length : 0;
       const filteredTotalNum = typeof data.filteredTotal === 'number' ? data.filteredTotal : null;
@@ -164,9 +165,8 @@
         }
       }
 
-      // ── Фаза 1.5: Пагинация — обновляем СИНХРОННО (не в rAF!).
-      //    outerHTML замена лёгкая, а в rAF generation-check может пропустить обновление
-      //    если автообновление (30с) или фильтр сработали между fetch и rAF. ──
+      // ── Фаза 1.5: Пагинация — обновляем СИНХРОННО. outerHTML-замена лёгкая,
+      //    а всё, что откладывалось до кадра, рисковало не примениться вовсе. ──
       if (data.paginationHtml !== undefined) {
         const nav = document.getElementById('paginationNav');
         if (nav) {
@@ -196,10 +196,20 @@
         if (pageInfo) pageInfo.style.display = multi ? '' : 'none';
       }
 
-      // ── Фаза 2: Тяжёлые DOM-операции в requestAnimationFrame (один reflow) ──
-      requestAnimationFrame(() => {
-        if (myGeneration !== refreshGeneration) return;
-
+      // ── Фаза 2: применение данных к DOM ──────────────────────────────────
+      // СИНХРОННО, а не в requestAnimationFrame. Раньше весь этот блок лежал в
+      // rAF «ради одного reflow», и это молча теряло обновление целиком: кадр
+      // браузер выдаёт не всегда (скрытая вкладка, перекрытое окно, дросселя-
+      // ция рендера), а без кадра rAF не вызывается вовсе. Наблюдалось как
+      // «крестик на chip сменил URL и снял галочку, а таблица и чипы старые»:
+      // ответ сервера уже пришёл, применять его было некому.
+      // Потери reflow тут нет — блок делает только записи в DOM, а чтения
+      // (ширины, плотность, виртуализация) остались во вложенном rAF ниже:
+      // их пропуск без кадра безвреден, потому что смотреть всё равно некому.
+      // Побочный эффект переноса: исключение отсюда теперь ловит catch ниже —
+      // пользователь видит тост и кнопку «Повторить», а не молчаливую ошибку в
+      // консоли с навсегда висящим прелоадером, как было при вызове из rAF.
+      function applyDataToDom() {
         // Карточка «Всего»
         const totalEl = getS('[data-card="total"] .stat-value');
         if (totalEl && data.totals && typeof data.totals.all === 'number') {
@@ -295,7 +305,8 @@
             window.updateStickyScrollbar();
           }
         });
-      });
+      }
+      applyDataToDom();
 
     } catch (error) {
       if (error.name === 'AbortError' || (error.message && error.message.includes && error.message.includes('aborted'))) {
@@ -327,10 +338,14 @@
         tbody.appendChild(tr);
       }
     } finally {
+      // Освобождаем контроллер, только если он всё ещё наш: более поздний
+      // refresh мог уже положить свой, и обнулять чужой живой запрос нельзя.
+      if (refreshController === myController) {
+        refreshController = null;
+      }
       if (typeof window.updateStickyScrollbar === 'function') {
         window.updateStickyScrollbar();
       }
-      isRefreshing = false;
       notifyAfterRefresh();
     }
   }

@@ -130,6 +130,18 @@ window.DashboardRefresh.onAfterRefresh(() => {
 цепочка зависела от порядка загрузки, а одна из обёрток глотала `AbortError`
 всей цепочки. Так больше не делаем.
 
+**Применение данных к DOM не откладывайте до кадра.** Всё, что показывает
+пользователю пришедшие с сервера данные — `tableModule.updateRows()`,
+`renderActiveFiltersFromUrl()`, снятие прелоадера — вызывается в
+`refreshDashboardData` синхронно. `requestAnimationFrame` тут не «оптимизация с
+нулевой ценой»: кадр браузер выдаёт не всегда (скрытая вкладка, перекрытое окно,
+дросселяция рендера), и без кадра колбэк не вызывается ВООБЩЕ — обновление
+теряется целиком, а прелоадер висит поверх таблицы. Ровно на этом стоял баг
+«крестик на chip сменил URL, а таблица старая». В rAF оставлен только
+layout-догон (`tableLayoutManager.refresh()`, виртуализация, sticky-скроллбар):
+он читает геометрию, и его пропуск без кадра безвреден — смотреть всё равно
+некому. Инвариант стережёт `tests/test_filter_chip_refresh.php`.
+
 ### Ключевые модули
 
 | Модуль | Назначение |
@@ -192,7 +204,7 @@ window.DashboardRefresh.onAfterRefresh(() => {
 | `includes/RequestHandler.php` | параметр в `$allowedFilters` и в счётчик `countActiveFilters()` |
 | `includes/services/AccountsServiceFiltersTrait.php` | вызов нужного метода `FilterBuilder` |
 | `includes/DashboardController.php` | `get_param()` и передача значения в шаблон |
-| `templates/partials/dashboard/filters.php` | контрол в форме + chip активного фильтра |
+| `templates/partials/dashboard/filters.php` | контрол в форме + chip активного фильтра (с `data-filter`, БЕЗ inline `onclick`) |
 | `templates/dashboard.php` | поле в модалке кастомной карточки |
 | `assets/js/filters-modern.js` | chip, `case` в `removeFilterChip()`, `ALL_FILTER_PARAMS`, `QUICK_FILTER_PARAMS` (только чекбоксы), синхронизация в `syncFormFromUrl()` |
 | `assets/js/modules/custom-cards.js` | сбор из модалки, подпись карточки, data-атрибут |
@@ -211,6 +223,12 @@ window.DashboardRefresh.onAfterRefresh(() => {
 - **Select нужно синхронизировать вручную** в `syncFormFromUrl()`: крестик на
   chip и «Сбросить все» правят URL напрямую, минуя форму. Чекбоксы за счёт
   `QUICK_FILTER_PARAMS` синхронизируются сами, select — нет.
+- **Крестику chip не нужен inline `onclick`.** Клики по `.filter-chip-remove`
+  ловит делегированный обработчик в `filters-modern.js`, он берёт фильтр из
+  `data-filter` (статус — из `data-status-value`). Достаточно отдать чипу
+  правильный `data-filter`. `onclick` в разметке даст ВТОРОЙ вызов
+  `removeFilterChip()` на тот же клик: два запроса `refresh.php`, первый из
+  которых сразу отменяется. Стережёт `tests/test_filter_chip_refresh.php`.
 
 Инвентаризацию всех восьми мест стережёт `tests/test_presence_filters.php`.
 
