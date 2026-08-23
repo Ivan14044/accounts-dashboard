@@ -113,6 +113,7 @@ function renderActiveFiltersFromUrl() {
         ['has_fan_page', 'fa-flag', 'Есть Fan Page'],
         ['has_avatar', 'fa-image', 'Есть Аватар'],
         ['has_password', 'fa-lock', 'Есть Пароль'],
+        ['has_passkey', 'fa-fingerprint', 'Есть Passkey'],
         ['has_cover', 'fa-image', 'Есть Обложка'],
         ['full_filled', 'fa-check-circle', 'Полностью заполненные'],
         ['favorites_only', 'fa-star', 'Только избранные']
@@ -124,6 +125,14 @@ function renderActiveFiltersFromUrl() {
             chips.push('<div class="filter-chip" data-filter="' + name + '"><i class="fas ' + icon + ' filter-chip-icon"></i><span>' + escapeHtml(label) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
         }
     });
+
+    // Телефон удалён / не удалён — отдельно от simpleFilters: подпись зависит
+    // от значения, а не только от факта присутствия параметра в URL.
+    const phoneRemovedLabels = { yes: 'Телефон удалён', no: 'Телефон не удалён' };
+    const phoneRemoved = params.get('phone_removed');
+    if (phoneRemoved && phoneRemovedLabels[phoneRemoved]) {
+        chips.push('<div class="filter-chip" data-filter="phone_removed"><i class="fas fa-phone-slash filter-chip-icon"></i><span>' + escapeHtml(phoneRemovedLabels[phoneRemoved]) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
 
     // Диапазоны
     const pharmaFrom = params.get('pharma_from') || '';
@@ -242,6 +251,12 @@ function removeFilterChip(filterName) {
             break;
         case 'has_cover':
             url.searchParams.delete('has_cover');
+            break;
+        case 'has_passkey':
+            url.searchParams.delete('has_passkey');
+            break;
+        case 'phone_removed':
+            url.searchParams.delete('phone_removed');
             break;
         case 'bm_range':
             url.searchParams.delete('bm_from');
@@ -366,6 +381,16 @@ function syncFormFromUrl() {
         if (input) input.value = params.get(name) || '';
     });
 
+    // Телефон удалён / не удалён — синхронизируем select.
+    // Без этого чужие пути изменения URL (крестик на chip, «Сбросить все»,
+    // применение сохранённого фильтра) чистят параметр, а контрол продолжает
+    // показывать старый выбор — форма врёт про состояние фильтра.
+    var phoneRemovedSel = form.querySelector('select[name="phone_removed"]');
+    if (phoneRemovedSel) {
+        var phoneRemovedParam = params.get('phone_removed') || '';
+        phoneRemovedSel.value = (phoneRemovedParam === 'yes' || phoneRemovedParam === 'no') ? phoneRemovedParam : '';
+    }
+
     // Статус БМ — синхронизируем select
     var bmStatusSel = form.querySelector('select[name="bm_status"]');
     if (bmStatusSel) {
@@ -473,7 +498,8 @@ var ALL_FILTER_PARAMS = [
     'q',
     'status[]', 'status', 'empty_status',
     'has_email', 'has_two_fa', 'has_token', 'has_fan_page',
-    'has_avatar', 'has_password', 'has_cover', 'full_filled', 'favorites_only',
+    'has_avatar', 'has_password', 'has_cover', 'has_passkey', 'full_filled', 'favorites_only',
+    'phone_removed',
     'pharma_from', 'pharma_to',
     'friends_from', 'friends_to',
     'bm_from', 'bm_to', 'bm_status',
@@ -542,7 +568,7 @@ function initQuickFilterWrappers() {
 // ========================================
 
 /** Список параметров быстрых фильтров (чекбоксы). При снятии галочки поле не попадает в FormData — параметр нужно явно удалить из URL. */
-var QUICK_FILTER_PARAMS = ['has_email', 'has_two_fa', 'has_token', 'has_fan_page', 'has_avatar', 'has_password', 'has_cover', 'full_filled', 'favorites_only'];
+var QUICK_FILTER_PARAMS = ['has_email', 'has_two_fa', 'has_token', 'has_fan_page', 'has_avatar', 'has_password', 'has_cover', 'has_passkey', 'full_filled', 'favorites_only'];
 
 /**
  * Собрать URL по текущему состоянию формы фильтров (без перезагрузки).

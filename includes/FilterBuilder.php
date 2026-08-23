@@ -423,6 +423,37 @@ class FilterBuilder {
     }
     
     /**
+     * Трёхпозиционный фильтр «в колонке что-то есть / пусто / без разницы».
+     *
+     * Отличие от пары addNotEmptyFilter()/addEmptyFilter(): те односторонние —
+     * первый умеет спросить только «есть», второй вызывается только когда фильтр
+     * уже решено применить. Здесь оба направления и явное «фильтр выключен»
+     * в одном месте, потому что в UI это один контрол с тремя пунктами.
+     *
+     * Колонка может отсутствовать (phone_removed и passkey есть на проде, но их
+     * нет в эталоне DatabaseSchemaManager::getRequiredSchema()) — тогда фильтр
+     * молча выключается, иначе стенд на эталонной схеме падал бы с Unknown column.
+     *
+     * @param string $field Имя колонки
+     * @param string $mode  'yes' — значение есть; 'no' — пусто (NULL или '');
+     *                      любое другое значение, включая '', — фильтр выключен
+     * @return self
+     */
+    public function addPresenceFilter($field, $mode) {
+        if (!isset($this->columnsList[$field])) {
+            return $this;
+        }
+
+        if ($mode === 'yes') {
+            $this->conditions[] = "(`$field` IS NOT NULL AND `$field` <> '')";
+        } elseif ($mode === 'no') {
+            $this->conditions[] = "(`$field` IS NULL OR `$field` = '')";
+        }
+
+        return $this;
+    }
+
+    /**
      * Добавляет фильтр "все обязательные поля заполнены"
      */
     public function addFullyFilledFilter($shouldFilter = false) {

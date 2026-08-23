@@ -201,6 +201,27 @@
         </div>
         <?php endif; ?>
         
+        <?php if (($hasPasskeyParam ?? '') !== ''): ?>
+        <div class="filter-chip" data-filter="has_passkey">
+          <i class="fas fa-fingerprint filter-chip-icon"></i>
+          <span>Есть Passkey</span>
+          <button class="filter-chip-remove" onclick="removeFilterChip('has_passkey')" title="Удалить">&times;</button>
+        </div>
+        <?php endif; ?>
+
+        <?php
+        // Chip телефона: показываем только для двух осмысленных значений.
+        // Любое другое (в том числе пустое) означает «фильтр не выбран».
+        $phoneRemovedLabels = ['yes' => 'Телефон удалён', 'no' => 'Телефон не удалён'];
+        if (isset($phoneRemovedLabels[$phoneRemovedParam ?? ''])):
+        ?>
+        <div class="filter-chip" data-filter="phone_removed">
+          <i class="fas fa-phone-slash filter-chip-icon"></i>
+          <span><?= e($phoneRemovedLabels[$phoneRemovedParam]) ?></span>
+          <button class="filter-chip-remove" onclick="removeFilterChip('phone_removed')" title="Удалить">&times;</button>
+        </div>
+        <?php endif; ?>
+
         <?php if (($statusRkFilter ?? '') !== ''): ?>
         <div class="filter-chip" data-filter="status_rk">
           <i class="fas fa-tag filter-chip-icon"></i>
@@ -371,6 +392,20 @@
               </div>
               <?php endif; ?>
               
+              <?php if (isset($ALL_COLUMNS['passkey'])): ?>
+              <!-- Passkey -->
+              <div class="toggle-switch-wrapper <?= ($hasPasskeyParam ?? '') !== '' ? 'active' : '' ?>">
+                <div class="toggle-switch-label-group">
+                  <i class="fas fa-fingerprint toggle-switch-icon"></i>
+                  <span class="toggle-switch-label">Passkey</span>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" name="has_passkey" value="1" <?= ($hasPasskeyParam ?? '') !== '' ? 'checked' : '' ?>>
+                  <span class="toggle-switch-slider"></span>
+                </label>
+              </div>
+              <?php endif; ?>
+
               <!-- Password -->
               <div class="toggle-switch-wrapper <?= ($hasPasswordParam ?? '') !== '' ? 'active' : '' ?>">
                 <div class="toggle-switch-label-group">
@@ -407,6 +442,7 @@
                             isset($ALL_COLUMNS['geo']) ||
                             isset($ALL_COLUMNS['status_rk']) ||
                             isset($ALL_COLUMNS['status_marketplace']) ||
+                            isset($ALL_COLUMNS['phone_removed']) ||
                             isset($ALL_COLUMNS['bm']);
           ?>
           
@@ -476,6 +512,28 @@
               </div>
               <?php endif; ?>
               
+              <?php if (isset($ALL_COLUMNS['phone_removed'])): ?>
+              <?php
+              // Трёхпозиционный, потому что нужны оба направления: «удалён» и
+              // «не удалён». Тумблером, как у соседних быстрых фильтров, второе
+              // направление не выразить — чекбокс умеет сказать только «есть».
+              $currentPhoneRemoved = $phoneRemovedParam ?? '';
+              ?>
+              <div class="range-filter-group">
+                <div class="range-filter-label">
+                  <i class="fas fa-phone-slash"></i>
+                  Телефон
+                </div>
+                <div class="range-inputs">
+                  <select id="phone_removed" name="phone_removed" class="form-select form-select-sm w-100" aria-label="Фильтр по удалению номера телефона">
+                    <option value=""<?= $currentPhoneRemoved !== 'yes' && $currentPhoneRemoved !== 'no' ? ' selected' : '' ?>>Любые</option>
+                    <option value="yes"<?= $currentPhoneRemoved === 'yes' ? ' selected' : '' ?>>Удалён</option>
+                    <option value="no"<?= $currentPhoneRemoved === 'no' ? ' selected' : '' ?>>Не удалён</option>
+                  </select>
+                </div>
+              </div>
+              <?php endif; ?>
+
               <?php if (isset($ALL_COLUMNS['year_created'])): ?>
               <div class="range-filter-group">
                 <div class="range-filter-label">

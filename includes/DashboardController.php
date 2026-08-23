@@ -307,6 +307,8 @@ class DashboardController {
         $hasCoverParam = get_param('has_cover');
         $hasPasswordParam = get_param('has_password');
         $hasFanPageParam = get_param('has_fan_page');
+        $hasPasskeyParam = get_param('has_passkey');
+        $phoneRemovedParam = get_param('phone_removed');
         $bmFrom = get_param('bm_from');
         $bmTo = get_param('bm_to');
         $bmStatus = get_param('bm_status'); // has_valid / has_ban / only_valid / any / ''
@@ -375,6 +377,8 @@ class DashboardController {
             'hasCoverParam' => $hasCoverParam,
             'hasPasswordParam' => $hasPasswordParam,
             'hasFanPageParam' => $hasFanPageParam,
+            'hasPasskeyParam' => $hasPasskeyParam,
+            'phoneRemovedParam' => $phoneRemovedParam,
             'bmFrom' => $bmFrom,
             'bmTo' => $bmTo,
             'bmStatus' => $bmStatus,

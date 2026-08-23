@@ -247,7 +247,8 @@ $hasStatus = !empty($_GET['status']) || !empty($_GET['status[]']);
 $hasQuery = !empty($_GET['q']);
 // Проверяем ВСЕ возможные фильтры, не только status и q
 $otherFilterKeys = ['status_marketplace', 'currency', 'geo', 'status_rk', 'has_email', 'has_2fa',
-    'has_token', 'has_avatar', 'has_cover', 'has_password', 'has_fp', 'fully_filled', 'favorites',
+    'has_token', 'has_avatar', 'has_cover', 'has_password', 'has_fp', 'has_passkey', 'phone_removed',
+    'fully_filled', 'favorites',
     'limit_rk_from', 'limit_rk_to', 'scenario_pharma_from', 'scenario_pharma_to',
     'quantity_friends_from', 'quantity_friends_to', 'bm_status', 'year_created_from', 'year_created_to',
     'empty_status'];

@@ -180,6 +180,40 @@ window.DashboardRefresh.onAfterRefresh(() => {
 3. **API:** Добавьте маршрут в `api/routes/<resource>.php` (роутер — `api/index.php`).
 4. **Логирование:** Используйте `logger.debug/warn/error` вместо `console.log`.
 
+### Добавление фильтра дашборда
+
+Один фильтр живёт в **восьми** файлах, и пропуск любого из них даёт тихий баг
+(фильтр «работает», но экспорт с ним одним отдаёт 400, или кнопка «Сбросить
+все» его не сбрасывает). Полный список мест — на примере `has_passkey` и
+`phone_removed`:
+
+| Файл | Что добавить |
+|------|--------------|
+| `includes/RequestHandler.php` | параметр в `$allowedFilters` и в счётчик `countActiveFilters()` |
+| `includes/services/AccountsServiceFiltersTrait.php` | вызов нужного метода `FilterBuilder` |
+| `includes/DashboardController.php` | `get_param()` и передача значения в шаблон |
+| `templates/partials/dashboard/filters.php` | контрол в форме + chip активного фильтра |
+| `templates/dashboard.php` | поле в модалке кастомной карточки |
+| `assets/js/filters-modern.js` | chip, `case` в `removeFilterChip()`, `ALL_FILTER_PARAMS`, `QUICK_FILTER_PARAMS` (только чекбоксы), синхронизация в `syncFormFromUrl()` |
+| `assets/js/modules/custom-cards.js` | сбор из модалки, подпись карточки, data-атрибут |
+| `assets/js/modules/touch-gestures.js` | перенос фильтра карточки в URL |
+| `export.php` | `$otherFilterKeys` — иначе экспорт «только по этому фильтру» блокируется как «без фильтров» |
+
+Правила, которые стоили отладки:
+
+- **Значения — строки, а не `1`/`0`.** Маппинг в трейте построен на `!empty()`,
+  и `'0'` в нём читается как «фильтр выключен». Для трёхпозиционных фильтров
+  используйте `'yes'`/`'no'` (см. `FilterBuilder::addPresenceFilter()`).
+- **Колонка может отсутствовать.** Часть колонок есть на проде, но их нет в
+  эталоне `DatabaseSchemaManager::getRequiredSchema()`. Контрол в шаблоне
+  закрывайте `isset($ALL_COLUMNS['имя'])`, а условие в `FilterBuilder` —
+  проверкой `columnsList`, иначе стенд на эталонной схеме упадёт.
+- **Select нужно синхронизировать вручную** в `syncFormFromUrl()`: крестик на
+  chip и «Сбросить все» правят URL напрямую, минуя форму. Чекбоксы за счёт
+  `QUICK_FILTER_PARAMS` синхронизируются сами, select — нет.
+
+Инвентаризацию всех восьми мест стережёт `tests/test_presence_filters.php`.
+
 ## Совместимость с PHP
 
 **Прод работает на PHP старее 7.4** (доказано: стрелочная функция `fn() =>`

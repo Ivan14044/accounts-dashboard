@@ -316,7 +316,9 @@ class ColumnMetadata {
             'id_fan_page_3' => 'ID Fan Page 3',
             'selectedFolderPath' => 'Путь к папке',
             'currency' => 'Валюта',
-            'limit_rk' => 'Limit RK'
+            'limit_rk' => 'Limit RK',
+            'passkey' => 'Passkey',
+            'phone_removed' => 'Телефон удалён'
         ];
         
         $titles = [];

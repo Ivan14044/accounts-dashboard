@@ -14,7 +14,8 @@ class RequestHandler {
         'q', 'status', 'status_marketplace', 'empty_status',
         'currency', 'geo', 'status_rk', 'limit_rk_from', 'limit_rk_to',
         'has_email', 'has_two_fa', 'has_token', 'has_avatar',
-        'has_cover', 'has_password', 'has_fan_page', 'full_filled',
+        'has_cover', 'has_password', 'has_fan_page', 'has_passkey', 'full_filled',
+        'phone_removed',
         'pharma_from', 'pharma_to', 'friends_from', 'friends_to',
         'year_created_from', 'year_created_to',
         'bm_status'
@@ -106,15 +107,17 @@ class RequestHandler {
         
         // Булевы фильтры "не пустое"
         $boolFilters = ['has_email', 'has_two_fa', 'has_token', 'has_avatar',
-                       'has_cover', 'has_password', 'has_fan_page', 'full_filled'];
+                       'has_cover', 'has_password', 'has_fan_page', 'has_passkey', 'full_filled'];
         foreach ($boolFilters as $key) {
             if (!empty($filterParams[$key])) {
                 $count++;
             }
         }
         
-        // Одиночные фильтры
-        $singleFilters = ['status_marketplace', 'currency', 'geo', 'status_rk'];
+        // Одиночные фильтры.
+        // phone_removed здесь же: значения 'yes'/'no' оба непустые, а пустая
+        // строка означает «фильтр не выбран» — ровно как у соседей.
+        $singleFilters = ['status_marketplace', 'currency', 'geo', 'status_rk', 'phone_removed'];
         foreach ($singleFilters as $key) {
             if (!empty($filterParams[$key])) {
                 $count++;
