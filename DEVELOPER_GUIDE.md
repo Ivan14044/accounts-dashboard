@@ -203,7 +203,7 @@ layout-догон (`tableLayoutManager.refresh()`, виртуализация, s
 |------|--------------|
 | `includes/RequestHandler.php` | параметр в `$allowedFilters` и в счётчик `countActiveFilters()` |
 | `includes/services/AccountsServiceFiltersTrait.php` | вызов нужного метода `FilterBuilder` |
-| `includes/DashboardController.php` | `get_param()` и передача значения в шаблон |
+| `includes/DashboardController.php` | `get_param()` и передача значения в шаблон (для многозначного фильтра — `get_param_array()` и запись ключа в `RequestHandler::$multiValueFilters`) |
 | `templates/partials/dashboard/filters.php` | контрол в форме + chip активного фильтра (с `data-filter`, БЕЗ inline `onclick`) |
 | `templates/dashboard.php` | поле в модалке кастомной карточки |
 | `assets/js/filters-modern.js` | chip, `case` в `removeFilterChip()`, `ALL_FILTER_PARAMS`, `QUICK_FILTER_PARAMS` (только чекбоксы), синхронизация в `syncFormFromUrl()` |
