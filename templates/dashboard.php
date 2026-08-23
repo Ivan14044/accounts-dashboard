@@ -713,6 +713,12 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
                       <input class="form-check-input" type="checkbox" id="customHasFanPage">
                       <label class="form-check-label small" for="customHasFanPage">Есть Fan Page</label>
                     </div>
+                    <?php if (isset($ALL_COLUMNS['passkey'])): ?>
+                    <div class="form-check form-check-sm">
+                      <input class="form-check-input" type="checkbox" id="customHasPasskey">
+                      <label class="form-check-label small" for="customHasPasskey">Есть Passkey</label>
+                    </div>
+                    <?php endif; ?>
                     <div class="form-check form-check-sm">
                       <input class="form-check-input" type="checkbox" id="customFullFilled">
                       <label class="form-check-label small" for="customFullFilled">Полностью заполненные</label>
@@ -724,6 +730,17 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
             
             <!-- Диапазоны -->
             <div class="row g-2 mb-2">
+              <?php if (isset($ALL_COLUMNS['phone_removed'])): ?>
+              <div class="col-md-3 col-6">
+                <label class="form-label small" for="customPhoneRemoved">Телефон</label>
+                <select class="form-select form-select-sm" id="customPhoneRemoved">
+                  <option value="">Любые</option>
+                  <option value="yes">Удалён</option>
+                  <option value="no">Не удалён</option>
+                </select>
+              </div>
+              <?php endif; ?>
+
               <?php if (isset($ALL_COLUMNS['scenario_pharma'])): ?>
               <div class="col-md-3 col-6">
                 <label class="form-label small">Сценарий фарма (от)</label>

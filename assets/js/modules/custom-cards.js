@@ -202,6 +202,9 @@
       if (filters.has_cover) filterDesc.push('Обложка');
       if (filters.has_password) filterDesc.push('Пароль');
       if (filters.has_fan_page) filterDesc.push('Fan Page');
+      if (filters.has_passkey) filterDesc.push('Passkey');
+      if (filters.phone_removed === 'yes') filterDesc.push('Телефон удалён');
+      if (filters.phone_removed === 'no') filterDesc.push('Телефон не удалён');
       if (filters.full_filled) filterDesc.push('Полностью заполнено');
       if (c.targetStatus) filterDesc.push(`→ ${c.targetStatus}`);
     
@@ -280,6 +283,8 @@
       if (filters.has_token) cardElement.setAttribute('data-has-token', '1');
       if (filters.has_avatar) cardElement.setAttribute('data-has-avatar', '1');
       if (filters.has_cover) cardElement.setAttribute('data-has-cover', '1');
+      if (filters.has_passkey) cardElement.setAttribute('data-has-passkey', '1');
+      if (filters.phone_removed) cardElement.setAttribute('data-phone-removed', filters.phone_removed);
       if (filters.full_filled) cardElement.setAttribute('data-full-filled', '1');
       if (filters.pharma_from) cardElement.setAttribute('data-pharma-from', filters.pharma_from);
       if (filters.pharma_to) cardElement.setAttribute('data-pharma-to', filters.pharma_to);
@@ -442,6 +447,11 @@
     filters.has_cover = !!getElementById('customHasCover')?.checked;
     filters.has_password = !!getElementById('customHasPassword')?.checked;
     filters.has_fan_page = !!getElementById('customHasFanPage')?.checked;
+    filters.has_passkey = !!getElementById('customHasPasskey')?.checked;
+    // Трёхпозиционный: пустая строка = «любые», её в фильтры не кладём,
+    // иначе бэкенд получил бы параметр, который ничего не означает.
+    const phoneRemoved = getElementById('customPhoneRemoved')?.value || '';
+    if (phoneRemoved === 'yes' || phoneRemoved === 'no') filters.phone_removed = phoneRemoved;
     filters.full_filled = !!getElementById('customFullFilled')?.checked;
   
     // Диапазоны

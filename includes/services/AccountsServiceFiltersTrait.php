@@ -92,6 +92,14 @@ trait AccountsServiceFiltersTrait {
         $filter->addNotEmptyFilter('avatar', !empty($params['has_avatar']));
         $filter->addNotEmptyFilter('cover', !empty($params['has_cover']));
         $filter->addNotEmptyFilter('password', !empty($params['has_password']));
+        $filter->addNotEmptyFilter('passkey', !empty($params['has_passkey']));
+
+        // Телефон удалён / не удалён.
+        // Трёхпозиционный, поэтому значения строковые ('yes'/'no'), а не 1/0:
+        // весь маппинг вокруг построен на !empty(), и '0' в нём молча читался
+        // бы как «фильтр выключен».
+        $phoneRemoved = isset($params['phone_removed']) ? (string)$params['phone_removed'] : '';
+        $filter->addPresenceFilter('phone_removed', $phoneRemoved);
 
 
         // Фильтр "Fan Page" (quantity_fp > 0)

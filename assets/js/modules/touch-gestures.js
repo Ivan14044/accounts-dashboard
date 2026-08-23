@@ -245,6 +245,7 @@
       if (filters.has_avatar) url.searchParams.set('has_avatar', '1');
       if (filters.has_cover) url.searchParams.set('has_cover', '1');
       if (filters.has_password) url.searchParams.set('has_password', '1');
+      if (filters.has_passkey) url.searchParams.set('has_passkey', '1');
       if (filters.has_fan_page) url.searchParams.set('has_fan_page', '1');
       if (filters.full_filled) url.searchParams.set('full_filled', '1');
       if (filters.favorites_only) url.searchParams.set('favorites_only', '1');
@@ -262,6 +263,7 @@
       if (filters.currency) url.searchParams.set('currency', filters.currency);
       if (filters.geo) url.searchParams.set('geo', filters.geo);
       if (filters.status_rk) url.searchParams.set('status_rk', filters.status_rk);
+      if (filters.phone_removed) url.searchParams.set('phone_removed', filters.phone_removed);
     
       // Limit RK (диапазон)
       if (filters.limit_rk_from) url.searchParams.set('limit_rk_from', filters.limit_rk_from);
