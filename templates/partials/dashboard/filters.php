@@ -28,12 +28,23 @@
           <i class="fas fa-times-circle me-1"></i>Сбросить все
         </button>
       </div>
+      <?php /*
+        У крестиков .filter-chip-remove НЕТ inline onclick — и добавлять его нельзя.
+        Клики ловит делегированный обработчик в assets/js/filters-modern.js: он берёт
+        фильтр из data-filter (и статус из data-status-value) и зовёт removeFilterChip /
+        removeStatusChip. Пока onclick тут был, на один клик приходилось ДВА вызова —
+        inline и делегированный, — то есть два запроса refresh.php, первый из которых
+        тут же отменялся abort'ом второго. Чипы, которые перерисовывает из JS
+        renderActiveFiltersFromUrl(), inline onclick не имеют и всегда жили на
+        делегировании: серверная разметка просто расходилась с клиентской.
+        Инвариант стережёт tests/test_filter_chip_refresh.php.
+      */ ?>
       <div class="active-filters-list" id="activeFiltersList">
         <?php if ($q !== ''): ?>
         <div class="filter-chip" data-filter="q">
           <i class="fas fa-search filter-chip-icon"></i>
           <span>Поиск: "<?= e(mb_substr($q, 0, 20)) ?><?= mb_strlen($q) > 20 ? '...' : '' ?>"</span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('q')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -57,7 +68,7 @@
         <div class="filter-chip" data-filter="has_email">
           <i class="fas fa-envelope filter-chip-icon"></i>
           <span>Есть Email</span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('has_email')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -65,7 +76,7 @@
         <div class="filter-chip" data-filter="has_two_fa">
           <i class="fas fa-shield-alt filter-chip-icon"></i>
           <span>Есть 2FA</span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('has_two_fa')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -73,7 +84,7 @@
         <div class="filter-chip" data-filter="has_token">
           <i class="fas fa-key filter-chip-icon"></i>
           <span>Есть Token</span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('has_token')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -81,7 +92,7 @@
         <div class="filter-chip" data-filter="has_fan_page">
           <i class="fas fa-flag filter-chip-icon"></i>
           <span>Есть Fan Page</span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('has_fan_page')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -89,7 +100,7 @@
         <div class="filter-chip" data-filter="pharma">
           <i class="fas fa-pills filter-chip-icon"></i>
           <span>Pharma: <?= e($pharmaFrom ?: '0') ?>-<?= e($pharmaTo ?: '∞') ?></span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('pharma')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -97,7 +108,7 @@
         <div class="filter-chip" data-filter="has_avatar">
           <i class="fas fa-image filter-chip-icon"></i>
           <span>Есть Аватар</span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('has_avatar')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -105,7 +116,7 @@
         <div class="filter-chip" data-filter="has_password">
           <i class="fas fa-lock filter-chip-icon"></i>
           <span>Есть Пароль</span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('has_password')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -113,7 +124,7 @@
         <div class="filter-chip" data-filter="bm_range">
           <i class="fas fa-briefcase filter-chip-icon"></i>
           <span>БМ: <?= e($bmFrom ?: '0') ?>—<?= e($bmTo ?: '∞') ?></span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('bm_range')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
 
@@ -125,7 +136,7 @@
         <div class="filter-chip" data-filter="bm_status">
           <i class="fas fa-briefcase filter-chip-icon"></i>
           <span><?= e($bmStatusLabels[$bmStatus]) ?></span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('bm_status')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -133,7 +144,7 @@
         <div class="filter-chip" data-filter="favorites_only">
           <i class="fas fa-star filter-chip-icon" style="color: var(--color-warning);"></i>
           <span>Только избранные</span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('favorites_only')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -141,7 +152,7 @@
         <div class="filter-chip" data-filter="has_cover">
           <i class="fas fa-image filter-chip-icon"></i>
           <span>Есть Обложка</span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('has_cover')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -149,7 +160,7 @@
         <div class="filter-chip" data-filter="full_filled">
           <i class="fas fa-check-circle filter-chip-icon"></i>
           <span>Полностью заполненные</span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('full_filled')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -157,7 +168,7 @@
         <div class="filter-chip" data-filter="friends">
           <i class="fas fa-users filter-chip-icon"></i>
           <span>Друзья: <?= e($friendsFrom ?: '0') ?>-<?= e($friendsTo ?: '∞') ?></span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('friends')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -165,7 +176,7 @@
         <div class="filter-chip" data-filter="year_created">
           <i class="fas fa-calendar filter-chip-icon"></i>
           <span>Год: <?= e($yearCreatedFrom ?: '∞') ?>-<?= e($yearCreatedTo ?: '∞') ?></span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('year_created')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -173,7 +184,7 @@
         <div class="filter-chip" data-filter="limit_rk">
           <i class="fas fa-chart-line filter-chip-icon"></i>
           <span>Limit RK: <?= e($limitRkFrom ?: '0') ?>-<?= e($limitRkTo ?: '∞') ?></span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('limit_rk')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -181,7 +192,7 @@
         <div class="filter-chip" data-filter="status_marketplace">
           <i class="fas fa-store filter-chip-icon"></i>
           <span>Marketplace: <?= e($statusMarketplace) ?></span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('status_marketplace')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -189,7 +200,7 @@
         <div class="filter-chip" data-filter="currency">
           <i class="fas fa-coins filter-chip-icon"></i>
           <span>Currency: <?= e($currencyFilter) ?></span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('currency')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -197,7 +208,7 @@
         <div class="filter-chip" data-filter="geo">
           <i class="fas fa-globe filter-chip-icon"></i>
           <span>Geo: <?= e($geoFilter === '__empty__' ? 'Не указано' : $geoFilter) ?></span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('geo')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
         
@@ -205,7 +216,7 @@
         <div class="filter-chip" data-filter="has_passkey">
           <i class="fas fa-fingerprint filter-chip-icon"></i>
           <span>Есть Passkey</span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('has_passkey')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
 
@@ -218,7 +229,7 @@
         <div class="filter-chip" data-filter="phone_removed">
           <i class="fas fa-phone-slash filter-chip-icon"></i>
           <span><?= e($phoneRemovedLabels[$phoneRemovedParam]) ?></span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('phone_removed')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
 
@@ -226,7 +237,7 @@
         <div class="filter-chip" data-filter="status_rk">
           <i class="fas fa-tag filter-chip-icon"></i>
           <span>Status RK: <?= e($statusRkFilter === '__empty__' ? 'Не указано' : $statusRkFilter) ?></span>
-          <button class="filter-chip-remove" onclick="removeFilterChip('status_rk')" title="Удалить">&times;</button>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
       </div>
