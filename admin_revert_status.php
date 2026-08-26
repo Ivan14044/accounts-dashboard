@@ -219,6 +219,14 @@ if ($isExecute) {
     }
 }
 
+// После выполнения состояние в БД уже другое, а $plan собран ДО апдейта.
+// Без пересборки страница показывала бы «Возвращено 1420» и тут же
+// «1420 к откату» — то есть дооткатные цифры рядом с отчётом об откате.
+if ($report !== null) {
+    $rows = fetchCandidates($mysqli, $hasDeletedAt, $hasLogin);
+    $plan = StatusRevertPlanner::plan($rows, FROM_STATUS, $includeTrashed);
+}
+
 $totalHistory = count($rows);
 $toRevert     = count($plan['revert']);
 ?>
