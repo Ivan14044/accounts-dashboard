@@ -45,11 +45,15 @@ class FilterBuilder {
      * Добавляет поисковый фильтр по нескольким полям.
      *
      * Двухфазная стратегия для числовых запросов и URL с ID:
-     *   Фаза 1 — точный поиск по индексированным полям (login, id_soc_account) → мгновенно.
+     *   Фаза 1 — точный поиск по индексированным полям (id, login, id_soc_account) → мгновенно.
      *   Фаза 2 (fallback) — если фаза 1 не дала результатов, вызывается fallbackToLikeSearch(),
      *     который заменяет условие на LIKE '%...%' по всем полям (медленнее, но найдёт в social_url).
      * Для текстовых запросов — сразу LIKE '%...%' (полный скан, без fallback).
-     * 
+     *
+     * Внутренний `id` (первичный ключ) участвует только в фазе 1 и только для
+     * правдоподобного значения — см. looksLikeInternalId(). Он намеренно НЕ
+     * попадает в LIKE-фазу: подстрока в числовом первичном ключе смысла не имеет.
+     *
      * @param string|null $query Поисковый запрос
      * @return self Возвращает $this для цепочки вызовов
      */
@@ -59,12 +63,15 @@ class FilterBuilder {
         $query = trim((string)$query);
         if ($query === '') return $this;
         
-        $searchFields = ['login', 'email', 'social_url'];
+        // Имя и фамилия здесь не для красоты: плейсхолдер строки поиска обещает
+        // «логин, email, имя, фамилия, id», а искались только первые два поля и URL.
+        $searchFields = ['login', 'email', 'social_url', 'first_name', 'last_name'];
         $availableFields = array_intersect($searchFields, array_keys($this->columnsList));
         if (empty($availableFields)) return $this;
 
         $hasLogin = in_array('login', $availableFields, true);
         $hasIdSoc = isset($this->columnsList['id_soc_account']);
+        $hasId    = isset($this->columnsList['id']);
 
         // Колонки id_fan_page_1/2/3 — для поиска по числовым ID (page ID и т.п.)
         $fanPageFields = ['id_fan_page_1', 'id_fan_page_2', 'id_fan_page_3'];
@@ -88,7 +95,13 @@ class FilterBuilder {
             foreach ($availableFanPage as $f) { $orConds[] = '`' . $f . '` = ?'; $this->params[] = $extractedId; }
             $this->pendingSearchQuery = $extractedId;
         } elseif (ctype_digit($query)) {
-            // Фаза 1: точный поиск по login, id_soc_account, id_fan_page_1/2/3
+            // Фаза 1: точный поиск по id, login, id_soc_account, id_fan_page_1/2/3.
+            // `id` — первичный ключ, поэтому условие бесплатное; в отличие от FB ID
+            // оно осмысленно только для чисел, которые вообще могут быть нашим id.
+            if ($hasId && $this->looksLikeInternalId($query)) {
+                $orConds[] = '`id` = ?';
+                $this->params[] = $query;
+            }
             if ($hasLogin) { $orConds[] = '`login` = ?';          $this->params[] = $query; }
             if ($hasIdSoc) { $orConds[] = '`id_soc_account` = ?'; $this->params[] = $query; }
             foreach ($availableFanPage as $f) { $orConds[] = '`' . $f . '` = ?'; $this->params[] = $query; }
@@ -111,6 +124,31 @@ class FilterBuilder {
         }
         
         return $this;
+    }
+
+    /**
+     * Похоже ли значение на внутренний `accounts.id` (INT UNSIGNED, первичный ключ)?
+     *
+     * Гейт нужен из-за приведения строки к числу при сравнении с INT-колонкой:
+     * `id = '007'` MySQL выполняет как `id = 7` и находит ЧУЖУЮ строку —
+     * ложное совпадение (проверено на mysql:8.0). Числа больше потолка
+     * INT UNSIGNED (16-значный FB ID и т.п.) не находят ничего: обрезки до
+     * максимума типа нет (там же проверено), но и условие по `id` для них
+     * бессмысленно — не строим его вовсе.
+     *
+     * @param string $query Запрос, уже проверенный на ctype_digit()
+     * @return bool
+     */
+    private function looksLikeInternalId(string $query): bool {
+        if ($query === '' || !ctype_digit($query)) return false;
+        // Ведущий ноль: '0' — само по себе допустимо, '007' — уже не наш id
+        if (strlen($query) > 1 && $query[0] === '0') return false;
+        // 4294967295 = максимум INT UNSIGNED. Сравниваем как строки: на 32-битном
+        // PHP (int) переполнился бы, а float потерял бы точность на границе.
+        // Такое условие не нашло бы ничего — просто не занимаем им место в OR.
+        if (strlen($query) > 10) return false;
+        if (strlen($query) === 10 && strcmp($query, '4294967295') > 0) return false;
+        return true;
     }
 
     /**
