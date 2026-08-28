@@ -198,7 +198,7 @@ class DashboardController {
             get_param('q'),
             $filteredTotal,
             $filter->isLikeFallbackApplied(),
-            $filter->isExactSearchOnly(),
+            $filter->isExactSearchEffective(),
             $_GET
         );
 

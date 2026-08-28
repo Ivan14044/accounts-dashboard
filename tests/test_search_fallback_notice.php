@@ -172,6 +172,28 @@ check('после отката в WHERE действительно LIKE, пар�
     return paramsMatch($f);
 });
 
+check('exact на числовом запросе реально ограничивает поиск', function () {
+    $f = noticeFilter('4054', true);
+    return array($f->isExactSearchEffective() === true, 'режим объявлен недействующим');
+});
+
+check('exact на ТЕКСТОВОМ запросе ничего не ограничивает', function () {
+    // Текстовый поиск и так идёт по подстроке — фазы 1 у него нет, ограничивать
+    // нечего. Иначе плашка соврала бы: «показаны только точные совпадения».
+    $f = noticeFilter('Иван', true);
+    return array($f->isExactSearchEffective() === false, 'режим объявлен действующим на LIKE-поиске');
+});
+
+check('exact без поискового запроса недействующий', function () {
+    $f = noticeFilter('', true);
+    return array($f->isExactSearchEffective() === false, 'режим действует на пустом поиске');
+});
+
+check('без exact режим недействующий даже на числовом запросе', function () {
+    $f = noticeFilter('4054');
+    return array($f->isExactSearchEffective() === false, 'режим действует без запроса пользователя');
+});
+
 check('текстовый запрос не считается откатом (LIKE был сразу)', function () {
     $f = noticeFilter('Иван');
     return array(

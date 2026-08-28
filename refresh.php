@@ -141,7 +141,7 @@ try {
         get_param('q'),
         $filteredTotal,
         $filter->isLikeFallbackApplied(),
-        $filter->isExactSearchOnly(),
+        $filter->isExactSearchEffective(),
         $_GET
     );
     ob_start();
