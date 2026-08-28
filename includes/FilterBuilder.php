@@ -26,6 +26,16 @@ class FilterBuilder {
     private $searchParamsCount = 0;
     /** @var int Позиция первого search-параметра в $this->params */
     private $searchParamsOffset = 0;
+
+    /**
+     * @var bool Режим «только точное совпадение»: откат на LIKE запрещён.
+     * Живёт здесь, а не в вызывающем коде, потому что условие отката написано
+     * в двух местах (DashboardController и refresh.php) — правило должно быть
+     * одно на оба.
+     */
+    private $exactSearchOnly = false;
+    /** @var bool Откат на LIKE уже применён — по этому флагу рисуется плашка «показаны не точные совпадения» */
+    private $likeFallbackApplied = false;
     
     /**
      * @param array $columns Колонки таблицы (имя => подпись)
@@ -153,10 +163,60 @@ class FilterBuilder {
 
     /**
      * Можно ли откатить поиск на LIKE (фаза 2)?
-     * Возвращает true, если текущий поиск — точный (числовой/URL), и fallback ещё не применялся.
+     * Возвращает true, если текущий поиск — точный (числовой/URL), fallback ещё
+     * не применялся и пользователь не потребовал только точные совпадения.
      */
     public function canFallbackToLikeSearch(): bool {
+        if ($this->exactSearchOnly) return false;
         return $this->pendingSearchQuery !== null && $this->searchConditionIndex !== null;
+    }
+
+    /**
+     * Запретить/разрешить откат на поиск по подстроке.
+     *
+     * Нужен кнопке «Искать только точное совпадение»: короткое число вроде
+     * `4054` живёт внутри сотен чужих длинных значений (ID соцсети, ссылка на
+     * профиль, ID фан-страницы, куки), и расширенный поиск по нему выдаёт
+     * мусор вместо ответа «такого аккаунта нет».
+     *
+     * @param bool $exactOnly
+     * @return self
+     */
+    public function setExactSearchOnly(bool $exactOnly): self {
+        $this->exactSearchOnly = $exactOnly;
+        return $this;
+    }
+
+    /**
+     * Включён ли режим «только точное совпадение».
+     * @return bool
+     */
+    public function isExactSearchOnly(): bool {
+        return $this->exactSearchOnly;
+    }
+
+    /**
+     * Ограничивает ли режим «только точное совпадение» ХОТЬ ЧТО-ТО прямо сейчас.
+     *
+     * Отличается от isExactSearchOnly() тем, что учитывает вид запроса:
+     * у текстового поиска фазы 1 нет вовсе (он сразу идёт по подстроке), и
+     * запрещать там нечего. Без этой проверки `?q=Иван&exact=1` рисовал бы
+     * плашку «показаны только точные совпадения» поверх обычного LIKE-поиска —
+     * то есть врал бы пользователю.
+     *
+     * @return bool
+     */
+    public function isExactSearchEffective(): bool {
+        return $this->exactSearchOnly && $this->pendingSearchQuery !== null;
+    }
+
+    /**
+     * Был ли уже применён откат на поиск по подстроке (фаза 2).
+     * Отвечает на вопрос «показанные строки — точные совпадения или похожие?».
+     * @return bool
+     */
+    public function isLikeFallbackApplied(): bool {
+        return $this->likeFallbackApplied;
     }
 
     /**
@@ -207,6 +267,9 @@ class FilterBuilder {
 
         // Сбрасываем флаг — повторный fallback невозможен
         $this->pendingSearchQuery = null;
+        // Взводим только здесь: в ветке «нет полей для LIKE» поиск снимается
+        // целиком, и говорить «показаны похожие» было бы враньём.
+        $this->likeFallbackApplied = true;
 
         return $this;
     }

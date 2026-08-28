@@ -214,6 +214,7 @@ require_once INCLUDES_DIR . '/ErrorHandler.php';
 require_once INCLUDES_DIR . '/Database.php';
 require_once INCLUDES_DIR . '/ColumnMetadata.php';
 require_once INCLUDES_DIR . '/FilterBuilder.php';
+require_once INCLUDES_DIR . '/SearchNotice.php';
 
 // Загружаем сервисы
 require_once INCLUDES_DIR . '/AccountsService.php';

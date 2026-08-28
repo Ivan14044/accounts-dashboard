@@ -24,6 +24,15 @@ trait AccountsServiceFiltersTrait {
             $filter->addIdsFilter($params['ids']);
         }
 
+        // Режим «только точное совпадение»: запрещает откат поиска на подстроку.
+        // Ставится ДО addSearchFilter и живёт внутри FilterBuilder, потому что
+        // сам откат вызывается из двух мест (index.php и refresh.php) — правило
+        // должно быть одно на оба.
+        $exactParam = isset($params['exact']) && !is_array($params['exact'])
+            ? (string)$params['exact']
+            : '';
+        $filter->setExactSearchOnly($exactParam === '1');
+
         // Общий поиск
         if (!empty($params['q'])) {
             $filter->addSearchFilter($params['q']);

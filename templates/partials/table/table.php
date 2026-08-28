@@ -5,6 +5,9 @@
 ?>
 <section class="dashboard-table card" id="accountsTableSection" data-module="accounts-table">
   <div class="dashboard-table__inner">
+    <!-- Слот плашки о режиме поиска. Пустой div остаётся в DOM всегда:
+         обновление без перезагрузки просто меняет его содержимое. -->
+    <div id="searchNoticeSlot"><?php include __DIR__ . '/search-notice.php'; ?></div>
     <?php include __DIR__ . '/toolbar.php'; ?>
     <?php include __DIR__ . '/header.php'; ?>
     <div class="dashboard-table__body" role="region" aria-label="Список аккаунтов">

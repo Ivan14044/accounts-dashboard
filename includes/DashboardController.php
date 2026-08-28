@@ -190,6 +190,18 @@ class DashboardController {
             $stats = $this->service->getStatistics($filter);
             $filteredTotal = $stats['filteredTotal'];
         }
+
+        // Что сказать про режим поиска: считаем здесь, пока рядом известны и
+        // факт отката, и итоговое число строк. Без плашки откат выглядел как
+        // «панель нашла 433 аккаунта с номером 4054» — см. SearchNotice.
+        $searchNotice = SearchNotice::build(
+            get_param('q'),
+            $filteredTotal,
+            $filter->isLikeFallbackApplied(),
+            $filter->isExactSearchEffective(),
+            $_GET
+        );
+
         $pages = max(1, (int)ceil($filteredTotal / $perPage));
         
         if ($filteredTotal > 0) {
@@ -388,6 +400,7 @@ class DashboardController {
             'dir' => $dir,
             'offset' => $offset,
             'filteredTotal' => $filteredTotal,
+            'searchNotice' => $searchNotice,
             // Мульти-таблица
             'currentTable' => $this->service->getTableName(),
             'availableTables' => TableResolver::getInstance(
