@@ -135,6 +135,19 @@ try {
         }
     }
 
+    // Плашка «показаны похожие / только точные» — рендерим ТЕМ ЖЕ партиалом,
+    // что и первая загрузка страницы: иначе тексты разъедутся между режимами.
+    $searchNotice = SearchNotice::build(
+        get_param('q'),
+        $filteredTotal,
+        $filter->isLikeFallbackApplied(),
+        $filter->isExactSearchOnly(),
+        $_GET
+    );
+    ob_start();
+    include __DIR__ . '/templates/partials/table/search-notice.php';
+    $searchNoticeHtml = (string)ob_get_clean();
+
     $pages = max(1, (int)ceil($filteredTotal / $perPage));
     if ($filteredTotal > 0) {
         $page = min(max(1, $page), $pages);
@@ -170,6 +183,7 @@ try {
             'pages'          => $pages,
             'columns'        => $meta['all'],
             'paginationHtml' => $paginationHtml,
+            'searchNoticeHtml' => $searchNoticeHtml,
         ];
     } else {
         $response = [
@@ -183,6 +197,7 @@ try {
             'pages'          => $pages,
             'columns'        => $meta['all'],
             'paginationHtml' => $paginationHtml,
+            'searchNoticeHtml' => $searchNoticeHtml,
         ];
     }
     

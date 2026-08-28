@@ -230,6 +230,9 @@ function removeFilterChip(filterName) {
     switch (filterName) {
         case 'q':
             url.searchParams.delete('q');
+            // Режим «только точное совпадение» привязан к конкретному запросу:
+            // без запроса он бессмысленен и незаметно сузил бы следующий поиск.
+            url.searchParams.delete('exact');
             break;
         case 'has_email':
             url.searchParams.delete('has_email');
@@ -477,6 +480,7 @@ function clearSearch() {
 
     var url = new URL(window.location);
     url.searchParams.delete('q');
+    url.searchParams.delete('exact');
     url.searchParams.set('page', '1');
     history.replaceState(null, '', url.toString());
     if (typeof window.syncFormFromUrl === 'function') window.syncFormFromUrl();
@@ -495,7 +499,7 @@ function clearSearch() {
  * per_page не сбрасываем — это настройка отображения, не фильтр.
  */
 var ALL_FILTER_PARAMS = [
-    'q',
+    'q', 'exact',
     'status[]', 'status', 'empty_status',
     'has_email', 'has_two_fa', 'has_token', 'has_fan_page',
     'has_avatar', 'has_password', 'has_cover', 'has_passkey', 'full_filled', 'favorites_only',
@@ -745,6 +749,18 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Единый делегированный обработчик кликов: chip-remove, кнопка сброса, toggle-wrapper (меньше подписок)
     document.addEventListener('click', function(e) {
+        // Ссылки плашки о режиме поиска: «искать только точное совпадение» и
+        // «показать похожие». href рабочий (открывается в новой вкладке и без
+        // JS), но обычный клик обновляет таблицу на месте.
+        const searchModeLink = e.target.closest('[data-search-mode]');
+        if (searchModeLink) {
+            e.preventDefault();
+            const href = searchModeLink.getAttribute('href');
+            if (href) {
+                applyFiltersWithoutReload(new URL(href, window.location.href));
+            }
+            return;
+        }
         const resetBtn = e.target.closest('#resetAllFiltersBtn');
         if (resetBtn) {
             resetAllFilters();

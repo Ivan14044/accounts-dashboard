@@ -1804,6 +1804,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const applyLiveSearch = debounce(() => {
       const url = new URL(window.location);
       url.searchParams.set('q', searchInput.value || '');
+      // Точный режим включается кнопкой в плашке и относится к тому запросу,
+      // на котором её нажали. Новый ввод — новый поиск, режим сбрасываем.
+      url.searchParams.delete('exact');
       url.searchParams.set('page', '1');
       history.replaceState(null, '', url.toString());
       window.DashboardSelection && window.DashboardSelection.clearSelection();

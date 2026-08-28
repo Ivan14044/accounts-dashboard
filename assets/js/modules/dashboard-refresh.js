@@ -140,6 +140,14 @@
         if (foundTotalEl) foundTotalEl.textContent = String(filteredTotalNum);
       }
 
+      // Плашка о режиме поиска («показаны похожие» / «только точные»).
+      // Здесь же, где счётчики, и синхронно: иначе число найденного обновится,
+      // а объяснение к нему останется от прошлого запроса.
+      if (typeof data.searchNoticeHtml === 'string') {
+        const noticeSlot = byId('searchNoticeSlot');
+        if (noticeSlot) noticeSlot.innerHTML = data.searchNoticeHtml;
+      }
+
       // Обновляем пагинацию синхронно
       if (typeof data.page === 'number') {
         const pageNumEl = getEl('pageNum');
