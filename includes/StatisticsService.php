@@ -392,13 +392,16 @@ class StatisticsService {
      * Счётчики пустых значений фильтров: status_marketplace, currency, geo, status_rk.
      *
      * Ходит через тот же файловый кэш, что и остальные агрегаты. Раньше не ходил —
-     * и это была почти вся стоимость прогретой страницы на проде: запрос сканирует
-     * 84 042 строки С ДОСТУПОМ К ДАННЫМ (четыре SUM(CASE) по четырём разным
-     * колонкам, одним индексом такое не покрыть) и выполнялся на каждый заход,
-     * даже когда все прочие агрегаты приходили из кэша.
+     * и это была почти вся стоимость прогретой страницы на проде: расчёт выполнялся
+     * на каждый заход, даже когда все прочие агрегаты приходили из кэша.
      * Замер на стенде с прод-формой данных (182 021 строка): 0,23 с на запрос.
      *
-     * Инвариант стережёт tests/test_stats_aggregates_cached.php.
+     * Сам расчёт с 2026-09-03 идёт четырьмя отдельными запросами по индексам
+     * вместо одного общего скана — почему именно так, написано в
+     * computeEmptyFilterCounts().
+     *
+     * Инварианты стерегут tests/test_stats_aggregates_cached.php (кэш) и
+     * tests/test_empty_filter_counts_split.php (запрос на колонку).
      *
      * @return array<string, int>
      */
@@ -412,7 +415,7 @@ class StatisticsService {
     }
 
     /**
-     * Собственно расчёт счётчиков пустых значений — полный проход по таблице.
+     * Собственно расчёт счётчиков пустых значений — по запросу на колонку.
      *
      * Публичный только потому, что вызывается из замыкания кэша: PHP 7.3 не даёт
      * замыканию доступа к private-методам через $self (та же причина, что у
@@ -423,39 +426,45 @@ class StatisticsService {
     public function computeEmptyFilterCounts(): array {
         $deletedCondition = '';
         if ($this->metadata->columnExists('deleted_at')) {
-            $deletedCondition = 'WHERE deleted_at IS NULL';
+            $deletedCondition = 'deleted_at IS NULL';
         }
-        $parts = [];
-        if ($this->metadata->columnExists('status_marketplace')) {
-            $parts[] = "SUM(CASE WHEN status_marketplace IS NULL OR status_marketplace = '' THEN 1 ELSE 0 END) as empty_status_marketplace";
-        }
-        if ($this->metadata->columnExists('currency')) {
-            $parts[] = "SUM(CASE WHEN currency IS NULL OR currency = '' THEN 1 ELSE 0 END) as empty_currency";
-        }
-        if ($this->metadata->columnExists('geo')) {
-            $parts[] = "SUM(CASE WHEN geo IS NULL OR geo = '' THEN 1 ELSE 0 END) as empty_geo";
-        }
-        if ($this->metadata->columnExists('status_rk')) {
-            $parts[] = "SUM(CASE WHEN status_rk IS NULL OR status_rk = '' THEN 1 ELSE 0 END) as empty_status_rk";
-        }
-        $default = [
+
+        $counts = [
             'status_marketplace' => 0,
             'currency' => 0,
             'geo' => 0,
             'status_rk' => 0
         ];
-        if ($parts === []) {
-            return $default;
+
+        // По одному запросу на колонку — намеренно, а не «чтобы было проще».
+        //
+        // Раньше это был ОДИН запрос с четырьмя SUM(CASE ...) по четырём разным
+        // колонкам. Такое не покрывается ни одним индексом, поэтому он читал
+        // таблицу целиком: в боевом медленном журнале 198 запусков, 182 087 строк
+        // за запуск, в среднем 5,9 с и до 8,2 с — второй по стоимости запрос всей
+        // панели. Отдельный COUNT(*) по одной колонке ложится на уже имеющийся
+        // индекс (deleted_at, колонка) из Database::MANAGED_INDEXES и читается
+        // прямо из индекса, без похода за самими строками.
+        //
+        // Замер на стенде (185 000 строк прод-формы, mysql:8.0, прогретый кэш):
+        // 373–460 мс одним запросом против 32–35 мс четырьмя — в 12 раз быстрее.
+        // Схлопывать обратно в один запрос нельзя, это стережёт
+        // tests/test_empty_filter_counts_split.php. (проверено 2026-09-03)
+        foreach (array_keys($counts) as $column) {
+            if (!$this->metadata->columnExists($column)) {
+                continue;
+            }
+            $conditions = [];
+            if ($deletedCondition !== '') {
+                $conditions[] = $deletedCondition;
+            }
+            $conditions[] = "(`$column` IS NULL OR `$column` = '')";
+            $sql = "SELECT COUNT(*) as empty_count FROM {$this->table} WHERE " . implode(' AND ', $conditions);
+            $rows = $this->db->prepare($sql, [], 'empty_filter_count_' . $column);
+            $counts[$column] = (int)($rows[0]['empty_count'] ?? 0);
         }
-        $sql = "SELECT " . implode(", ", $parts) . " FROM {$this->table} $deletedCondition";
-        $rows = $this->db->prepare($sql, [], 'empty_filter_counts');
-        $row = $rows[0] ?? [];
-        return [
-            'status_marketplace' => (int)($row['empty_status_marketplace'] ?? $default['status_marketplace']),
-            'currency' => (int)($row['empty_currency'] ?? $default['currency']),
-            'geo' => (int)($row['empty_geo'] ?? $default['geo']),
-            'status_rk' => (int)($row['empty_status_rk'] ?? $default['status_rk'])
-        ];
+
+        return $counts;
     }
 
     /**
