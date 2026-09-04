@@ -481,11 +481,12 @@
           ?>
           
           <?php
-          /* Открыт ли блок дополнительных фильтров при загрузке страницы.
-             Свёрнутый по умолчанию, он экономит ~150px на первом экране, но
-             спрятать ВКЛЮЧЁННЫЙ фильтр нельзя — пользователь не поймёт, почему
-             в таблице мало строк. Поэтому: хоть один из этих фильтров задан —
-             блок открыт. Число заданных показываем на кнопке. */
+          /* Блок дополнительных фильтров открыт при загрузке страницы ВСЕГДА
+             (владелец пользуется им постоянно, и закрытый по умолчанию блок
+             приходилось открывать после каждой перезагрузки). Свернуть его
+             по-прежнему можно кнопкой, но это состояние не запоминается.
+             $rangeFiltersActive считается только ради числа на кнопке: сколько
+             из этих фильтров сейчас задано. */
           $rangeFilterValues = [
               $pharmaFrom ?? '', $pharmaTo ?? '',
               $friendsFrom ?? '', $friendsTo ?? '',
@@ -512,7 +513,7 @@
           <div class="range-filters-section">
             <button class="range-filters-toggle" type="button"
                     data-bs-toggle="collapse" data-bs-target="#rangeFiltersBody"
-                    aria-expanded="<?= $rangeFiltersActive > 0 ? 'true' : 'false' ?>"
+                    aria-expanded="true"
                     aria-controls="rangeFiltersBody">
               <i class="fas fa-sliders-h" aria-hidden="true"></i>
               <span>Дополнительные фильтры</span>
@@ -521,7 +522,7 @@
               <?php endif; ?>
               <i class="fas fa-chevron-down range-filters-chevron" aria-hidden="true"></i>
             </button>
-            <div class="collapse<?= $rangeFiltersActive > 0 ? ' show' : '' ?>" id="rangeFiltersBody">
+            <div class="collapse show" id="rangeFiltersBody">
             <div class="range-filters-grid">
               <?php if (isset($ALL_COLUMNS['scenario_pharma'])): ?>
               <div class="range-filter-group">
