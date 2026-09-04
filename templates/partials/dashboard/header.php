@@ -10,7 +10,8 @@
         echo e($initial);
         ?>
       </div>
-      <span class="user-name"><?= e($username) ?></span>
+      <?php /* title — потому что длинная строка подключения обрезается многоточием */ ?>
+      <span class="user-name" title="<?= e($username) ?>"><?= e($username) ?></span>
       <i class="fas fa-chevron-down user-dropdown-icon" aria-hidden="true"></i>
     </div>
 

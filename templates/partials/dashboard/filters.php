@@ -11,9 +11,14 @@
       </div>
       <div class="filters-modern-actions" id="filtersActionsContainer">
         <div id="savedFiltersContainer" style="display: inline-block; margin-right: 8px;"></div>
-        <button class="filters-modern-btn primary" type="button" data-bs-toggle="collapse" data-bs-target="#filtersBody" aria-expanded="true">
-          <i class="fas fa-sliders-h"></i>
+        <?php /* Кнопка сворачивает/разворачивает тело блока. Синей (primary)
+                 она быть не должна: на странице один главный призыв к действию —
+                 «Добавить аккаунт», а два синих пятна спорят друг с другом.
+                 Шеврон поворачивается так же, как у «Дополнительных фильтров». */ ?>
+        <button class="filters-modern-btn" type="button" data-bs-toggle="collapse" data-bs-target="#filtersBody" aria-expanded="true" aria-controls="filtersBody">
+          <i class="fas fa-sliders-h" aria-hidden="true"></i>
           <span class="d-none d-md-inline">Настроить</span>
+          <i class="fas fa-chevron-down filters-modern-btn__chevron" aria-hidden="true"></i>
         </button>
       </div>
     </div>

@@ -139,6 +139,16 @@
     border-color: var(--primary-dark);
 }
 
+/* Шеврон у кнопки «Настроить»: вниз — блок свёрнут, вверх — развёрнут */
+.filters-modern-btn__chevron {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    transition: transform 180ms var(--ease-out);
+}
+.filters-modern-btn[aria-expanded="true"] .filters-modern-btn__chevron {
+    transform: rotate(180deg);
+}
+
 /* ========================================
    АКТИВНЫЕ ФИЛЬТРЫ (CHIPS)
    ======================================== */
@@ -1226,26 +1236,32 @@
  * Стиль: Белая панель с градиентными акцентами
  */
 
-/* Основной контейнер хедера */
+/* Основной контейнер хедера.
+   Раньше шапка была единственной поверхностью на странице со своей тенью
+   (0 2px 8px) и без рамки — она «висела» отдельно от карточек и таблицы,
+   у которых рамка есть, а тень едва заметна. Теперь та же поверхность,
+   что у всего остального: рамка в один пиксель и лёгкая тень. */
 .modern-header {
-  background: #ffffff;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-xl);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  padding: 12px 20px;
-  margin: 16px;
+  box-shadow: var(--shadow-xs);
+  padding: var(--space-sm) var(--space-md);
+  margin: var(--space-md);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  min-height: 64px;
+  gap: var(--space-md);
+  min-height: 56px;
 }
 
 /* Левая часть: меню и профиль */
 .modern-header-left {
   display: flex;
   align-items: center;
-  gap: 16px;
-  flex: 0 0 auto;
+  gap: var(--space-sm);
+  flex: 1 1 auto;
+  min-width: 0; /* чтобы длинное имя подключения могло сжаться, а не распирать шапку */
 }
 
 /* Гамбургер-меню */
@@ -1274,11 +1290,12 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: 6px 12px;
+  padding: 5px var(--space-sm) 5px 5px;
   border-radius: var(--radius-full);
   cursor: pointer;
   transition: background-color 0.2s;
   position: relative;
+  min-width: 0;
 }
 
 .user-profile:hover {
@@ -1286,8 +1303,8 @@
 }
 
 .user-avatar {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: var(--primary-600);
   display: flex;
@@ -1307,10 +1324,16 @@
 }
 
 .user-name {
-  font-size: 14px;
+  font-size: var(--font-size-base);
   font-weight: 500;
   color: var(--gray-800);
   white-space: nowrap;
+  /* В имени лежит строка подключения к базе, а она бывает очень длинной
+     (root@dash-mysql-determined-greider-ee4b84) и занимала полшапки.
+     Обрезаем: полное значение видно во всплывающей подсказке. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
 }
 
 .user-dropdown-icon {
@@ -1323,17 +1346,23 @@
   transform: translateY(2px);
 }
 
-/* Иконки действий */
+/* Иконки действий.
+   Раньше они стояли вплотную к профилю и выбору таблицы одной сплошной
+   лентой — было не понять, где кончается «кто я» и начинается «что делать».
+   Тонкая вертикальная черта слева разделяет эти две группы. */
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   flex: 0 0 auto;
+  padding-left: var(--space-sm);
+  margin-left: var(--space-xs);
+  border-left: 1px solid var(--border-light);
 }
 
 .header-action-btn {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1352,8 +1381,8 @@
 }
 
 .header-action-btn.active {
-  background: #f0fdf4;
-  color: #22c55e;
+  background: var(--success-50);
+  color: var(--success-600);
 }
 
 .header-action-btn.active i {
@@ -1366,7 +1395,7 @@
 }
 
 .header-action-btn i {
-  font-size: 18px;
+  font-size: var(--font-size-base);
 }
 
 /* Центральная часть: поиск и фильтры */
@@ -1481,17 +1510,19 @@
   flex: 0 0 auto;
 }
 
-/* Индикатор подключения к БД */
+/* Индикатор подключения к БД.
+   Он всегда зелёный и всегда говорит одно и то же, поэтому яркая плашка с
+   заливкой и рамкой перетягивала внимание на постоянный факт. Оставляем
+   зелёную точку — она и несёт смысл — и приглушённую подпись. */
 .db-status-indicator {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: var(--radius-full);
-  font-size: 13px;
-  color: #166534;
+  gap: var(--space-xs);
+  padding: 0;
+  background: transparent;
+  border: none;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
