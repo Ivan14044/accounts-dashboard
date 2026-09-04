@@ -34,7 +34,7 @@
   justify-content: space-between;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-4) var(--space-6);
+  padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--gray-100);
   background: #ffffff;
 }
@@ -45,15 +45,31 @@
   gap: var(--space-4);
 }
 
+/* Bootstrap .small = 0.875em от родителя, то есть 12.25px — значения,
+   которого нет на линейке размеров. Задаём ступень явно. */
+.dashboard-table__footer-info,
+.dashboard-table__footer-info.small {
+  font-size: var(--font-size-sm);
+}
+
 .dashboard-table__counter {
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   color: var(--gray-600);
+}
+
+/* Кнопка «в избранное» в строке: Bootstrap оставляет .btn-link на 1rem,
+   и 16px был единственным таким размером на странице. Ставим ступень
+   линейки — иконка встаёт в один рост с остальными значками строки. */
+.ac-table .btn-link,
+.favorite-btn,
+.favorite-btn i {
+  font-size: var(--font-size-base);
 }
 
 .dashboard-table__counter-value {
   font-weight: 600;
   color: var(--gray-800);
-  font-size: 1rem;
+  font-size: var(--font-size-base);
 }
 
 /* ── HEADER РОЛЬ (Под тулбаром) ── */
@@ -111,7 +127,7 @@
 /* ЗАГОЛОВКИ ТАБЛИЦЫ (Sticky — GPU-слой для FPS при скролле) */
 .ac-table thead th {
   padding: var(--space-4) var(--space-5);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -326,8 +342,8 @@
 .btn-table-open {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 0.8125rem;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--gray-400);
   text-decoration: none;
@@ -352,7 +368,7 @@
    Раньше было 3 child-а под space-between → per-page оказывался в одиночестве
    посередине с большими пустотами. Теперь: [info] ←──── space ────→ [controls]. */
 .dashboard-table__footer {
-  padding: var(--space-4) var(--space-6);
+  padding: var(--space-4) var(--space-5);
   border-top: 1px solid var(--gray-200);
   background: #ffffff;
   display: flex;
