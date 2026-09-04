@@ -291,7 +291,7 @@
                       id="statusDropdown" 
                       data-bs-toggle="dropdown" 
                       aria-expanded="false"
-                      style="min-height: 40px; border-radius: var(--radius-lg); border-width: 1.5px;">
+                      style="height: 40px; border-radius: var(--radius-lg); border-width: 1.5px;">
                 <span id="statusDropdownLabel">
                   <?php if (empty($statusArray) && empty($emptyStatusParam)): ?>
                     Все статусы

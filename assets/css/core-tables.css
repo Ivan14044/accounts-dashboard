@@ -34,7 +34,7 @@
   justify-content: space-between;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-4) var(--space-6);
+  padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--gray-100);
   background: #ffffff;
 }
@@ -368,7 +368,7 @@
    Раньше было 3 child-а под space-between → per-page оказывался в одиночестве
    посередине с большими пустотами. Теперь: [info] ←──── space ────→ [controls]. */
 .dashboard-table__footer {
-  padding: var(--space-4) var(--space-6);
+  padding: var(--space-4) var(--space-5);
   border-top: 1px solid var(--gray-200);
   background: #ffffff;
   display: flex;

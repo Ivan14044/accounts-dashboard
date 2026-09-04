@@ -118,13 +118,13 @@ body {
   /* === Контейнер и базовые отступы === */
   .container-fluid,
   .container {
-    padding-left: 12px !important;
-    padding-right: 12px !important;
+    padding-left: var(--page-gutter) !important;
+    padding-right: var(--page-gutter) !important;
   }
 
   /* === HEADER === */
   .modern-header {
-    margin: 10px;
+    margin: var(--space-sm) var(--page-gutter);
     padding: 10px 12px;
     gap: var(--space-sm);
     min-height: 56px;
@@ -541,7 +541,7 @@ body {
 
   /* HEADER: совсем компактный */
   .modern-header {
-    margin: 8px;
+    margin: var(--space-sm) var(--page-gutter);
     padding: 8px 10px;
     min-height: 52px;
     border-radius: 10px;

@@ -110,7 +110,14 @@
       <i class="fas fa-eye-slash" aria-hidden="true"></i>
     </button>
     <div class="stat-header">
-      <h3 class="stat-title"><?= e($stName) ?></h3>
+      <?php
+      /* Имена статусов приходят из базы как есть и бывают длинными
+         (yaroslav_rychnoy_farm_2). Браузер такое слово рвёт в произвольном
+         месте — «TRASH_DOCUMEN / T_2». <wbr> подсказывает точки переноса
+         после подчёркиваний: сам символ нулевой ширины, текст не меняется. */
+      $statusLabelHtml = str_replace('_', '_<wbr>', e($stName));
+      ?>
+      <h3 class="stat-title"><?= $statusLabelHtml ?></h3>
     </div>
     <div class="stat-value"><?= number_format($cnt) ?></div>
     <?php if (!empty($recentByStatus) && isset($recentByStatus[$stName])): ?>

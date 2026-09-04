@@ -151,6 +151,12 @@
   --radius-2xl:  14px;
   --radius-full: 9999px;
 
+  /* Боковой отступ страницы. Раньше шапка задавала свой (margin: 16px), а
+     всё остальное — свой (padding контейнера: 32px), поэтому шапка на 16px
+     с каждой стороны выступала за карточки и таблицу. Теперь значение одно
+     и на всех брейкпойнтах живёт в этом токене. */
+  --page-gutter: 32px;
+
   /* ── Spacing ── */
   --space-xs: 4px;
   --space-sm: 8px;
@@ -358,7 +364,7 @@ a:hover { color: var(--primary-800); }
 .container-fluid {
   width: 100%;
   margin: 0 auto;
-  padding: 0 var(--space-xl);
+  padding: 0 var(--page-gutter);
 }
 
 main {
@@ -548,8 +554,9 @@ main {
   letter-spacing: 0.06em;
   margin: 0;
   text-align: left;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
+  /* Переносы задаются точками <wbr> после подчёркиваний (см. stats-cards.php),
+     поэтому break-word здесь не нужен: он рвал слово посреди буквы. */
+  overflow-wrap: normal;
   white-space: normal;
   line-height: 1.35;
   /* Две строки: имена статусов из базы бывают длинными
@@ -652,7 +659,10 @@ main {
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
-  padding: 14px 20px;
+  /* 20px по бокам — общий внутренний отступ всех карточек страницы
+     (фильтры, тулбар, таблица). До этого их было три разных: 16, 20 и 24,
+     и заголовки соседних карточек не совпадали по левому краю. */
+  padding: var(--space-4) var(--space-5);
   margin-bottom: var(--space-md);
   box-shadow: var(--shadow-xs);
   position: relative;
@@ -683,13 +693,24 @@ main {
   font-size: var(--font-size-sm);
 }
 
+/* Вторая строка панели: состояние выбора + действия над выбранным.
+   Занимает всю ширину, поэтому строки панели всегда две и обе осмысленные,
+   а не «что не влезло, то перенеслось». */
+.toolbar-row--selection {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-light);
+}
+
 /* Bulk action buttons group */
 .toolbar-actions__bulk {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-left: 16px;
-  border-left: 1px solid var(--gray-200);
+  padding-left: var(--space-sm);
 }
 
 /* Main action buttons group */
@@ -704,9 +725,7 @@ main {
 .toolbar-selected {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-left: 16px;
-  border-left: 1px solid var(--gray-200);
+  gap: var(--space-sm);
   white-space: nowrap;
 }
 
@@ -1605,8 +1624,10 @@ body.dashboard-perf-light #stickyScrollbarWrapper {
    RESPONSIVE
    ======================================== */
 @media (max-width: 768px) {
+  :root { --page-gutter: 12px; }
+
   .container-fluid {
-    padding: 0 var(--space-md);
+    padding: 0 var(--page-gutter);
   }
   .modern-header, .navbar {
     padding: var(--space-sm) var(--space-md);
