@@ -147,11 +147,14 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       color: var(--primary-600);
     }
 
-    /* Dropdown button unified style */
+    /* Dropdown button unified style.
+       min-height намеренно НЕ задаётся: рост кнопки определяет место, где она
+       стоит. В первой строке фильтров это 40px (заданы там же, рядом с полем
+       поиска и «На странице»), внутри дополнительных фильтров — 28px, как у
+       соседних select'ов. Прежние 31px делали ряд дополнительных фильтров
+       неровным: часть полей 28, часть 31. */
     #statusDropdown, #currencyDropdown, #geoDropdown, #statusRkDropdown, #statusMarketplaceDropdown {
-      min-height: 31px;
       border-color: var(--gray-300);
-      font-size: 0.875rem;
       color: var(--gray-900);
     }
 

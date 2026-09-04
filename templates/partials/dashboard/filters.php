@@ -526,9 +526,9 @@
             <div class="range-filters-grid">
               <?php if (isset($ALL_COLUMNS['scenario_pharma'])): ?>
               <div class="range-filter-group">
-                <div class="range-filter-label">
-                  <i class="fas fa-pills"></i>
-                  Сценарий фарма
+                <div class="range-filter-label" title="Сценарий фарма">
+                  <i class="fas fa-pills" aria-hidden="true"></i>
+                  <span>Сценарий фарма</span>
                 </div>
                 <div class="range-inputs">
                   <input type="number" class="range-input-modern" name="pharma_from" placeholder="От" min="0" max="50" step="1" value="<?= e($pharmaFrom) ?>">
@@ -540,9 +540,9 @@
               
               <?php if (isset($ALL_COLUMNS['quantity_friends'])): ?>
               <div class="range-filter-group">
-                <div class="range-filter-label">
-                  <i class="fas fa-user-friends"></i>
-                  Количество друзей
+                <div class="range-filter-label" title="Количество друзей">
+                  <i class="fas fa-user-friends" aria-hidden="true"></i>
+                  <span>Количество друзей</span>
                 </div>
                 <div class="range-inputs">
                   <input type="number" class="range-input-modern" name="friends_from" placeholder="От" min="0" max="1000" step="1" value="<?= e($friendsFrom) ?>">
@@ -559,9 +559,9 @@
               $currentBmStatus = $bmStatus ?? '';
               ?>
               <div class="range-filter-group range-filter-group--bm">
-                <div class="range-filter-label">
-                  <i class="fas fa-briefcase"></i>
-                  Количество БМ
+                <div class="range-filter-label" title="Количество БМ">
+                  <i class="fas fa-briefcase" aria-hidden="true"></i>
+                  <span>Количество БМ</span>
                 </div>
                 <div class="bm-filter-row">
                   <div class="range-inputs">
@@ -592,9 +592,9 @@
               $currentPhoneRemoved = $phoneRemovedParam ?? '';
               ?>
               <div class="range-filter-group">
-                <div class="range-filter-label">
-                  <i class="fas fa-phone-slash"></i>
-                  Телефон
+                <div class="range-filter-label" title="Телефон">
+                  <i class="fas fa-phone-slash" aria-hidden="true"></i>
+                  <span>Телефон</span>
                 </div>
                 <div class="range-inputs">
                   <select id="phone_removed" name="phone_removed" class="form-select form-select-sm w-100" aria-label="Фильтр по удалению номера телефона">
@@ -608,9 +608,9 @@
 
               <?php if (isset($ALL_COLUMNS['year_created'])): ?>
               <div class="range-filter-group">
-                <div class="range-filter-label">
-                  <i class="fas fa-calendar"></i>
-                  Год создания
+                <div class="range-filter-label" title="Год создания">
+                  <i class="fas fa-calendar" aria-hidden="true"></i>
+                  <span>Год создания</span>
                 </div>
                 <div class="range-inputs">
                   <input type="number" class="range-input-modern" name="year_created_from" placeholder="От" min="1900" max="2100" step="1" value="<?= e($yearCreatedFrom ?? '') ?>">
@@ -622,9 +622,9 @@
               
               <?php if (isset($ALL_COLUMNS['limit_rk'])): ?>
               <div class="range-filter-group">
-                <div class="range-filter-label">
-                  <i class="fas fa-chart-line"></i>
-                  Limit RK
+                <div class="range-filter-label" title="Limit RK">
+                  <i class="fas fa-chart-line" aria-hidden="true"></i>
+                  <span>Limit RK</span>
                 </div>
                 <div class="range-inputs">
                   <input type="number" class="range-input-modern" name="limit_rk_from" placeholder="От" min="0" step="1" value="<?= e($limitRkFrom ?? '') ?>">
@@ -636,9 +636,9 @@
               
               <?php if (isset($ALL_COLUMNS['status_marketplace']) && (!empty($statusesMarketplace) || $emptyMarketplaceStatusCount > 0)): ?>
               <div class="range-filter-group">
-                <div class="range-filter-label">
-                  <i class="fas fa-store"></i>
-                  Статус Marketplace
+                <div class="range-filter-label" title="Статус Marketplace">
+                  <i class="fas fa-store" aria-hidden="true"></i>
+                  <span>Статус Marketplace</span>
                 </div>
                 <div class="range-inputs">
                   <div class="dropdown w-100">
@@ -646,8 +646,7 @@
                             type="button" 
                             id="statusMarketplaceDropdown" 
                             data-bs-toggle="dropdown" 
-                            aria-expanded="false"
-                            style="font-size: 0.875rem;">
+                            aria-expanded="false">
                       <span id="statusMarketplaceDropdownLabel">
                         <?php 
                         if (($statusMarketplace ?? '') === '') {
@@ -703,9 +702,9 @@
               
               <?php if (isset($ALL_COLUMNS['currency']) && (!empty($currenciesList) || $emptyCurrencyCount > 0)): ?>
               <div class="range-filter-group">
-                <div class="range-filter-label">
-                  <i class="fas fa-coins"></i>
-                  Валюта
+                <div class="range-filter-label" title="Валюта">
+                  <i class="fas fa-coins" aria-hidden="true"></i>
+                  <span>Валюта</span>
                 </div>
                 <div class="range-inputs">
                   <div class="dropdown w-100">
@@ -713,8 +712,7 @@
                             type="button" 
                             id="currencyDropdown" 
                             data-bs-toggle="dropdown" 
-                            aria-expanded="false"
-                            style="font-size: 0.875rem;">
+                            aria-expanded="false">
                       <span id="currencyDropdownLabel">
                         <?php 
                         if (($currencyFilter ?? '') === '') {
@@ -770,9 +768,9 @@
               
               <?php if (isset($ALL_COLUMNS['geo']) && (!empty($geosList) || $emptyGeoCount > 0)): ?>
               <div class="range-filter-group">
-                <div class="range-filter-label">
-                  <i class="fas fa-globe"></i>
-                  Гео аккаунта
+                <div class="range-filter-label" title="Гео аккаунта">
+                  <i class="fas fa-globe" aria-hidden="true"></i>
+                  <span>Гео аккаунта</span>
                 </div>
                 <div class="range-inputs">
                   <div class="dropdown w-100">
@@ -780,8 +778,7 @@
                             type="button" 
                             id="geoDropdown" 
                             data-bs-toggle="dropdown" 
-                            aria-expanded="false"
-                            style="font-size: 0.875rem;">
+                            aria-expanded="false">
                       <span id="geoDropdownLabel">
                         <?php 
                         if (($geoFilter ?? '') === '') {
@@ -837,9 +834,9 @@
               
               <?php if (isset($ALL_COLUMNS['status_rk']) && (!empty($statusRkList) || $emptyStatusRkCount > 0)): ?>
               <div class="range-filter-group">
-                <div class="range-filter-label">
-                  <i class="fas fa-tag"></i>
-                  Status RK
+                <div class="range-filter-label" title="Status RK">
+                  <i class="fas fa-tag" aria-hidden="true"></i>
+                  <span>Status RK</span>
                 </div>
                 <div class="range-inputs">
                   <div class="dropdown w-100">
@@ -847,8 +844,7 @@
                             type="button" 
                             id="statusRkDropdown" 
                             data-bs-toggle="dropdown" 
-                            aria-expanded="false"
-                            style="font-size: 0.875rem;">
+                            aria-expanded="false">
                       <span id="statusRkDropdownLabel">
                         <?php 
                         if (($statusRkFilter ?? '') === '') {
