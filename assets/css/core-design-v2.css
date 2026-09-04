@@ -306,9 +306,12 @@
 
 .sparkline {
   display: block;
-  width: 100%;
-  height: 36px;
-  margin-top: 6px;
+  /* Карточка «Всего» выкладывается в строку, поэтому график занимает
+     фиксированную ширину справа, а не всю ширину карточки. */
+  flex: 0 0 auto;
+  width: 92px;
+  height: 34px;
+  margin-top: 0;
   overflow: visible;
   pointer-events: none; /* не мешает клику по карточке */
 }

@@ -17,7 +17,7 @@
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     border: 1px solid var(--border-light);
-    margin-bottom: var(--space-6);
+    margin-bottom: var(--space-md);
     overflow: hidden;
     transition: var(--transition-normal);
     position: relative;
@@ -246,7 +246,43 @@
    ======================================== */
 
 .filters-modern-body {
-    padding: var(--space-4) var(--space-6);
+    padding: var(--space-3) var(--space-4) var(--space-3);
+}
+
+/* ========================================
+   ПЕРВАЯ СТРОКА ФИЛЬТРОВ
+   ------------------------------------------------------------------
+   Поиск, статус и размер страницы — три поля в одну строку. Раньше они
+   стояли друг под другом, и до быстрых фильтров нужно было проскроллить
+   ~200px. Поиск тянется, два других держат свою ширину; на узком экране
+   строка переносится сама (flex-wrap), поэтому отдельного правила для
+   мобильного не нужно.
+   ======================================== */
+.filters-primary-row {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.filters-primary-row .search-field-modern {
+    flex: 1 1 280px;
+    min-width: 0;
+}
+
+.filters-primary-row .form-group-modern {
+    flex: 0 1 240px;
+    min-width: 190px;
+}
+
+.filters-primary-row .filters-per-page {
+    flex: 0 0 auto;
+    min-width: 0;
+}
+
+.filters-primary-row .filters-per-page .form-select {
+    height: 40px;
+    width: 88px;
 }
 
 /* Сетка фильтров */
@@ -358,23 +394,29 @@
    ======================================== */
 
 .quick-filters-section {
-    margin-top: 20px;
+    margin-top: var(--space-md);
     /* Изоляция layout — фильтры не влияют на reflow таблицы */
     contain: layout style;
 }
 
 .quick-filters-label {
-    font-size: 13px;
-    font-weight: 600;
-    color: #475569;
-    margin-bottom: 12px;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-sm);
     display: block;
 }
 
 .quick-filters-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 12px;
+    /* Ячейка уже (было 170px) и промежуток меньше — восемь переключателей
+       укладываются в одну строку на широком экране вместо двух. Ниже 150px
+       опускать нельзя: «Избранное» — одно длинное слово, и в ячейке 140px
+       оно обрезалось (проверено на 1280px). */
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-sm);
 }
 
 /* Toggle Switch Container */
@@ -383,11 +425,11 @@
     background: #ffffff;
     border: 1.5px solid var(--border-light);
     border-radius: var(--radius-md);
-    padding: var(--space-3) var(--space-4);
+    padding: 5px var(--space-3) 5px var(--space-3);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-width: 170px; /* Минимальная ширина для комфортного размещения текста и переключателя (особенно для длинных текстов типа "Избранное") */
+    min-width: 0; /* ширину держит сама сетка; жёсткие 170px мешали ей сжиматься */
     cursor: pointer;
     transition: var(--transition-fast);
     user-select: none;
@@ -409,10 +451,10 @@
 .toggle-switch-label-group {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-xs);
     flex: 1; /* Позволяет группе занимать доступное пространство */
     min-width: 0; /* Позволяет сжатие */
-    margin-right: 12px; /* Явный отступ справа от текста до переключателя */
+    margin-right: var(--space-sm); /* Явный отступ справа от текста до переключателя */
 }
 
 .toggle-switch-icon {
@@ -428,6 +470,9 @@
     font-size: var(--text-sm);
     font-weight: var(--font-medium);
     color: var(--text-primary);
+    /* Страховка: длинное слово переносится, а не уезжает за край ячейки */
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .toggle-switch-wrapper.active .toggle-switch-label {
@@ -438,8 +483,8 @@
 /* iOS-style Toggle Switch */
 .toggle-switch {
     position: relative;
-    width: 44px;
-    height: 24px;
+    width: 36px;
+    height: 20px;
     flex-shrink: 0;
 }
 
@@ -464,8 +509,8 @@
 .toggle-switch-slider:before {
     position: absolute;
     content: "";
-    height: 18px;
-    width: 18px;
+    height: 14px;
+    width: 14px;
     left: 3px;
     bottom: 3px;
     background-color: white;
@@ -479,7 +524,7 @@
 }
 
 .toggle-switch input:checked + .toggle-switch-slider:before {
-    transform: translateX(20px);
+    transform: translateX(16px);
 }
 
 .toggle-switch-slider:hover {
@@ -490,10 +535,66 @@
    ДОПОЛНИТЕЛЬНЫЕ ФИЛЬТРЫ (всегда видимые)
    ======================================== */
 
+/* ========================================
+   ДОПОЛНИТЕЛЬНЫЕ ФИЛЬТРЫ — сворачиваемый блок
+   ------------------------------------------------------------------
+   Открытым по умолчанию он занимал ~150px первого экрана, хотя нужен
+   редко. Свёрнут — но только когда пуст: если хоть один такой фильтр
+   задан, разметка отдаёт блок уже открытым и показывает их число на
+   кнопке (см. $rangeFiltersActive в partials/dashboard/filters.php).
+   Спрятанный включённый фильтр — это молча урезанная выдача, за которую
+   пользователь будет искать причину в другом месте.
+   ======================================== */
+.range-filters-section {
+    margin-top: var(--space-md);
+}
+
+.range-filters-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    width: 100%;
+    padding: 0 0 var(--space-sm);
+    background: transparent;
+    border: none;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.range-filters-toggle:hover { color: var(--text-primary); }
+
+.range-filters-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: var(--radius-full);
+    background: var(--primary-600);
+    color: #fff;
+    font-size: var(--font-size-xs);
+    line-height: 1;
+    letter-spacing: 0;
+}
+
+/* Шеврон смотрит вниз у закрытого блока и вверх у открытого */
+.range-filters-chevron {
+    margin-left: auto;
+    transition: transform 180ms var(--ease-out);
+}
+.range-filters-toggle[aria-expanded="true"] .range-filters-chevron {
+    transform: rotate(180deg);
+}
+
 .range-filters-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--space-3);
     /* Каждая карточка — своей высоты, без растягивания по высоте самого высокого соседа */
     align-items: start;
 }
@@ -503,7 +604,7 @@
     background: #ffffff;
     border: 1.5px solid var(--border-light);
     border-radius: var(--radius-md);
-    padding: var(--space-3);
+    padding: var(--space-2) var(--space-3) var(--space-3);
     box-shadow: var(--shadow-xs);
     min-width: 0; /* Позволяет flex-элементам сжиматься */
 }
@@ -667,7 +768,7 @@
     }
     
     .quick-filters-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
     }
     
     .range-filters-grid {
@@ -1128,7 +1229,7 @@
 /* Основной контейнер хедера */
 .modern-header {
   background: #ffffff;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   padding: 12px 20px;
   margin: 16px;
@@ -1172,9 +1273,9 @@
 .user-profile {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-sm);
   padding: 6px 12px;
-  border-radius: 20px;
+  border-radius: var(--radius-full);
   cursor: pointer;
   transition: background-color 0.2s;
   position: relative;
@@ -1213,7 +1314,7 @@
 }
 
 .user-dropdown-icon {
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   color: var(--gray-500);
   transition: transform 0.2s;
 }
@@ -1236,7 +1337,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: none;
   background: transparent;
   color: var(--gray-700);
@@ -1388,7 +1489,7 @@
   padding: 8px 14px;
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
-  border-radius: 20px;
+  border-radius: var(--radius-full);
   font-size: 13px;
   color: #166534;
   white-space: nowrap;
@@ -1590,3 +1691,28 @@
 }
 
 
+
+
+/* ========================================
+   ПОДВАЛ БЛОКА ФИЛЬТРОВ
+   Одна строка вместо прежних двух с разделителем: подсказка слева,
+   ручное обновление справа.
+   ======================================== */
+.filters-footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-top: var(--space-3);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--border-light);
+}
+
+.filters-footer-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}

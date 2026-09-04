@@ -247,6 +247,11 @@
     <div id="filtersBody" class="collapse show">
       <div class="filters-modern-body">
         <form method="get" id="filtersForm">
+          <?php /* Первая строка фильтров: поиск, статус и размер страницы стоят
+                   рядом. Раньше это были три блока друг под другом, и вместе с
+                   подписями они съедали ~200px до того, как начиналось хоть
+                   что-то полезное. На узком экране строка сама переносится. */ ?>
+          <div class="filters-primary-row">
           <!-- Поисковая строка -->
           <div class="search-field-modern">
             <label class="search-field-modern-label">
@@ -271,7 +276,7 @@
           </div>
           
           <!-- Статусы (Dropdown) -->
-          <div class="form-group-modern mt-4">
+          <div class="form-group-modern">
             <label class="search-field-modern-label">
               <i class="fas fa-tag me-1"></i>Статус
             </label>
@@ -334,6 +339,19 @@
               </div>
             </div>
           </div>
+
+            <!-- Записей на странице -->
+            <div class="form-group-modern filters-per-page">
+              <label class="search-field-modern-label" for="perPageSelect">
+                <i class="fas fa-list-ol me-1"></i>На странице
+              </label>
+              <select name="per_page" id="perPageSelect" class="form-select">
+                <?php foreach ([25,50,100,200] as $__pp): ?>
+                  <option value="<?= $__pp ?>" <?= $perPage===$__pp ? 'selected' : '' ?>><?= $__pp ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div><!-- /.filters-primary-row -->
 
           <!-- Быстрые фильтры (Toggle Switches) -->
           <div class="quick-filters-section">
@@ -457,11 +475,48 @@
                             isset($ALL_COLUMNS['bm']);
           ?>
           
+          <?php
+          /* Открыт ли блок дополнительных фильтров при загрузке страницы.
+             Свёрнутый по умолчанию, он экономит ~150px на первом экране, но
+             спрятать ВКЛЮЧЁННЫЙ фильтр нельзя — пользователь не поймёт, почему
+             в таблице мало строк. Поэтому: хоть один из этих фильтров задан —
+             блок открыт. Число заданных показываем на кнопке. */
+          $rangeFilterValues = [
+              $pharmaFrom ?? '', $pharmaTo ?? '',
+              $friendsFrom ?? '', $friendsTo ?? '',
+              $bmFrom ?? '', $bmTo ?? '',
+              $yearCreatedFrom ?? '', $yearCreatedTo ?? '',
+              $limitRkFrom ?? '', $limitRkTo ?? '',
+              $statusMarketplace ?? '', $currencyFilter ?? '', $geoFilter ?? '',
+              $statusRkFilter ?? '',
+          ];
+          $bmStatusValue = $bmStatus ?? '';
+          if ($bmStatusValue !== '' && $bmStatusValue !== 'any') {
+              $rangeFilterValues[] = $bmStatusValue;
+          }
+          $phoneRemovedValue = $phoneRemovedParam ?? '';
+          if ($phoneRemovedValue === 'yes' || $phoneRemovedValue === 'no') {
+              $rangeFilterValues[] = $phoneRemovedValue;
+          }
+          $rangeFiltersActive = 0;
+          foreach ($rangeFilterValues as $__v) {
+              if ($__v !== '' && $__v !== null) { $rangeFiltersActive++; }
+          }
+          ?>
           <?php if ($hasRangeFilters): ?>
-          <div class="mt-4">
-            <label class="search-field-modern-label mb-3">
-              <i class="fas fa-sliders-h me-1"></i>Дополнительные фильтры
-            </label>
+          <div class="range-filters-section">
+            <button class="range-filters-toggle" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#rangeFiltersBody"
+                    aria-expanded="<?= $rangeFiltersActive > 0 ? 'true' : 'false' ?>"
+                    aria-controls="rangeFiltersBody">
+              <i class="fas fa-sliders-h" aria-hidden="true"></i>
+              <span>Дополнительные фильтры</span>
+              <?php if ($rangeFiltersActive > 0): ?>
+              <span class="range-filters-count"><?= (int)$rangeFiltersActive ?></span>
+              <?php endif; ?>
+              <i class="fas fa-chevron-down range-filters-chevron" aria-hidden="true"></i>
+            </button>
+            <div class="collapse<?= $rangeFiltersActive > 0 ? ' show' : '' ?>" id="rangeFiltersBody">
             <div class="range-filters-grid">
               <?php if (isset($ALL_COLUMNS['scenario_pharma'])): ?>
               <div class="range-filter-group">
@@ -841,32 +896,22 @@
               </div>
               <?php endif; ?>
             </div>
+            </div>
           </div>
           <?php endif; ?>
-          
-          <!-- Разделитель -->
-          <div style="height: 1px; background: var(--border-light); margin: var(--space-4) 0;"></div>
-          
-          <!-- На странице и кнопка применения -->
-          <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-            <div>
-              <label class="form-label small text-muted">Записей на странице</label>
-              <select name="per_page" class="form-select form-select-sm" style="width: auto;">
-                <?php foreach ([25,50,100,200] as $__pp): ?>
-                  <option value="<?= $__pp ?>" <?= $perPage===$__pp ? 'selected' : '' ?>><?= $__pp ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            
-            <div class="d-flex flex-column align-items-end gap-1">
-              <button type="submit" class="btn btn-sm btn-outline-primary" title="Принудительное обновление страницы" id="applyFiltersBtn">
-                <i class="fas fa-sync-alt me-1"></i>
-                Обновить
-              </button>
-              <small class="text-muted" style="font-size: 10px;">
-                <i class="fas fa-magic me-1"></i>Фильтры применяются автоматически
-              </small>
-            </div>
+
+          <?php /* Подвал блока: одна строка вместо прежних двух с разделителем.
+                   Выбор «сколько записей на странице» переехал наверх, в первую
+                   строку, поэтому здесь остаётся только ручное обновление и
+                   пояснение, что обычно оно не нужно. */ ?>
+          <div class="filters-footer-row">
+            <span class="filters-footer-hint">
+              <i class="fas fa-magic" aria-hidden="true"></i>Фильтры применяются автоматически
+            </span>
+            <button type="submit" class="btn btn-sm btn-outline-primary" title="Принудительное обновление страницы" id="applyFiltersBtn">
+              <i class="fas fa-sync-alt me-1"></i>
+              Обновить
+            </button>
           </div>
         </form>
       </div>

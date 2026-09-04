@@ -11,16 +11,22 @@
     <button type="button" class="stat-card-hide-btn" data-card="total" title="Скрыть карточку" aria-label="Скрыть карточку">
       <i class="fas fa-eye-slash" aria-hidden="true"></i>
     </button>
-    <div class="stat-header">
-      <h3 class="stat-title">Всего аккаунтов</h3>
+    <?php /* .stat-main — левая колонка выделенной карточки: подпись, число и
+             прирост за сутки. Спарклайн лежит рядом отдельным блоком, поэтому
+             карточка выкладывается в строку и остаётся такой же низкой, как
+             остальные. У обычных карточек этой обёртки нет — она им не нужна. */ ?>
+    <div class="stat-main">
+      <div class="stat-header">
+        <h3 class="stat-title">Всего аккаунтов</h3>
+      </div>
+      <div class="stat-value"><?= number_format((int)$totals['all']) ?></div>
+      <?php if ($recentAll !== null): ?>
+      <div class="stat-change positive">
+        <i class="fas fa-arrow-up" aria-hidden="true"></i>
+        <span>+<?= number_format((int)$recentAll) ?> за 24ч</span>
+      </div>
+      <?php endif; ?>
     </div>
-    <div class="stat-value"><?= number_format((int)$totals['all']) ?></div>
-    <?php if ($recentAll !== null): ?>
-    <div class="stat-change positive">
-      <i class="fas fa-arrow-up" aria-hidden="true"></i>
-      <span>+<?= number_format((int)$recentAll) ?> за 24ч</span>
-    </div>
-    <?php endif; ?>
     <?php
     /* === 7-day sparkline ===
        $dailyTotals — массив из 7 кумулятивных значений (StatisticsService::getDailyTotals).
