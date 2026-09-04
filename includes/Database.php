@@ -172,7 +172,9 @@ class Database {
         $result = $stmt->get_result();
         $data = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
-        
+
+        self::markSelfWrite($sql);
+
         // Кэшируем результат SELECT запросов
         if ($cacheKey && $this->cacheEnabled && strpos(strtoupper(trim($sql)), 'SELECT') === 0) {
             $this->setCache($cacheKey, $data);
@@ -181,6 +183,36 @@ class Database {
         return $data;
     }
     
+    /**
+     * Отметить в сессии, что этот пользователь только что менял данные.
+     *
+     * Счётчики дашборда берутся из кэша, ключ которого округлён по времени
+     * (см. StatisticsService::bucketFingerprint) — иначе на живой панели кэш
+     * не работал вовсе. Но тот, кто сам сменил статусы или удалил строки,
+     * должен увидеть новые числа немедленно, иначе выглядит так, будто
+     * операция не сработала. Метка живёт одно окно округления, и всё это время
+     * такой пользователь получает точный, не округлённый отпечаток.
+     *
+     * Ставится здесь, потому что prepare() — единственная точка, через которую
+     * в проекте идут все запросы, включая изменяющие.
+     *
+     * @param string $sql Выполненный запрос
+     * @return void
+     */
+    private static function markSelfWrite(string $sql): void {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return; // CLI, тесты, фоновые утилиты — сессии нет, отмечать негде
+        }
+
+        $head = strtoupper(substr(ltrim($sql), 0, 6));
+        if ($head !== 'UPDATE' && $head !== 'INSERT' && $head !== 'DELETE') {
+            return;
+        }
+
+        require_once __DIR__ . '/Config.php';
+        $_SESSION[Config::STATS_SELF_WRITE_FLAG] = time() + Config::STATS_FINGERPRINT_BUCKET;
+    }
+
     /**
      * Быстрый подсчет строк в таблице с кэшированием
      * 

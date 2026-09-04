@@ -687,13 +687,70 @@ class StatisticsService {
     }
 
     /**
+     * Округлить отпечаток данных вниз до границы окна.
+     *
+     * Зачем. Точный MAX(updated_at) делал кэш агрегатов почти бесполезным на
+     * живой панели: правка любой строки кем угодно меняла ключ, и следующий
+     * открывший страницу платил полный пересчёт (0,58 с против 0,045 с из кэша
+     * на 184 800 строках). Правки идут постоянно, поэтому в пересчёт попадали
+     * почти все заходы. С округлением все правки внутри одного окна делят общий
+     * ключ, и пересчёт случается не чаще раза в окно.
+     *
+     * Метод статический и чистый, чтобы его можно было проверить тестом без БД
+     * (tests/test_stats_fingerprint_bucket.php).
+     *
+     * @param string $fingerprint Отпечаток: дата-время MySQL, 'empty' или 'na'
+     * @param int    $bucket      Ширина окна в секундах; <= 1 — округления нет
+     * @return string Округлённый отпечаток; неразбираемое значение возвращается
+     *                как есть — лучше лишний пересчёт, чем неверный ключ
+     */
+    public static function bucketFingerprint($fingerprint, $bucket) {
+        $bucket = (int)$bucket;
+        if ($bucket <= 1) {
+            return (string)$fingerprint;
+        }
+
+        $ts = strtotime((string)$fingerprint);
+        if ($ts === false) {
+            // 'na', 'empty' или мусор — округлять нечего.
+            return (string)$fingerprint;
+        }
+
+        return 'b' . (string)((int)floor($ts / $bucket) * $bucket);
+    }
+
+    /**
+     * Писал ли ЭТОТ пользователь в таблицу только что.
+     *
+     * Тот, кто сам сменил статусы или удалил строки, должен увидеть новые числа
+     * сразу, а не через окно округления — иначе кажется, что операция не
+     * сработала. Метка ставится в Database::prepare() на любом изменяющем
+     * запросе и живёт одно окно.
+     *
+     * @return bool
+     */
+    private static function viewerJustWrote() {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return false;
+        }
+        $until = isset($_SESSION[Config::STATS_SELF_WRITE_FLAG])
+            ? (int)$_SESSION[Config::STATS_SELF_WRITE_FLAG]
+            : 0;
+
+        return $until >= time();
+    }
+
+    /**
      * Ключ кэша агрегата: база + таблица + аргументы + отпечаток данных.
      *
      * Отпечаток — MAX(updated_at) по таблице. Колонка обновляется автоматически
-     * при любой вставке и правке строки (ON UPDATE CURRENT_TIMESTAMP), поэтому
-     * действие пользователя мгновенно делает старый ключ недействительным:
-     * счётчики после смены статуса обновляются сразу, а не через TTL. Сам запрос
+     * при любой вставке и правке строки (ON UPDATE CURRENT_TIMESTAMP). Сам запрос
      * дешёвый — читается вершина индекса idx_updated_at.
+     *
+     * Отпечаток округляется до окна STATS_FINGERPRINT_BUCKET — почему, написано
+     * в докблоке bucketFingerprint(). Исключение: пользователь, который сам
+     * только что писал в таблицу, получает точный отпечаток и видит свои правки
+     * мгновенно.
      *
      * Чего отпечаток не ловит: жёсткое удаление строк (MAX не меняется). На этот
      * случай остаётся TTL.
@@ -720,7 +777,11 @@ class StatisticsService {
 
         $dbName = Database::nameOf($this->db->getConnection());
 
-        return implode('|', [$dbName, $this->table, $name, $fingerprint, md5(serialize($args))]);
+        $keyFingerprint = self::viewerJustWrote()
+            ? $fingerprint
+            : self::bucketFingerprint($fingerprint, Config::STATS_FINGERPRINT_BUCKET);
+
+        return implode('|', [$dbName, $this->table, $name, $keyFingerprint, md5(serialize($args))]);
     }
 }
 
