@@ -91,7 +91,7 @@ body {
   .dashboard-table__toolbar {
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--space-sm);
+    gap: 10px;
   }
 
   /* --- Sticky-скроллбар над таблицей не нужен на тач-девайсах --- */
@@ -118,15 +118,15 @@ body {
   /* === Контейнер и базовые отступы === */
   .container-fluid,
   .container {
-    padding-left: var(--page-gutter) !important;
-    padding-right: var(--page-gutter) !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
   }
 
   /* === HEADER === */
   .modern-header {
-    margin: var(--space-sm) var(--page-gutter);
+    margin: 10px;
     padding: 10px 12px;
-    gap: var(--space-sm);
+    gap: 10px;
     min-height: 56px;
     flex-wrap: wrap;
   }
@@ -166,8 +166,8 @@ body {
     flex-direction: column;
     align-items: stretch;
     padding: 12px;
-    gap: var(--space-sm);
-    border-radius: var(--radius-xl);
+    gap: 10px;
+    border-radius: 12px;
   }
 
   .toolbar-title {
@@ -210,7 +210,7 @@ body {
   /* === STATS CARDS === */
   .stats-grid {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: var(--space-sm);
+    gap: 10px;
     margin-bottom: 12px;
     /* Снимаем contain: layout — на мобильных карточки могут менять высоту */
     contain-intrinsic-size: auto;
@@ -218,7 +218,7 @@ body {
 
   .stat-card {
     padding: 14px 12px;
-    border-radius: var(--radius-xl);
+    border-radius: 12px;
   }
 
   .stat-card .stat-value {
@@ -237,7 +237,7 @@ body {
   /* === ФИЛЬТРЫ === */
   .filters-modern {
     margin: 0 0 12px 0 !important;
-    border-radius: var(--radius-xl);
+    border-radius: 12px;
   }
 
   .filters-modern-header {
@@ -256,18 +256,12 @@ body {
     font-size: 13px !important;
   }
 
-  /* Быстрые фильтры на телефоне — две колонки: в одну восемь
-     переключателей давали 320px прокрутки на ровном месте. */
   .quick-filters-grid,
+  .range-filters-grid,
   .quick-filters-toggles,
   .toggle-filters-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: var(--space-sm) !important;
-  }
-
-  .range-filters-grid {
     grid-template-columns: 1fr !important;
-    gap: var(--space-sm) !important;
+    gap: 8px !important;
   }
 
   /* Активные чипы фильтров */
@@ -292,11 +286,11 @@ body {
   /* === ТАБЛИЦА === */
   .dashboard-table {
     margin: 0 0 12px 0;
-    border-radius: var(--radius-xl);
+    border-radius: 12px;
   }
 
   .dashboard-table__inner {
-    border-radius: var(--radius-xl);
+    border-radius: 12px;
     overflow: hidden;
   }
 
@@ -360,14 +354,14 @@ body {
     flex-direction: column;
     align-items: stretch;
     padding: 12px;
-    gap: var(--space-sm);
+    gap: 10px;
   }
 
   /* Group тоже стек на узких экранах — каждый control на своей строке */
   .dashboard-table__footer-controls {
     flex-direction: column;
     align-items: stretch;
-    gap: var(--space-sm);
+    gap: 10px;
   }
 
   /* Divider не нужен в вертикальной раскладке */
@@ -541,7 +535,7 @@ body {
 
   /* HEADER: совсем компактный */
   .modern-header {
-    margin: var(--space-sm) var(--page-gutter);
+    margin: 8px;
     padding: 8px 10px;
     min-height: 52px;
     border-radius: 10px;
@@ -578,28 +572,34 @@ body {
     justify-content: center;
   }
 
-  /* STATS: две колонки.
-     Одна колонка при полутора десятках статусов давала больше 1100px
-     прокрутки до фильтров — на телефоне это целая страница пустоты.
-     Компактная карточка спокойно живёт в половине ширины экрана. */
+  /* STATS: одна колонка */
   .stats-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: var(--space-sm);
+    grid-template-columns: 1fr !important;
+    gap: 8px;
   }
 
   .stat-card {
-    padding: 8px 10px 10px;
+    padding: 14px 16px;
+    text-align: left;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .stat-card .stat-header {
+    flex: 1 1 auto;
+    margin: 0;
     text-align: left;
   }
 
-  /* «Всего аккаунтов» на телефоне занимает всю ширину: спарклайн рядом с
-     числом в половине экрана уже не читается. */
-  .stat-card[data-card="total"] {
-    grid-column: span 2;
+  .stat-card .stat-title {
+    margin: 0;
   }
 
   .stat-card .stat-value {
-    font-size: var(--font-size-2xl) !important;
+    font-size: 1.5rem !important;
+    flex: 0 0 auto;
   }
 
   .stat-card .stat-change {
@@ -637,7 +637,7 @@ body {
   }
 
   .btn-table-open i {
-    font-size: var(--font-size-xs);
+    font-size: 0.625rem;
   }
 
   /* Скрываем "Показано" / "Отмечено" — оставляем только цифры */
@@ -767,11 +767,7 @@ body {
   }
 
   /* Hit area для иконочных кнопок ::before расширяет область клика */
-  /* .stat-card-hide-btn здесь СОЗНАТЕЛЬНО нет: у неё уже position:absolute
-     (она висит в углу карточки), и переключение на relative возвращало её
-     в поток — на телефоне кнопка отодвигала содержимое «Всего аккаунтов»
-     вправо на 45px. Для псевдоэлемента ::before ниже absolute годится так
-     же, как relative: он тоже создаёт систему координат. */
+  .stat-card-hide-btn,
   .filter-chip-remove,
   .filters-modern-chip__remove {
     position: relative;

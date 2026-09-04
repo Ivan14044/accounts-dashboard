@@ -11,22 +11,16 @@
     <button type="button" class="stat-card-hide-btn" data-card="total" title="Скрыть карточку" aria-label="Скрыть карточку">
       <i class="fas fa-eye-slash" aria-hidden="true"></i>
     </button>
-    <?php /* .stat-main — левая колонка выделенной карточки: подпись, число и
-             прирост за сутки. Спарклайн лежит рядом отдельным блоком, поэтому
-             карточка выкладывается в строку и остаётся такой же низкой, как
-             остальные. У обычных карточек этой обёртки нет — она им не нужна. */ ?>
-    <div class="stat-main">
-      <div class="stat-header">
-        <h3 class="stat-title">Всего аккаунтов</h3>
-      </div>
-      <div class="stat-value"><?= number_format((int)$totals['all']) ?></div>
-      <?php if ($recentAll !== null): ?>
-      <div class="stat-change positive">
-        <i class="fas fa-arrow-up" aria-hidden="true"></i>
-        <span>+<?= number_format((int)$recentAll) ?> за 24ч</span>
-      </div>
-      <?php endif; ?>
+    <div class="stat-header">
+      <h3 class="stat-title">Всего аккаунтов</h3>
     </div>
+    <div class="stat-value"><?= number_format((int)$totals['all']) ?></div>
+    <?php if ($recentAll !== null): ?>
+    <div class="stat-change positive">
+      <i class="fas fa-arrow-up" aria-hidden="true"></i>
+      <span>+<?= number_format((int)$recentAll) ?> за 24ч</span>
+    </div>
+    <?php endif; ?>
     <?php
     /* === 7-day sparkline ===
        $dailyTotals — массив из 7 кумулятивных значений (StatisticsService::getDailyTotals).
@@ -110,14 +104,7 @@
       <i class="fas fa-eye-slash" aria-hidden="true"></i>
     </button>
     <div class="stat-header">
-      <?php
-      /* Имена статусов приходят из базы как есть и бывают длинными
-         (yaroslav_rychnoy_farm_2). Браузер такое слово рвёт в произвольном
-         месте — «TRASH_DOCUMEN / T_2». <wbr> подсказывает точки переноса
-         после подчёркиваний: сам символ нулевой ширины, текст не меняется. */
-      $statusLabelHtml = str_replace('_', '_<wbr>', e($stName));
-      ?>
-      <h3 class="stat-title"><?= $statusLabelHtml ?></h3>
+      <h3 class="stat-title"><?= e($stName) ?></h3>
     </div>
     <div class="stat-value"><?= number_format($cnt) ?></div>
     <?php if (!empty($recentByStatus) && isset($recentByStatus[$stName])): ?>
