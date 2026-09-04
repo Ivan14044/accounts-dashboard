@@ -330,38 +330,6 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
     <div class="toolbar">
       <h2 class="toolbar-title">Управление аккаунтами</h2>
 
-      <?php /* Две осознанные строки вместо переноса «как получится».
-               Сверху — название раздела и действия, которые доступны всегда
-               (добавить, проверить, перенести). Снизу — состояние выбора и
-               кнопки, которые без выбора неактивны: они относятся к выделенным
-               строкам, поэтому стоят рядом со счётчиком, а не вперемешку с
-               главными действиями. Раньше счётчик «Выбрано» уезжал один на
-               вторую строку, и половина панели пустовала. */ ?>
-
-      <div class="toolbar-actions__main">
-        <button class="btn btn-sm btn-primary" id="addAccountBtn" data-bs-toggle="modal" data-bs-target="#addAccountModal">
-          <i class="fas fa-plus"></i> Добавить аккаунт
-        </button>
-        <button class="btn btn-sm btn-outline-primary" id="validateAccountsBtn" disabled title="Проверка аккаунтов на валидность (check.fb.tools)">
-          <i class="fas fa-check-double"></i> Проверка на валидность
-        </button>
-        <button class="btn btn-sm btn-outline-secondary" id="transferAccountsBtn">
-          <i class="fas fa-exchange-alt"></i> Перенос
-        </button>
-        <button class="btn btn-sm btn-outline-warning" id="undoLastActionBtn" style="display: none;" disabled>
-          <i class="fas fa-undo"></i> Отменить последнее
-        </button>
-      </div>
-
-      <div class="toolbar-row toolbar-row--selection">
-      <div class="toolbar-selected" id="toolbarSelected">
-        <span class="toolbar-selected__label">Выбрано:</span>
-        <span class="toolbar-selected__count" id="selectedCount">0</span>
-        <button class="btn btn-sm btn-outline-dark toolbar-selected__clear" id="clearAllSelectedBtn" style="display: none;">
-          <i class="fas fa-times-circle"></i> Сбросить
-        </button>
-      </div>
-
       <div class="toolbar-actions__bulk">
         <button class="btn btn-sm btn-outline-secondary" id="exportSelectedCsv" disabled>
           <i class="fas fa-file-csv"></i> CSV
@@ -379,8 +347,29 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
           <i class="fas fa-edit"></i> Поле
         </button>
       </div>
-      </div><!-- /.toolbar-row--selection -->
 
+      <div class="toolbar-actions__main">
+        <button class="btn btn-sm btn-primary" id="addAccountBtn" data-bs-toggle="modal" data-bs-target="#addAccountModal">
+          <i class="fas fa-plus"></i> Добавить аккаунт
+        </button>
+        <button class="btn btn-sm btn-outline-primary" id="validateAccountsBtn" disabled title="Проверка аккаунтов на валидность (check.fb.tools)">
+          <i class="fas fa-check-double"></i> Проверка на валидность
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" id="transferAccountsBtn">
+          <i class="fas fa-exchange-alt"></i> Перенос
+        </button>
+        <button class="btn btn-sm btn-outline-warning" id="undoLastActionBtn" style="display: none;" disabled>
+          <i class="fas fa-undo"></i> Отменить последнее
+        </button>
+      </div>
+
+      <div class="toolbar-selected" id="toolbarSelected">
+        <span class="toolbar-selected__label">Выбрано:</span>
+        <span class="toolbar-selected__count" id="selectedCount">0</span>
+        <button class="btn btn-sm btn-outline-dark toolbar-selected__clear" id="clearAllSelectedBtn" style="display: none;">
+          <i class="fas fa-times-circle"></i> Сбросить
+        </button>
+      </div>
     </div>
 
   <!-- Таблица -->

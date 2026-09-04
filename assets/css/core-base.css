@@ -133,29 +133,14 @@
   --shadow-glow-success: none;
   --shadow-glow-danger: none;
 
-  /* ── Radii ── единая линейка: три ступени вместо шести ──
-     Раньше шесть токенов давали шесть разных скруглений, и вместе с
-     хардкодом (13px, 20px, 3.25px) страница показывала 13 радиусов
-     одновременно — глаз читает это как «собрано из кусочков».
-     Теперь ступени три и они попарно совпадают, поэтому старые имена
-     токенов продолжают работать, а вариантов на экране остаётся три:
-       6px  — мелкие элементы (чекбоксы, метки, иконочные кнопки),
-       10px — кнопки, поля ввода, выпадающие списки, чипы,
-       14px — карточки, панели, шапка, таблица.
-     Плюс два особых случая: --radius-full (пилюли) и 50% (аватар). */
-  --radius-xs:   6px;
+  /* ── Radii ── */
+  --radius-xs:   4px;
   --radius-sm:   6px;
-  --radius-md:   10px;
-  --radius-lg:   10px;
-  --radius-xl:   14px;
-  --radius-2xl:  14px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  20px;
   --radius-full: 9999px;
-
-  /* Боковой отступ страницы. Раньше шапка задавала свой (margin: 16px), а
-     всё остальное — свой (padding контейнера: 32px), поэтому шапка на 16px
-     с каждой стороны выступала за карточки и таблицу. Теперь значение одно
-     и на всех брейкпойнтах живёт в этом токене. */
-  --page-gutter: 32px;
 
   /* ── Spacing ── */
   --space-xs: 4px;
@@ -364,7 +349,7 @@ a:hover { color: var(--primary-800); }
 .container-fluid {
   width: 100%;
   margin: 0 auto;
-  padding: 0 var(--page-gutter);
+  padding: 0 var(--space-xl);
 }
 
 main {
@@ -407,47 +392,38 @@ main {
 }
 
 /* ========================================
-   STAT CARDS — плотная лента счётчиков
-   ------------------------------------------------------------------
-   Карточек столько, сколько статусов в базе: на проде это полтора-два
-   десятка. Прежний вариант (крупная коробка 129px с центрированным
-   текстом и цветной полоской сверху) занимал весь первый экран, и до
-   первой строки таблицы приходилось прокручивать полтора экрана.
-   Поэтому: карточка ~68px, текст по левому краю, полоска-декор убрана,
-   а «Всего аккаунтов» выделено фоном и шириной в две ячейки — иначе
-   главное число теряется среди полутора десятков одинаковых.
+   STAT CARDS — Premium glassmorphism
    ======================================== */
 .stats-grid {
   display: grid;
-  /* auto-fill вместо фиксированных 2/3/5 колонок: ширина ячейки задана,
-     число колонок считает браузер — лента одинаково плотная и на
-     ноутбуке, и на широком мониторе. */
-  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
-  gap: var(--space-sm);
-  margin-bottom: var(--space-md);
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
   /* Изоляция layout/paint — изменения в карточках не вызывают reflow таблицы */
   contain: layout style;
   content-visibility: auto;
-  contain-intrinsic-size: auto 240px;
+  contain-intrinsic-size: auto 200px;
+}
+
+@media (min-width: 768px) {
+  .stats-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 1280px) {
+  .stats-grid { grid-template-columns: repeat(5, 1fr); }
 }
 
 .stat-card {
-  background: var(--bg-primary);
+  background: #ffffff;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-xl);
-  padding: 10px var(--space-md) 12px;
-  box-shadow: var(--shadow-xs);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-sm);
   position: relative;
   overflow: hidden;
-  min-height: 68px;
-  text-align: left;
+  text-align: center;
   display: flex;
   flex-direction: column;
-  /* Подпись прижата к верху, число — к низу. Имена статусов из базы бывают
-     в две строки (yaroslav_rychnoy_farm_2), и при центрировании числа в
-     таком ряду прыгали по высоте — ряд выглядел рваным. */
-  justify-content: space-between;
-  gap: var(--space-xs);
+  justify-content: center;
   transition: background-color 0.15s ease, border-color 0.15s ease;
   cursor: pointer;
 }
@@ -457,38 +433,14 @@ main {
   border-color: var(--border-medium);
 }
 
-/* Карточка «Всего аккаунтов» — единственная выделенная.
-   Ширина в две ячейки, тонированный фон, крупнее число: это опорная
-   цифра страницы, а не один из статусов. */
-.stat-card[data-card="total"] {
-  grid-column: span 2;
-  justify-content: flex-start;
-  background: var(--primary-50);
-  border-color: var(--primary-100);
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-md);
-}
-
-.stat-card[data-card="total"] .stat-main {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.stat-card[data-card="total"] .stat-title {
-  color: var(--primary-700);
-}
-
-.stat-card[data-card="total"] .stat-value {
-  font-size: var(--font-size-3xl);
-}
-
-/* Одна ячейка узкая — «Всего» не должно ломать сетку на мобильном */
-@media (max-width: 560px) {
-  .stat-card[data-card="total"] { grid-column: span 1; }
+/* Акцентная полоска — графитовый синий */
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--primary-200);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
 /* Card entrance animation — staggered */
@@ -539,45 +491,40 @@ main {
 .stat-header {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  margin-bottom: 0;
+  justify-content: center;
+  margin-bottom: var(--space-sm);
   position: relative;
-  /* место под кнопку «скрыть», чтобы длинное имя статуса не заезжало под неё */
-  padding-right: 22px;
 }
 
 .stat-title {
   font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
   color: var(--gray-500);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 0;
-  text-align: left;
-  /* Переносы задаются точками <wbr> после подчёркиваний (см. stats-cards.php),
-     поэтому break-word здесь не нужен: он рвал слово посреди буквы. */
-  overflow-wrap: normal;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.25rem 0;
+  text-align: center;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
   white-space: normal;
-  line-height: 1.35;
-  /* Две строки: имена статусов из базы бывают длинными
-     (yaroslav_rychnoy_farm_2), но третья строка ломает высоту ленты. */
-  max-height: 2.7em;
+  line-height: 1.4;
+  max-height: 4.2em;
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
 }
 
 .stat-value {
-  font-size: var(--font-size-2xl);
+  font-size: 2.25rem;
   font-weight: var(--font-weight-bold);
   color: var(--gray-900);
   margin: 0;
-  line-height: 1.15;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
-  text-align: left;
-  letter-spacing: -0.02em;
+  text-align: center;
+  letter-spacing: -0.03em;
 }
 
 .stat-icon {
@@ -593,58 +540,34 @@ main {
 }
 
 .stat-change {
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   color: var(--gray-500);
-  margin-top: 0;
+  margin-top: var(--space-xs);
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 3px;
+  justify-content: center;
+  gap: 2px;
 }
 .stat-change.positive { color: var(--success-600); }
 .stat-change.negative { color: var(--danger-600); }
 
-/* Действие внутри карточки (сейчас только «Пустые статусы» → «Управление»).
-   Это текстовая ссылка, а не кнопка: настоящая кнопка со своими отступами
-   делала карточку в полтора раза выше остальных, а в сетке высоту держит
-   самая высокая карточка ряда — из-за одной карточки распухал весь ряд. */
-.stat-action {
-  margin-top: 2px;
-  line-height: 1;
-}
-.stat-action .btn {
-  padding: 0 !important;
-  border: none !important;
-  background: transparent !important;
-  color: var(--warning-600) !important;
-  font-size: var(--font-size-xs) !important;
-  font-weight: var(--font-weight-medium);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.stat-action .btn:hover {
-  color: var(--warning-500) !important;
-  background: transparent !important;
-}
-
 /* Card-hide button */
 .stat-card-hide-btn {
   position: absolute;
-  top: 6px; right: 6px;
-  width: 22px; height: 22px;
+  top: 8px; right: 8px;
+  width: 26px; height: 26px;
   border-radius: var(--radius-sm);
-  background: transparent;
-  border: 1px solid transparent;
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.05);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 200ms ease, background 200ms ease, border-color 200ms ease, color 200ms ease;
+  transition: opacity 200ms ease, background 200ms ease, border-color 200ms ease, color 200ms ease, transform 200ms ease;
   z-index: 10;
   color: var(--gray-400);
-  font-size: var(--font-size-xs);
+  font-size: 12px;
 }
 .stat-card:hover .stat-card-hide-btn { opacity: 1; }
-.stat-card-hide-btn:focus-visible { opacity: 1; }
 .stat-card-hide-btn:hover {
   background: var(--gray-100);
   border-color: var(--gray-300);
@@ -659,10 +582,7 @@ main {
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
-  /* 20px по бокам — общий внутренний отступ всех карточек страницы
-     (фильтры, тулбар, таблица). До этого их было три разных: 16, 20 и 24,
-     и заголовки соседних карточек не совпадали по левому краю. */
-  padding: var(--space-4) var(--space-5);
+  padding: 14px 20px;
   margin-bottom: var(--space-md);
   box-shadow: var(--shadow-xs);
   position: relative;
@@ -675,7 +595,7 @@ main {
 
 .toolbar-title {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: 17px;
   font-weight: var(--font-weight-semibold, 600);
   color: var(--gray-800, #1f2937);
   white-space: nowrap;
@@ -683,26 +603,14 @@ main {
 
 /* Toolbar buttons — override Bootstrap btn-sm to a comfortable size */
 .toolbar .btn {
-  font-size: var(--font-size-sm);
+  font-size: 13.5px;
   padding: 7px 14px;
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   line-height: 1.4;
   font-weight: 500;
 }
 .toolbar .btn i {
-  font-size: var(--font-size-sm);
-}
-
-/* Вторая строка панели: состояние выбора + действия над выбранным.
-   Занимает всю ширину, поэтому строки панели всегда две и обе осмысленные,
-   а не «что не влезло, то перенеслось». */
-.toolbar-row--selection {
-  flex: 1 1 100%;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border-light);
+  font-size: 13px;
 }
 
 /* Bulk action buttons group */
@@ -710,7 +618,8 @@ main {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-left: var(--space-sm);
+  padding-left: 16px;
+  border-left: 1px solid var(--gray-200);
 }
 
 /* Main action buttons group */
@@ -725,12 +634,14 @@ main {
 .toolbar-selected {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: 8px;
+  padding-left: 16px;
+  border-left: 1px solid var(--gray-200);
   white-space: nowrap;
 }
 
 .toolbar-selected__label {
-  font-size: var(--font-size-sm);
+  font-size: 13.5px;
   color: var(--gray-400, #9ca3af);
 }
 
@@ -741,17 +652,17 @@ main {
   min-width: 26px;
   height: 26px;
   padding: 0 8px;
-  font-size: var(--font-size-sm);
+  font-size: 13px;
   font-weight: 600;
   line-height: 1;
   color: #fff;
   background: var(--primary-600);
-  border-radius: var(--radius-full);
+  border-radius: 13px;
 }
 
 .toolbar-selected__clear {
   margin-left: 4px;
-  font-size: var(--font-size-xs) !important;
+  font-size: 12px !important;
   padding: 4px 10px !important;
 }
 
@@ -1245,13 +1156,6 @@ input[type="radio"]:checked::after {
 }
 .btn-close:hover { opacity: 1; transform: scale(1.1); }
 
-/* Чекбоксы: Bootstrap задаёт радиус в em, из-за чего у «выделить все» и
-   у строк получались разные скругления (2.75px и 3.25px). Ставим ступень
-   линейки — одинаково у всех. */
-.form-check-input:not([type="radio"]) {
-  border-radius: var(--radius-sm) !important;
-}
-
 /* ========================================
    BADGES — Refined
    ======================================== */
@@ -1269,13 +1173,6 @@ input[type="radio"]:checked::after {
 .badge-primary, .bg-primary {
   background: var(--primary-50);
   color: var(--primary-700);
-}
-/* Счётчики в выпадающих списках фильтров. Bootstrap красит .bg-secondary
-   сплошным серым с белым текстом — рядом с мягкими метками статусов это
-   выглядело как элемент из другого набора. */
-.badge.bg-secondary {
-  background: var(--gray-100) !important;
-  color: var(--gray-600) !important;
 }
 .badge-success, .bg-success {
   background: var(--success-100);
@@ -1326,13 +1223,6 @@ input[type="radio"]:checked::after {
 .pagination {
   display: flex;
   gap: 4px;
-}
-
-/* Bootstrap скругляет только крайние кнопки пагинации, и «6px 10px 10px 6px»
-   выбивалось из линейки. Все кнопки одинаковые. */
-.page-item:first-child .page-link,
-.page-item:last-child .page-link {
-  border-radius: var(--radius-md);
 }
 
 .page-link {
@@ -1624,10 +1514,8 @@ body.dashboard-perf-light #stickyScrollbarWrapper {
    RESPONSIVE
    ======================================== */
 @media (max-width: 768px) {
-  :root { --page-gutter: 12px; }
-
   .container-fluid {
-    padding: 0 var(--page-gutter);
+    padding: 0 var(--space-md);
   }
   .modern-header, .navbar {
     padding: var(--space-sm) var(--space-md);
