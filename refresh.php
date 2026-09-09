@@ -104,6 +104,12 @@ function buildPaginationHtml(int $page, int $pages, int $prev, int $next, array 
 try {
     requireAuth();
     checkSessionTimeout();
+
+    // Persist activity/cookie updates, then let requests from this same browser
+    // proceed while we read the dashboard. $_SESSION remains a readable snapshot.
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
     
     $service = new AccountsService($tableName);
     $filter = $service->createFilterFromRequest($_GET);

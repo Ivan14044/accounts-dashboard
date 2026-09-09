@@ -71,11 +71,8 @@
     input.value = oldVal || '';
     var tableModule = window.tableModule;
     var virtualization = tableModule && tableModule.virtualScroller;
-    var virtualizationWasEnabled = false;
-    if (virtualization && virtualization.enabled) {
-      virtualizationWasEnabled = true;
-      virtualization.disable(true);
-    }
+    // updateVisibleRows() сохраняет редактор по data-editing; не теряем
+    // полный набор строк, отключая виртуализацию ради видимого окна.
     var saveBtn = document.createElement('button');
     saveBtn.className = 'btn btn-sm btn-success ms-1';
     saveBtn.innerHTML = '<i class="fas fa-check"></i>';
@@ -105,7 +102,8 @@
     input.style.visibility = 'visible';
     input.style.opacity = '1';
     input.style.width = 'auto';
-    input.style.minWidth = '120px';
+    input.style.minWidth = '0';
+    input.style.maxWidth = '100%';
     input.style.flex = '1';
     setTimeout(function() {
       input.focus();
@@ -136,14 +134,8 @@
       if (row) row.removeAttribute('data-editing');
       var cell2 = wrap.closest('td');
       if (cell2) cell2.removeAttribute('data-editing');
-      if (virtualizationWasEnabled && virtualization && tableModule) {
-        setTimeout(function() {
-          var stillEditing = tableModule.tbody && tableModule.tbody.querySelector('tr[data-id][data-editing="true"]');
-          if (!stillEditing && tableModule.tbody) {
-            var rows = Array.from(tableModule.tbody.querySelectorAll('tr[data-id]'));
-            if (rows.length > (virtualization.options.threshold || 80)) virtualization.enable(rows);
-          }
-        }, 100);
+      if (virtualization && virtualization.enabled) {
+        setTimeout(function() { virtualization.refresh(); }, 100);
       }
     };
     var restoreOriginal = function() {
@@ -155,7 +147,9 @@
         else restoredFieldValue.textContent = originalValue;
       }
     };
+    var saving = false;
     var save = async function() {
+      if (saving) return;
       var newVal = isLongField ? input.value : input.value.trim();
       var fieldTypeAttr = wrap.getAttribute('data-field-type');
       if (fieldTypeAttr === 'numeric' && newVal !== '' && newVal !== null) {
@@ -168,6 +162,12 @@
         }
         newVal = trimmed;
       }
+      saving = true;
+      saveBtn.disabled = true;
+      cancelBtn.disabled = true;
+      input.disabled = true;
+      saveBtn.textContent = 'Сохраняем…';
+      wrap.setAttribute('aria-busy', 'true');
       try {
         var res = await fetch(window.getTableAwareUrl('update_field.php'), {
           method: 'POST',
@@ -178,6 +178,9 @@
         var json = text ? JSON.parse(text) : { success: false, error: 'Empty response' };
         if (!res.ok) throw new Error(json.error || 'HTTP error! status: ' + res.status);
         if (!json.success) throw new Error(json.error || 'update failed');
+        // AJAX-рендер читает тот же объект из rowsData: правка переживает скролл.
+        var cachedRow = tableModule && tableModule.rowsById && tableModule.rowsById.get(String(rowId));
+        if (cachedRow) cachedRow[field] = newVal;
         wrap.innerHTML = originalContent;
         var updatedFieldValue = wrap.querySelector('.field-value');
         if (newVal === '' || newVal === null) {
@@ -235,9 +238,12 @@
         var errorMessage = err instanceof TypeError && err.message.indexOf('fetch') !== -1 ? 'Ошибка сети. Проверьте подключение к интернету.' : ('Ошибка сохранения: ' + (err.message || ''));
         showToast(errorMessage, 'error');
         logger.error('Field update error:', err);
+      } finally {
+        saving = false;
+        wrap.removeAttribute('aria-busy');
       }
     };
-    var cancel = function() { unlockScroll(); wrap.innerHTML = originalContent; };
+    var cancel = function() { if (saving) return; unlockScroll(); wrap.innerHTML = originalContent; };
     saveBtn.addEventListener('click', save);
     cancelBtn.addEventListener('click', cancel);
     input.addEventListener('keydown', function(ev) {

@@ -20,6 +20,11 @@
   const getEl = (id) => (typeof domCache !== 'undefined' && domCache.getById ? domCache.getById(id) : document.getElementById(id));
   const getSel = (sel) => (typeof domCache !== 'undefined' && domCache.get ? domCache.get(sel) : document.querySelector(sel));
 
+  function shouldVirtualize(rowCount, threshold) {
+    const perPage = parseInt(new URLSearchParams(window.location.search).get('per_page') || '25', 10);
+    return rowCount > threshold && perPage > 200;
+  }
+
   class TableModule {
     constructor(root, options = {}) {
       this.root = root;
@@ -141,6 +146,9 @@
         }
         return;
       }
+      if (this.virtualScroller) this.virtualScroller.disable(true);
+      // Полные значения доступны copy/edit через getRowValue, включая пустой ответ.
+      this.rowsById = new Map(rows.map(r => [String(r.id), r]));
       if (!rows.length) {
         tbody.innerHTML = this.emptyStateHtml(columns.length);
         this.tbody = tbody;
@@ -151,14 +159,7 @@
         }
         return;
       }
-      // Данные строк храним в JS: разметка больше не несёт полные значения
-      // (copy/edit/просмотр берут их отсюда через getRowValue, иначе — с сервера)
-      this.rowsById = new Map(rows.map(r => [String(r.id), r]));
-
-      const urlParams = new URLSearchParams(window.location.search);
-      const perPage = parseInt(urlParams.get('per_page') || '25', 10);
-      const threshold = this.options.virtualization.threshold;
-      const useVirtualFromStart = rows.length > threshold && perPage > 50;
+      const useVirtualFromStart = shouldVirtualize(rows.length, this.options.virtualization.threshold);
       if (useVirtualFromStart && this.virtualScroller) {
         tbody.innerHTML = '';
         this.tbody = tbody;
@@ -398,28 +399,17 @@
     }
 
     refresh() {
-      if (this.enabled && this.rowsData.length > 0) {
+      if (this.enabled) {
+        const rowCount = this.rowsData.length || this.allRows.length;
+        if (!shouldVirtualize(rowCount, this.options.threshold)) {
+          this.disable();
+          return;
+        }
         this.updateTableOffset();
         this.updateVisibleRows();
         return;
       }
       this.mount();
-      if (!this.table || !this.tbody) return;
-      const rows = Array.from(this.tbody.querySelectorAll('tr[data-id]'));
-      const urlParams = new URLSearchParams(window.location.search);
-      const perPage = parseInt(urlParams.get('per_page') || '25', 10);
-      const shouldEnableVirtualization = rows.length > this.options.threshold && perPage > 50;
-      if (!shouldEnableVirtualization) {
-        this.disable(true);
-        return;
-      }
-      if (this.enabled && this.allRows.length > 0) {
-        this.allRows = rows;
-        this.updateVisibleRows();
-      } else {
-        this.disable(true);
-        this.enable(rows);
-      }
     }
 
     checkAndToggle() {
@@ -430,9 +420,7 @@
       // она НЕ ускоряет — наоборот, добавляет cost: создание spacer-элементов,
       // scroll-listener'ы, recalculate на resize. Браузер прекрасно справляется
       // со 100–200 строками без неё. Триггерим только при per_page > 200.
-      const urlParams = new URLSearchParams(window.location.search);
-      const perPage = parseInt(urlParams.get('per_page') || '25', 10);
-      const shouldEnableVirtualization = dataRows.length > this.options.threshold && perPage > 200;
+      const shouldEnableVirtualization = shouldVirtualize(dataRows.length, this.options.threshold);
       
       if (shouldEnableVirtualization) {
         if (!this.enabled) {
@@ -479,6 +467,7 @@
       this.renderRowFn = null;
       this.columnKeys = [];
       this.enabled = true;
+      this.visibleRange = { start: 0, end: 0 };
       this.allRows = currentRows || Array.from(this.tbody.querySelectorAll('tr[data-id]'));
       if (!this.allRows.length) {
         this.enabled = false;
@@ -510,6 +499,7 @@
       this.renderRowFn = renderRowFn;
       this.allRows = [];
       this.enabled = true;
+      this.visibleRange = { start: 0, end: 0 };
       this.createSpacers();
       this.scrollHandler = this.throttle(() => this.updateVisibleRows(), 16);
       const target = this.useWindowScroll ? window : this.scrollTarget;

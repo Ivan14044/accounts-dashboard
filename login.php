@@ -130,7 +130,7 @@ function e($string) {
 }
 
 // Версия ассетов (login.php не подключает config.php — отсюда guard)
-$assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) time();
+$assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) max(filemtime(__DIR__ . '/assets/css/core-base.css'), filemtime(__DIR__ . '/assets/css/core-dark.css'), filemtime(__DIR__ . '/assets/js/theme-toggle.js'));
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -146,9 +146,6 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) time();
       if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
       document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
   </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="assets/vendor/fontawesome/css/all.min.css" rel="stylesheet">
   <!-- Единая токен-система (один источник правды) -->
   <link href="assets/css/core-base.css?v=<?= e($assetV) ?>" rel="stylesheet">
@@ -160,6 +157,7 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) time();
        ================================================================ */
     body {
       min-height: 100vh;
+      min-height: 100dvh;
       margin: 0;
       display: flex;
       align-items: center;
@@ -191,12 +189,12 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) time();
     /* Карточка — граница + мягкая тень, без блюра */
     .login-card {
       width: 100%;
-      max-width: 440px;
+      max-width: 480px;
       background: var(--bg-primary);
       border: 1px solid var(--color-border);
       border-radius: var(--radius-2xl);
-      padding: 40px;
-      box-shadow: var(--shadow-lg);
+      padding: clamp(24px, 5vw, 48px);
+      box-shadow: 0 12px 48px rgba(24, 39, 60, .06);
       animation: loginIn .4s cubic-bezier(0.16, 1, 0.3, 1) both;
     }
     @keyframes loginIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
@@ -218,7 +216,7 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) time();
     .login-brand-name { font-size: var(--font-size-md); font-weight: 600; letter-spacing: -0.02em; color: var(--color-text); }
     .login-brand-sub { font-size: var(--font-size-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
 
-    .login-heading { font-size: var(--font-size-2xl); font-weight: 700; letter-spacing: -0.03em; color: var(--color-text); margin: 0 0 6px; }
+    .login-heading { font-size: clamp(26px, 4vw, 32px); font-weight: 700; letter-spacing: -0.03em; color: var(--color-text); margin: 0 0 6px; }
     .login-subtitle { font-size: var(--font-size-sm); color: var(--color-text-secondary); margin: 0 0 28px; line-height: 1.5; }
 
     .login-field { margin-bottom: 20px; }
@@ -284,7 +282,7 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) time();
     @keyframes loginSpin { to { transform: rotate(360deg); } }
 
     @media (prefers-reduced-motion: reduce) {
-      .login-card { animation: none; }
+      .login-card, .login-spinner { animation: none; }
       .login-theme-toggle:active, .login-btn:active { transform: none; }
     }
 

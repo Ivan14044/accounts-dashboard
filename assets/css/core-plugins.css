@@ -19,7 +19,6 @@
     border: 1px solid var(--border-light);
     margin-bottom: var(--space-md);
     overflow: hidden;
-    transition: var(--transition-normal);
     position: relative;
     z-index: 15; /* выше тулбара (z-index: 5), чтобы выпадающие списки открывались поверх «Управление аккаунтами» */
 }
@@ -55,7 +54,7 @@
 }
 
 .filters-modern:hover {
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-sm);
 }
 
 /* Заголовок фильтров */
@@ -167,7 +166,7 @@
     /* Лёгкий серый фон */
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-light);
-    display: none; /* Показывать только когда есть активные */
+    display: block;
 }
 
 .active-filters-section.has-filters {
@@ -206,9 +205,18 @@
 
 .active-filters-list {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    min-height: 44px;
+    overflow-x: auto;
     gap: var(--space-2);
 }
+.active-filters-list { position: relative; height: 48px; min-height: 48px; align-items: center; }
+.active-filters-list > * { flex-shrink: 0; }
+.active-filters-list:empty::before { content: 'Все аккаунты'; color: var(--gray-500); font-size: 13px; align-self: center; }
+.active-filters-header { min-height: 44px; gap: 8px; }
+.active-filters-reset-btn { flex-shrink: 0; }
+#resultsFeedback { display: block; min-height: 18px; font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.active-filters-list .filter-chip { white-space: nowrap; }
 
 /* Filter Chip */
 .filter-chip {
@@ -1411,7 +1419,7 @@
 }
 
 .header-action-btn.active i {
-  animation: spin 1s linear infinite;
+  /* Rotation is reserved for an actual pending operation. */
 }
 
 @keyframes spin {
@@ -1558,8 +1566,7 @@
   background: #22c55e;
   flex-shrink: 0;
   /* GPU-анимация: только opacity (compositor layer, без repaint) */
-  animation: pulse 2s infinite;
-  will-change: opacity;
+  /* Connection status is static; no continuous repaint while idle. */
 }
 
 @keyframes pulse {
@@ -1771,4 +1778,10 @@
     gap: var(--space-xs);
     font-size: var(--font-size-xs);
     color: var(--text-muted);
+}
+
+/* The transparent native checkbox delegates its visible focus to the switch. */
+.toggle-switch input:focus-visible + .toggle-switch-slider {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 3px;
 }

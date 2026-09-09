@@ -237,7 +237,7 @@ try {
 // Авто-purge (гибрид без cron): выполняется ПОСЛЕ отрисовки страницы, не блокируя
 // пользователя, и не чаще раза в сутки. Удаляет записи корзины старше N дней
 // чанками с кэпом за проход. Любые ошибки гасятся — страница уже отдана.
-if (!isset($errorMessage) && TrashSettings::shouldAutoPurge()) {
+if (!isset($errorMessage) && ($_SERVER['HTTP_X_LIST_REFRESH'] ?? '') !== '1' && TrashSettings::shouldAutoPurge()) {
     if (function_exists('fastcgi_finish_request')) {
         @fastcgi_finish_request();
     }

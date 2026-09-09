@@ -4,13 +4,14 @@
    Single source of truth for tokens, typography, layout.
    ================================================================ */
 
-/* Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+/* Native typography: instant Cyrillic rendering without a font request. */
 
 /* ========================================
    DESIGN TOKENS
    ======================================== */
 :root {
+  --page-bg: #f5f6f8;
+  --workspace-max: 1760px;
   /* ── Colour Palette — Graphite Blue ── */
   --primary-50:  #eff6ff;
   --primary-100: #dbeafe;
@@ -81,7 +82,7 @@
 
   --color-text:          var(--gray-900);
   --color-text-secondary: var(--gray-600);
-  --color-text-muted:    var(--gray-400);
+  --color-text-muted:    var(--gray-500);
 
   --color-bg:            #ffffff;
   --color-bg-secondary:  var(--gray-50);
@@ -127,7 +128,7 @@
   --shadow-focus: 0 0 0 3px rgba(37, 99, 235, 0.1);
   --shadow-focus-success: 0 0 0 3px rgba(5, 150, 105, 0.1);
   --shadow-focus-danger: 0 0 0 3px rgba(220, 38, 38, 0.1);
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-card: 0 1px 2px rgba(24,39,60,0.025);
   --shadow-card-hover: 0 4px 12px rgba(0,0,0,0.06);
   --shadow-glow-primary: none;
   --shadow-glow-success: none;
@@ -178,7 +179,7 @@
   --space-12: 3rem;
 
   /* ── Typography ── */
-  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-family-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
   --font-sans: var(--font-family-base);
   --font-mono: var(--font-family-mono);
@@ -310,11 +311,11 @@ body {
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
   color: var(--color-text);
-  background: linear-gradient(135deg, #f5f7fa 0%, #eff1f5 50%, #e8ecf4 100%);
-  background-attachment: fixed;
+  background: var(--page-bg, #f5f6f8);
   margin: 0;
   padding: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   font-weight: var(--font-weight-normal);
 }
 
@@ -422,24 +423,24 @@ main {
   /* auto-fill вместо фиксированных 2/3/5 колонок: ширина ячейки задана,
      число колонок считает браузер — лента одинаково плотная и на
      ноутбуке, и на широком мониторе. */
-  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: var(--space-sm);
   margin-bottom: var(--space-md);
   /* Изоляция layout/paint — изменения в карточках не вызывают reflow таблицы */
   contain: layout style;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 240px;
+  /* Above the fold: render metrics immediately, without intrinsic-size shifts. */
 }
 
 .stat-card {
   background: var(--bg-primary);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-xl);
-  padding: 10px var(--space-md) 12px;
+  padding: 16px var(--space-md);
   box-shadow: var(--shadow-xs);
   position: relative;
   overflow: hidden;
   min-height: 68px;
+  min-width: 0;
   text-align: left;
   display: flex;
   flex-direction: column;
@@ -463,8 +464,8 @@ main {
 .stat-card[data-card="total"] {
   grid-column: span 2;
   justify-content: flex-start;
-  background: var(--primary-50);
-  border-color: var(--primary-100);
+  background: var(--bg-primary);
+  border-color: var(--primary-200);
   flex-direction: row;
   align-items: center;
   gap: var(--space-md);
@@ -491,26 +492,8 @@ main {
   .stat-card[data-card="total"] { grid-column: span 1; }
 }
 
-/* Card entrance animation — staggered */
-.stats-grid .stat-card {
-  opacity: 0;
-  animation: statCardIn 0.25s ease-out forwards;
-}
-.stats-grid .stat-card:nth-child(1)  { animation-delay: 0s;    }
-.stats-grid .stat-card:nth-child(2)  { animation-delay: 0.03s; }
-.stats-grid .stat-card:nth-child(3)  { animation-delay: 0.06s; }
-.stats-grid .stat-card:nth-child(4)  { animation-delay: 0.09s; }
-.stats-grid .stat-card:nth-child(5)  { animation-delay: 0.12s; }
-.stats-grid .stat-card:nth-child(6)  { animation-delay: 0.15s; }
-.stats-grid .stat-card:nth-child(7)  { animation-delay: 0.18s; }
-.stats-grid .stat-card:nth-child(8)  { animation-delay: 0.21s; }
-.stats-grid .stat-card:nth-child(9)  { animation-delay: 0.24s; }
-.stats-grid .stat-card:nth-child(10) { animation-delay: 0.27s; }
-
-@keyframes statCardIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+/* Metrics are useful immediately; avoid per-card stagger and repeated fades. */
+.stats-grid .stat-card { opacity: 1; animation: none; }
 
 .stat-card.fade-in {
   opacity: 1;
@@ -554,19 +537,13 @@ main {
   letter-spacing: 0.06em;
   margin: 0;
   text-align: left;
-  /* Переносы задаются точками <wbr> после подчёркиваний (см. stats-cards.php),
-     поэтому break-word здесь не нужен: он рвал слово посреди буквы. */
-  overflow-wrap: normal;
+  /* Prefer words and <wbr> after underscores; wrap unbroken identifiers too. */
+  overflow-wrap: anywhere;
   white-space: normal;
   line-height: 1.35;
-  /* Две строки: имена статусов из базы бывают длинными
-     (yaroslav_rychnoy_farm_2), но третья строка ломает высоту ленты. */
-  max-height: 2.7em;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
+  /* Full labels determine the row height, including unbroken identifiers. */
+  min-width: 0;
+  display: block;
 }
 
 .stat-value {
@@ -1582,10 +1559,7 @@ input[type="radio"]:checked::after {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .loader, .loader::before, .loader::after {
-    animation-duration: 1s !important;
-    animation-iteration-count: infinite !important;
-  }
+  html { scroll-behavior: auto; }
   .stats-grid .stat-card {
     opacity: 1 !important;
     animation: none !important;
