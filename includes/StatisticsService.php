@@ -730,9 +730,9 @@ class StatisticsService {
      * @return bool
      */
     private static function viewerJustWrote() {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            return false;
-        }
+        // Read-only endpoints release the session lock before querying. PHP
+        // retains the session snapshot after session_write_close(), including
+        // this marker needed for immediate read-after-write statistics.
         $until = isset($_SESSION[Config::STATS_SELF_WRITE_FLAG])
             ? (int)$_SESSION[Config::STATS_SELF_WRITE_FLAG]
             : 0;
@@ -784,4 +784,3 @@ class StatisticsService {
         return implode('|', [$dbName, $this->table, $name, $keyFingerprint, md5(serialize($args))]);
     }
 }
-

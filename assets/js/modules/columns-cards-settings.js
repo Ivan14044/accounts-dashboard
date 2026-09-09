@@ -142,6 +142,9 @@
       return;
     }
   
+    const grid = cardElement.parentElement;
+    const motion = document.readyState === 'complete' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const positions = motion ? new Map(Array.from(grid.querySelectorAll('.stat-card')).filter(el => el.offsetHeight).map(el => [el, el.getBoundingClientRect()])) : new Map();
     if (visible) {
       // КРИТИЧНО: сначала убираем класс hidden, иначе CSS правило с !important не даст показать карточку
       cardElement.classList.remove('hidden', 'd-none', 'force-hidden');
@@ -181,8 +184,14 @@
       cardElement.classList.remove('d-none', 'force-hidden');
     }
   
-    // Принудительно обновляем отображение через reflow
-    void cardElement.offsetHeight;
+    positions.forEach((before, el) => {
+      if (!el.offsetHeight || !el.animate) return;
+      const after = el.getBoundingClientRect();
+      const dx = before.left - after.left, dy = before.top - after.top;
+      if (Math.abs(dx) + Math.abs(dy) < 1) return;
+      el.getAnimations().forEach(a => a.cancel());
+      el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }], { duration: 360, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+    });
   }
 
   // Наружу — всё, что зовут снаружи: dashboard-init.js, table-module.js

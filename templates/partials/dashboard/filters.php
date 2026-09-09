@@ -26,9 +26,9 @@
     <!-- Активные фильтры (Chips) -->
     <div class="active-filters-section <?= $activeFiltersCount > 0 ? 'has-filters' : '' ?>" id="activeFiltersSection">
       <div class="active-filters-header">
-        <div class="active-filters-label">Активные фильтры</div>
+        <div class="active-filters-label">Активные фильтры <span id="resultsFeedback" role="status" aria-live="polite"></span></div>
         <button type="button" class="btn btn-sm btn-outline-danger active-filters-reset-btn" id="resetAllFiltersBtn"
-                style="<?= $activeFiltersCount > 0 ? '' : 'display:none' ?>"
+                style="<?= $activeFiltersCount > 0 ? '' : 'visibility:hidden' ?>"
                 title="Сбросить все фильтры">
           <i class="fas fa-times-circle me-1"></i>Сбросить все
         </button>
@@ -270,6 +270,7 @@
                 placeholder="логин, email, имя, фамилия, id..." 
                 value="<?= e($q) ?>"
                 id="modernSearchInput"
+                aria-label="Поиск по всем полям"
                 autocomplete="off">
               <i class="fas fa-search search-input-icon"></i>
               <?php if ($q !== ''): ?>
@@ -371,7 +372,7 @@
                   <span class="toggle-switch-label">Email</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_email" value="1" <?= $hasEmailParam !== '' ? 'checked' : '' ?>>
+                  <input type="checkbox" aria-label="Есть email" name="has_email" value="1" <?= $hasEmailParam !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
@@ -383,7 +384,7 @@
                   <span class="toggle-switch-label">2FA</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_two_fa" value="1" <?= $hasTwoFaParam !== '' ? 'checked' : '' ?>>
+                  <input type="checkbox" aria-label="Есть двухфакторная аутентификация" name="has_two_fa" value="1" <?= $hasTwoFaParam !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
@@ -395,7 +396,7 @@
                   <span class="toggle-switch-label">Token</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_token" value="1" <?= ($hasTokenParam ?? '') !== '' ? 'checked' : '' ?>>
+                  <input type="checkbox" aria-label="Есть токен" name="has_token" value="1" <?= ($hasTokenParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
@@ -407,7 +408,7 @@
                   <span class="toggle-switch-label">Fan Page</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_fan_page" value="1" <?= ($hasFanPageParam ?? '') !== '' ? 'checked' : '' ?>>
+                  <input type="checkbox" aria-label="Есть Fan Page" name="has_fan_page" value="1" <?= ($hasFanPageParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
@@ -420,7 +421,7 @@
                   <span class="toggle-switch-label">Avatar</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_avatar" value="1" <?= ($hasAvatarParam ?? '') !== '' ? 'checked' : '' ?>>
+                  <input type="checkbox" aria-label="Есть аватар" name="has_avatar" value="1" <?= ($hasAvatarParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
@@ -434,7 +435,7 @@
                   <span class="toggle-switch-label">Passkey</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_passkey" value="1" <?= ($hasPasskeyParam ?? '') !== '' ? 'checked' : '' ?>>
+                  <input type="checkbox" aria-label="Есть Passkey" name="has_passkey" value="1" <?= ($hasPasskeyParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
@@ -447,7 +448,7 @@
                   <span class="toggle-switch-label">Password</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="has_password" value="1" <?= ($hasPasswordParam ?? '') !== '' ? 'checked' : '' ?>>
+                  <input type="checkbox" aria-label="Есть пароль" name="has_password" value="1" <?= ($hasPasswordParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>
@@ -459,7 +460,7 @@
                   <span class="toggle-switch-label">Избранное</span>
                 </div>
                 <label class="toggle-switch">
-                  <input type="checkbox" name="favorites_only" value="1" <?= ($favoritesOnlyParam ?? '') !== '' ? 'checked' : '' ?>>
+                  <input type="checkbox" aria-label="Только избранное" name="favorites_only" value="1" <?= ($favoritesOnlyParam ?? '') !== '' ? 'checked' : '' ?>>
                   <span class="toggle-switch-slider"></span>
                 </label>
               </div>

@@ -13,8 +13,9 @@
  *    в удалённом build_assets.php) её меняет — он резал `;}` внутри строк и data-URI.
  *    Выигрыш от минификации поверх gzip мал, риск — нет;
  *  - вендорных файлов (bootstrap, fontawesome, nouislider). Они уже минифицированы,
- *    отдаются с другим кэшем, а nouislider вообще с CDN;
- *  - ленивой загрузки и code splitting. Это отдельная задача про поведение UI.
+ *    отдаются с другим кэшем, nouislider тоже поставляется локально;
+ *  - автоматического code splitting. Импорт загружает отдельный lazy-upload.js
+ *    при первом открытии окна; основной порядок зависимостей сохраняется.
  *
  * Как работает подключение:
  *  - если бандл собран (assets/build/<имя>) — отдаётся один тег;
@@ -46,7 +47,7 @@ class AssetBundles
         // Подключается на dashboard.php, favorites.php и trash.php — списки там
         // были идентичны, поэтому бандл общий.
         'core.css' => array(
-            'assets/css/core-base.css',       // токены и типографика; в нём @import шрифта — обязан быть первым
+            'assets/css/core-base.css',       // токены и типографика; токены должны быть объявлены перед компонентами
             'assets/css/core-components.css',
             'assets/css/core-plugins.css',
             'assets/css/core-theme.css',
@@ -102,10 +103,10 @@ class AssetBundles
         ),
 
         // ── JS с defer: выполняются после парсинга, в порядке объявления ──
-        // Внимание: nouislider с CDN тоже defer и объявлен раньше этого бандла,
+        // Внимание: локальный nouislider тоже defer и объявлен раньше этого бандла,
         // поэтому он по-прежнему выполнится первым — так было и до бандлинга.
         'dashboard.defer.js' => array(
-            'assets/js/modules/dashboard-upload.js',
+            'assets/js/modules/lazy-upload.js',
             'assets/js/validation.js',
             'assets/js/quick-search.js',
             'assets/js/saved-filters.js',

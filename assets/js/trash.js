@@ -3,7 +3,24 @@
  * Восстановление, окончательное удаление, retention/автоочистка,
  * массовые действия по фильтру, история изменений (аудит).
  */
-document.addEventListener('DOMContentLoaded', function() {
+let trashListeners;
+function initializeTrash() {
+    if (trashListeners) trashListeners.abort();
+    trashListeners = new AbortController();
+    const listen = (el, type, handler) => el.addEventListener(type, handler, { signal: trashListeners.signal });
+    let operationBusy = false;
+    async function runMutation(action) {
+        if (operationBusy) return;
+        operationBusy = true;
+        document.getElementById('listRefreshRetry')?.remove();
+        const main = document.querySelector('main[data-list-page="trash"]');
+        if (main) { main.inert = true; main.setAttribute('aria-busy', 'true'); }
+        try { await action(); } finally {
+            await window.refreshAccountList('trash');
+            operationBusy = false;
+            if (main) { main.inert = false; main.removeAttribute('aria-busy'); }
+        }
+    }
     const selectedIds = new Set();
     const selectAllCheckbox = document.getElementById('selectAllTrash');
     const trashCheckboxes = document.querySelectorAll('.trash-checkbox');
@@ -93,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (bannerBtn) {
-        bannerBtn.addEventListener('click', function() {
+        listen(bannerBtn, 'click', function() {
             if (filterMode) {
                 // Снять режим "по фильтру"
                 filterMode = false;
@@ -109,7 +126,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     trashCheckboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
+        listen(checkbox, 'change', function() {
             // Любое ручное изменение чекбокса выходит из режима "по фильтру"
             filterMode = false;
             const id = parseInt(this.value, 10);
@@ -120,7 +137,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     if (selectAllCheckbox) {
-        selectAllCheckbox.addEventListener('change', function() {
+        listen(selectAllCheckbox, 'change', function() {
             filterMode = false;
             trashCheckboxes.forEach(checkbox => {
                 const id = parseInt(checkbox.value, 10);
@@ -137,37 +154,41 @@ document.addEventListener('DOMContentLoaded', function() {
     // ─────────────────────────────────────────────────────────────────────────
 
     if (restoreSelectedBtn) {
-        restoreSelectedBtn.addEventListener('click', function() {
+        listen(restoreSelectedBtn, 'click', function() {
             if (restoreSelectedBtn.disabled) return;
 
             if (filterMode) {
                 if (!confirm('Восстановить все ' + cfg.filteredTotal + ' аккаунт(ов) по текущему фильтру?')) return;
                 restoreSelectedBtn.disabled = true;
-                restoreByFilter();
+                runMutation(() => restoreByFilter());
                 return;
             }
 
             if (selectedIds.size === 0) return;
             if (!confirm('Восстановить ' + selectedIds.size + ' аккаунт(ов)?')) return;
             restoreSelectedBtn.disabled = true;
-            restoreAccounts(Array.from(selectedIds));
+            runMutation(() => restoreAccounts(Array.from(selectedIds)));
         });
     }
 
     document.querySelectorAll('.restore-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
+        listen(btn, 'click', function() {
             const id = parseInt(this.dataset.id, 10);
             if (!confirm('Восстановить этот аккаунт?')) return;
-            restoreAccounts([id]);
+            runMutation(() => restoreAccounts([id]));
         });
     });
 
     async function restoreAccounts(ids) {
+        if (restoreAccounts.busy) return;
+        restoreAccounts.busy = true;
+        const originalLabel = restoreSelectedBtn ? restoreSelectedBtn.innerHTML : '';
         try {
             if (restoreSelectedBtn) restoreSelectedBtn.disabled = true;
             let totalRestored = 0;
 
             for (let i = 0; i < ids.length; i += BATCH) {
+                if (restoreSelectedBtn) restoreSelectedBtn.textContent = 'Восстанавливаем: ' + i + ' / ' + ids.length;
                 const batch = ids.slice(i, i + BATCH);
                 const data = await postJson(window.getTableAwareUrl('restore.php'), {
                     ids: batch, csrf: getCsrfToken()
@@ -180,26 +201,30 @@ document.addEventListener('DOMContentLoaded', function() {
             ids.forEach(id => selectedIds.delete(id));
             removeRows(ids);
             updateSelectedCount();
-            reloadIfEmpty(1000);
         } catch (error) {
             log('error', 'Restore error:', error.message);
             notify('Ошибка при восстановлении: ' + error.message, 'error');
         } finally {
+            restoreAccounts.busy = false;
+            if (restoreSelectedBtn) restoreSelectedBtn.innerHTML = originalLabel;
             if (restoreSelectedBtn) restoreSelectedBtn.disabled = (filterMode ? false : selectedIds.size === 0);
         }
     }
 
     async function restoreByFilter() {
+        const originalLabel = restoreSelectedBtn ? restoreSelectedBtn.innerHTML : '';
+        if (restoreSelectedBtn) restoreSelectedBtn.textContent = 'Восстанавливаем…';
         try {
             const data = await postJson(window.getTableAwareUrl('restore.php'), {
                 scope: 'filter', filter: cfg.filterParams, csrf: getCsrfToken()
             });
             if (!data.success) throw new Error(data.error || 'Ошибка восстановления');
             notify('Восстановлено ' + (data.restored_count || 0) + ' аккаунт(ов)', 'success');
-            setTimeout(() => window.location.reload(), 900);
         } catch (error) {
             log('error', 'Restore by filter error:', error.message);
             notify('Ошибка при восстановлении: ' + error.message, 'error');
+        } finally {
+            if (restoreSelectedBtn) restoreSelectedBtn.innerHTML = originalLabel;
             if (restoreSelectedBtn) restoreSelectedBtn.disabled = false;
         }
     }
@@ -209,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ─────────────────────────────────────────────────────────────────────────
 
     if (deletePermanentlyBtn) {
-        deletePermanentlyBtn.addEventListener('click', function() {
+        listen(deletePermanentlyBtn, 'click', function() {
             if (deletePermanentlyBtn.disabled) return;
 
             if (filterMode) {
@@ -217,7 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 openTypedConfirm(
                     cfg.filteredTotal,
                     'Вы собираетесь НАВСЕГДА удалить все ' + cfg.filteredTotal + ' аккаунт(ов) по текущему фильтру. Это действие необратимо.',
-                    function() { deletePermanentlyByFilter(); }
+                    function() { runMutation(() => deletePermanentlyByFilter()); }
                 );
                 return;
             }
@@ -226,16 +251,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!confirm('ВНИМАНИЕ! Вы уверены, что хотите окончательно удалить ' + selectedIds.size + ' аккаунт(ов)?\n\nЭто действие нельзя отменить!')) return;
             if (!confirm('Это действие невозможно отменить. Вы действительно уверены?')) return;
             deletePermanentlyBtn.disabled = true;
-            deletePermanently(Array.from(selectedIds));
+            runMutation(() => deletePermanently(Array.from(selectedIds)));
         });
     }
 
     document.querySelectorAll('.delete-permanent-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
+        listen(btn, 'click', function() {
             const id = parseInt(this.dataset.id, 10);
             if (!confirm('ВНИМАНИЕ! Вы уверены, что хотите окончательно удалить этот аккаунт?\n\nЭто действие нельзя отменить!')) return;
             if (!confirm('Это действие невозможно отменить. Вы действительно уверены?')) return;
-            deletePermanently([id]);
+            runMutation(() => deletePermanently([id]));
         });
     });
 
@@ -257,7 +282,6 @@ document.addEventListener('DOMContentLoaded', function() {
             ids.forEach(id => selectedIds.delete(id));
             removeRows(ids, true);
             updateSelectedCount();
-            reloadIfEmpty(500);
         } catch (error) {
             log('error', 'Delete permanent error:', error.message);
             notify('Ошибка при удалении: ' + error.message, 'error');
@@ -285,7 +309,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if ((data.remaining || 0) <= 0 || (data.deleted_count || 0) === 0) break;
             }
             notify('Окончательно удалено ' + totalDeleted + ' аккаунт(ов)', 'success');
-            setTimeout(() => window.location.reload(), 900);
         } catch (error) {
             log('error', 'Delete by filter error:', error.message);
             notify('Ошибка при удалении: ' + error.message, 'error');
@@ -297,12 +320,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // ─────────────────────────────────────────────────────────────────────────
 
     if (emptyTrashBtn) {
-        emptyTrashBtn.addEventListener('click', function() {
+        listen(emptyTrashBtn, 'click', function() {
             if (emptyTrashBtn.disabled) return;
             if (!confirm('ВНИМАНИЕ! Вы уверены, что хотите окончательно удалить ВСЕ аккаунты из корзины?\n\nЭто действие нельзя отменить!')) return;
             if (!confirm('Это действие невозможно отменить. Вы действительно уверены, что хотите удалить все аккаунты из корзины?')) return;
             emptyTrashBtn.disabled = true;
-            emptyTrash();
+            runMutation(() => emptyTrash());
         });
     }
 
@@ -315,7 +338,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await postJson(window.getTableAwareUrl('empty_trash.php'), { csrf: getCsrfToken() });
             if (data.success) {
                 notify('Корзина очищена. Удалено ' + (data.deleted_count || 0) + ' аккаунт(ов)', 'success');
-                setTimeout(() => window.location.reload(), 1000);
             } else {
                 throw new Error(data.error || 'Ошибка очистки корзины');
             }
@@ -338,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const purgeOldBtn = document.getElementById('purgeOldBtn');
 
     if (saveRetentionBtn) {
-        saveRetentionBtn.addEventListener('click', async function() {
+        listen(saveRetentionBtn, 'click', async function() {
             const days = parseInt(retentionDays.value, 10);
             if (isNaN(days) || days < 1) { notify('Укажите корректное число дней (>= 1)', 'error'); return; }
             saveRetentionBtn.disabled = true;
@@ -361,33 +383,35 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (purgeOldBtn) {
-        purgeOldBtn.addEventListener('click', async function() {
+        listen(purgeOldBtn, 'click', async function() {
             const days = parseInt(retentionDays.value, 10);
             if (isNaN(days) || days < 1) { notify('Укажите корректное число дней (>= 1)', 'error'); return; }
             if (!confirm('Окончательно удалить ВСЕ записи корзины старше ' + days + ' дн.?\n\nЭто действие необратимо.')) return;
             if (!confirm('Подтвердите: безвозвратное удаление записей старше ' + days + ' дн.')) return;
 
-            purgeOldBtn.disabled = true;
-            const original = purgeOldBtn.innerHTML;
-            purgeOldBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Очистка…';
-            let totalDeleted = 0, guard = 0;
-            try {
-                while (true) {
-                    guard++;
-                    if (guard > 1000) throw new Error('Слишком много итераций');
-                    const data = await postJson('purge_old.php', { days: days, csrf: getCsrfToken() });
-                    if (!data.success) throw new Error(data.error || 'Ошибка очистки');
-                    totalDeleted += (data.deleted_count || 0);
-                    if ((data.remaining || 0) <= 0 || (data.deleted_count || 0) === 0) break;
+            await runMutation(async () => {
+                purgeOldBtn.disabled = true;
+                const original = purgeOldBtn.innerHTML;
+                purgeOldBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Очистка…';
+                let totalDeleted = 0, guard = 0;
+                try {
+                    while (true) {
+                        guard++;
+                        if (guard > 1000) throw new Error('Слишком много итераций');
+                        const data = await postJson('purge_old.php', { days: days, csrf: getCsrfToken() });
+                        if (!data.success) throw new Error(data.error || 'Ошибка очистки');
+                        totalDeleted += (data.deleted_count || 0);
+                        if ((data.remaining || 0) <= 0 || (data.deleted_count || 0) === 0) break;
+                    }
+                    notify('Удалено ' + totalDeleted + ' аккаунт(ов) старше ' + days + ' дн.', 'success');
+                } catch (error) {
+                    log('error', 'Purge old error:', error.message);
+                    notify('Ошибка очистки: ' + error.message, 'error');
+                } finally {
+                    purgeOldBtn.disabled = false;
+                    purgeOldBtn.innerHTML = original;
                 }
-                notify('Удалено ' + totalDeleted + ' аккаунт(ов) старше ' + days + ' дн.', 'success');
-                setTimeout(() => window.location.reload(), 900);
-            } catch (error) {
-                log('error', 'Purge old error:', error.message);
-                notify('Ошибка очистки: ' + error.message, 'error');
-                purgeOldBtn.disabled = false;
-                purgeOldBtn.innerHTML = original;
-            }
+            });
         });
     }
 
@@ -398,10 +422,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const historyBody = document.getElementById('historyBody');
     const historyAccountId = document.getElementById('historyAccountId');
     let historyModal = null;
-    if (historyModalEl && window.bootstrap) historyModal = new bootstrap.Modal(historyModalEl);
+    if (historyModalEl && window.bootstrap) historyModal = bootstrap.Modal.getOrCreateInstance(historyModalEl);
 
     document.querySelectorAll('.history-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
+        listen(btn, 'click', function() {
             const id = parseInt(this.dataset.id, 10);
             openHistory(id);
         });
@@ -482,7 +506,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let confirmModal = null;
     let confirmExpected = 0;
     let confirmCallback = null;
-    if (confirmModalEl && window.bootstrap) confirmModal = new bootstrap.Modal(confirmModalEl);
+    if (confirmModalEl && window.bootstrap) confirmModal = bootstrap.Modal.getOrCreateInstance(confirmModalEl);
 
     function openTypedConfirm(expectedNumber, text, onConfirm) {
         confirmExpected = expectedNumber;
@@ -495,12 +519,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (confirmInput) {
-        confirmInput.addEventListener('input', function() {
+        listen(confirmInput, 'input', function() {
             confirmOk.disabled = (parseInt(this.value, 10) !== confirmExpected);
         });
     }
     if (confirmOk) {
-        confirmOk.addEventListener('click', function() {
+        listen(confirmOk, 'click', function() {
             if (parseInt(confirmInput.value, 10) !== confirmExpected) return;
             if (confirmModal) confirmModal.hide();
             const cb = confirmCallback;
@@ -533,25 +557,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function removeRows(ids, fade) {
+        const motion = fade && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const positions = motion ? Array.from(document.querySelectorAll('tr[data-id]')).map(row => [row, row.getBoundingClientRect().top]) : [];
         ids.forEach(function(id) {
             const row = document.querySelector('tr[data-id="' + id + '"]');
             if (!row) return;
-            if (fade) {
-                row.style.transition = 'opacity 0.3s';
-                row.style.opacity = '0';
-                setTimeout(() => row.remove(), 300);
-            } else {
-                row.remove();
-            }
+            row.remove();
         });
-    }
-
-    function reloadIfEmpty(delay) {
-        setTimeout(function() {
-            if (document.querySelectorAll('.trash-checkbox').length === 0) {
-                window.location.reload();
-            }
-        }, delay);
+        const moves = positions.filter(([row]) => row.isConnected).map(([row, top]) => [row, top - row.getBoundingClientRect().top]);
+        moves.forEach(([row, dy]) => {
+            if (dy && row.animate) row.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.16,1,.3,1)' });
+        });
     }
 
     function escapeHtml(s) {
@@ -562,4 +578,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // init
     updateSelectedCount();
+}
+document.addEventListener('DOMContentLoaded', initializeTrash);
+window.addEventListener('account-list:updated', event => {
+    if (event.detail.kind === 'trash') initializeTrash();
 });

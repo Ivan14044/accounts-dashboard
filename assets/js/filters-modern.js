@@ -77,6 +77,67 @@ window.deleteAllStatusKeys = deleteAllStatusKeys;
  * Построить HTML чипов активных фильтров по текущему URL.
  * Вызывается после refreshDashboardData(), чтобы блок «Активные фильтры» соответствовал URL.
  */
+function reconcileFilterChips(listEl, markup) {
+    Array.from(listEl.childNodes).forEach(node => {
+        if (node.nodeType === 3 && !node.textContent.trim()) node.remove();
+    });
+    const template = document.createElement('template');
+    template.innerHTML = markup;
+    const key = el => [el.dataset.filter, el.dataset.statusValue || '', el.textContent.trim()].join('|');
+    const current = new Map(Array.from(listEl.children).filter(el => !el.hasAttribute('data-exiting')).map(el => [key(el), el]));
+    const positions = new Map(Array.from(current.values()).map(el => [el, el.getBoundingClientRect()]));
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const animate = (el, frames, duration) => {
+        if (!el.animate || reduced) return null;
+        el.getAnimations().forEach(animation => animation.cancel());
+        return el.animate(frames, { duration, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' });
+    };
+    const added = [];
+    const retained = [];
+    Array.from(template.content.children).forEach(next => {
+        const id = key(next);
+        const existing = current.get(id);
+        const el = existing || next;
+        current.delete(id);
+        listEl.appendChild(el);
+        (existing ? retained : added).push(el);
+    });
+    current.forEach(el => {
+        const rect = positions.get(el);
+        const parent = listEl.getBoundingClientRect();
+        el.setAttribute('data-exiting', '');
+        el.setAttribute('aria-hidden', 'true');
+        el.inert = true;
+        Object.assign(el.style, { position: 'absolute', left: (rect.left - parent.left + listEl.scrollLeft) + 'px', top: (rect.top - parent.top) + 'px', width: rect.width + 'px', pointerEvents: 'none' });
+        const animation = animate(el, [
+            { opacity: 1, transform: 'translateY(0) scale(1)', clipPath: 'inset(0 0 round 999px)' },
+            { opacity: 0, transform: 'translateY(2px) scale(.92)', clipPath: 'inset(12% 42% round 999px)' }
+        ], 260);
+        if (animation) animation.finished.then(() => el.remove(), () => el.remove());
+        else el.remove();
+    });
+    retained.forEach(el => {
+        const before = positions.get(el);
+        const after = el.getBoundingClientRect();
+        const dx = before.left - after.left;
+        if (Math.abs(dx) > 1) animate(el, [{ transform: 'translateX(' + dx + 'px)' }, { transform: 'translateX(0)' }], 440);
+    });
+    added.forEach(el => {
+        // A rounded seed opens into the pill; its text stays undistorted.
+        animate(el, [
+            { opacity: 0, transform: 'translateY(5px) scale(.94)', clipPath: 'inset(18% 43% round 999px)', offset: 0 },
+            { opacity: 1, transform: 'translateY(1px) scale(.99)', clipPath: 'inset(2% 13% round 999px)', offset: .45 },
+            { opacity: 1, transform: 'translateY(0) scale(1)', clipPath: 'inset(0 0 round 999px)', offset: 1 }
+        ], 560);
+        if (el.animate && !reduced) {
+            Array.from(el.children).forEach(child => child.animate([
+                { opacity: 0, transform: 'translateY(2px)' },
+                { opacity: 1, transform: 'translateY(0)' }
+            ], { duration: 360, delay: 100, fill: 'backwards', easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }));
+        }
+    });
+}
+
 function renderActiveFiltersFromUrl() {
     const listEl = document.getElementById('activeFiltersList');
     const sectionEl = document.getElementById('activeFiltersSection');
@@ -186,7 +247,7 @@ function renderActiveFiltersFromUrl() {
         chips.push('<div class="filter-chip" data-filter="status_rk"><i class="fas fa-tag filter-chip-icon"></i><span>Status RK: ' + escapeHtml(rkLabel) + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
     }
 
-    listEl.innerHTML = chips.join('');
+    reconcileFilterChips(listEl, chips.join(''));
 
     if (sectionEl) {
         if (chips.length > 0) {
@@ -199,7 +260,8 @@ function renderActiveFiltersFromUrl() {
     // Показываем / скрываем кнопку "Сбросить все" вместе с секцией чипов
     var resetBtn = document.getElementById('resetAllFiltersBtn');
     if (resetBtn) {
-        resetBtn.style.display = chips.length > 0 ? '' : 'none';
+        resetBtn.style.display = '';
+        resetBtn.style.visibility = chips.length > 0 ? 'visible' : 'hidden';
     }
 
     const badgeEl = document.querySelector('.filters-modern-badge');
@@ -416,6 +478,7 @@ function applyFiltersWithoutReload(url) {
     if (!url || !(url instanceof URL)) return;
     history.replaceState(null, '', url.toString());
     syncFormFromUrl();
+    renderActiveFiltersFromUrl();
     if (typeof window.DashboardSelection !== 'undefined' && window.DashboardSelection.clearSelection) {
         window.DashboardSelection.clearSelection();
     }
@@ -730,7 +793,8 @@ function updateActiveFiltersVisibility() {
     // Синхронизируем кнопку "Сбросить все" при первичной загрузке страницы
     var resetBtn = document.getElementById('resetAllFiltersBtn');
     if (resetBtn) {
-        resetBtn.style.display = hasChips ? '' : 'none';
+        resetBtn.style.display = '';
+        resetBtn.style.visibility = hasChips ? 'visible' : 'hidden';
     }
 }
 
@@ -861,4 +925,3 @@ document.querySelectorAll('.status-btn-modern').forEach(btn => {
         }
     });
 });
-

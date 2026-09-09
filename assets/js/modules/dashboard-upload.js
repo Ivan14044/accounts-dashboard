@@ -962,8 +962,15 @@
   }
 
   window.handleUploadAccountsGlobal = handleUpload;
+  let initialized = false;
+  function initialize() {
+    if (initialized) return;
+    bindForm();
+    bindCancelImport();
+    initialized = true;
+  }
   window.DashboardUpload = { 
-    init: () => {}, 
+    init: initialize,
     handleUpload,
     validateCsvFile,
     showCsvPreview
@@ -1166,15 +1173,13 @@
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function() {
         try {
-          bindForm();
-          bindCancelImport();
+          initialize();
         } catch (err) {
           console.error('[DASHBOARD-UPLOAD] Ошибка при инициализации после DOMContentLoaded:', err);
         }
       });
     } else {
-      bindForm();
-      bindCancelImport();
+      initialize();
     }
   } catch (err) {
     console.error('[DASHBOARD-UPLOAD] Критическая ошибка при загрузке модуля:', err);

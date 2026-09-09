@@ -93,6 +93,14 @@ class FavoritesManager {
             return;
         }
         
+        const listPage = document.body.classList.contains('favorites-page');
+        if (listPage && this.listBusy) return;
+        const listMain = listPage ? document.querySelector('main[data-list-page="favorites"]') : null;
+        if (listPage) {
+            this.listBusy = true;
+            document.getElementById('listRefreshRetry')?.remove();
+        }
+        if (listMain) listMain.inert = true;
         const isFavorite = this.favorites.has(accountId);
         this.processingIds.add(accountId);
         
@@ -165,17 +173,15 @@ class FavoritesManager {
             if (originalState && document.body.classList.contains('favorites-page')) {
                 const row = document.querySelector(`#accountsTable tbody tr[data-id="${accountId}"]`);
                 if (row) {
-                    row.style.transition = 'opacity 0.3s';
-                    row.style.opacity = '0';
-                    setTimeout(() => {
-                        row.remove();
-                        // Если таблица опустела — показываем заглушку
-                        const tbody = document.querySelector('#accountsTable tbody');
-                        if (tbody && tbody.querySelectorAll('tr').length === 0) {
-                            window.location.reload();
-                        }
-                    }, 300);
+                    const motion = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                    const positions = motion ? Array.from(row.parentElement.children).filter(el => el !== row).map(el => [el, el.getBoundingClientRect().top]) : [];
+                    row.remove();
+                    const moves = positions.map(([el, top]) => [el, top - el.getBoundingClientRect().top]);
+                    moves.forEach(([el, dy]) => {
+                        if (dy && el.animate) el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.16,1,.3,1)' });
+                    });
                 }
+                await window.refreshAccountList('favorites');
             }
         } catch (error) {
             (typeof logger !== 'undefined' ? logger.error : console.error)('Error toggling favorite:', error);
@@ -197,6 +203,8 @@ class FavoritesManager {
         } finally {
             // Убираем из списка обрабатываемых
             this.processingIds.delete(accountId);
+            if (listPage) this.listBusy = false;
+            if (listMain) listMain.inert = false;
         }
     }
     
@@ -487,4 +495,3 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
-

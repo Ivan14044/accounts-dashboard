@@ -41,9 +41,6 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 
   <!-- cards-hide-sync.js перенесён в конец body (defer) — убрали блокировку парсинга HTML -->
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <style>
     /* ================================================================
        DASHBOARD-SPECIFIC STYLES
@@ -259,7 +256,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       box-shadow: 0 4px 16px rgba(37, 99, 235, 0.28);
       cursor: pointer; z-index: 1000;
       opacity: 0; visibility: hidden; transform: translateY(20px);
-      transition: all 300ms ease;
+      transition: opacity 180ms ease, transform 180ms ease, visibility 180ms ease;
       display: flex; align-items: center; justify-content: center;
       font-size: 1.125rem;
     }
@@ -318,6 +315,10 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       </div>
     <?php endif; ?>
 
+    <section class="workspace-intro" aria-labelledby="workspaceTitle">
+      <div><p class="workspace-eyebrow">Рабочее пространство</p><h1 id="workspaceTitle">Аккаунты</h1></div>
+      <p class="workspace-description">Обзор базы и управление аккаунтами</p>
+    </section>
     <!-- Статистические карточки -->
     <?php include __DIR__ . '/partials/dashboard/stats-cards.php'; ?>
     
@@ -1373,7 +1374,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 </div>
 
 <script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js" defer></script>
+<script src="assets/vendor/nouislider/nouislider.min.js" defer></script>
 <!-- Инлайны с конфигом. Они ОБЯЗАНЫ выполниться до бандлов: constants.js читает
      window.DashboardConfig.activeFiltersCount в момент загрузки, и если бандл
      окажется выше — ACTIVE_FILTERS_COUNT молча станет нулём, без ошибок в консоли. -->
@@ -1383,8 +1384,10 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
      Два бандла, а не один: defer-скрипты выполняются после всех обычных, и
      объединение с ними поменяло бы порядок выполнения. -->
 <?= AssetBundles::tags('dashboard.sync.js') ?>
+<script>
+document.getElementById('addAccountModal').dataset.uploadScript = <?= json_encode('assets/js/modules/dashboard-upload.js?v=' . (defined('ASSETS_VERSION') ? ASSETS_VERSION : '1'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+</script>
 <?= AssetBundles::tags('dashboard.defer.js', ' defer') ?>
 </body>
 </html>
-
 

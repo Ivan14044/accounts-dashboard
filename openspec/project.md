@@ -357,8 +357,8 @@ dashboard/
 ### Отсутствующие зависимости
 - Нет package.json (не используется npm)
 - Нет composer.json (не используется Composer)
-- Нет Docker (развертывание напрямую на хостинге)
-- Нет CI/CD (ручное развертывание)
+- Production развёртывается напрямую на хостинге; Docker допускается для локального тестового PHP/MySQL-стенда.
+- CI/CD: GitHub Actions — PHP 7.3/8.2, MySQL integration, Node 22 behavioral tests; сборка ресурсов и FTPS-деплой.
 
 ## Известные проблемы и технический долг
 

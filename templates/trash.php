@@ -181,7 +181,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
     [data-bs-theme="dark"] .history-item { border-left-color: var(--color-border); }
   </style>
 </head>
-<body class="bg-light">
+<body class="trash-page">
 
   <!-- Навигация -->
   <nav class="navbar navbar-expand bg-white border-bottom shadow-sm mb-4">
@@ -223,9 +223,10 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       </div>
     </div>
   </nav>
+  <div class="workspace-subnav container-fluid"><?php include __DIR__ . '/partials/dashboard/workspace-nav.php'; ?></div>
 
   <!-- Основной контент -->
-  <main class="container-fluid px-4 pb-5">
+  <main class="container-fluid px-4 pb-5" data-list-page="trash" data-page="<?= (int)$page ?>" data-list-error="<?= isset($errorMessage) ? 'true' : 'false' ?>" data-list-config="<?= htmlspecialchars(json_encode(['filterParams' => $trashFilterParams ?? [], 'filteredTotal' => (int)($filteredTotal ?? 0), 'pageRows' => isset($rows) ? count($rows) : 0, 'retention' => ['enabled' => !empty($trashSettings['enabled']), 'days' => (int)$retentionDays]]), ENT_QUOTES, 'UTF-8') ?>">
 
     <?php if (isset($errorMessage)): ?>
     <div class="alert alert-danger shadow-sm rounded-xl" role="alert">
@@ -364,7 +365,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
             </div>
             <div class="col-md-5">
               <label class="form-label text-muted small fw-semibold mb-1">Дата удаления (диапазон)</label>
-              <div class="d-flex gap-2">
+              <div class="trash-date-range">
                 <input type="date" name="deleted_from" class="form-control" value="<?= htmlspecialchars($_GET['deleted_from'] ?? '', ENT_QUOTES, 'UTF-8') ?>" style="border-radius: var(--radius-lg);">
                 <input type="date" name="deleted_to" class="form-control" value="<?= htmlspecialchars($_GET['deleted_to'] ?? '', ENT_QUOTES, 'UTF-8') ?>" style="border-radius: var(--radius-lg);">
               </div>
@@ -683,6 +684,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       };
     }
   </script>
+  <script src="assets/js/list-refresh.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
   <script src="assets/js/trash.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
 </body>
 </html>

@@ -766,7 +766,6 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
   const isLowEndDevice = 
     (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2) || 
     (navigator.deviceMemory && navigator.deviceMemory <= 2) ||
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   
   // Применяем оптимизации для слабых устройств

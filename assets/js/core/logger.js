@@ -7,6 +7,10 @@
 
 class Logger {
   constructor() {
+    // Error handlers also pass these methods as standalone callbacks.
+    for (const method of ['debug', 'info', 'warn', 'error']) {
+      this[method] = this[method].bind(this);
+    }
     // Уровни логирования
     this.levels = {
       DEBUG: 0,

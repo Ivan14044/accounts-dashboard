@@ -20,75 +20,77 @@
   // ===== Автообновление данных =====
   let autoRefreshInterval = null;
   let isAutoRefreshEnabled = false;
-  // refreshController, refreshQueued — в dashboard-refresh.js
+  let autoRefreshSkipped = false;
+  let initializedToggle = null;
 
-  function initializeAutoRefresh() {
-    const toggleBtn = getElementById('autoRefreshToggle');
-    if (!toggleBtn) return;
-  
-    toggleBtn.addEventListener('click', function() {
-      if (isAutoRefreshEnabled) {
-        stopAutoRefresh();
-      } else {
-        startAutoRefresh();
-      }
-    });
-  
-    // Загружаем состояние из localStorage
-    const savedState = localStorage.getItem('dashboard_auto_refresh');
-    if (savedState === 'enabled') {
-      startAutoRefresh();
+  function toggleAutoRefresh() {
+    if (isAutoRefreshEnabled) stopAutoRefresh();
+    else startAutoRefresh();
+  }
+
+  function onAutoRefreshVisible() {
+    if (isAutoRefreshEnabled && document.visibilityState === 'visible' && autoRefreshSkipped) {
+      if (document.querySelector('tr[data-id][data-editing="true"]')) return;
+      autoRefreshSkipped = false;
+      refreshDashboardData();
     }
   }
 
-  function startAutoRefresh() {
-    isAutoRefreshEnabled = true;
+  function initializeAutoRefresh() {
     const toggleBtn = getElementById('autoRefreshToggle');
-    if (!toggleBtn) return;
-  
-    toggleBtn.classList.add('active');
-    toggleBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
-    toggleBtn.title = 'Остановить автообновление';
-  
-    // Обновляем каждые 30 секунд; сбросим предыдущий интервал на всякий случай.
-    // В фоновой вкладке не дёргаем сервер — обновимся сразу при возвращении.
-    if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
-    let autoRefreshSkipped = false;
+    if (!toggleBtn || initializedToggle === toggleBtn) return;
+    if (initializedToggle) initializedToggle.removeEventListener('click', toggleAutoRefresh);
+    initializedToggle = toggleBtn;
+    toggleBtn.addEventListener('click', toggleAutoRefresh);
+    let savedState = null;
+    try { savedState = localStorage.getItem('dashboard_auto_refresh'); } catch (_) {}
+    if (isAutoRefreshEnabled || savedState === 'enabled') startAutoRefresh();
+  }
+
+  function startAutoRefresh() {
+    const toggleBtn = getElementById('autoRefreshToggle');
+    if (toggleBtn) {
+      toggleBtn.classList.add('active');
+      toggleBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+      toggleBtn.title = 'Остановить автообновление';
+      toggleBtn.setAttribute('aria-pressed', 'true');
+      toggleBtn.setAttribute('aria-label', toggleBtn.title);
+    }
+    if (isAutoRefreshEnabled) return;
+    isAutoRefreshEnabled = true;
+    autoRefreshSkipped = false;
     autoRefreshInterval = setInterval(() => {
-      if (document.visibilityState === 'hidden') { autoRefreshSkipped = true; return; }
+      if (document.visibilityState === 'hidden' || document.querySelector('tr[data-id][data-editing="true"]')) {
+        autoRefreshSkipped = true;
+        return;
+      }
       autoRefreshSkipped = false;
       refreshDashboardData();
     }, 30000);
-    document.addEventListener('visibilitychange', function onAutoRefreshVisible() {
-      if (!isAutoRefreshEnabled) { document.removeEventListener('visibilitychange', onAutoRefreshVisible); return; }
-      if (document.visibilityState === 'visible' && autoRefreshSkipped) {
-        autoRefreshSkipped = false;
-        refreshDashboardData();
-      }
-    });
-  
-    localStorage.setItem('dashboard_auto_refresh', 'enabled');
-    // Не показываем уведомление постоянно
+    document.addEventListener('visibilitychange', onAutoRefreshVisible);
+    try { localStorage.setItem('dashboard_auto_refresh', 'enabled'); } catch (_) {}
   }
 
   function stopAutoRefresh() {
     isAutoRefreshEnabled = false;
-    const toggleBtn = getElementById('autoRefreshToggle');
-    if (!toggleBtn) return;
-  
-    toggleBtn.classList.remove('active');
-    toggleBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
-    toggleBtn.title = 'Включить автообновление';
-  
-    if (autoRefreshInterval) {
+    autoRefreshSkipped = false;
+    if (autoRefreshInterval !== null) {
       clearInterval(autoRefreshInterval);
       autoRefreshInterval = null;
     }
-    // Отменяем текущий запрос, если он есть
-    try { if (window.refreshController) window.refreshController.abort(); } catch(_) {}
-  
-    localStorage.setItem('dashboard_auto_refresh', 'disabled');
-    showToast('Автообновление отключено', 'info');
+    document.removeEventListener('visibilitychange', onAutoRefreshVisible);
+    const toggleBtn = getElementById('autoRefreshToggle');
+    if (toggleBtn) {
+      toggleBtn.classList.remove('active');
+      toggleBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+      toggleBtn.title = 'Включить автообновление';
+      toggleBtn.setAttribute('aria-pressed', 'false');
+      toggleBtn.setAttribute('aria-label', toggleBtn.title);
+    }
+    // Общий refreshController может принадлежать ручному обновлению.
+    try { localStorage.setItem('dashboard_auto_refresh', 'disabled'); } catch (_) {}
+    // Состояние видно по кнопке и aria-pressed; toast при каждом клике
+    // образует стопку, перекрывающую шапку и следующие действия.
   }
 
   // ===== refreshDashboardData перенесена в dashboard-refresh.js =====
@@ -117,7 +119,7 @@
     function scrollToTop() {
       window.scrollTo({
         top: 0,
-        behavior: 'smooth'
+        behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'
       });
     }
 

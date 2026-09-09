@@ -22,6 +22,7 @@
    * один. Отдельный счётчик «поколений» для этого не нужен — см. applyDataToDom.
    */
   let refreshController = null;
+  let loadingTimer = null;
 
   function collectRefreshParams() {
     const params = new URLSearchParams(window.location.search);
@@ -61,31 +62,18 @@
 
   /** Показать/скрыть прелоадер таблицы и карточек. Скрытие при полном refresh делается после обновления DOM (счётчики + таблица). */
   function setTableLoadingState(isLoading) {
-    log('setTableLoadingState called with:', isLoading);
-    const tableOverlay = getEl('tableLoading');
-    const statsOverlay = getEl('statsLoading');
-    const tableResponsive = getS('.table-responsive');
-
+    clearTimeout(loadingTimer);
+    const region = getEl('accountsTableSection');
+    const feedback = getEl('resultsFeedback');
+    if (region) region.setAttribute('aria-busy', String(isLoading));
+    if (feedback) feedback.textContent = isLoading ? 'Обновляем результаты…' : 'Результаты обновлены';
+    const overlay = getEl('tableLoading');
+    if (overlay) overlay.style.removeProperty('display');
     if (isLoading) {
-      if (tableOverlay) {
-        tableOverlay.style.display = '';
-        tableOverlay.classList.add('show');
-      }
-      if (statsOverlay) {
-        statsOverlay.style.display = '';
-        statsOverlay.classList.add('show');
-      }
-      if (tableResponsive) {
-        tableResponsive.classList.add('loading');
-      }
-      return;
-    }
-    if (tableOverlay) tableOverlay.classList.remove('show');
-    if (statsOverlay) {
-      statsOverlay.classList.remove('show');
-      statsOverlay.style.display = 'none';
-    }
-    if (tableResponsive) tableResponsive.classList.remove('loading');
+      loadingTimer = setTimeout(() => {
+        if (overlay) overlay.classList.add('show');
+      }, 180);
+    } else if (overlay) overlay.classList.remove('show');
   }
 
   async function refreshDashboardData(options) {
@@ -105,9 +93,8 @@
     const signal = myController.signal;
 
     const isLight = options && (options.light === true || options.light === 'true');
-    if (!isLight) {
-      setTableLoadingState(true);
-    }
+    let failed = false;
+    setTableLoadingState(true);
 
     try {
       const res = await fetch(url, {
@@ -116,9 +103,10 @@
         cache: 'no-store',
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
       });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
-      if (!data.success) return;
+      if (signal.aborted || refreshController !== myController) return;
+      if (!data.success) throw new Error(data.error || 'Не удалось обновить данные');
       if (typeof performance !== 'undefined' && performance.mark) {
         performance.mark('refresh-data-received');
       }
@@ -199,9 +187,11 @@
         const footerNav = document.querySelector('.dashboard-table__footer-nav');
         const footerDivider = document.querySelector('.dashboard-table__footer-divider');
         const pageInfo = document.querySelector('.dashboard-table__footer-pageinfo');
-        if (footerNav) footerNav.style.display = multi ? '' : 'none';
-        if (footerDivider) footerDivider.style.display = multi ? '' : 'none';
-        if (pageInfo) pageInfo.style.display = multi ? '' : 'none';
+        [footerNav, footerDivider, pageInfo].forEach(el => {
+          if (!el) return;
+          el.style.display = '';
+          el.style.visibility = multi ? 'visible' : 'hidden';
+        });
       }
 
       // ── Фаза 2: применение данных к DOM ──────────────────────────────────
@@ -294,7 +284,10 @@
         }
 
         // Скрываем прелоадер после полного обновления DOM
-        if (!isLight) setTableLoadingState(false);
+        const resultBody = getS('#accountsTable tbody');
+        if (resultBody && resultBody.animate && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          resultBody.animate([{ opacity: 0.65 }, { opacity: 1 }], { duration: 180, easing: 'ease-out' });
+        }
 
         // Layout-обновления в следующем кадре (после reflow от таблицы)
         requestAnimationFrame(() => {
@@ -320,12 +313,13 @@
       if (error.name === 'AbortError' || (error.message && error.message.includes && error.message.includes('aborted'))) {
         return;
       }
+      if (refreshController !== myController) return;
+      failed = true;
       logErr('Ошибка обновления данных:', error);
       const errorMessage = error.message || 'Не удалось обновить данные';
       if (typeof showToast === 'function') {
         showToast(`Ошибка обновления: ${errorMessage}`, 'error');
       }
-      if (!isLight) setTableLoadingState(false);
       const retryButton = document.createElement('button');
       retryButton.textContent = 'Повторить попытку';
       retryButton.className = 'btn btn-sm btn-primary mt-2';
@@ -349,6 +343,9 @@
       // Освобождаем контроллер, только если он всё ещё наш: более поздний
       // refresh мог уже положить свой, и обнулять чужой живой запрос нельзя.
       if (refreshController === myController) {
+        setTableLoadingState(false);
+        const feedback = getEl('resultsFeedback');
+        if (failed && feedback) feedback.textContent = 'Не удалось обновить. Нажмите «Обновить», чтобы повторить.';
         refreshController = null;
       }
       if (typeof window.updateStickyScrollbar === 'function') {

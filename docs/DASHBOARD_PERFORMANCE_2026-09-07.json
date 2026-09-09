@@ -1,0 +1,152 @@
+[
+  {
+    "label": "before",
+    "run": 0,
+    "lcp": 1172,
+    "cls": 0.08446713071469908,
+    "tbt": 49,
+    "longTasks": 1,
+    "ttfb": 29.100000001490116,
+    "dcl": 2211.800000000745,
+    "requests": 19,
+    "transfer": 1426742,
+    "external": [
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap",
+      "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap",
+      "https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js"
+    ]
+  },
+  {
+    "label": "after",
+    "run": 0,
+    "lcp": 1144,
+    "cls": 0.006589698915834779,
+    "tbt": 38,
+    "longTasks": 1,
+    "ttfb": 18.600000001490116,
+    "dcl": 2112.60000000149,
+    "requests": 16,
+    "transfer": 1392091,
+    "external": []
+  },
+  {
+    "label": "before",
+    "run": 1,
+    "lcp": 1160,
+    "cls": 0.08446713071469908,
+    "tbt": 57,
+    "longTasks": 1,
+    "ttfb": 7.100000001490116,
+    "dcl": 2194.800000000745,
+    "requests": 19,
+    "transfer": 1426742,
+    "external": [
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap",
+      "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap",
+      "https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js"
+    ]
+  },
+  {
+    "label": "after",
+    "run": 1,
+    "lcp": 1160,
+    "cls": 0.006589698915834779,
+    "tbt": 44,
+    "longTasks": 1,
+    "ttfb": 8.900000002235174,
+    "dcl": 2134.699999999255,
+    "requests": 16,
+    "transfer": 1392091,
+    "external": []
+  },
+  {
+    "label": "before",
+    "run": 2,
+    "lcp": 1148,
+    "cls": 0.08446713071469908,
+    "tbt": 50,
+    "longTasks": 1,
+    "ttfb": 8.5,
+    "dcl": 2215.300000000745,
+    "requests": 19,
+    "transfer": 1426742,
+    "external": [
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap",
+      "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap",
+      "https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js"
+    ]
+  },
+  {
+    "label": "after",
+    "run": 2,
+    "lcp": 1132,
+    "cls": 0.006589698915834779,
+    "tbt": 40,
+    "longTasks": 1,
+    "ttfb": 9.5,
+    "dcl": 2120.5,
+    "requests": 16,
+    "transfer": 1392091,
+    "external": []
+  },
+  {
+    "label": "before",
+    "run": 3,
+    "lcp": 1156,
+    "cls": 0.08446713071469908,
+    "tbt": 50,
+    "longTasks": 1,
+    "ttfb": 7.599999997764826,
+    "dcl": 2199.199999999255,
+    "requests": 19,
+    "transfer": 1426742,
+    "external": [
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap",
+      "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap",
+      "https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js"
+    ]
+  },
+  {
+    "label": "after",
+    "run": 3,
+    "lcp": 1168,
+    "cls": 0.006589698915834779,
+    "tbt": 46,
+    "longTasks": 1,
+    "ttfb": 8.099999997764826,
+    "dcl": 2132.199999999255,
+    "requests": 16,
+    "transfer": 1392091,
+    "external": []
+  },
+  {
+    "label": "before",
+    "run": 4,
+    "lcp": 1320,
+    "cls": 0.08446704551414207,
+    "tbt": 43,
+    "longTasks": 2,
+    "ttfb": 9.800000000745058,
+    "dcl": 2195.699999999255,
+    "requests": 19,
+    "transfer": 1426742,
+    "external": [
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap",
+      "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap",
+      "https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js"
+    ]
+  },
+  {
+    "label": "after",
+    "run": 4,
+    "lcp": 1148,
+    "cls": 0.006589698915834779,
+    "tbt": 40,
+    "longTasks": 1,
+    "ttfb": 7.900000002235174,
+    "dcl": 2128.10000000149,
+    "requests": 16,
+    "transfer": 1392091,
+    "external": []
+  }
+]

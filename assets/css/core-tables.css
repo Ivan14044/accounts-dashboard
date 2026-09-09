@@ -89,6 +89,7 @@
   overflow-x: auto;
   overflow-y: auto;
   max-height: clamp(500px, 65vh, 800px);
+  min-height: clamp(500px, 65vh, 800px);
   transform: translateZ(0);
   backface-visibility: hidden;
   will-change: scroll-position;
@@ -368,6 +369,7 @@
    Раньше было 3 child-а под space-between → per-page оказывался в одиночестве
    посередине с большими пустотами. Теперь: [info] ←──── space ────→ [controls]. */
 .dashboard-table__footer {
+  min-height: 64px;
   padding: var(--space-4) var(--space-5);
   border-top: 1px solid var(--gray-200);
   background: #ffffff;
@@ -422,13 +424,37 @@
   inset: 0;
   background: rgba(255, 255, 255, 0.92);
   z-index: 100;
-  display: none;
+  display: flex;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 160ms ease-out, visibility 160ms;
   align-items: center;
   justify-content: center;
 }
 
 .dashboard-table__loader.show {
-  display: flex;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Keep the data visible while refreshing; progress belongs to this region. */
+.dashboard-table__loader { background: rgba(255, 255, 255, .32); }
+[data-bs-theme="dark"] .dashboard-table__loader { background: rgba(10, 10, 15, .32); }
+.dashboard-table__loader::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--primary-500);
+  transform-origin: left;
+  animation: results-progress 1.2s ease-in-out infinite alternate;
+}
+@keyframes results-progress { from { transform: scaleX(.15); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-table__loader { transition: none; }
+  .dashboard-table__loader::before { animation: none; }
 }
 
 /* ── АДАПТИВНОСТЬ ── */

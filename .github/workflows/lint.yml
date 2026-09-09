@@ -48,6 +48,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js for browser regressions
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: JavaScript syntax and behavioral tests
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find assets/js -type f -name '*.js' -not -path '*/vendor/*' -print0)
+          node --test tests/*.test.cjs
+          node tests/test_lazy_upload.js
+
       - name: Setup PHP 7.3
         uses: shivammathur/setup-php@v2
         with:

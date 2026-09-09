@@ -109,9 +109,10 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       </div>
     </div>
   </nav>
+  <div class="workspace-subnav container-fluid"><?php include __DIR__ . '/partials/dashboard/workspace-nav.php'; ?></div>
 
   <!-- Основной контент -->
-  <main class="container-fluid px-4 pb-5">
+  <main class="container-fluid px-4 pb-5" data-list-page="favorites" data-page="<?= (int)$page ?>" data-list-error="<?= isset($errorMessage) ? 'true' : 'false' ?>">
     
     <!-- Заголовок -->
     <div class="favorites-header">
@@ -272,6 +273,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
     window.DashboardConfig = window.DashboardConfig || {};
     window.DashboardConfig.csrfToken = <?= json_encode((string)getCsrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
   </script>
+  <script src="assets/js/list-refresh.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
   <script src="assets/js/favorites.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
   <script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 </body>

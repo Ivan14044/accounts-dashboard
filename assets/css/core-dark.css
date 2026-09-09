@@ -428,3 +428,9 @@
 @media (prefers-reduced-motion: reduce) {
   html.theme-anim, html.theme-anim * { transition: none !important; }
 }
+
+/* Workspace navigation uses neutral text; blue is reserved for actions. */
+[data-bs-theme="dark"] .workspace-brand,
+[data-bs-theme="dark"] .workspace-nav a[aria-current="page"] { color: var(--color-text); }
+[data-bs-theme="dark"] .workspace-nav a { color: var(--color-text-secondary); }
+[data-bs-theme="dark"] .workspace-nav a:hover { color: var(--color-text); }
