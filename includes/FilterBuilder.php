@@ -75,13 +75,18 @@ class FilterBuilder {
         
         // Имя и фамилия здесь не для красоты: плейсхолдер строки поиска обещает
         // «логин, email, имя, фамилия, id», а искались только первые два поля и URL.
-        $searchFields = ['login', 'email', 'social_url', 'first_name', 'last_name'];
+        // `bundle` — номер связки «кинг + рекламные кабинеты»: он стоит У ВСЕХ
+        // её участников (у главного аккаунта и у каждого донора), поэтому поиск
+        // по нему показывает всю десятку разом. Колонку заводит софт сборки;
+        // если её в базе ещё нет, условие просто не строится — см. columnsList.
+        $searchFields = ['login', 'email', 'social_url', 'first_name', 'last_name', 'bundle'];
         $availableFields = array_intersect($searchFields, array_keys($this->columnsList));
         if (empty($availableFields)) return $this;
 
         $hasLogin = in_array('login', $availableFields, true);
         $hasIdSoc = isset($this->columnsList['id_soc_account']);
         $hasId    = isset($this->columnsList['id']);
+        $hasBundle = isset($this->columnsList['bundle']);
 
         // Колонки id_fan_page_1/2/3 — для поиска по числовым ID (page ID и т.п.)
         $fanPageFields = ['id_fan_page_1', 'id_fan_page_2', 'id_fan_page_3'];
@@ -114,6 +119,10 @@ class FilterBuilder {
             }
             if ($hasLogin) { $orConds[] = '`login` = ?';          $this->params[] = $query; }
             if ($hasIdSoc) { $orConds[] = '`id_soc_account` = ?'; $this->params[] = $query; }
+            // Номер связки — это номер главного аккаунта, то есть тоже число.
+            // Условие точное и по индексу (`idx_bundle`), поэтому стоит рядом с
+            // остальными точными: набрал номер — увидел всю связку целиком.
+            if ($hasBundle) { $orConds[] = '`bundle` = ?';        $this->params[] = $query; }
             foreach ($availableFanPage as $f) { $orConds[] = '`' . $f . '` = ?'; $this->params[] = $query; }
             $this->pendingSearchQuery = $query;
         } else {
@@ -233,6 +242,10 @@ class FilterBuilder {
             'login', 'email', 'social_url',
             'id_fan_page_1', 'id_fan_page_2', 'id_fan_page_3',
             'cookies', 'first_cookie', 'token',
+            // Хвостовая форма номера связки — «216699-2» (тот же главный
+            // аккаунт собрал вторую десятку). Точной фазе она не по зубам:
+            // там сравниваются числа.
+            'bundle',
         ];
         $availableFields = array_intersect($searchFields, array_keys($this->columnsList));
 
