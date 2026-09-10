@@ -978,8 +978,7 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
         });
       }
       
-      // Сохраняем настройки (колонки и другие)
-      saveSettings();
+      // Карточки сохраняются через showCard/hideCard; колонки здесь не менялись.
     }
     // uiCompactToggle отключен
   });

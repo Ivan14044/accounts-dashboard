@@ -113,7 +113,6 @@ class AssetBundles
             'assets/js/favorites.js',
             'assets/js/modules/cards-hide-sync.js',
             'assets/js/density-toggle.js',
-            'assets/js/per-page.js',
             'assets/js/theme-toggle.js',
         ),
     );

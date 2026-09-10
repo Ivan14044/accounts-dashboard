@@ -130,7 +130,7 @@
                 </button>
               </div>
               <p class="text-muted small mt-2 mb-0">
-                Применяется сразу. Запоминается для этого устройства — кнопка «Сохранить» для этой настройки не нужна.
+                Применяется сразу и запоминается на этом устройстве.
               </p>
             </div>
           </div>
@@ -139,10 +139,8 @@
 
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-        <button type="button" class="btn btn-primary" onclick="saveSettings()">
-          <i class="fas fa-save me-2"></i>Сохранить настройки
-        </button>
+        <span id="settingsSaveStatus" class="text-muted small me-auto" role="status" aria-live="polite">Изменения сохраняются автоматически.</span>
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Готово</button>
       </div>
     </div>
   </div>
