@@ -118,6 +118,20 @@ $TOKEN_CLIP   = isset($TOKEN_CLIP)   ? (int)$TOKEN_CLIP   : 20;
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>">
               <span class="badge <?= $legacyClass ?> field-value" data-tone="<?= e($cellTone) ?>"><?= e($statusDisplay) ?></span>
             </div>
+          <?php elseif ($k === 'bundle'): ?>
+            <?php
+            // СВЯЗКА «КИНГ + РЕКЛАМНЫЕ КАБИНЕТЫ». Один и тот же номер стоит у
+            // главного аккаунта и у всех его доноров, поэтому по нему видно всю
+            // десятку. Номер связки — это номер главного аккаунта: строка, где
+            // `id` совпадает с номером, и есть кинг.
+            $этоКинг = (string)$v !== '' && (string)$v === (string)$r['id'];
+            ?>
+            <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>">
+              <a href="?q=<?= urlencode((string)$v) ?>" class="text-decoration-none field-value"
+                 title="Показать всю связку: главный аккаунт и его доноры">
+                <i class="fas fa-link me-2"></i><?= e((string)$v) ?><?= $этоКинг ? ' <span class="badge badge-new">главный</span>' : '' ?>
+              </a>
+            </div>
           <?php elseif ($k === 'social_url' && preg_match('~^https?://~i', $v)): ?>
             <div class="editable-field-wrap" data-row-id="<?= (int)$r['id'] ?>" data-field="<?= e($k) ?>">
               <a href="<?= e($v) ?>" target="_blank" rel="noopener" class="text-decoration-none field-value">
