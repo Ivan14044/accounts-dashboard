@@ -114,6 +114,9 @@
     } else {
       url.searchParams.delete('per_page');
     }
+    document.querySelectorAll('select[name="per_page"]').forEach(function (select) {
+      select.value = e.target.value;
+    });
     // При смене per_page всегда возвращаемся на первую страницу
     url.searchParams.set('page', '1');
     history.replaceState(null, '', url.toString());

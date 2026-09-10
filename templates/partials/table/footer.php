@@ -80,10 +80,10 @@ $page        = isset($page)  ? (int)$page  : 1;
 
     <!-- Per-page селектор (URL-based: смена сбрасывает page → 1) -->
     <div class="dashboard-table__per-page" data-base-qs="<?= e(http_build_query($__ppQs)) ?>">
-      <label class="form-label mb-0 small text-muted" for="perPageSelect" title="Строк на странице">
+      <label class="form-label mb-0 small text-muted" for="perPageSelectBottom" title="Строк на странице">
         <i class="fas fa-list-ol me-1" aria-hidden="true"></i>Строк:
       </label>
-      <select class="form-select form-select-sm" id="perPageSelect" aria-label="Записей на странице">
+      <select class="form-select form-select-sm" id="perPageSelectBottom" name="per_page" aria-label="Записей на странице">
         <?php foreach ($__allowedPerPage as $pp): ?>
           <option value="<?= (int)$pp ?>" <?= (int)$perPage === (int)$pp ? 'selected' : '' ?>><?= (int)$pp ?></option>
         <?php endforeach; ?>

@@ -89,10 +89,13 @@
       // Здесь только синхронизируем скрытые карточки с чекбоксами
       // Список скрытых карточек уже сохранен в saveHiddenCards()
     
-      showToast('Настройки сохранены', 'success');
+      const status = document.getElementById('settingsSaveStatus');
+      if (status) status.textContent = 'Колонки сохранены на этом устройстве.';
     } catch (e) {
       logger.error('Error saving settings:', e);
-      showToast('Ошибка сохранения настроек', 'error');
+      const status = document.getElementById('settingsSaveStatus');
+      if (status) status.textContent = 'Не удалось сохранить колонки. Повторите изменение.';
+      else showToast('Ошибка сохранения настроек', 'error');
     }
   }
 

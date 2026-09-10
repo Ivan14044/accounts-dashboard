@@ -733,7 +733,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Select (per_page) — одиночное действие, применяем сразу
+        // Размер страницы обрабатывает только pagination.js.
+        if (target.name === 'per_page') return;
+
+        // Остальные select применяем сразу
         if (target.tagName === 'SELECT') {
             applyFormFiltersWithoutReload(filtersForm);
             return;

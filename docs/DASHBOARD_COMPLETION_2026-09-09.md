@@ -23,3 +23,7 @@
 ## Ограничения измерений
 
 Предыдущие замеры производительности приведены в `DASHBOARD_PERFORMANCE_2026-09-07.md`; они не заменяются результатами этой функциональной проверки. Полевые INP/FPS и скорость авторизованного дашборда на реальной пользовательской БД здесь не измерены. Проверка опубликованного сайта будет ограничена доступными без входа страницами и статическими ресурсами; реальные данные не изменяются для проверки.
+
+## Release verification
+
+PR #94 merged as `9e9de860ad690c462a6a2940d67188a13d5a5516`. GitHub lint passed, including 39 PHP test files on both PHP versions after merging current main. Deploy to FTP run `34304863344` succeeded on its first attempt. The public version marker matches the merge commit; the published list-refresh.js is byte-identical to the source. Production login returns HTTP 200 and renders without JavaScript exceptions. Unauthenticated index.php correctly redirects to login.php. Authenticated production performance has not been measured.
