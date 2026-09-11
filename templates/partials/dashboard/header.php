@@ -23,6 +23,7 @@
     <!-- Dropdown меню профиля -->
     <ul class="dropdown-menu" aria-labelledby="userProfileDropdown">
       <li><a class="dropdown-item" href="index.php"><i class="fas fa-home me-2" aria-hidden="true"></i>Главная</a></li>
+      <li><a class="dropdown-item" href="bundles.php"><i class="fas fa-link me-2" aria-hidden="true"></i>Связки</a></li>
       <li><a class="dropdown-item" href="admin_logs.php"><i class="fas fa-shield-alt me-2" aria-hidden="true"></i>Журнал действий</a></li>
       <li><a class="dropdown-item" href="log.php"><i class="fas fa-file-alt me-2" aria-hidden="true"></i>Системные логи</a></li>
       <li><hr class="dropdown-divider"></li>
