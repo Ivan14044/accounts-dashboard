@@ -1797,30 +1797,44 @@
     flex-direction: column;
     gap: 6px;
 }
-/* Открытая ячейка занимает всю ширину сетки быстрых фильтров */
+/* Открытая ячейка занимает МЕСТО СОСЕДА (две колонки), а не всю строку: год
+   встаёт справа от тумблера, а соседние тумблеры плавно съезжают вбок
+   (FLIP-анимация в filters-modern.js). Раньше ячейка растягивалась на всю
+   строку и нижние тумблеры прыгали вниз — правка UX 15.09.2026. */
 .fp-quick-cell.expanded {
-    grid-column: 1 / -1;
+    grid-column: span 2;
 }
-/* Панель года: визуально «выезжает» из тумблера — пунктирная рамка и отступ
-   слева связывают её с тем, что над ней. Плавное появление вместо резкого. */
+@media (min-width: 768px) {
+    .fp-quick-cell.expanded {
+        flex-direction: row;
+        align-items: stretch;
+        gap: 8px;
+    }
+    /* Тумблер держит ширину обычной ячейки, год занимает освободившееся место */
+    .fp-quick-cell.expanded > .toggle-switch-wrapper { flex: 0 0 150px; }
+    .fp-quick-cell.expanded > .fp-year-inline { flex: 1; margin-left: 0; }
+}
+/* Панель года: пунктирная рамка связывает её с тумблером слева. На узком
+   экране (одна колонка) стоит под тумблером с отступом слева. */
 .fp-year-inline {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 6px 12px;
     margin-left: 14px;
-    padding: 8px 12px;
+    padding: 6px 12px;
     background: var(--success-50);
     border: 1px dashed var(--success-200);
     border-radius: var(--radius-md);
-    animation: fpYearInlineIn 160ms ease-out;
+    animation: fpYearInlineIn 200ms ease-out;
 }
 @keyframes fpYearInlineIn {
-    from { opacity: 0; transform: translateY(-4px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
     .fp-year-inline { animation: none; }
+    /* соседей тоже не двигаем плавно — FLIP отключается в JS по этому же признаку */
 }
 .fp-year-inline-label {
     font-size: var(--font-size-xs);
