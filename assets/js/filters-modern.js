@@ -211,6 +211,11 @@ function renderActiveFiltersFromUrl() {
     if (yearFrom !== '' || yearTo !== '') {
         chips.push('<div class="filter-chip" data-filter="year_created"><i class="fas fa-calendar filter-chip-icon"></i><span>Год: ' + escapeHtml(yearFrom || '∞') + '-' + escapeHtml(yearTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
     }
+    const fpYearFrom = params.get('fp_year_from') || '';
+    const fpYearTo = params.get('fp_year_to') || '';
+    if (fpYearFrom !== '' || fpYearTo !== '') {
+        chips.push('<div class="filter-chip" data-filter="fp_year"><i class="fas fa-flag filter-chip-icon"></i><span>Год FP: ' + escapeHtml(fpYearFrom || '∞') + '—' + escapeHtml(fpYearTo || '∞') + '</span><button class="filter-chip-remove" title="Удалить">&times;</button></div>');
+    }
     const limitRkFrom = params.get('limit_rk_from') || '';
     const limitRkTo = params.get('limit_rk_to') || '';
     if (limitRkFrom !== '' || limitRkTo !== '') {
@@ -307,6 +312,14 @@ function removeFilterChip(filterName) {
             break;
         case 'has_fan_page':
             url.searchParams.delete('has_fan_page');
+            // Год страницы без самой страницы не имеет смысла: снимаем и его,
+            // иначе скрытый диапазон продолжал бы молча фильтровать выборку.
+            url.searchParams.delete('fp_year_from');
+            url.searchParams.delete('fp_year_to');
+            break;
+        case 'fp_year':
+            url.searchParams.delete('fp_year_from');
+            url.searchParams.delete('fp_year_to');
             break;
         case 'has_avatar':
             url.searchParams.delete('has_avatar');
@@ -441,10 +454,11 @@ function syncFormFromUrl() {
     if (searchInput) searchInput.value = params.get('q') || '';
 
     // Диапазоны
-    ['pharma_from','pharma_to','friends_from','friends_to','bm_from','bm_to','year_created_from','year_created_to','limit_rk_from','limit_rk_to'].forEach(function(name) {
+    ['pharma_from','pharma_to','friends_from','friends_to','bm_from','bm_to','year_created_from','year_created_to','fp_year_from','fp_year_to','limit_rk_from','limit_rk_to'].forEach(function(name) {
         var input = form.querySelector('input[name="' + name + '"]');
         if (input) input.value = params.get(name) || '';
     });
+    syncFpYearVisibility(form);
 
     // Телефон удалён / не удалён — синхронизируем select.
     // Без этого чужие пути изменения URL (крестик на chip, «Сбросить все»,
@@ -558,6 +572,45 @@ function clearSearch() {
 // ========================================
 
 /**
+ * Показать/скрыть диапазон «Год создания Fan Page».
+ *
+ * Диапазон виден, когда включён тумблер Fan Page или год уже задан (например,
+ * пришёл из ссылки). Скрываем через `hidden`, а не стилем: так контрол выпадает
+ * и из Tab-обхода. Тумблер снимает и год — это делает обработчик ниже и
+ * removeFilter('has_fan_page').
+ *
+ * @param {HTMLFormElement|null} form форма фильтров; null — ищем сами
+ */
+function syncFpYearVisibility(form) {
+    var group = document.getElementById('fpYearFilterGroup');
+    if (!group) return;
+    form = form || group.closest('form');
+    var fp = form ? form.querySelector('input[type="checkbox"][name="has_fan_page"]') : null;
+    var from = group.querySelector('input[name="fp_year_from"]');
+    var to = group.querySelector('input[name="fp_year_to"]');
+    var hasYear = (from && from.value !== '') || (to && to.value !== '');
+    group.hidden = !((fp && fp.checked) || hasYear);
+}
+
+document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (!t || t.name !== 'has_fan_page' || t.type !== 'checkbox') return;
+    if (!t.checked) {
+        // Выключили Fan Page — снимаем и год, иначе скрытый диапазон молча
+        // продолжит фильтровать выборку.
+        var form = t.closest('form');
+        ['fp_year_from', 'fp_year_to'].forEach(function (name) {
+            var input = form ? form.querySelector('input[name="' + name + '"]') : null;
+            if (input && input.value !== '') {
+                input.value = '';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        });
+    }
+    syncFpYearVisibility(t.closest('form'));
+});
+
+/**
  * Список всех параметров фильтров, которые сбрасываются кнопкой «Сбросить все».
  * per_page не сбрасываем — это настройка отображения, не фильтр.
  */
@@ -571,6 +624,7 @@ var ALL_FILTER_PARAMS = [
     'friends_from', 'friends_to',
     'bm_from', 'bm_to', 'bm_status',
     'year_created_from', 'year_created_to',
+    'fp_year_from', 'fp_year_to',
     'limit_rk_from', 'limit_rk_to',
     'status_marketplace', 'currency', 'geo', 'status_rk'
 ];

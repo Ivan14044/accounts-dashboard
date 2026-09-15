@@ -698,6 +698,60 @@ class FilterBuilder {
     }
     
     /**
+     * Фильтр «у аккаунта есть фан-страница, созданная в диапазоне лет».
+     *
+     * Год каждой страницы лежит в своей колонке `year_fan_page_N` (слот N — тот
+     * же, что у `id_fan_page_N`). Их пишет чекер софта fb_automation; в эталонной
+     * схеме дашборда колонок нет, поэтому берём только реально существующие, а
+     * если нет ни одной — фильтр молча выключается.
+     *
+     * Слоты соединяются через OR, а «от» и «до» проверяются у ОДНОЙ страницы:
+     * аккаунт со страницами 2019 и 2026 НЕ должен пройти диапазон 2020–2021.
+     * Пустые годы (NULL / 0) не проходят никогда — поэтому при одном «до»
+     * добавляется `> 0`. Перепутанные границы меняются местами.
+     *
+     * @param mixed $from год «от» (строка из GET), пусто/мусор/<=0 — не задан
+     * @param mixed $to   год «до»
+     * @return $this
+     */
+    public function addFanPageYearFilter($from = null, $to = null) {
+        $yearFrom = ($from !== null && $from !== '' && is_numeric($from)) ? (int)$from : 0;
+        $yearTo = ($to !== null && $to !== '' && is_numeric($to)) ? (int)$to : 0;
+        if ($yearFrom <= 0 && $yearTo <= 0) {
+            return $this;
+        }
+        if ($yearFrom > 0 && $yearTo > 0 && $yearFrom > $yearTo) {
+            $tmp = $yearFrom;
+            $yearFrom = $yearTo;
+            $yearTo = $tmp;
+        }
+
+        $perSlot = [];
+        for ($n = 1; $n <= 10; $n++) {
+            $col = 'year_fan_page_' . $n;
+            if (!isset($this->columnsList[$col])) {
+                continue;
+            }
+            $parts = [];
+            if ($yearFrom > 0) {
+                $parts[] = "`$col` >= ?";
+                $this->params[] = $yearFrom;
+            } else {
+                $parts[] = "`$col` > 0";
+            }
+            if ($yearTo > 0) {
+                $parts[] = "`$col` <= ?";
+                $this->params[] = $yearTo;
+            }
+            $perSlot[] = '(' . implode(' AND ', $parts) . ')';
+        }
+        if ($perSlot) {
+            $this->conditions[] = '(' . implode(' OR ', $perSlot) . ')';
+        }
+        return $this;
+    }
+
+    /**
      * Добавляет фильтр для показа только удалённых записей
      * 
      * @return $this

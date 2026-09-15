@@ -251,6 +251,7 @@ $otherFilterKeys = ['status_marketplace', 'currency', 'geo', 'status_rk', 'has_e
     'fully_filled', 'favorites',
     'limit_rk_from', 'limit_rk_to', 'scenario_pharma_from', 'scenario_pharma_to',
     'quantity_friends_from', 'quantity_friends_to', 'bm_status', 'year_created_from', 'year_created_to',
+    'fp_year_from', 'fp_year_to',
     'empty_status'];
 $hasOtherFilters = false;
 foreach ($otherFilterKeys as $fk) {

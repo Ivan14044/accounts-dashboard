@@ -114,6 +114,13 @@ trait AccountsServiceFiltersTrait {
         // Фильтр "Fan Page" (quantity_fp > 0)
         $filter->addGreaterThanZeroFilter('quantity_fp', !empty($params['has_fan_page']));
 
+        // Год создания фан-страницы: хотя бы одна страница аккаунта создана в
+        // диапазоне (колонки year_fan_page_N пишет чекер fb_automation).
+        $filter->addFanPageYearFilter(
+            $params['fp_year_from'] ?? null,
+            $params['fp_year_to'] ?? null
+        );
+
         // Фильтр "полностью заполненные"
         $filter->addFullyFilledFilter(!empty($params['full_filled']));
 
