@@ -160,11 +160,60 @@ class TrashSettings {
      * Пора ли запускать авто-purge: включено И (не было прогонов ИЛИ прошло >= суток).
      */
     public static function shouldAutoPurge(): bool {
-        $s = self::get();
-        if (empty($s['enabled'])) return false;
-        if (empty($s['last_purge_at'])) return true;
-        $last = strtotime($s['last_purge_at']);
+        return self::isPurgeDue(self::get(), time());
+    }
+
+    /**
+     * Чистое правило «пора ли автоочистке» — без БД, чтобы его можно было проверить тестом.
+     *
+     * Битая или пустая метка прошлого прогона считается «не чистили»: лучше
+     * почистить лишний раз по уже показанному предупреждению, чем не чистить никогда.
+     *
+     * @param array $settings Результат get()
+     * @param int $now Текущее время (unix)
+     * @return bool
+     */
+    public static function isPurgeDue(array $settings, int $now): bool {
+        if (empty($settings['enabled'])) return false;
+        if (empty($settings['last_purge_at'])) return true;
+        $last = strtotime((string)$settings['last_purge_at']);
         if ($last === false) return true;
-        return (time() - $last) >= self::PURGE_INTERVAL_SECONDS;
+        return ($now - $last) >= self::PURGE_INTERVAL_SECONDS;
+    }
+
+    /**
+     * «Занимает» суточный прогон автоочистки, если он положен, — ставит метку
+     * last_purge_at = сейчас ДО удаления.
+     *
+     * Зачем занимать заранее: прогон запускается фоновым запросом из браузера,
+     * и две открытые вкладки корзины прислали бы его одновременно. Вторая
+     * увидит свежую метку и ничего не сделает. Окно гонки — между чтением и
+     * записью настроек, миллисекунды; двойной прогон в нём безвреден для данных
+     * (второй просто удалит 0 строк), страдает только число в отчёте.
+     *
+     * Если удаление потом упало, вызывающий код обязан вернуть прежние
+     * настройки через restoreSettings(), иначе очистка отложится на сутки.
+     *
+     * @return array|null Настройки ДО захвата (для отката) или null, если сейчас не пора
+     */
+    public static function claimAutoPurge(): ?array {
+        $current = self::get();
+        if (!self::isPurgeDue($current, time())) {
+            return null;
+        }
+        $claimed = $current;
+        $claimed['last_purge_at'] = date('Y-m-d H:i:s');
+        self::write($claimed);
+        return $current;
+    }
+
+    /**
+     * Возвращает настройки, снятые claimAutoPurge(), — после неудачного прогона.
+     *
+     * @param array $previous Результат claimAutoPurge()
+     * @return void
+     */
+    public static function restoreSettings(array $previous): void {
+        self::write($previous);
     }
 }

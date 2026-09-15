@@ -4,6 +4,8 @@
  * массовые действия по фильтру, история изменений (аудит).
  */
 let trashListeners;
+// Фоновая автоочистка уже запускалась на этой странице (см. runAutoPurge)
+let autoPurgeStarted = false;
 function initializeTrash() {
     if (trashListeners) trashListeners.abort();
     trashListeners = new AbortController();
@@ -42,7 +44,11 @@ function initializeTrash() {
     }
 
     function notify(message, type) {
+        // На странице корзины глобального showToast нет (он живёт в скриптах
+        // дашборда), а toast.js кладёт экземпляр в window.Toast. Без этой ветки
+        // все сообщения корзины, кроме ошибок, молча пропадали (проверено 15.09.2026).
         if (typeof showToast === 'function') showToast(message, type);
+        else if (window.Toast && typeof window.Toast.show === 'function') window.Toast.show(message, { type: type });
         else if (type === 'error') alert(message);
     }
 
@@ -576,8 +582,41 @@ function initializeTrash() {
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    /**
+     * Суточная автоочистка — фоновым запросом, уже после открытия страницы.
+     *
+     * Раньше сервер удалял записи внутри запроса самой страницы, и на хостинге
+     * это держало переход в корзину, пока шло удаление (15.09.2026 — 2 606 записей,
+     * страница открывалась очень долго). Теперь страница открывается сразу.
+     * Сервер сам перепроверяет, пора ли; флаг autoPurgeDue — только подсказка.
+     * Запускается один раз за жизнь страницы: initializeTrash() зовётся заново
+     * после каждого обновления списка.
+     */
+    async function runAutoPurge() {
+        if (!cfg.autoPurgeDue || autoPurgeStarted) return;
+        autoPurgeStarted = true;
+        try {
+            const data = await postJson(window.getTableAwareUrl('purge_old.php'), { auto: true, csrf: getCsrfToken() });
+            if (!data.success) throw new Error(data.error || 'Ошибка автоочистки');
+            const deleted = data.deleted_count || 0;
+            if (data.skipped || deleted === 0) return;
+            const n10 = deleted % 10, n100 = deleted % 100;
+            const word = n10 === 1 && n100 !== 11 ? 'запись' : (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14) ? 'записи' : 'записей');
+            notify('Автоочистка удалила навсегда ' + deleted.toLocaleString('ru-RU') + ' ' + word + ' старше ' + data.days + ' дн.', 'info');
+            // Список и предупреждение устарели. Не трогаем, если человек уже
+            // что-то выбрал или выполняет действие, — перерисовка сбросила бы выбор.
+            if (!operationBusy && selectedIds.size === 0 && !filterMode) {
+                await window.refreshAccountList('trash');
+            }
+        } catch (error) {
+            // Страница уже открыта и работает; попытка повторится при следующем заходе.
+            log('warn', 'Auto purge error:', error.message);
+        }
+    }
+
     // init
     updateSelectedCount();
+    runAutoPurge();
 }
 document.addEventListener('DOMContentLoaded', initializeTrash);
 window.addEventListener('account-list:updated', event => {
