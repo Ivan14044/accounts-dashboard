@@ -434,3 +434,10 @@
 [data-bs-theme="dark"] .workspace-nav a[aria-current="page"] { color: var(--color-text); }
 [data-bs-theme="dark"] .workspace-nav a { color: var(--color-text-secondary); }
 [data-bs-theme="dark"] .workspace-nav a:hover { color: var(--color-text); }
+
+/* Fan Page: инлайн-диапазон года — тёмная тема */
+[data-bs-theme="dark"] .fp-year-inline {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+[data-bs-theme="dark"] .fp-year-inline-label { color: #9ca3af; }

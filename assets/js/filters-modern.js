@@ -582,14 +582,19 @@ function clearSearch() {
  * @param {HTMLFormElement|null} form форма фильтров; null — ищем сами
  */
 function syncFpYearVisibility(form) {
-    var group = document.getElementById('fpYearFilterGroup');
-    if (!group) return;
-    form = form || group.closest('form');
+    var cell = document.getElementById('fpQuickCell');
+    var inline = document.getElementById('fpYearInline');
+    if (!cell || !inline) return;
+    form = form || cell.closest('form');
     var fp = form ? form.querySelector('input[type="checkbox"][name="has_fan_page"]') : null;
-    var from = group.querySelector('input[name="fp_year_from"]');
-    var to = group.querySelector('input[name="fp_year_to"]');
+    var from = inline.querySelector('input[name="fp_year_from"]');
+    var to = inline.querySelector('input[name="fp_year_to"]');
     var hasYear = (from && from.value !== '') || (to && to.value !== '');
-    group.hidden = !((fp && fp.checked) || hasYear);
+    var show = (fp && fp.checked) || hasYear;
+    inline.hidden = !show;
+    // Ячейка Fan Page растягивается на всю ширину сетки, когда открыт год —
+    // так тумблер и его поля читаются как один блок.
+    cell.classList.toggle('expanded', show);
 }
 
 document.addEventListener('change', function (e) {
