@@ -323,6 +323,8 @@ class DashboardController {
         $friendsTo = get_param('friends_to');
         $yearCreatedFrom = get_param('year_created_from');
         $yearCreatedTo = get_param('year_created_to');
+        $fpYearFrom = get_param('fp_year_from');
+        $fpYearTo = get_param('fp_year_to');
         $favoritesOnlyParam = get_param('favorites_only', '');
         
         return [
@@ -392,6 +394,8 @@ class DashboardController {
             'friendsTo' => $friendsTo,
             'yearCreatedFrom' => $yearCreatedFrom,
             'yearCreatedTo' => $yearCreatedTo,
+            'fpYearFrom' => $fpYearFrom,
+            'fpYearTo' => $fpYearTo,
             'favoritesOnlyParam' => $favoritesOnlyParam,
             // Добавляем недостающие переменные
             'stats' => $stats,

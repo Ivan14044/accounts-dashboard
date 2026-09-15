@@ -2179,6 +2179,23 @@ document.addEventListener('DOMContentLoaded', function() {
   if (yearCreatedFromEl) yearCreatedFromEl.addEventListener('input', applyYear);
   if (yearCreatedToEl)   yearCreatedToEl.addEventListener('input', applyYear);
 
+  // Автоприменение диапазона года создания Fan Page (fp_year)
+  const fpYearFromEl = document.getElementsByName('fp_year_from')[0];
+  const fpYearToEl   = document.getElementsByName('fp_year_to')[0];
+  const applyFpYear = debounce(() => {
+    const url = new URL(window.location);
+    const fyf = fpYearFromEl ? fpYearFromEl.value.trim() : '';
+    const fyt = fpYearToEl   ? fpYearToEl.value.trim()   : '';
+    if (fyf) url.searchParams.set('fp_year_from', fyf); else url.searchParams.delete('fp_year_from');
+    if (fyt) url.searchParams.set('fp_year_to',   fyt); else url.searchParams.delete('fp_year_to');
+    url.searchParams.set('page', '1');
+    history.replaceState(null, '', url.toString());
+    window.DashboardSelection && window.DashboardSelection.clearSelection();
+    debouncedRefreshDashboardData();
+  }, 400);
+  if (fpYearFromEl) fpYearFromEl.addEventListener('input', applyFpYear);
+  if (fpYearToEl)   fpYearToEl.addEventListener('input', applyFpYear);
+
   // Автоприменение диапазона Limit RK
   const limitRkFromEl = document.getElementsByName('limit_rk_from')[0];
   const limitRkToEl   = document.getElementsByName('limit_rk_to')[0];

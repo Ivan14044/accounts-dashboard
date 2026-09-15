@@ -100,6 +100,14 @@
           <button class="filter-chip-remove" title="Удалить">&times;</button>
         </div>
         <?php endif; ?>
+
+        <?php if (isset($ALL_COLUMNS['year_fan_page_1']) && (!empty($fpYearFrom) || !empty($fpYearTo))): ?>
+        <div class="filter-chip" data-filter="fp_year">
+          <i class="fas fa-flag filter-chip-icon"></i>
+          <span>Год FP: <?= e($fpYearFrom ?: '∞') ?>—<?= e($fpYearTo ?: '∞') ?></span>
+          <button class="filter-chip-remove" title="Удалить">&times;</button>
+        </div>
+        <?php endif; ?>
         
         <?php if (!empty($pharmaFrom) || !empty($pharmaTo)): ?>
         <div class="filter-chip" data-filter="pharma">
@@ -617,6 +625,26 @@
                   <input type="number" class="range-input-modern" name="year_created_from" placeholder="От" min="1900" max="2100" step="1" value="<?= e($yearCreatedFrom ?? '') ?>">
                   <span class="range-separator">—</span>
                   <input type="number" class="range-input-modern" name="year_created_to" placeholder="До" min="1900" max="2100" step="1" value="<?= e($yearCreatedTo ?? '') ?>">
+                </div>
+              </div>
+              <?php endif; ?>
+
+              <?php if (isset($ALL_COLUMNS['year_fan_page_1'])): ?>
+              <?php
+              // Показываем, только когда включён тумблер «Fan Page» (или диапазон
+              // уже задан из URL): год страницы без самой страницы смысла не имеет.
+              // Видимость переключает filters-modern.js (syncFpYearVisibility).
+              $fpYearVisible = ($hasFanPageParam ?? '') !== '' || !empty($fpYearFrom) || !empty($fpYearTo);
+              ?>
+              <div class="range-filter-group" id="fpYearFilterGroup"<?= $fpYearVisible ? '' : ' hidden' ?>>
+                <div class="range-filter-label">
+                  <i class="fas fa-flag"></i>
+                  Год создания Fan Page
+                </div>
+                <div class="range-inputs">
+                  <input type="number" class="range-input-modern" name="fp_year_from" aria-label="Год создания Fan Page от" placeholder="От" min="2004" max="2100" step="1" value="<?= e($fpYearFrom ?? '') ?>">
+                  <span class="range-separator">—</span>
+                  <input type="number" class="range-input-modern" name="fp_year_to" aria-label="Год создания Fan Page до" placeholder="До" min="2004" max="2100" step="1" value="<?= e($fpYearTo ?? '') ?>">
                 </div>
               </div>
               <?php endif; ?>

@@ -18,6 +18,7 @@ class RequestHandler {
         'phone_removed',
         'pharma_from', 'pharma_to', 'friends_from', 'friends_to',
         'year_created_from', 'year_created_to',
+        'fp_year_from', 'fp_year_to',
         'bm_status'
     ];
 
@@ -151,6 +152,7 @@ class RequestHandler {
             ['pharma_from', 'pharma_to'],
             ['friends_from', 'friends_to'],
             ['year_created_from', 'year_created_to'],
+            ['fp_year_from', 'fp_year_to'],
             ['limit_rk_from', 'limit_rk_to'],
             ['bm_from', 'bm_to'],
         ];
