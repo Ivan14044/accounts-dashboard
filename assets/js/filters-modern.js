@@ -581,10 +581,18 @@ function clearSearch() {
  *
  * @param {HTMLFormElement|null} form форма фильтров; null — ищем сами
  */
-function syncFpYearVisibility(form) {
+/**
+ * Применить состояние диапазона года Fan Page: показать/скрыть инлайн-поля и
+ * растянуть ячейку тумблера на место соседа. Без анимации — используется при
+ * синхронизации формы из URL и на первом рендере.
+ *
+ * @param {HTMLFormElement|null} form форма фильтров; null — ищем сами
+ * @returns {boolean} новое состояние (показан ли год)
+ */
+function applyFpYearState(form) {
     var cell = document.getElementById('fpQuickCell');
     var inline = document.getElementById('fpYearInline');
-    if (!cell || !inline) return;
+    if (!cell || !inline) return false;
     form = form || cell.closest('form');
     var fp = form ? form.querySelector('input[type="checkbox"][name="has_fan_page"]') : null;
     var from = inline.querySelector('input[name="fp_year_from"]');
@@ -592,18 +600,58 @@ function syncFpYearVisibility(form) {
     var hasYear = (from && from.value !== '') || (to && to.value !== '');
     var show = (fp && fp.checked) || hasYear;
     inline.hidden = !show;
-    // Ячейка Fan Page растягивается на всю ширину сетки, когда открыт год —
-    // так тумблер и его поля читаются как один блок.
     cell.classList.toggle('expanded', show);
+    return show;
+}
+
+// Старое имя оставлено как псевдоним: его зовёт syncFormFromUrl.
+function syncFpYearVisibility(form) { return applyFpYearState(form); }
+
+/**
+ * Плавно перестроить сетку быстрых фильтров при появлении/скрытии поля года
+ * (FLIP: запоминаем позиции ячеек до перестройки, затем анимируем сдвиг из
+ * старого положения в новое). Так соседние тумблеры «съезжают вбок», а не
+ * прыгают. Панель фильтров при обновлении таблицы не перерисовывается
+ * (table-module меняет только tbody), поэтому анимация ничему не мешает.
+ *
+ * @param {HTMLFormElement|null} form форма фильтров
+ */
+function animateFpYearLayout(form) {
+    var grid = document.querySelector('.quick-filters-grid');
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var canAnimate = grid && typeof grid.animate === 'function' && !reduce;
+    if (!canAnimate) { applyFpYearState(form); return; }
+
+    var cells = Array.prototype.slice.call(grid.children);
+    var before = cells.map(function (el) { return el.getBoundingClientRect(); });
+
+    applyFpYearState(form);
+
+    // Web Animations API: анимируем КАЖДУЮ ячейку от её старого положения к
+    // новому (FLIP). WAAPI надёжнее смены transition — не оставляет инлайн-
+    // стилей и не ломается при быстрых повторных кликах (перекрывающиеся
+    // анимации отменяют друг друга сами через один и тот же id).
+    cells.forEach(function (el, i) {
+        var b = before[i];
+        var a = el.getBoundingClientRect();
+        var dx = b.left - a.left;
+        var dy = b.top - a.top;
+        if (!dx && !dy) return;
+        if (el._fpSlide) { el._fpSlide.cancel(); }
+        el._fpSlide = el.animate(
+            [{ transform: 'translate(' + dx + 'px, ' + dy + 'px)' }, { transform: 'translate(0, 0)' }],
+            { duration: 260, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+        );
+    });
 }
 
 document.addEventListener('change', function (e) {
     var t = e.target;
     if (!t || t.name !== 'has_fan_page' || t.type !== 'checkbox') return;
+    var form = t.closest('form');
     if (!t.checked) {
         // Выключили Fan Page — снимаем и год, иначе скрытый диапазон молча
         // продолжит фильтровать выборку.
-        var form = t.closest('form');
         ['fp_year_from', 'fp_year_to'].forEach(function (name) {
             var input = form ? form.querySelector('input[name="' + name + '"]') : null;
             if (input && input.value !== '') {
@@ -612,7 +660,7 @@ document.addEventListener('change', function (e) {
             }
         });
     }
-    syncFpYearVisibility(t.closest('form'));
+    animateFpYearLayout(form);
 });
 
 /**
