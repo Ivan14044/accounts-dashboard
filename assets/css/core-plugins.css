@@ -1785,3 +1785,57 @@
     outline: 2px solid var(--color-primary);
     outline-offset: 3px;
 }
+
+/* ── Fan Page: тумблер + инлайн-диапазон года создания страницы ──────────────
+   Год страницы живёт РЯДОМ с тумблером Fan Page (правка UX 15.09.2026): раньше
+   поля появлялись в отдельном разделе «Дополнительные фильтры», и было
+   неочевидно, откуда они взялись. Теперь ячейка тумблера при включении
+   растягивается на всю ширину сетки и показывает поля прямо под собой. */
+.fp-quick-cell {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+/* Открытая ячейка занимает всю ширину сетки быстрых фильтров */
+.fp-quick-cell.expanded {
+    grid-column: 1 / -1;
+}
+/* Панель года: визуально «выезжает» из тумблера — пунктирная рамка и отступ
+   слева связывают её с тем, что над ней. Плавное появление вместо резкого. */
+.fp-year-inline {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-left: 14px;
+    padding: 8px 12px;
+    background: var(--success-50);
+    border: 1px dashed var(--success-200);
+    border-radius: var(--radius-md);
+    animation: fpYearInlineIn 160ms ease-out;
+}
+@keyframes fpYearInlineIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .fp-year-inline { animation: none; }
+}
+.fp-year-inline-label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.fp-year-inline-inputs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 180px;
+}
+.fp-year-inline-inputs .range-input-modern { flex: 1; min-width: 70px; }

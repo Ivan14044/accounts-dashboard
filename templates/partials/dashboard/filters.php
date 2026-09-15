@@ -409,16 +409,36 @@
                 </label>
               </div>
               
-              <!-- Fan Page -->
-              <div class="toggle-switch-wrapper <?= ($hasFanPageParam ?? '') !== '' ? 'active' : '' ?>">
-                <div class="toggle-switch-label-group">
-                  <i class="fas fa-flag toggle-switch-icon"></i>
-                  <span class="toggle-switch-label">Fan Page</span>
+              <!-- Fan Page: тумблер, а под ним — инлайн-диапазон года создания
+                   страницы. Год живёт РЯДОМ с тумблером, а не в «Дополнительных
+                   фильтрах»: раньше поля выскакивали в другом разделе, и было
+                   неочевидно, откуда они взялись (правка UX 15.09.2026). -->
+              <?php
+              $fpHasYearCols = isset($ALL_COLUMNS['year_fan_page_1']);
+              $fpActive = ($hasFanPageParam ?? '') !== '';
+              $fpYearOn = $fpActive || !empty($fpYearFrom) || !empty($fpYearTo);
+              ?>
+              <div class="fp-quick-cell <?= ($fpHasYearCols && $fpYearOn) ? 'expanded' : '' ?>" id="fpQuickCell">
+                <div class="toggle-switch-wrapper <?= $fpActive ? 'active' : '' ?>">
+                  <div class="toggle-switch-label-group">
+                    <i class="fas fa-flag toggle-switch-icon"></i>
+                    <span class="toggle-switch-label">Fan Page</span>
+                  </div>
+                  <label class="toggle-switch">
+                    <input type="checkbox" aria-label="Есть Fan Page" name="has_fan_page" value="1" <?= $fpActive ? 'checked' : '' ?>>
+                    <span class="toggle-switch-slider"></span>
+                  </label>
                 </div>
-                <label class="toggle-switch">
-                  <input type="checkbox" aria-label="Есть Fan Page" name="has_fan_page" value="1" <?= ($hasFanPageParam ?? '') !== '' ? 'checked' : '' ?>>
-                  <span class="toggle-switch-slider"></span>
-                </label>
+                <?php if ($fpHasYearCols): ?>
+                <div class="fp-year-inline" id="fpYearInline"<?= $fpYearOn ? '' : ' hidden' ?>>
+                  <span class="fp-year-inline-label"><i class="fas fa-calendar-alt"></i> Год создания страницы</span>
+                  <div class="fp-year-inline-inputs">
+                    <input type="number" class="range-input-modern" name="fp_year_from" aria-label="Год создания Fan Page от" placeholder="От" min="2004" max="2100" step="1" value="<?= e($fpYearFrom ?? '') ?>">
+                    <span class="range-separator">—</span>
+                    <input type="number" class="range-input-modern" name="fp_year_to" aria-label="Год создания Fan Page до" placeholder="До" min="2004" max="2100" step="1" value="<?= e($fpYearTo ?? '') ?>">
+                  </div>
+                </div>
+                <?php endif; ?>
               </div>
               
               <?php if (isset($ALL_COLUMNS['avatar'])): ?>
@@ -629,25 +649,6 @@
               </div>
               <?php endif; ?>
 
-              <?php if (isset($ALL_COLUMNS['year_fan_page_1'])): ?>
-              <?php
-              // Показываем, только когда включён тумблер «Fan Page» (или диапазон
-              // уже задан из URL): год страницы без самой страницы смысла не имеет.
-              // Видимость переключает filters-modern.js (syncFpYearVisibility).
-              $fpYearVisible = ($hasFanPageParam ?? '') !== '' || !empty($fpYearFrom) || !empty($fpYearTo);
-              ?>
-              <div class="range-filter-group" id="fpYearFilterGroup"<?= $fpYearVisible ? '' : ' hidden' ?>>
-                <div class="range-filter-label">
-                  <i class="fas fa-flag"></i>
-                  Год создания Fan Page
-                </div>
-                <div class="range-inputs">
-                  <input type="number" class="range-input-modern" name="fp_year_from" aria-label="Год создания Fan Page от" placeholder="От" min="2004" max="2100" step="1" value="<?= e($fpYearFrom ?? '') ?>">
-                  <span class="range-separator">—</span>
-                  <input type="number" class="range-input-modern" name="fp_year_to" aria-label="Год создания Fan Page до" placeholder="До" min="2004" max="2100" step="1" value="<?= e($fpYearTo ?? '') ?>">
-                </div>
-              </div>
-              <?php endif; ?>
               
               <?php if (isset($ALL_COLUMNS['limit_rk'])): ?>
               <div class="range-filter-group">
