@@ -47,6 +47,12 @@ $retentionDays    = TrashSettings::DEFAULT_DAYS;
 $purgeDueCount    = 0;   // сколько будет удалено НАВСЕГДА ближайшей автоочисткой
 $lastPurgeDeleted = 0;   // сколько удалил прошлый прогон
 $lastPurgeAt      = null;
+// Пора ли запустить суточную автоочистку. Сама очистка идёт НЕ здесь: её
+// фоновым запросом запускает trash.js (purge_old.php, auto=true). Раньше она
+// выполнялась в shutdown этого же запроса, и без fastcgi_finish_request() на
+// хостинге ответ не заканчивался, пока шло удаление, — переход в корзину висел.
+// См. tests/test_trash_auto_purge_nonblocking.php.
+$autoPurgeDue     = false;
 
 // Параметры trash-фильтра (для режима "выбрать все по фильтру" и сохранения в форме)
 $trashFilterParams = [];
@@ -74,6 +80,7 @@ try {
     // Настройки retention (для колонки "возраст" и UI настройки)
     $trashSettings = TrashSettings::get();
     $retentionDays = $trashSettings['days'];
+    $autoPurgeDue  = TrashSettings::isPurgeDue($trashSettings, time());
 
     // Сколько записей уже перешагнуло срок хранения и будет удалено НАВСЕГДА
     // ближайшей автоочисткой. Показываем это ДО удаления: purgeOlderThan()
@@ -95,8 +102,9 @@ try {
             $purgeDueCount = 0;
         }
     }
-    // Результат ПРОШЛОГО прогона: очистка выполняется в shutdown, уже после
-    // отрисовки страницы, поэтому показать её итог можно только на следующем заходе.
+    // Результат ПРОШЛОГО прогона: очистка идёт фоновым запросом уже после
+    // отрисовки страницы, поэтому здесь виден итог предыдущего прогона
+    // (trash.js после своего прогона сам перерисует список с новыми числами).
     $lastPurgeDeleted = (int)($trashSettings['last_purge_deleted'] ?? 0);
     $lastPurgeAt      = $trashSettings['last_purge_at'] ?? null;
 
@@ -192,6 +200,9 @@ try {
         'line' => $e->getLine()
     ]);
     
+    // Страница в ошибке — фоновую очистку не запускаем.
+    $autoPurgeDue = false;
+
     // Показываем ошибку, но не останавливаем выполнение
     if (!isset($errorMessage)) {
         $errorMessage = $e->getMessage();
@@ -233,34 +244,3 @@ try {
     echo '</body></html>';
     exit;
 }
-
-// Авто-purge (гибрид без cron): выполняется ПОСЛЕ отрисовки страницы, не блокируя
-// пользователя, и не чаще раза в сутки. Удаляет записи корзины старше N дней
-// чанками с кэпом за проход. Любые ошибки гасятся — страница уже отдана.
-if (!isset($errorMessage) && ($_SERVER['HTTP_X_LIST_REFRESH'] ?? '') !== '1' && TrashSettings::shouldAutoPurge()) {
-    if (function_exists('fastcgi_finish_request')) {
-        @fastcgi_finish_request();
-    }
-    register_shutdown_function(function () use ($tableName) {
-        try {
-            $settings = TrashSettings::get();
-            if (empty($settings['enabled'])) {
-                return;
-            }
-            $svc = new AccountsService($tableName);
-            $deleted = $svc->purgeTrashOlderThan((int)$settings['days'], 50000);
-            // Число удалённых сохраняем, чтобы показать его пользователю на
-            // следующем заходе: сюда мы попадаем уже после отрисовки страницы.
-            TrashSettings::markPurged(null, $deleted);
-            if ($deleted > 0) {
-                Logger::info('Trash auto-purge completed', [
-                    'days' => $settings['days'],
-                    'deleted' => $deleted,
-                ]);
-            }
-        } catch (Throwable $e) {
-            Logger::warning('Trash auto-purge failed', ['error' => $e->getMessage()]);
-        }
-    });
-}
-

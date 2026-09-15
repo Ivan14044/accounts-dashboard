@@ -226,7 +226,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
   <div class="workspace-subnav container-fluid"><?php include __DIR__ . '/partials/dashboard/workspace-nav.php'; ?></div>
 
   <!-- Основной контент -->
-  <main class="container-fluid px-4 pb-5" data-list-page="trash" data-page="<?= (int)$page ?>" data-list-error="<?= isset($errorMessage) ? 'true' : 'false' ?>" data-list-config="<?= htmlspecialchars(json_encode(['filterParams' => $trashFilterParams ?? [], 'filteredTotal' => (int)($filteredTotal ?? 0), 'pageRows' => isset($rows) ? count($rows) : 0, 'retention' => ['enabled' => !empty($trashSettings['enabled']), 'days' => (int)$retentionDays]]), ENT_QUOTES, 'UTF-8') ?>">
+  <main class="container-fluid px-4 pb-5" data-list-page="trash" data-page="<?= (int)$page ?>" data-list-error="<?= isset($errorMessage) ? 'true' : 'false' ?>" data-list-config="<?= htmlspecialchars(json_encode(['filterParams' => $trashFilterParams ?? [], 'filteredTotal' => (int)($filteredTotal ?? 0), 'pageRows' => isset($rows) ? count($rows) : 0, 'retention' => ['enabled' => !empty($trashSettings['enabled']), 'days' => (int)$retentionDays], 'autoPurgeDue' => !empty($autoPurgeDue)]), ENT_QUOTES, 'UTF-8') ?>">
 
     <?php if (isset($errorMessage)): ?>
     <div class="alert alert-danger shadow-sm rounded-xl" role="alert">
@@ -668,7 +668,9 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       retention: {
         enabled: <?= !empty($trashSettings['enabled']) ? 'true' : 'false' ?>,
         days: <?= (int)$retentionDays ?>
-      }
+      },
+      // Пора ли фоном запустить суточную автоочистку (см. trash.js → runAutoPurge)
+      autoPurgeDue: <?= !empty($autoPurgeDue) ? 'true' : 'false' ?>
     };
 
     // На странице корзины не подключается dashboard-init.js, поэтому
