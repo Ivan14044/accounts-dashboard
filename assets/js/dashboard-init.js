@@ -1956,6 +1956,21 @@ document.addEventListener('DOMContentLoaded', function() {
     statusSearch.addEventListener('click', (e) => {
       e.stopPropagation();
     });
+
+    // Крестик очистки внутри поля. Показ/скрытие — на CSS, здесь только
+    // очистка. stopPropagation обязателен: клик внутри выпадающего списка
+    // иначе закрывает его, и пользователь теряет список статусов.
+    // Событие input отправляем вручную — по нему пересобирается список.
+    const statusSearchClear = getElementById('statusSearchClear');
+    if (statusSearchClear) {
+      statusSearchClear.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        statusSearch.value = '';
+        statusSearch.dispatchEvent(new Event('input', { bubbles: true }));
+        statusSearch.focus();
+      });
+    }
   }
   // Статус Marketplace (dropdown с красивым дизайном)
   const statusMarketplaceItems = document.querySelectorAll('.status-marketplace-item');

@@ -430,6 +430,52 @@
    DROPDOWN СТАТУСОВ (используем стандартный)
    ======================================== */
 
+/* Поиск по статусам внутри выпадающего списка: поле + крестик очистки внутри
+   него (как в главном поиске). Крестик показывается только когда в поле
+   что-то набрано — чисто на CSS, через :not(:placeholder-shown), поэтому
+   поле обязано ВСЕГДА иметь placeholder. */
+.status-search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.status-search-input {
+    font-size: 0.8rem;
+    /* место под крестик, чтобы текст не заезжал под него */
+    padding-right: 30px;
+}
+.status-search-clear {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--bg-tertiary);
+    border: none;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-full);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    line-height: 1;
+    padding: 0;
+    transition: var(--transition-fast);
+}
+.status-search-clear:hover {
+    background: var(--border-light);
+    color: var(--text-primary);
+}
+.status-search-clear:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+.status-search-input:not(:placeholder-shown) ~ .status-search-clear {
+    display: flex;
+}
+
 /* ========================================
    БЫСТРЫЕ ФИЛЬТРЫ (TOGGLE SWITCHES)
    ======================================== */
@@ -1790,47 +1836,68 @@
    Год страницы живёт РЯДОМ с тумблером Fan Page (правка UX 15.09.2026): раньше
    поля появлялись в отдельном разделе «Дополнительные фильтры», и было
    неочевидно, откуда они взялись. Теперь ячейка тумблера при включении
-   растягивается на всю ширину сетки и показывает поля прямо под собой. */
+   занимает место соседей справа, а поля года встают ВПРАВО от тумблера,
+   не меняя высоту строки. */
 .fp-quick-cell {
     min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
-/* Открытая ячейка занимает МЕСТО СОСЕДА (две колонки), а не всю строку: год
-   встаёт справа от тумблера, а соседние тумблеры плавно съезжают вбок
-   (FLIP-анимация в filters-modern.js). Раньше ячейка растягивалась на всю
-   строку и нижние тумблеры прыгали вниз — правка UX 15.09.2026. */
+/* Открытая ячейка занимает МЕСТО СОСЕДЕЙ (три колонки на десктопе), а не всю
+   строку: год встаёт справа от тумблера, а соседние тумблеры плавно съезжают
+   вбок (FLIP-анимация в filters-modern.js).
+
+   Почему именно ТРИ колонки и почему панель года сделана низкой (правка
+   16.09.2026, замеры на стенде 1280px):
+   - при span 2 панели доставалось 170px, а её минимальная ширина была 206px —
+     она вылезала за край ячейки на 36px и НАКРЫВАЛА соседний тумблер;
+   - подпись «Год создания страницы» при этом переносилась на вторую строку,
+     панель становилась 69px против 32px у тумблера, строка сетки вырастала на
+     36px и вся таблица под фильтрами прыгала вниз.
+   Инвариант, который надо беречь: собственная высота панели года НЕ БОЛЬШЕ
+   высоты обычного тумблера (32px), иначе вертикальный прыжок вернётся. */
 .fp-quick-cell.expanded {
     grid-column: span 2;
 }
-@media (min-width: 768px) {
+@media (min-width: 769px) {
     .fp-quick-cell.expanded {
+        grid-column: span 3;
         flex-direction: row;
         align-items: stretch;
         gap: 8px;
     }
-    /* Тумблер держит ширину обычной ячейки, год занимает освободившееся место */
+    /* Тумблер держит ширину обычной ячейки, год занимает освободившееся место.
+       min-width: 0 обязателен: без него flex-элемент не сжимается ниже своего
+       содержимого и панель снова вылезет за ячейку. */
     .fp-quick-cell.expanded > .toggle-switch-wrapper { flex: 0 0 150px; }
-    .fp-quick-cell.expanded > .fp-year-inline { flex: 1; margin-left: 0; }
+    .fp-quick-cell.expanded > .fp-year-inline {
+        flex: 1 1 0;
+        min-width: 0;
+        margin-left: 0;
+        flex-wrap: nowrap;
+    }
 }
 /* Панель года: пунктирная рамка связывает её с тумблером слева. На узком
-   экране (одна колонка) стоит под тумблером с отступом слева. */
+   экране (одна-две колонки) стоит под тумблером с отступом слева. */
 .fp-year-inline {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px 12px;
+    gap: 4px 8px;
+    min-width: 0;
     margin-left: 14px;
-    padding: 6px 12px;
+    padding: 1px 10px;
     background: var(--success-50);
     border: 1px dashed var(--success-200);
     border-radius: var(--radius-md);
-    animation: fpYearInlineIn 200ms ease-out;
+    animation: fpYearInlineIn 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+/* Год не просто проявляется, а «выезжает» из-под тумблера — тем же движением,
+   каким соседи уезжают вправо. */
 @keyframes fpYearInlineIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
 }
 @media (prefers-reduced-motion: reduce) {
     .fp-year-inline { animation: none; }
@@ -1844,12 +1911,34 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    flex: 0 0 auto;
 }
 .fp-year-inline-inputs {
     display: flex;
     align-items: center;
     gap: 6px;
-    flex: 1;
-    min-width: 180px;
+    flex: 1 1 0;
+    min-width: 0;
 }
-.fp-year-inline-inputs .range-input-modern { flex: 1; min-width: 70px; }
+/* Поля года ниже обычных range-полей: панель обязана уложиться в высоту
+   тумблера, иначе строка сетки вырастает и всё под фильтрами прыгает. */
+.fp-year-inline-inputs .range-input-modern {
+    flex: 1 1 0;
+    min-width: 44px;
+    height: 26px;
+    min-height: 26px;
+    padding: 1px 6px;
+    font-size: var(--font-size-xs);
+    /* стрелки числового поля съедают ~15px ширины и здесь не нужны */
+    -moz-appearance: textfield;
+}
+.fp-year-inline-inputs .range-input-modern::-webkit-outer-spin-button,
+.fp-year-inline-inputs .range-input-modern::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.fp-year-inline .range-separator { flex: 0 0 auto; }
+/* Узкий режим: место нашлось только на две колонки. Текст подписи прячем —
+   остаётся иконка календаря с подсказкой, а у самих полей есть aria-label. */
+.fp-year-inline.compact .fp-year-inline-label-text { display: none; }
+.fp-year-inline .fp-year-inline-label i { flex: 0 0 auto; }

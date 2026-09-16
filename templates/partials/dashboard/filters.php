@@ -315,7 +315,15 @@
               <div class="dropdown-menu p-2 status-dropdown-menu" aria-labelledby="statusDropdown" style="min-width: 320px; max-height: 450px; overflow-y: auto;">
                 <?php if (count($statuses) > 8): ?>
                 <div class="mb-2 px-1">
-                  <input type="text" class="form-control form-control-sm" id="statusSearch" placeholder="Поиск статусов..." style="font-size: 0.8rem;">
+                  <!-- Крестик очистки живёт ВНУТРИ поля: показывается только когда
+                       в поле что-то набрано (CSS :not(:placeholder-shown)), поэтому
+                       JS не нужен для его появления. -->
+                  <div class="status-search-wrap">
+                    <input type="text" class="form-control form-control-sm status-search-input" id="statusSearch" placeholder="Поиск статусов..." autocomplete="off">
+                    <button type="button" class="status-search-clear" id="statusSearchClear" aria-label="Очистить поиск по статусам" title="Очистить">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
                 </div>
                 <?php endif; ?>
                 
@@ -431,7 +439,7 @@
                 </div>
                 <?php if ($fpHasYearCols): ?>
                 <div class="fp-year-inline" id="fpYearInline"<?= $fpYearOn ? '' : ' hidden' ?>>
-                  <span class="fp-year-inline-label"><i class="fas fa-calendar-alt"></i> Год создания страницы</span>
+                  <span class="fp-year-inline-label" title="Год создания Fan Page"><i class="fas fa-calendar-alt"></i><span class="fp-year-inline-label-text">Год создания страницы</span></span>
                   <div class="fp-year-inline-inputs">
                     <input type="number" class="range-input-modern" name="fp_year_from" aria-label="Год создания Fan Page от" placeholder="От" min="2004" max="2100" step="1" value="<?= e($fpYearFrom ?? '') ?>">
                     <span class="range-separator">—</span>
