@@ -441,3 +441,14 @@
     border-color: rgba(16, 185, 129, 0.35);
 }
 [data-bs-theme="dark"] .fp-year-inline-label { color: #9ca3af; }
+
+
+/* Крестик очистки в поиске статусов — тёмная тема */
+[data-bs-theme="dark"] .status-search-clear {
+    background: rgba(255, 255, 255, 0.10);
+    color: #cbd5e1;
+}
+[data-bs-theme="dark"] .status-search-clear:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+}

@@ -601,7 +601,59 @@ function applyFpYearState(form) {
     var show = (fp && fp.checked) || hasYear;
     inline.hidden = !show;
     cell.classList.toggle('expanded', show);
+    applyFpYearSpan(cell, inline, show);
     return show;
+}
+
+/**
+ * Подобрать ширину открытой ячейки Fan Page под ОСТАТОК строки сетки.
+ *
+ * Зачем считать в JS: ширина сетки задана как repeat(auto-fit, minmax(150px,
+ * 1fr)), поэтому число колонок зависит от ширины экрана, и постоянное
+ * `grid-column: span 3` иногда не помещается в строку. Замер на стенде
+ * 16.09.2026: на 992px в сетке пять колонок, тумблер Fan Page стоит четвёртым,
+ * и ячейка на три колонки переезжала на новую строку — сетка вырастала с 73 до
+ * 114px, то есть таблица под фильтрами прыгала вниз ровно так, как жаловался
+ * владелец. Берём столько колонок, сколько реально осталось до конца строки
+ * (но не больше трёх и не меньше двух), а если места хватает только на две —
+ * прячем текст подписи, иначе она переносится на вторую строку и ячейка
+ * снова становится вдвое выше соседей.
+ *
+ * @param {HTMLElement} cell   ячейка тумблера Fan Page
+ * @param {HTMLElement} inline панель диапазона года
+ * @param {boolean}     show   открыта ли панель
+ */
+function applyFpYearSpan(cell, inline, show) {
+    cell.style.gridColumn = '';
+    inline.classList.remove('compact');
+    if (!show) return;
+    var grid = cell.parentElement;
+    if (!grid) return;
+    var gs = window.getComputedStyle(grid);
+    var tracks = gs.gridTemplateColumns.split(' ').map(parseFloat).filter(function (v) { return !isNaN(v); });
+    var total = tracks.length;
+    if (total < 2) { inline.classList.add('compact'); return; }
+    var gap = parseFloat(gs.columnGap) || 0;
+    // Считаем по левому краю ячейки, а не по её номеру среди детей: часть
+    // тумблеров может отсутствовать (колонки нет в базе). offsetLeft не зависит
+    // от transform, поэтому не врёт во время анимации соседей.
+    // Мерить надо СЛОЖЕННУЮ ячейку: у растянутой позиция уже зависит от того,
+    // сколько колонок мы ей дали, и расчёт зацикливается (наступили на это
+    // 16.09.2026: ячейка уезжала на новую строку, offsetLeft становился 0,
+    // и код каждый раз решал, что места хватает на три колонки).
+    var wasExpanded = cell.classList.contains('expanded');
+    cell.classList.remove('expanded');
+    var left = cell.offsetLeft - grid.offsetLeft;
+    if (wasExpanded) cell.classList.add('expanded');
+    var acc = 0;
+    var col = 1;
+    for (var i = 0; i < total; i++) {
+        if (Math.abs(acc - left) < 2) { col = i + 1; break; }
+        acc += tracks[i] + gap;
+    }
+    var span = Math.min(3, Math.max(2, total - col + 1));
+    cell.style.gridColumn = 'span ' + span;
+    inline.classList.toggle('compact', span < 3);
 }
 
 // Старое имя оставлено как псевдоним: его зовёт syncFormFromUrl.
@@ -624,8 +676,21 @@ function animateFpYearLayout(form) {
 
     var cells = Array.prototype.slice.call(grid.children);
     var before = cells.map(function (el) { return el.getBoundingClientRect(); });
+    var beforeH = grid.offsetHeight;
 
     applyFpYearState(form);
+
+    // Если тумблеры занимали строку целиком, места под год нет и сетка честно
+    // становится на строку выше. Высоту тоже анимируем — иначе таблица под
+    // фильтрами телепортируется вниз, и именно это читается как «прыжок».
+    var afterH = grid.offsetHeight;
+    if (afterH !== beforeH) {
+        if (grid._fpGrow) { grid._fpGrow.cancel(); }
+        grid._fpGrow = grid.animate(
+            [{ height: beforeH + 'px' }, { height: afterH + 'px' }],
+            { duration: 260, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+        );
+    }
 
     // Web Animations API: анимируем КАЖДУЮ ячейку от её старого положения к
     // новому (FLIP). WAAPI надёжнее смены transition — не оставляет инлайн-
