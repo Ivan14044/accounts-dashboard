@@ -25,6 +25,9 @@
   window.LS_KEY_KNOWN_COLS  = 'dashboard_known_columns';
   window.LS_KEY_HIDDEN_CARDS = 'dashboard_hidden_cards';
   window.LS_KEY_CUSTOM_CARDS = 'dashboard_custom_cards_v3';
+  // Закреплённые и недавние статусы (modules/status-filter.js). Это префикс:
+  // к нему через «:» дописывается имя таблицы — у каждой таблицы свой список.
+  window.LS_KEY_STATUS_QUICK = 'dashboard_status_quick_v1';
 
   // Число активных фильтров приходит с сервера через init-script.php.
   // Старая версия файла читала window.__DASHBOARD_CONFIG__ — такого объекта в

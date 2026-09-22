@@ -476,6 +476,136 @@
     display: flex;
 }
 
+/* Разделы списка статусов: «Закреплённые», «Недавние», «Все статусы».
+   Раскладывает и анимирует modules/status-filter.js. Место в длинном списке
+   при закреплении модуль держит сам, поэтому родной scroll anchoring выключен:
+   в Safari его нет, а в Chrome он сложился бы с нашей поправкой. */
+.status-dropdown-menu {
+    overflow-anchor: none;
+    --sf-surface: var(--bg-primary, #ffffff);
+    --sf-landing: rgba(37, 99, 235, 0.16);
+    --sf-landing-end: rgba(37, 99, 235, 0);
+}
+.status-section-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-secondary);
+}
+.status-section-title i {
+    font-size: 0.7rem;
+    color: var(--gray-400);
+}
+.status-section[data-status-section="pinned"] .status-section-title i {
+    color: var(--color-primary);
+}
+.status-section[data-status-section="pinned"] + .status-section:not([hidden]),
+.status-section + .status-section[data-status-section="all"] .status-section-title:not([hidden]) {
+    margin-top: 4px;
+}
+.status-section-hint,
+.status-section-nothing {
+    margin: 0 12px 6px;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}
+.status-section-hint i {
+    font-size: 0.7rem;
+    margin: 0 1px;
+    color: var(--color-primary);
+}
+.status-section-nothing {
+    padding: 10px 0;
+    text-align: center;
+}
+
+/* Булавка. Не закреплён — наклонена и видна при наведении; закреплён —
+   «воткнута» (стоит прямо) и видна всегда. На телефоне наведения нет,
+   поэтому там она видна всегда и крупнее. */
+.status-pin-btn {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin: -4px -6px -4px 4px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--gray-400);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 120ms ease, color 150ms ease, background-color 150ms ease;
+}
+.status-pin-btn i {
+    font-size: 0.78rem;
+    transform: rotate(45deg);
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.status-checkbox-item:hover .status-pin-btn,
+.status-checkbox-item:focus-within .status-pin-btn,
+.status-pin-btn:focus-visible {
+    opacity: 1;
+}
+.status-pin-btn:hover {
+    color: var(--color-primary);
+    background: rgba(37, 99, 235, 0.08);
+}
+.status-pin-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 0;
+}
+.status-checkbox-item.is-pinned .status-pin-btn {
+    opacity: 1;
+    color: var(--color-primary);
+}
+.status-checkbox-item.is-pinned .status-pin-btn i {
+    transform: rotate(0deg);
+}
+@media (hover: none) {
+    .status-pin-btn {
+        opacity: 1;
+    }
+}
+@media (hover: none) and (pointer: coarse) {
+    .status-dropdown-menu .status-checkbox-item {
+        min-height: 44px;
+    }
+    .status-pin-btn {
+        width: 40px;
+        height: 40px;
+        margin: -8px -10px -8px 2px;
+    }
+}
+
+/* Строка в полёте проходит поверх соседей и не просвечивает. */
+.status-checkbox-item.is-flying {
+    position: relative;
+    z-index: 2;
+    background-color: var(--sf-surface);
+}
+
+/* Закреплённый статус, в котором сейчас нет аккаунтов: не прячем, а приглушаем. */
+.status-checkbox-item.is-missing .status-name {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+.status-checkbox-item.is-missing .status-count {
+    background-color: var(--gray-400) !important;
+}
+
+/* Подпись на кнопке списка: длинное имя статуса обрезается, а не ломает кнопку. */
+#statusDropdownLabel {
+    min-width: 0;
+}
+
 /* ========================================
    БЫСТРЫЕ ФИЛЬТРЫ (TOGGLE SWITCHES)
    ======================================== */

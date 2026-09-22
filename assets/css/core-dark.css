@@ -443,6 +443,17 @@
 [data-bs-theme="dark"] .fp-year-inline-label { color: #9ca3af; }
 
 
+/* Разделы и булавка в списке статусов — тёмная тема. Строка в полёте должна
+   быть того же цвета, что и сам список (он здесь var(--bg-primary)). */
+[data-bs-theme="dark"] .status-dropdown-menu {
+    --sf-surface: var(--bg-primary);
+    --sf-landing: rgba(96, 165, 250, 0.22);
+    --sf-landing-end: rgba(96, 165, 250, 0);
+}
+[data-bs-theme="dark"] .status-pin-btn:hover {
+    background: rgba(96, 165, 250, 0.12);
+}
+
 /* Крестик очистки в поиске статусов — тёмная тема */
 [data-bs-theme="dark"] .status-search-clear {
     background: rgba(255, 255, 255, 0.10);
