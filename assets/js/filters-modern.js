@@ -405,11 +405,10 @@ function syncFormFromUrl() {
     if (emptyCb) {
         emptyCb.checked = params.get('empty_status') === '1';
     }
-    // Метка dropdown статусов
-    var statusLabel = document.getElementById('statusDropdownLabel');
-    if (statusLabel) {
-        var cnt = urlStatuses.length + (params.get('empty_status') === '1' ? 1 : 0);
-        statusLabel.textContent = cnt === 0 ? 'Все статусы' : 'Выбрано: ' + cnt;
+    // Подпись на кнопке списка статусов считает модуль списка (один статус —
+    // его имя). Своя копия здесь уже расходилась с шаблоном и dashboard-init.js.
+    if (window.DashboardStatusFilter) {
+        window.DashboardStatusFilter.updateLabel();
     }
 
     // Быстрые фильтры (toggle-switch)

@@ -289,28 +289,28 @@
             </div>
           </div>
           
-          <!-- Статусы (Dropdown) -->
+          <!-- Статусы (Dropdown). Поведение списка — assets/js/modules/status-filter.js:
+               щелчок по названию показывает только этот статус, галочка добавляет
+               к выбранным, булавка закрепляет наверху. -->
+          <?php
+            // Партиал не полагается на scope: без массива status_filter_label() упала бы с TypeError.
+            $statusArray = isset($statusArray) && is_array($statusArray) ? $statusArray : [];
+            $statuses = isset($statuses) && is_array($statuses) ? $statuses : [];
+            $statusLabel = status_filter_label($statusArray, ($emptyStatusParam ?? '') !== '');
+          ?>
           <div class="form-group-modern">
             <label class="search-field-modern-label">
               <i class="fas fa-tag me-1"></i>Статус
             </label>
             <div class="dropdown w-100">
-              <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center" 
-                      type="button" 
-                      id="statusDropdown" 
-                      data-bs-toggle="dropdown" 
+              <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center"
+                      type="button"
+                      id="statusDropdown"
+                      data-bs-toggle="dropdown"
                       aria-expanded="false"
+                      title="<?= e($statusLabel) ?>"
                       style="height: 40px; border-radius: var(--radius-lg); border-width: 1.5px;">
-                <span id="statusDropdownLabel">
-                  <?php if (empty($statusArray) && empty($emptyStatusParam)): ?>
-                    Все статусы
-                  <?php else: ?>
-                    <?php 
-                    $selectedCount = count($statusArray) + (!empty($emptyStatusParam) ? 1 : 0);
-                    ?>
-                    Выбрано: <?= $selectedCount ?>
-                  <?php endif; ?>
-                </span>
+                <span id="statusDropdownLabel" class="text-truncate"><?= e($statusLabel) ?></span>
               </button>
               <div class="dropdown-menu p-2 status-dropdown-menu" aria-labelledby="statusDropdown" style="min-width: 320px; max-height: 450px; overflow-y: auto;">
                 <?php if (count($statuses) > 8): ?>
@@ -319,14 +319,14 @@
                        в поле что-то набрано (CSS :not(:placeholder-shown)), поэтому
                        JS не нужен для его появления. -->
                   <div class="status-search-wrap">
-                    <input type="text" class="form-control form-control-sm status-search-input" id="statusSearch" placeholder="Поиск статусов..." autocomplete="off">
+                    <input type="text" class="form-control form-control-sm status-search-input" id="statusSearch" placeholder="Найти статус — можно по-русски" autocomplete="off" aria-label="Найти статус">
                     <button type="button" class="status-search-clear" id="statusSearchClear" aria-label="Очистить поиск по статусам" title="Очистить">
                       <i class="fas fa-times"></i>
                     </button>
                   </div>
                 </div>
                 <?php endif; ?>
-                
+
                 <div class="d-flex gap-2 mb-2 pb-2 border-bottom">
                   <button type="button" class="btn btn-sm btn-outline-primary flex-fill" id="selectAllStatusesBtn">
                     <i class="fas fa-check-double"></i> Все
@@ -335,29 +335,51 @@
                     <i class="fas fa-times"></i> Очистить
                   </button>
                 </div>
-                
+
+                <span id="statusPinLive" class="visually-hidden" aria-live="polite"></span>
+
                 <!-- Чекбокс для пустых статусов -->
-                <div class="form-check status-checkbox-item mb-2 pb-2 border-bottom">
-                  <input class="form-check-input status-checkbox" type="checkbox" value="1" id="status_empty" name="empty_status" <?= ($emptyStatusParam??'')!=='' ? 'checked' : '' ?>>
-                  <label class="form-check-label w-100 d-flex justify-content-between align-items-center" for="status_empty">
+                <div class="form-check status-checkbox-item status-empty-item mb-2 pb-2 border-bottom">
+                  <input class="form-check-input status-checkbox" type="checkbox" value="1" id="status_empty" name="empty_status" title="Добавить к выбранным" <?= ($emptyStatusParam??'')!=='' ? 'checked' : '' ?>>
+                  <label class="form-check-label w-100 d-flex justify-content-between align-items-center" for="status_empty" title="Показать только аккаунты без статуса">
                     <span><i class="fas fa-exclamation-triangle text-warning me-1"></i>Пустой статус</span>
                     <span class="badge bg-warning status-count" data-status="__empty__">
                       <?= isset($byStatus['']) ? number_format($byStatus['']) : 0 ?>
                     </span>
                   </label>
                 </div>
-                
-                <?php foreach ($statuses as $st): ?>
-                <div class="form-check status-checkbox-item">
-                  <input class="form-check-input status-checkbox" type="checkbox" value="<?= e($st) ?>" id="status_<?= e(preg_replace('/[^a-zA-Z0-9]/', '_', $st)) ?>" name="status[]" <?= in_array($st, $statusArray) ? 'checked' : '' ?>>
-                  <label class="form-check-label w-100 d-flex justify-content-between align-items-center" for="status_<?= e(preg_replace('/[^a-zA-Z0-9]/', '_', $st)) ?>">
-                    <span><?= e($st) ?></span>
-                    <span class="badge bg-secondary status-count" data-status="<?= e($st) ?>">
-                      <?= isset($byStatus[$st]) ? number_format($byStatus[$st]) : 0 ?>
-                    </span>
+
+                <!-- Разделы раскладывает modules/status-filter.js ПЕРЕНОСОМ строк:
+                     каждый статус живёт одной строкой, копий нет. Закреплённые и
+                     недавние хранятся в браузере, поэтому сервер кладёт всё в
+                     «Все статусы», а без JS список работает как раньше. -->
+                <div class="status-section" data-status-section="pinned" hidden>
+                  <div class="status-section-title"><i class="fas fa-thumbtack" aria-hidden="true"></i>Закреплённые</div>
+                  <p class="status-section-hint" data-status-hint hidden>Нажмите <i class="fas fa-thumbtack" aria-hidden="true"></i> у статуса — он встанет сюда</p>
+                  <div class="status-section-list" role="group" aria-label="Закреплённые статусы"></div>
+                </div>
+                <div class="status-section" data-status-section="recent" hidden>
+                  <div class="status-section-title"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i>Недавние</div>
+                  <div class="status-section-list" role="group" aria-label="Недавние статусы"></div>
+                </div>
+                <div class="status-section" data-status-section="all">
+                  <div class="status-section-title" hidden>Все статусы</div>
+                  <div class="status-section-list" role="group" aria-label="Все статусы">
+                <?php foreach ($statuses as $stIndex => $st):
+                    // Индекс в id: у разных статусов замена символов на «_» может дать одно и то же.
+                    $stId = 'status_' . $stIndex . '_' . preg_replace('/[^a-zA-Z0-9]/', '_', $st); ?>
+                <div class="form-check status-checkbox-item" data-status-value="<?= e($st) ?>">
+                  <input class="form-check-input status-checkbox" type="checkbox" value="<?= e($st) ?>" id="<?= e($stId) ?>" name="status[]" title="Добавить к выбранным" <?= in_array($st, $statusArray, true) ? 'checked' : '' ?>>
+                  <label class="form-check-label w-100 d-flex justify-content-between align-items-center" for="<?= e($stId) ?>" title="Показать только этот статус">
+                    <span class="status-name"><?= e($st) ?></span>
+                    <span class="badge bg-secondary status-count" data-status="<?= e($st) ?>"><?= isset($byStatus[$st]) ? number_format($byStatus[$st]) : 0 ?></span>
                   </label>
+                  <button type="button" class="status-pin-btn" aria-pressed="false" aria-label="Закрепить статус <?= e($st) ?>" title="Закрепить наверху"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>
                 </div>
                 <?php endforeach; ?>
+                  </div>
+                </div>
+                <p class="status-section-nothing" data-status-nothing hidden>Ничего не нашлось</p>
               </div>
             </div>
           </div>

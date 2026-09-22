@@ -50,6 +50,13 @@ class DashboardMain {
         }
       }
       
+      // Список статусов: закреплённые, недавние, «только этот», поиск
+      if (typeof window.DashboardStatusFilter !== 'undefined') {
+        window.DashboardStatusFilter.init();
+      } else if (typeof logger !== 'undefined') {
+        logger.warn('⚠️ Модуль DashboardStatusFilter не найден');
+      }
+
       // Инициализация модуля статистики
       if (typeof window.DashboardStats !== 'undefined') {
         window.DashboardStats.init();

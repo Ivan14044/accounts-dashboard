@@ -120,11 +120,18 @@ docker run --rm -v "$PWD":/app -w /app php:7.3-cli php tools/build_assets.php --
 глобальную функцию:
 
 ```js
-window.DashboardRefresh.onAfterRefresh(() => {
+window.DashboardRefresh.onAfterRefresh((info) => {
   // вызывается и при успехе, и при ошибке обновления;
-  // падение обработчика логируется и не мешает остальным
+  // падение обработчика логируется и не мешает остальным.
+  // info.applied — данные ЭТОГО запроса легли на экран (false при ошибке и
+  // при отмене более свежим запросом); info.search — параметры, с которыми
+  // запрос ушёл (адрес к этому моменту мог уже смениться).
 });
 ```
+
+Так, например, `modules/status-filter.js` пишет «Недавние» статусы — только
+при `info.applied`. Второй механизм «данные обновились» (своё событие,
+обёртку) не заводите.
 
 Раньше модули переопределяли `window.refreshDashboardData` своей обёрткой —
 цепочка зависела от порядка загрузки, а одна из обёрток глотала `AbortError`
@@ -149,6 +156,7 @@ layout-догон (`tableLayoutManager.refresh()`, виртуализация, s
 | `dashboard-main.js` | Координация инициализации модулей |
 | `dashboard-selection.js` | Выбор строк, selectedIds, selectAll |
 | `dashboard-filters.js` | Фильтры, слайдеры pharma/friends |
+| `status-filter.js` | Список статусов: закреплённые/недавние (localStorage по таблице), «только этот» по щелчку на названии, поиск с раскладкой и транслитом, «Все»/«Очистить», подпись кнопки, счётчики. Единственный владелец списка — не добавляйте ему обработчиков в другие файлы. Чистая логика — `DashboardStatusFilter.logic`, тесты — `tests/status-filter.test.cjs` |
 | `dashboard-refresh.js` | refreshDashboardData, collectRefreshParams, setTableLoadingState |
 | `dashboard-stats.js` | Скрытие/показ карточек статистики |
 | `table-module.js` | Виртуализация, рендеринг строк |

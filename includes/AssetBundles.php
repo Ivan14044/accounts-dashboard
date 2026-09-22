@@ -89,6 +89,7 @@ class AssetBundles
             'assets/js/modules/dashboard-selection.js',
             'assets/js/modules/dashboard-export.js',
             'assets/js/modules/dashboard-filters.js',
+            'assets/js/modules/status-filter.js',            // список статусов; запускает dashboard-main.js ниже
             'assets/js/modules/dashboard-stats.js',
             'assets/js/modules/dashboard-modals.js',
             'assets/js/modules/dashboard-validate.js',

@@ -18,7 +18,9 @@
 $root = dirname(__DIR__);
 $css  = file_get_contents($root . '/assets/css/core-plugins.css');
 $js   = file_get_contents($root . '/assets/js/filters-modern.js');
-$init = file_get_contents($root . '/assets/js/dashboard-init.js');
+// Список статусов (и крестик в его поиске) с 22.09.2026 ведёт отдельный модуль;
+// раньше обработчики жили в dashboard-init.js.
+$statusModule = file_get_contents($root . '/assets/js/modules/status-filter.js');
 $tpl  = file_get_contents($root . '/templates/partials/dashboard/filters.php');
 
 $checks = array();
@@ -56,8 +58,10 @@ $checks['крестик показывается только при непус�
     $css, '.status-search-input:not(:placeholder-shown) ~ .status-search-clear') !== false;
 $checks['под крестик оставлено место в поле'] = (bool)preg_match(
     '/\.status-search-input\s*\{[^}]*padding-right:/s', $css);
-$checks['крестик чистит поле и не закрывает список'] = strpos($init, 'statusSearchClear') !== false
-    && (bool)preg_match("/statusSearchClear\.addEventListener\('click'.{0,400}stopPropagation.{0,400}statusSearch\.value = ''/s", $init);
+// Клик внутри списка гасится stopPropagation в начале общего обработчика
+// (иначе Bootstrap закрыл бы список), ветка крестика чистит поле.
+$checks['крестик чистит поле и не закрывает список'] = strpos($statusModule, '#statusSearchClear') !== false
+    && (bool)preg_match("/menu\.addEventListener\('click'.{0,200}stopPropagation\(\).{0,1500}#statusSearchClear.{0,200}search\.value = ''/s", $statusModule);
 
 $failed = 0;
 foreach ($checks as $name => $ok) {

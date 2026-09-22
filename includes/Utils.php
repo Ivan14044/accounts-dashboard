@@ -126,6 +126,38 @@ function get_param_array(string $key): array {
 }
 
 /**
+ * Подпись на кнопке списка статусов в фильтре.
+ *
+ * Выбран один статус — показываем его имя: переходя со статуса на статус,
+ * человек сразу видит, где он. Два и больше — «Выбрано: N».
+ * Та же логика в браузере — labelFor() в assets/js/modules/status-filter.js;
+ * совпадение стерегут tests/test_status_filter_markup.php и
+ * tests/status-filter.test.cjs (одинаковые наборы случаев).
+ *
+ * @param array $statuses       выбранные статусы (как из get_param_array('status'))
+ * @param bool  $emptySelected  отмечен ли «Пустой статус» (empty_status=1)
+ * @return string подпись без экранирования — выводить через e()
+ */
+if (!function_exists('status_filter_label')) {
+function status_filter_label(array $statuses, bool $emptySelected): string {
+    $names = array();
+    foreach ($statuses as $status) {
+        if (is_string($status) && $status !== '' && !in_array($status, $names, true)) {
+            $names[] = $status;
+        }
+    }
+    $count = count($names) + ($emptySelected ? 1 : 0);
+    if ($count === 0) {
+        return 'Все статусы';
+    }
+    if ($count === 1) {
+        return count($names) === 1 ? $names[0] : 'Пустой статус';
+    }
+    return 'Выбрано: ' . $count;
+}
+}
+
+/**
  * Построение URL с изменением параметров
  * 
  * @param array $patch Параметры для изменения/добавления

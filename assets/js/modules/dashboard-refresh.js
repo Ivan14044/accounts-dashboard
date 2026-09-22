@@ -94,6 +94,9 @@
 
     const isLight = options && (options.light === true || options.light === 'true');
     let failed = false;
+    // Данные ИМЕННО этого запроса легли на экран. Отменённый (его сменил более
+    // свежий) и упавший запрос остаются false — подписчикам важно отличать.
+    let applied = false;
     setTableLoadingState(true);
 
     try {
@@ -235,10 +238,12 @@
               }
             }
           });
-          document.querySelectorAll('.status-count').forEach(el => {
-            const status = el.getAttribute('data-status');
-            el.textContent = data.byStatus[status] || 0;
-          });
+          // Числа в списке статусов. Свой цикл здесь искал byStatus['__empty__'],
+          // а сервер кладёт пустой статус под ключ '' — «Пустой статус» после
+          // каждого обновления показывал 0 (на рабочей панели 436 → 0, 22.09.2026).
+          if (window.DashboardStatusFilter) {
+            window.DashboardStatusFilter.updateCounts(data.byStatus);
+          }
         }
 
         // Таблица (основная тяжёлая операция)
@@ -308,6 +313,7 @@
         });
       }
       applyDataToDom();
+      applied = true;
 
     } catch (error) {
       if (error.name === 'AbortError' || (error.message && error.message.includes && error.message.includes('aborted'))) {
@@ -351,7 +357,9 @@
       if (typeof window.updateStickyScrollbar === 'function') {
         window.updateStickyScrollbar();
       }
-      notifyAfterRefresh();
+      // Параметры — те, с которыми ушёл запрос, а не текущий адрес: пока ответ
+      // шёл, адрес мог уже смениться на следующий фильтр.
+      notifyAfterRefresh({ applied: applied, search: '?' + params.toString() });
     }
   }
 
@@ -368,7 +376,12 @@
    * (данные могли частично обновиться, подписчикам нужно пересчитать своё).
    * Исключение внутри одного обработчика не мешает остальным.
    *
-   * @param {Function} handler
+   * Обработчик получает {applied, search}: applied — данные этого запроса
+   * легли на экран (false при ошибке и при отмене более свежим запросом),
+   * search — строка параметров, с которой запрос ушёл. Старым подписчикам,
+   * которым это не нужно, аргумент не мешает.
+   *
+   * @param {function({applied: boolean, search: string}): *} handler
    * @returns {Function} функция отписки
    */
   function onAfterRefresh(handler) {
@@ -381,10 +394,10 @@
   }
 
   /** Дёргает подписчиков, изолируя падения каждого. */
-  function notifyAfterRefresh() {
+  function notifyAfterRefresh(info) {
     for (const handler of afterRefreshHandlers.slice()) {
       try {
-        const result = handler();
+        const result = handler(info);
         if (result && typeof result.catch === 'function') {
           result.catch(err => logErr('Ошибка обработчика afterRefresh:', err));
         }
