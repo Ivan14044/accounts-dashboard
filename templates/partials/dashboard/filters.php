@@ -309,7 +309,7 @@
                       data-bs-toggle="dropdown"
                       aria-expanded="false"
                       title="<?= e($statusLabel) ?>"
-                      style="height: 40px; border-radius: var(--radius-lg); border-width: 1.5px;">
+                      style="height: 40px; border-radius: var(--radius-lg);">
                 <span id="statusDropdownLabel" class="text-truncate"><?= e($statusLabel) ?></span>
               </button>
               <div class="dropdown-menu p-2 status-dropdown-menu" aria-labelledby="statusDropdown" style="min-width: 320px; max-height: 450px; overflow-y: auto;">
@@ -617,30 +617,40 @@
                               || isset($ALL_COLUMNS['status_bm_3']) || isset($ALL_COLUMNS['status_bm_4']);
               $currentBmStatus = $bmStatus ?? '';
               ?>
-              <div class="range-filter-group range-filter-group--bm">
+              <div class="range-filter-group">
                 <div class="range-filter-label">
                   <i class="fas fa-briefcase"></i>
                   Количество БМ
                 </div>
-                <div class="bm-filter-row">
-                  <div class="range-inputs">
-                    <input type="number" id="bm_from" class="range-input-modern" name="bm_from" placeholder="От" min="0" step="1" value="<?= e($bmFrom ?? '') ?>">
-                    <span class="range-separator">—</span>
-                    <input type="number" id="bm_to" class="range-input-modern" name="bm_to" placeholder="До" min="0" step="1" value="<?= e($bmTo ?? '') ?>">
-                  </div>
-                  <?php if ($hasBmStatusCols): ?>
-                  <div class="bm-status-inline">
-                    <label class="bm-status-label"><i class="fas fa-shield-alt"></i> Статус</label>
-                    <select id="bm_status" name="bm_status" class="form-select form-select-sm bm-status-select">
-                      <option value="any"<?= $currentBmStatus === '' || $currentBmStatus === 'any' ? ' selected' : '' ?>>Любые</option>
-                      <option value="has_valid"<?= $currentBmStatus === 'has_valid'  ? ' selected' : '' ?>>Есть валидный</option>
-                      <option value="has_ban"<?=   $currentBmStatus === 'has_ban'    ? ' selected' : '' ?>>Есть в бане</option>
-                      <option value="only_valid"<?= $currentBmStatus === 'only_valid' ? ' selected' : '' ?>>Только валидные</option>
-                    </select>
-                  </div>
-                  <?php endif; ?>
+                <div class="range-inputs">
+                  <input type="number" id="bm_from" class="range-input-modern" name="bm_from" placeholder="От" min="0" step="1" value="<?= e($bmFrom ?? '') ?>">
+                  <span class="range-separator">—</span>
+                  <input type="number" id="bm_to" class="range-input-modern" name="bm_to" placeholder="До" min="0" step="1" value="<?= e($bmTo ?? '') ?>">
                 </div>
               </div>
+              <?php if ($hasBmStatusCols): ?>
+              <?php
+              // Статус БМ — отдельной ячейкой сетки, как все остальные фильтры.
+              // Раньше он жил внутри ячейки «Количество БМ» с подписью «Статус»:
+              // переносился под поля «От/До», растил строку сетки, и по подписи
+              // было не понять, что это фильтр именно по БМ (жалоба владельца
+              // 2026-09-26: «не вижу, где фильтр БМ, и криво отображается»).
+              ?>
+              <div class="range-filter-group">
+                <div class="range-filter-label" id="bmStatusLabel">
+                  <i class="fas fa-shield-alt"></i>
+                  Статус БМ
+                </div>
+                <div class="range-inputs">
+                  <select id="bm_status" name="bm_status" class="form-select form-select-sm w-100" aria-labelledby="bmStatusLabel">
+                    <option value="any"<?= $currentBmStatus === '' || $currentBmStatus === 'any' ? ' selected' : '' ?>>Любые</option>
+                    <option value="has_valid"<?= $currentBmStatus === 'has_valid'  ? ' selected' : '' ?>>Есть валидный</option>
+                    <option value="has_ban"<?=   $currentBmStatus === 'has_ban'    ? ' selected' : '' ?>>Есть в бане</option>
+                    <option value="only_valid"<?= $currentBmStatus === 'only_valid' ? ' selected' : '' ?>>Только валидные</option>
+                  </select>
+                </div>
+              </div>
+              <?php endif; ?>
               <?php endif; ?>
               
               <?php if (isset($ALL_COLUMNS['phone_removed'])): ?>

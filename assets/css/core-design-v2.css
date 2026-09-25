@@ -809,3 +809,136 @@ body > main.container-fluid, .workspace-subnav { max-width: var(--workspace-max)
   .sparkline__path { stroke-dashoffset: 0; }
   .sparkline__area, .sparkline__dot { opacity: 1; }
 }
+
+/* ============================================================
+   ФИЛЬТРЫ — ОДНА ОБВОДКА НА ВСЕ ПОЛЯ
+   ------------------------------------------------------------
+   Замер на стенде 2026-09-25 (1000×800, обе темы) до этой правки:
+   - рамки 1.5px: на экране с плотностью 1× такая линия ложится между
+     пикселями и размывается в полупрозрачную двойную;
+   - два оттенка рамки в светлой теме (gray-200 у полей и тумблеров,
+     gray-300 у кнопок-списков) и три в тёмной;
+   - пять разных высот: 32 (диапазоны), 33 (тумблеры), 35 (списки БМ,
+     Marketplace, валюта, гео, RK), 44 («Телефон»), 40 (первая строка);
+   - у кнопок-списков прозрачный фон, у полей — белый;
+   - у <select> «Телефон» и «Статус БМ» пропала стрелка: core-theme.css и
+     core-dark.css задают `background: … !important` шорткатом, и он
+     стирает background-image, которым Bootstrap рисует шеврон.
+   Решение: внутри панели фильтров у всех полей одна рамка 1px цвета
+   --color-border, один фон --bg-primary, одна высота второго уровня
+   (--filter-control-h) и одинаковые наведение/фокус. Токены тёмная тема
+   переопределяет сама, поэтому правило одно на обе темы.
+   Специфичность поднята префиксом .filters-modern: core-dark.css грузится
+   ПОСЛЕ этого файла, и при равной специфичности перебил бы правку.
+   Активный тумблер (зелёная заливка) здесь сознательно не трогаем —
+   его цвета задают core-plugins.css и core-dark.css.
+   Стережёт tests/test_filters_unified_border.php.
+   ============================================================ */
+.filters-modern {
+  --filter-control-h: 34px;
+}
+
+.filters-modern .filters-modern-body .toggle-switch-wrapper,
+.filters-modern .filters-modern-body .search-input-modern,
+.filters-modern .filters-modern-body .range-input-modern,
+.filters-modern .filters-modern-body .form-select,
+.filters-modern .filters-modern-body .dropdown-toggle.btn-outline-secondary {
+  border-width: 1px !important;
+  border-style: solid !important;
+  box-shadow: none;
+}
+
+/* Цвет и фон — всем, кроме включённого тумблера */
+.filters-modern .filters-modern-body .toggle-switch-wrapper:not(.active),
+.filters-modern .filters-modern-body .search-input-modern,
+.filters-modern .filters-modern-body .range-input-modern,
+.filters-modern .filters-modern-body .form-select,
+.filters-modern .filters-modern-body .dropdown-toggle.btn-outline-secondary {
+  border-color: var(--color-border) !important;
+  background-color: var(--bg-primary) !important;
+}
+
+/* Высота второго уровня: тумблеры, диапазоны, списки */
+.filters-modern .filters-modern-body .toggle-switch-wrapper,
+.filters-modern .filters-modern-body .range-input-modern,
+.filters-modern .range-filters-section .form-select,
+.filters-modern .range-filters-section .dropdown-toggle.btn-outline-secondary {
+  height: var(--filter-control-h);
+  min-height: var(--filter-control-h);
+}
+.filters-modern .range-filters-section .form-select,
+.filters-modern .range-filters-section .dropdown-toggle.btn-outline-secondary {
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: var(--text-sm);
+  line-height: calc(var(--filter-control-h) - 2px);
+}
+
+/* Шеврон у настоящих <select> — тот же, что у кнопок-списков рядом.
+   Цвет gray-500 (#6b7280) читается и на белом, и на тёмном фоне. */
+.filters-modern .filters-modern-body .form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 10px center !important;
+  background-size: 12px 10px !important;
+  padding-right: 30px !important;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Наведение: рамка на тон темнее — у всех одинаково */
+.filters-modern .filters-modern-body .toggle-switch-wrapper:not(.active):hover,
+.filters-modern .filters-modern-body .search-input-modern:hover,
+.filters-modern .filters-modern-body .range-input-modern:hover,
+.filters-modern .filters-modern-body .form-select:hover,
+.filters-modern .filters-modern-body .dropdown-toggle.btn-outline-secondary:hover {
+  border-color: var(--color-border-hover) !important;
+  box-shadow: none;
+}
+
+/* Фокус и открытый список: синяя рамка и мягкое кольцо — у всех одинаково */
+.filters-modern .filters-modern-body .search-input-modern:focus,
+.filters-modern .filters-modern-body .range-input-modern:focus,
+.filters-modern .filters-modern-body .form-select:focus,
+.filters-modern .filters-modern-body .dropdown-toggle.btn-outline-secondary:focus-visible,
+.filters-modern .filters-modern-body .dropdown-toggle.btn-outline-secondary[aria-expanded="true"] {
+  border-color: var(--primary-400) !important;
+  box-shadow: var(--shadow-focus) !important;
+  outline: none;
+}
+/* Плашка быстрого фильтра сама получает фокус по Tab (у неё tabindex), поэтому
+   кольцо — на :focus-visible самой плашки: только от клавиатуры, после щелчка
+   мышью оно не висит. */
+.filters-modern .filters-modern-body .toggle-switch-wrapper:focus-visible {
+  border-color: var(--primary-400) !important;
+  box-shadow: var(--shadow-focus) !important;
+  outline: none;
+}
+
+/* Та же стрелка у кнопок-списков (Статус, Marketplace, валюта, гео, RK):
+   вместо залитого треугольника Bootstrap — тонкий шеврон, как у <select>
+   выше. Иначе в одной сетке жили две разные стрелки. */
+.filters-modern .filters-modern-body .dropdown-toggle.btn-outline-secondary::after {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 10px;
+  margin-left: 8px;
+  border: 0;
+  vertical-align: middle;
+  background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") no-repeat center / 12px 10px;
+}
+/* Стрелка стоит в 10px от правого края — ровно как шеврон у <select>. */
+.filters-modern .filters-modern-body .dropdown-toggle.btn-outline-secondary {
+  padding-right: 10px;
+}
+
+/* На телефоне поля не мельчим: списки и диапазоны 40px (как .form-select в
+   core-mobile.css), быстрые фильтры 44px под палец. Общая высота выше иначе
+   перебила бы эти правила своей специфичностью. */
+@media (max-width: 767px) {
+  .filters-modern { --filter-control-h: 40px; }
+  .filters-modern .filters-modern-body .quick-filters-grid > .toggle-switch-wrapper {
+    height: auto;
+    min-height: 44px;
+  }
+}
