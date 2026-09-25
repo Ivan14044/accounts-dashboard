@@ -761,7 +761,8 @@ body {
   .field-edit-btn,
   .copy-btn,
   .pw-toggle,
-  .pw-edit {
+  .pw-edit,
+  .cha-copy {
     min-height: 36px;
     min-width: 36px;
   }
