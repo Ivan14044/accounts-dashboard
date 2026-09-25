@@ -309,7 +309,7 @@
                       data-bs-toggle="dropdown"
                       aria-expanded="false"
                       title="<?= e($statusLabel) ?>"
-                      style="height: 40px; border-radius: var(--radius-lg); border-width: 1.5px;">
+                      style="height: 40px; border-radius: var(--radius-lg);">
                 <span id="statusDropdownLabel" class="text-truncate"><?= e($statusLabel) ?></span>
               </button>
               <div class="dropdown-menu p-2 status-dropdown-menu" aria-labelledby="statusDropdown" style="min-width: 320px; max-height: 450px; overflow-y: auto;">
