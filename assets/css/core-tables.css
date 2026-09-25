@@ -257,7 +257,11 @@
   box-shadow: 0 0 0 2px var(--gray-100);
 }
 
-.field-edit-btn, .copy-btn, .pw-toggle, .pw-edit {
+/* .cha-copy — кнопка «Копировать» плавающей панели (cell-actions.js). Без неё
+   в этих списках браузер рисовал её своим стилем: серый квадрат с выпуклой
+   рамкой рядом с аккуратными соседями. Стережёт
+   tests/test_cell_hover_buttons_styled.php. */
+.field-edit-btn, .copy-btn, .pw-toggle, .pw-edit, .cha-copy {
   background: transparent;
   border: none;
   color: var(--gray-300);
@@ -267,7 +271,7 @@
   transition: color 150ms ease;
 }
 
-.field-edit-btn:hover, .copy-btn:hover, .pw-toggle:hover, .pw-edit:hover {
+.field-edit-btn:hover, .copy-btn:hover, .pw-toggle:hover, .pw-edit:hover, .cha-copy:hover {
   background: transparent;
   color: var(--gray-600);
 }

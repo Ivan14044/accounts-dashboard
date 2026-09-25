@@ -73,7 +73,8 @@
 .dashboard-table.density-compact .field-edit-btn,
 .dashboard-table.density-compact .copy-btn,
 .dashboard-table.density-compact .pw-toggle,
-.dashboard-table.density-compact .pw-edit {
+.dashboard-table.density-compact .pw-edit,
+.dashboard-table.density-compact .cha-copy {
   padding: 2px;
   font-size: 0.6875rem;
 }
@@ -667,6 +668,7 @@
 .user-profile:focus-visible,
 .field-edit-btn:focus-visible,
 .copy-btn:focus-visible,
+.cha-copy:focus-visible,
 .dropdown-item:focus-visible {
   outline: 2px solid var(--primary-500);
   outline-offset: 2px;

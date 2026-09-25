@@ -172,7 +172,10 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
     .pw-dots { letter-spacing: 0.1em; font-weight: 600; color: var(--gray-500); }
     .pw-text:empty::before { content: '(пусто)'; color: var(--gray-400); font-style: italic; }
 
-    .pw-toggle, .pw-edit {
+    /* .cha-copy — «Копировать» из плавающей панели ячейки: выглядит так же, как
+       соседние кнопки. Прозрачности 0.6 у неё нет — панель и так видна только
+       под курсором. */
+    .pw-toggle, .pw-edit, .cha-copy {
       border: 1px solid var(--gray-300);
       background: var(--gray-50);
       padding: 2px 6px;
@@ -183,6 +186,8 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       opacity: 0.6;
     }
     .pw-mask:hover .pw-toggle, .pw-mask:hover .pw-edit { opacity: 1; }
+    .cha-copy { opacity: 1; }
+    .cha-copy:hover { background: var(--primary-50); color: var(--primary-600); border-color: var(--primary-300); }
     .pw-toggle:hover { background: var(--primary-50); color: var(--primary-600); border-color: var(--primary-300); }
     .pw-edit:hover   { background: var(--success-50); color: var(--success-600); border-color: var(--success-500); }
 
