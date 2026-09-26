@@ -49,12 +49,12 @@ body { -webkit-tap-highlight-color: transparent; }
    цифры одной ширины, чтобы «1» → «8» не двигало соседей. Список короткий
    намеренно: попиксельное сравнение 2026-09-26 показало, что у этих
    счётчиков цифры и так моноширинные, а добавленные сюда же «Всего» в
-   избранном и числа журнала меняли вид на компьютере — их убрали. */
+   избранном, числа журнала и «Выбрано» в корзине меняли вид на компьютере —
+   их убрали. */
 .stat-value,
 .dashboard-table__counter-value,
 .dashboard-table__counter-total,
-.toolbar-selected__count,
-#selectedCount {
+.toolbar-selected__count {
   font-variant-numeric: tabular-nums;
 }
 
