@@ -649,3 +649,57 @@ body { -webkit-tap-highlight-color: transparent; }
   .navbar .vr { display: none !important; }
   .navbar > .container-fluid:has(.page-nav-back) { padding-left: 16px !important; padding-right: 16px !important; flex-wrap: nowrap; }
 }
+
+
+/* ============================================================
+   13. КАРТОЧКИ СТАТУСОВ НА ТЕЛЕФОНЕ — лента в две строки
+   На рабочей панели около сотни статусов (живая главная 2026-09-26).
+   Столбиком по одной карточке это ~10 800px прокрутки до таблицы на
+   375px (замер на стенде со 102 статусами), боком — ~4 200px. Лента
+   работает до 767px и на сенсорных планшетах до 991px; мышь на мониторе
+   любой ширины её не видит. Теперь
+   карточки идут лентой в две строки, листаются пальцем вбок и
+   останавливаются на краю карточки; «Всего аккаунтов» — первой, на обе
+   строки. Край следующей карточки виден — понятно, что лента листается.
+   Раньше тут стояли правила из core-mobile.css (одна колонка ≤575px,
+   auto-fit ≤991px) с !important — поэтому и здесь !important.
+   ============================================================ */
+@media (max-width: 767.98px), (max-width: 991.98px) and (pointer: coarse), (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
+  #statsRow.stats-grid {
+    display: grid !important;
+    grid-template-columns: none !important;
+    grid-template-rows: repeat(2, auto);
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(150px, 44%);
+    gap: 8px !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  #statsRow.stats-grid::-webkit-scrollbar { display: none; }
+  #statsRow .stat-card {
+    grid-column: auto !important;
+    min-width: 0;
+    scroll-snap-align: start;
+  }
+  #statsRow .stat-title { overflow-wrap: anywhere; }
+  /* «Всего» в ленте узкое, поэтому число и график — друг под другом, а не
+     в строку (иначе график 92px съедал всю ширину, и подпись вставала
+     столбиком по букве) */
+  #statsRow .stat-card[data-card="total"] {
+    grid-row: span 2;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: space-between;
+  }
+  #statsRow .stat-card[data-card="total"] .sparkline { width: 100%; height: 34px; }
+}
+/* Планшет и телефон боком: экран шире — карточек в ленте видно больше */
+@media (min-width: 768px) and (max-width: 991.98px) and (pointer: coarse),
+       (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
+  #statsRow.stats-grid { grid-auto-columns: minmax(150px, 22%); }
+}
