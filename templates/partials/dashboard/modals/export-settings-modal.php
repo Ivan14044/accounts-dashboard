@@ -6,7 +6,12 @@
         <h5 class="modal-title">
           <i class="fas fa-file-export me-2"></i>Настройки экспорта
         </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        <?php /* Без btn-close-white: шапка окна давно не тёмно-зелёная, а светлая
+                 (bg-success перекрашен дизайн-слоем), и белый крестик на ней был
+                 не виден. Кружки выбора ниже с ps-5: у .form-check в Bootstrap
+                 кружок стоит в отрицательном отступе слева, а p-3 урезал этот
+                 отступ — кружок вылезал за рамку карточки. Найдено 2026-09-26. */ ?>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
       </div>
       <div class="modal-body p-4">
         <form id="exportSettingsForm">
@@ -17,7 +22,7 @@
             
             <div class="export-options-list">
               <!-- Опция: Все по фильтру -->
-              <div class="form-check custom-option-check p-3 border rounded mb-2 transition-all hover-bg-light cursor-pointer" id="exportOptionAllContainer">
+              <div class="form-check custom-option-check p-3 ps-5 border rounded mb-2 transition-all hover-bg-light cursor-pointer" id="exportOptionAllContainer">
                 <input class="form-check-input mt-1" type="radio" name="export_scope" id="exportScopeAll" value="all" checked>
                 <label class="form-check-label w-100 cursor-pointer" for="exportScopeAll">
                   <div class="fw-bold">Все по фильтру</div>
@@ -26,7 +31,7 @@
               </div>
               
               <!-- Опция: Выбранные -->
-              <div class="form-check custom-option-check p-3 border rounded mb-2 transition-all hover-bg-light cursor-pointer" id="exportOptionSelectedContainer">
+              <div class="form-check custom-option-check p-3 ps-5 border rounded mb-2 transition-all hover-bg-light cursor-pointer" id="exportOptionSelectedContainer">
                 <input class="form-check-input mt-1" type="radio" name="export_scope" id="exportScopeSelected" value="selected">
                 <label class="form-check-label w-100 cursor-pointer" for="exportScopeSelected">
                   <div class="fw-bold">Выбранные строки</div>
@@ -35,13 +40,13 @@
               </div>
               
               <!-- Опция: Указать количество -->
-              <div class="form-check custom-option-check p-3 border rounded transition-all hover-bg-light cursor-pointer" id="exportOptionCustomContainer">
+              <div class="form-check custom-option-check p-3 ps-5 border rounded transition-all hover-bg-light cursor-pointer" id="exportOptionCustomContainer">
                 <input class="form-check-input mt-1" type="radio" name="export_scope" id="exportScopeCustom" value="custom">
                 <label class="form-check-label w-100 cursor-pointer" for="exportScopeCustom">
                   <div class="fw-bold">Указать количество</div>
                   <div class="small text-muted mb-2">Выгрузить первые N записей по текущему фильтру</div>
                   <div class="input-group input-group-sm mt-2" id="customLimitWrapper" style="max-width: 150px; display: none;">
-                    <input type="number" class="form-control" id="exportCustomLimit" name="limit" min="1" placeholder="Напр: 50" value="50">
+                    <input type="number" inputmode="numeric" class="form-control" id="exportCustomLimit" name="limit" min="1" placeholder="Напр: 50" value="50">
                     <span class="input-group-text">шт.</span>
                   </div>
                 </label>

@@ -73,8 +73,12 @@ function initializeTrash() {
     function updateSelectedCount() {
         const count = filterMode ? cfg.filteredTotal : selectedIds.size;
         if (selectedCountEl) selectedCountEl.textContent = count;
+        document.querySelectorAll('[data-selected-count]').forEach(el => { el.textContent = count; });
 
         const hasSelection = count > 0;
+        // Только для вида: на телефоне панель «Восстановить / Удалить навсегда»
+        // выезжает снизу, когда что-то отмечено (core-touch.css, раздел 6).
+        document.body.classList.toggle('has-selection', hasSelection);
         if (restoreSelectedBtn) restoreSelectedBtn.disabled = !hasSelection;
         if (deletePermanentlyBtn) deletePermanentlyBtn.disabled = !hasSelection;
 

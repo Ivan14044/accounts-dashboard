@@ -43,7 +43,7 @@ function getStatusClass($status) {
 <html lang="ru" data-bs-theme="auto">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <script>
     (function(){try{var t=localStorage.getItem('dashboard-theme');
       if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
@@ -65,6 +65,7 @@ function getStatusClass($status) {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg-body);
       min-height: 100vh;
+      min-height: 100dvh; /* iOS: без прыжка при скрытии адресной строки */
     }
     
     .account-header {
@@ -265,8 +266,15 @@ function getStatusClass($status) {
       .account-header { padding: var(--space-5) var(--space-4); }
       .account-id { font-size: 2.5rem; }
       .toolbar-view { flex-direction: column; align-items: stretch; text-align: center; }
-      .toolbar-view .btn-group { flex-direction: column; width: 100%; gap: var(--space-2); }
-      .toolbar-view .btn-group .btn { border-radius: var(--radius-lg) !important; width: 100%; }
+      /* Четыре действия — сеткой 2×2 во всю ширину. Раньше столбиком внутри
+         .btn-group: у группы отрицательные отступы и срезанные рамки, и на
+         телефоне кнопки наезжали друг на друга («Дублировать» без рамки). */
+      .toolbar-view .btn-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: var(--space-2); box-shadow: none !important; }
+      .toolbar-view .btn-group .btn { border-radius: var(--radius-lg) !important; width: 100%; margin: 0 !important; border: 1px solid var(--color-border) !important; display: inline-flex; align-items: center; justify-content: center; }
+      .toolbar-view .btn-group .btn.btn-primary { border-color: transparent !important; }
+      /* Почта и статус переносятся, а не уезжают за край карточки */
+      .account-subtitle { flex-wrap: wrap; gap: var(--space-2); overflow-wrap: anywhere; font-size: 1rem; }
+      .account-title { font-size: 1.4rem; overflow-wrap: anywhere; }
     }
 
     /* ===== Тёмная тема ===== */
@@ -278,6 +286,8 @@ function getStatusClass($status) {
     [data-bs-theme="dark"] .copy-btn:hover { background: var(--primary-600); color: #fff; border-color: var(--primary-600); }
     [data-bs-theme="dark"] .btn-white { background: var(--bg-primary); color: var(--gray-700); }
   </style>
+  <!-- Мобильный слой: подключается последним, после стилей страницы (см. шапку файла) -->
+  <link href="assets/css/core-touch.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 </head>
 <body>
 <nav class="navbar navbar-expand bg-white border-bottom shadow-sm mb-4" style="height: 64px;">
@@ -677,6 +687,7 @@ async function duplicateAccount() {
 }
 </script>
 <script src="assets/js/favorites.js?v=<?= ASSETS_VERSION ?>"></script>
+<script src="assets/js/mobile-touch.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 <script src="assets/js/theme-toggle.js?v=<?= ASSETS_VERSION ?>" defer></script>
 </body>
 </html>

@@ -460,7 +460,7 @@ function activePeriod(): string {
 <html lang="ru" data-bs-theme="light">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <script>
       (function(){try{var t=localStorage.getItem('dashboard-theme');
         if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
@@ -739,6 +739,78 @@ function activePeriod(): string {
             .stats-grid { grid-template-columns: 1fr; }
         }
 
+        /* === Телефон: записи журнала — карточки, а не таблица ===
+           Раньше таблица в 760px листалась вбок внутри окна высотой 65% экрана:
+           две прокрутки одна в другой, а «Было/Стало» и кнопки действий уезжали
+           за край. Теперь каждая запись — карточка: дата и номер сверху,
+           сотрудник, аккаунт и тип действия, затем «Было/Стало» во всю ширину и
+           кнопки действий крупно внизу. Разметка та же, меняется только вид.
+           Нажатие на карточку, как и на строку, открывает подробности. */
+        @media (max-width: 767.98px) {
+            .table-wrapper { max-height: none; overflow: visible; }
+            .log-table { min-width: 0; display: block; }
+            .log-table thead { display: none; }
+            .log-table tbody { display: block; }
+            .log-table tbody tr {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                grid-template-areas:
+                    "date   id"
+                    "user   user"
+                    "acc    action"
+                    "old    old"
+                    "new    new"
+                    "ip     actions";
+                gap: 8px 12px;
+                align-items: center;
+                padding: 14px 16px;
+                background: var(--log-bg, #fff) !important;
+                border-bottom: 8px solid var(--log-page-bg, #f0f2f5);
+            }
+            .log-table td { display: block; padding: 0 !important; font-size: 0.875rem; min-width: 0; }
+            .log-table .log-td-id { grid-area: id; text-align: right; }
+            .log-table .log-td-date { grid-area: date; }
+            .log-table .log-td-date > div { display: inline; margin-right: 6px; }
+            .log-table .log-td-user { grid-area: user; }
+            .log-table .log-td-acc { grid-area: acc; }
+            .log-table .log-td-action { grid-area: action; justify-self: end; }
+            .log-table .log-td-old { grid-area: old; }
+            .log-table .log-td-new { grid-area: new; }
+            .log-table .log-td-ip { grid-area: ip; }
+            .log-table .log-td-actions { grid-area: actions; justify-self: end; }
+            .log-table .value-cell::before {
+                content: attr(data-label) ": ";
+                color: #94a3b8;
+                font-size: 0.78rem;
+                margin-right: 4px;
+            }
+            .log-table .value-cell span { white-space: normal; overflow-wrap: anywhere; }
+            .log-table .user-badge { max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
+            .action-buttons { flex-direction: row; }
+            .chip-count, .records-range { white-space: nowrap; }
+            .user-stat-chip { overflow-wrap: anywhere; }
+            .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+            .stats-grid .stat-card { padding: 12px 8px; }
+            .stats-grid .stat-number { font-size: 1.35rem; }
+            .stats-grid .stat-label { font-size: 0.68rem; letter-spacing: 0; }
+        }
+        [data-bs-theme="dark"] { --log-page-bg: #0A0A0F; }
+
+        /* Кнопка «Открыть аккаунт» в окне подробностей была НЕВИДИМОЙ (белый
+           текст на прозрачном фоне) на любой ширине: .btn-primary здесь красит
+           core-theme.css через var(--primary-600), а core-base.css с этими
+           токенами на странице журнала не подключён. Задаём цвет явно.
+           Найдено 2026-09-26 при проверке окна на телефоне. */
+        .detail-modal .btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .detail-modal .btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+
+        /* Телефон: кнопки окна подробностей — сеткой 2×2, а не четыре узкие
+           в ряд с текстом в три строки */
+        @media (max-width: 575.98px) {
+            #modalActions { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+            #modalActions .btn { display: inline-flex; align-items: center; justify-content: center; white-space: normal; }
+        }
+
         /* ===== Тёмная тема (самодостаточно; Bootstrap-компоненты темит data-bs-theme) ===== */
         [data-bs-theme="dark"] {
             --log-bg: #15161A;
@@ -791,6 +863,8 @@ function activePeriod(): string {
         [data-bs-theme="dark"] .auto-refresh-indicator.inactive { background: #1B1C21; color: #8C929C; }
         [data-bs-theme="dark"] .auto-refresh-indicator.active { background: rgba(16,185,129,0.14); color: #6ee7b7; }
     </style>
+    <!-- Мобильный слой: подключается последним, после стилей страницы (см. шапку файла) -->
+    <link href="assets/css/core-touch.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 </head>
 <body>
     <div class="container-fluid py-4" style="max-width: 1600px;">
@@ -947,12 +1021,12 @@ function activePeriod(): string {
                 </div>
                 <div class="col-md-1 col-sm-6">
                     <label class="form-label">ID акк.</label>
-                    <input type="number" name="account_id" class="form-control"
+                    <input type="number" inputmode="numeric" name="account_id" class="form-control"
                            placeholder="#" value="<?= $filterAccountId > 0 ? $filterAccountId : '' ?>">
                 </div>
                 <div class="col-md-2 col-sm-6">
                     <label class="form-label">Поиск</label>
-                    <input type="text" name="search" class="form-control"
+                    <input type="text" enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false" name="search" class="form-control"
                            placeholder="Поиск в значениях..." value="<?= e($filterSearch) ?>">
                 </div>
                 <div class="col-md-1 col-sm-12 d-flex gap-2">
@@ -972,7 +1046,7 @@ function activePeriod(): string {
                 <div class="d-flex align-items-center gap-3">
                     <div>
                         <strong>Записи</strong>
-                        <span class="text-muted ms-2" style="font-size: 0.85rem;">
+                        <span class="text-muted ms-2 records-range" style="font-size: 0.85rem;">
                             <?= number_format(min(($page - 1) * $perPage + 1, $totalCount)) ?>–<?= number_format(min($page * $perPage, $totalCount)) ?>
                             из <?= number_format($totalCount) ?>
                         </span>
@@ -1022,32 +1096,32 @@ function activePeriod(): string {
                         <tbody>
                             <?php foreach ($logs as $idx => $log): ?>
                                 <tr onclick="showDetail(<?= $idx ?>)" data-log-idx="<?= $idx ?>">
-                                    <td class="text-muted" style="font-size: 0.78rem;"><?= e($log['id']) ?></td>
-                                    <td style="white-space: nowrap;">
+                                    <td class="text-muted log-td-id" style="font-size: 0.78rem;"><?= e($log['id']) ?></td>
+                                    <td class="log-td-date" style="white-space: nowrap;">
                                         <div style="font-weight: 500;"><?= date('d.m.Y', strtotime($log['changed_at'])) ?></div>
                                         <div style="font-size: 0.78rem; color: #94a3b8;"><?= date('H:i:s', strtotime($log['changed_at'])) ?></div>
                                     </td>
-                                    <td>
+                                    <td class="log-td-user">
                                         <a href="<?= e(buildUrl(['user' => $log['changed_by'], 'page' => 1])) ?>"
                                            class="user-badge text-decoration-none" onclick="event.stopPropagation()">
                                             <span class="user-dot"></span>
                                             <?= e($log['changed_by']) ?>
                                         </a>
                                     </td>
-                                    <td>
+                                    <td class="log-td-acc">
                                         <a href="view.php?id=<?= (int)$log['account_id'] ?>"
                                            class="account-link" onclick="event.stopPropagation()" title="Открыть аккаунт #<?= (int)$log['account_id'] ?>">
                                             #<?= e($log['account_id']) ?>
                                             <i class="fas fa-external-link-alt"></i>
                                         </a>
                                     </td>
-                                    <td>
+                                    <td class="log-td-action">
                                         <span class="field-badge" style="background: <?= e(actionColor($log['field_name'])) ?>">
                                             <i class="fas <?= e(fieldIcon($log['field_name'])) ?>"></i>
                                             <?= e(fieldLabel($log['field_name'])) ?>
                                         </span>
                                     </td>
-                                    <td class="value-cell">
+                                    <td class="value-cell log-td-old" data-label="Было">
                                         <?php if (!empty($log['old_value'])): ?>
                                             <span class="value-old value-tooltip" title="<?= e($log['old_value']) ?>">
                                                 <?= e(mb_strimwidth($log['old_value'], 0, 40, '...')) ?>
@@ -1056,7 +1130,7 @@ function activePeriod(): string {
                                             <span class="text-muted" style="font-size: 0.8rem;">—</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="value-cell">
+                                    <td class="value-cell log-td-new" data-label="Стало">
                                         <?php if (!empty($log['new_value'])): ?>
                                             <span class="value-new value-tooltip" title="<?= e($log['new_value']) ?>">
                                                 <?= e(mb_strimwidth($log['new_value'], 0, 40, '...')) ?>
@@ -1065,12 +1139,12 @@ function activePeriod(): string {
                                             <span class="text-muted" style="font-size: 0.8rem;">—</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td>
+                                    <td class="log-td-ip">
                                         <?php if (!empty($log['ip_address'])): ?>
                                             <span class="ip-badge"><?= e($log['ip_address']) ?></span>
                                         <?php endif; ?>
                                     </td>
-                                    <td onclick="event.stopPropagation()">
+                                    <td class="log-td-actions" onclick="event.stopPropagation()">
                                         <div class="action-buttons">
                                             <a href="view.php?id=<?= (int)$log['account_id'] ?>"
                                                class="action-btn view-btn" title="Открыть аккаунт">
@@ -1291,6 +1365,84 @@ function activePeriod(): string {
 
         // Автообновление
         let autoRefreshInterval = null;
+
+        /**
+         * Автообновление журнала НА МЕСТЕ, без перезагрузки страницы.
+         *
+         * Раньше раз в 30 секунд вызывался location.reload(): страница мигала,
+         * прокрутка на телефоне улетала наверх, открытая карточка записи и
+         * набранный в фильтре текст пропадали. Теперь тот же адрес
+         * запрашивается фоном, и в документе заменяются только данные: числа в
+         * карточках статистики, строки журнала, счётчик «1–50 из N», пагинация,
+         * список сотрудников и массив logsData, из которого окно подробностей
+         * берёт запись. Фильтры, прокрутка и фокус не трогаются.
+         *
+         * Пропускаем такт, если вкладка скрыта, открыто окно подробностей или
+         * человек что-то вводит в поле — обновим в следующий раз.
+         * Ошибка сети не ломает страницу: остаются прежние данные.
+         */
+        let refreshInFlight = false;
+        async function refreshLogsInPlace() {
+            if (refreshInFlight || document.hidden) return;
+            if (document.querySelector('.modal.show')) return;
+            const ae = document.activeElement;
+            if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+            refreshInFlight = true;
+            try {
+                const res = await fetch(location.href, { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } });
+                if (!res.ok) return;
+                const html = await res.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+
+                // Данные для окна подробностей — тот же JSON, что печатает сервер
+                const m = html.match(/const logsData = (\[[\s\S]*?\]);\n/);
+                if (!m) return;
+                const fresh = JSON.parse(m[1]);
+
+                const swap = (sel) => {
+                    const cur = document.querySelector(sel), next = doc.querySelector(sel);
+                    if (cur && next && cur.innerHTML !== next.innerHTML) cur.innerHTML = next.innerHTML;
+                };
+                // Числа статистики — только текст, карточки не пересоздаются
+                const curNums = document.querySelectorAll('.stats-grid .stat-number');
+                doc.querySelectorAll('.stats-grid .stat-number').forEach((n, i) => {
+                    if (curNums[i] && curNums[i].textContent !== n.textContent) curNums[i].textContent = n.textContent;
+                });
+                // Новые записи приходят СВЕРХУ списка и подталкивали бы вниз ту
+                // запись, которую человек сейчас читает. Запоминаем первую видимую
+                // строку и её положение на экране, а после замены возвращаем её
+                // ровно туда же. Встроенное «якорение прокрутки» браузера тут не
+                // спасает: innerHTML пересоздаёт строки, и якорь исчезает.
+                const rowKey = tr => (tr.querySelector('.log-td-id') || {}).textContent;
+                let anchor = null;
+                for (const tr of document.querySelectorAll('.log-table tbody tr')) {
+                    const top = tr.getBoundingClientRect().top;
+                    if (top >= 0) { anchor = { key: rowKey(tr), top }; break; }
+                }
+                swap('.log-table tbody');
+                if (anchor && window.scrollY > 0) {
+                    const same = [...document.querySelectorAll('.log-table tbody tr')].find(tr => rowKey(tr) === anchor.key);
+                    if (same) {
+                        const delta = same.getBoundingClientRect().top - anchor.top;
+                        if (delta) window.scrollTo({ top: window.scrollY + delta, behavior: 'instant' });
+                    }
+                }
+                swap('.records-range');
+                swap('.pagination-wrapper');
+                swap('.user-stats-bar');
+
+                logsData.length = 0;
+                fresh.forEach(x => logsData.push(x));
+
+                document.querySelectorAll('.log-table .value-tooltip').forEach(el => {
+                    if (!bootstrap.Tooltip.getInstance(el)) new bootstrap.Tooltip(el, { placement: 'top', trigger: 'hover' });
+                });
+            } catch (e) {
+                // Сеть/сервер недоступны — оставляем то, что уже на экране
+            } finally {
+                refreshInFlight = false;
+            }
+        }
         function toggleAutoRefresh() {
             const btn = document.getElementById('autoRefreshBtn');
             const status = document.getElementById('autoRefreshStatus');
@@ -1307,7 +1459,7 @@ function activePeriod(): string {
                 pulse.style.display = 'none';
                 text.textContent = 'Авто: выкл';
             } else {
-                autoRefreshInterval = setInterval(() => location.reload(), 30000);
+                autoRefreshInterval = setInterval(refreshLogsInPlace, 30000);
                 btn.style.background = 'rgba(34,197,94,0.3)';
                 btn.style.borderColor = '#22c55e';
                 status.className = 'auto-refresh-indicator active';
@@ -1334,6 +1486,7 @@ function activePeriod(): string {
             }
         });
     </script>
+    <script src="assets/js/mobile-touch.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
     <script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 </body>
 </html>

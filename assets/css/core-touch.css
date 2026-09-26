@@ -1,0 +1,651 @@
+/* ==========================================================================
+   CORE-TOUCH.CSS — слой «как приложение» для телефонов и планшетов
+
+   Подключается ПОСЛЕДНИМ на КАЖДОЙ странице панели (дашборд, избранное,
+   корзина, карточка, история, логи, журнал, дубли, связки, вход, загрузка).
+   Поэтому здесь нельзя опираться на токены из core-base.css: на части страниц
+   (связки, дубли, загрузка) его нет. У каждого var() — запасное значение.
+
+   Главный принцип — компьютер не трогаем:
+   - всё, что про палец (размер целей, шрифт полей, реакция на нажатие), живёт
+     под @media (pointer: coarse) — мышь такие правила не видит на любой ширине;
+   - всё, что про раскладку (шторки, нижняя панель, карточки), живёт под
+     max-width ≤ 767px, то есть на 1280/1920 не срабатывает вообще;
+   - безусловные правила здесь только такие, что на компьютере дают ноль:
+     env(safe-area-*) там всегда 0, dvh на компьютере равен vh.
+   Проверено замером 2026-09-26: на 1280 и 1920 положение и размер каждого
+   видимого элемента до и после подключения файла совпадают (см. отчёт PR).
+
+   Чего здесь осознанно НЕТ:
+   - overscroll-behavior на самой странице: он выключил бы на телефоне
+     привычное «потяни вниз — обновится». Резинку гасим только у внутренних
+     прокручиваемых областей (окна, списки, таблицы), чтобы прокрутка списка
+     не утаскивала за собой страницу с шапкой;
+   - логики. Файл меняет только вид; единственный помощник на JS —
+     assets/js/mobile-touch.js (жест «смахнуть окно вниз»).
+   ========================================================================== */
+
+
+/* ============================================================
+   0. БЕЗУСЛОВНО (на компьютере не даёт видимой разницы)
+   ============================================================ */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Вырез камеры у телефона, повёрнутого боком: при viewport-fit=cover
+     страница заходит под него, поэтому отступаем ровно на его ширину.
+     Отступ на <html>, а не на <body>: у body отступы задают сами страницы
+     (core-base обнуляет, вход и загрузка ставят свои), и правило здесь
+     либо перетёрло бы их, либо проиграло бы им. На компьютере и в
+     портрете env() = 0. */
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+body { -webkit-tap-highlight-color: transparent; }
+
+/* Счётчики, которые меняются на глазах (обновление таблицы, выбор строк):
+   цифры одной ширины, чтобы «1» → «8» не двигало соседей. Список короткий
+   намеренно: попиксельное сравнение 2026-09-26 показало, что у этих
+   счётчиков цифры и так моноширинные, а добавленные сюда же «Всего» в
+   избранном и числа журнала меняли вид на компьютере — их убрали. */
+.stat-value,
+.dashboard-table__counter-value,
+.dashboard-table__counter-total,
+.toolbar-selected__count,
+#selectedCount {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Внутренние прокручиваемые области не передают «резинку» странице */
+.modal-body,
+.dropdown-menu,
+.dashboard-table__scroll,
+.table-responsive,
+.table-wrapper,
+.status-list,
+.log-entries {
+  overscroll-behavior: contain;
+}
+
+
+/* ============================================================
+   1. ПАЛЕЦ ВМЕСТО МЫШИ — pointer: coarse (телефон, планшет)
+   ============================================================ */
+@media (pointer: coarse) {
+
+  /* iOS сам приближает страницу, если шрифт поля меньше 16px.
+     Раньше защита стояла только до 767px — на телефоне боком (844px) и на
+     планшете поля были 13–14px, и страница «прыгала» при каждом вводе. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  select,
+  textarea,
+  .form-control,
+  .form-select {
+    font-size: 16px !important;
+  }
+
+  /* Цели нажатия не меньше 44×44 (Apple HIG). min-* не ломает раскладку:
+     кнопка, которая уже больше, остаётся как была. */
+  .btn,
+  .btn-sm,
+  .header-action-btn,
+  .page-theme-toggle,
+  .login-theme-toggle,
+  .user-profile,
+  .dropdown-item,
+  .page-link,
+  .nav-link,
+  .period-btn,
+  .action-btn,
+  .copy-btn,
+  .pw-toggle,
+  .pw-edit,
+  .cha-copy,
+  .field-edit-btn,
+  .btn-table-open,
+  .filters-modern-btn,
+  .workspace-nav a,
+  .form-select,
+  .form-control:not(textarea) {
+    min-height: 44px;
+  }
+
+  .btn,
+  .btn-sm,
+  .header-action-btn,
+  .page-theme-toggle,
+  .login-theme-toggle,
+  .user-profile,
+  .page-link,
+  .action-btn,
+  .pw-toggle,
+  .pw-edit,
+  .field-edit-btn {
+    min-width: 44px;
+  }
+
+  /* Там, где у страницы своё правило с более длинным селектором
+     (core-design-v2.css: .workspace-header .header-action-btn 36px),
+     повторяем его селектор — иначе оно перебивает. */
+  .workspace-header .header-action-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .toolbar .btn,
+  .density-toggle__btn,
+  .filters-modern .filters-modern-body .dropdown-toggle.btn-outline-secondary {
+    min-height: 44px !important;
+  }
+  .workspace-brand { min-height: 44px; }
+
+  /* Заголовок колонки: сортировка по нажатию на всю ячейку, а не на
+     строчку текста высотой 13px */
+  .ac-cell__sort {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    margin: -10px 0;
+  }
+
+  /* Ссылки внутри ячеек таблицы (почта, профиль): зона нажатия выше
+     самого текста за счёт отрицательного отступа — высота строки та же */
+  .ac-table .field-value {
+    display: inline-block;
+    padding: 13px 0;
+    margin: -13px 0;
+  }
+
+  /* Все поля панели фильтров — 44px (раньше 40px на телефоне, 34px на планшете) */
+  .filters-modern { --filter-control-h: 44px; }
+
+  /* Кнопки-иконки центрируем, иначе после растяжения значок уезжает влево */
+  .header-action-btn,
+  .page-theme-toggle,
+  .login-theme-toggle,
+  .action-btn,
+  .pw-toggle,
+  .pw-edit,
+  .page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Промежуток между соседними маленькими целями */
+  .pagination { gap: 6px; }
+  .action-buttons { gap: 6px; }
+
+  /* Галочки чуть крупнее. Раскладку .form-check (float + отрицательный
+     отступ Bootstrap) не трогаем: попытка сделать её flex выталкивала
+     кружки переключателей за край карточек в окне выгрузки. Подпись
+     label и так нажимается целиком. */
+  .form-check-input:not(.form-switch .form-check-input) {
+    width: 1.25em;
+    height: 1.25em;
+  }
+
+  /* Ссылки-«значки» (сотрудник и аккаунт в журнале) — полноценные цели */
+  .user-badge,
+  .account-link,
+  .user-stat-chip {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  /* Чипы фильтров оставляем низкими (у крестика своя расширенная зона
+     нажатия в core-mobile.css), иначе ряд чипов разрастается */
+  .filter-chip,
+  .filters-modern-chip {
+    min-height: 36px;
+  }
+  .navbar-brand { min-height: 44px; display: inline-flex; align-items: center; }
+
+  /* Галочки строк в таблицах — крупнее (нажатие по всей ячейке
+     дополнительно ловит mobile-touch.js) */
+  .ac-table .form-check-input { width: 22px; height: 22px; }
+
+  /* Ссылка-почта в карточке аккаунта: выше зона нажатия, высота строки та же */
+  .field-value a[href^="mailto:"] { display: inline-block; padding: 11px 0; margin: -11px 0; }
+
+  /* Нажатие видно: лёгкое затемнение/сжатие вместо серой вспышки браузера.
+     Только transform/opacity — без пересчёта раскладки. */
+  .btn:active,
+  .header-action-btn:active,
+  .page-theme-toggle:active,
+  .dropdown-item:active,
+  .page-link:active,
+  .workspace-nav a:active,
+  .action-btn:active,
+  .period-btn:active,
+  .stat-card:active {
+    opacity: .75;
+    transform: scale(.97);
+    transition: transform 80ms ease, opacity 80ms ease;
+  }
+
+  /* На тач-экране наведения нет: то, что показывается только по hover,
+     показываем всегда (кнопка «скрыть карточку», действия строки). */
+  .stat-card-hide-btn,
+  .cell-actions,
+  .row-actions {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+}
+
+
+/* ============================================================
+   2. ВЫСОТА ЭКРАНА — dvh вместо vh
+   На iOS 100vh = высота БЕЗ адресной строки, поэтому блок «на весь экран»
+   выше видимой области и дёргается, когда строка прячется/появляется.
+   Старые браузеры, не знающие dvh, остаются на прежнем vh.
+   ============================================================ */
+/* :where() — нулевая специфичность: у кого своё правило для body, тот главнее */
+:where(body) { min-height: 100vh; min-height: 100dvh; }
+
+
+/* ============================================================
+   3. ОКНА НА ТЕЛЕФОНЕ — выезжающая снизу шторка
+   До 575px любое окно Bootstrap (.modal) становится панелью на всю ширину,
+   прижатой к низу: скругление сверху, «ручка», прокрутка внутри, кнопки
+   внизу — в зоне большого пальца. Закрыть можно крестиком, тапом по фону
+   и жестом вниз за шапку (assets/js/mobile-touch.js).
+   Появление — только transform, поэтому содержимое страницы не сдвигается.
+   Перебивает прежнее «окно на весь экран» из core-mobile.css (≤479px) —
+   поэтому здесь !important там же, где он был там.
+   ============================================================ */
+@media (max-width: 575.98px) {
+  .modal { overscroll-behavior: contain; }
+
+  .modal .modal-dialog,
+  .modal .modal-dialog.modal-dialog-centered,
+  .modal .modal-dialog.modal-dialog-scrollable {
+    margin: 0 !important;
+    width: 100%;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 100% !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: stretch;
+  }
+
+  .modal.fade .modal-dialog {
+    transform: translate3d(0, 100%, 0);
+    transition: transform .28s cubic-bezier(.2, .8, .2, 1);
+  }
+  .modal.show .modal-dialog { transform: none; }
+
+  /* Экранная клавиатура: шторка поднимается над ней (--kb-h считает
+     mobile-touch.js по visualViewport; без клавиатуры 0) */
+  .modal .modal-dialog { padding-bottom: var(--kb-h, 0px); }
+
+  .modal .modal-content {
+    height: auto !important;
+    max-height: 92vh;
+    max-height: calc(92dvh - var(--kb-h, 0px));
+    border-radius: 16px 16px 0 0 !important;
+    border: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* «Ручка» — подсказка, что шторку можно смахнуть */
+  .modal .modal-content::before {
+    content: '';
+    display: block;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 5px;
+    margin: 8px auto 0;
+    border-radius: 3px;
+    background: var(--gray-300, #d1d5db);
+  }
+
+  .modal .modal-header { flex: 0 0 auto; touch-action: none; }
+  .modal .modal-body {
+    flex: 1 1 auto;
+    max-height: none !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal .modal-footer {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .modal .modal-footer > .btn { flex: 1 1 auto; margin: 0; }
+
+  /* Крестик — полноценная цель 44×44 */
+  .modal .btn-close {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    margin: -8px -8px -8px auto;
+    background-size: 14px;
+  }
+}
+
+/* Телефон боком: высоты мало, поэтому шторка на всю высоту и без ручки */
+@media (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
+  .modal .modal-content { max-height: 100vh; max-height: 100dvh; }
+  .modal .modal-body { overflow-y: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal.fade .modal-dialog { transition: none; }
+}
+
+
+/* ============================================================
+   4. ВЫПАДАЮЩИЕ СПИСКИ — не шире экрана и с прокруткой внутри
+   ============================================================ */
+@media (max-width: 767.98px) {
+  .dropdown-menu {
+    max-width: calc(100vw - 32px);
+    max-height: 70vh;
+    max-height: 70dvh;
+    overflow-y: auto;
+  }
+  /* У списка статусов ширина 320px задана прямо в разметке — на экране
+     320px он вылезал за край. */
+  .status-dropdown-menu { min-width: min(320px, calc(100vw - 32px)) !important; }
+}
+
+
+/* ============================================================
+   5. НИЖНЯЯ ПАНЕЛЬ ВКЛАДОК: Аккаунты / Избранное / Корзина
+   На телефоне разделы переезжают из шапки вниз, в зону большого пальца,
+   как вкладки в приложении. Разметка одна (partials/dashboard/workspace-nav),
+   поэтому одинаково на дашборде, в избранном и в корзине.
+   Панель фиксированная с первой отрисовки (чистый CSS) — ничего не прыгает.
+   На компьютере значки вкладок скрыты, и вид прежний.
+   ============================================================ */
+.workspace-nav__icon { display: none; }
+
+@media (max-width: 767.98px) {
+  :root { --tabbar-h: 58px; }
+
+  .workspace-header > .workspace-nav,
+  .workspace-subnav .workspace-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1040;
+    display: flex;
+    gap: 0;
+    margin: 0;
+    padding: 4px max(8px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(8px, env(safe-area-inset-left, 0px));
+    border: 0;
+    border-top: 1px solid var(--color-border, #e5e7eb);
+    background: var(--bg-primary, #fff);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, .06);
+  }
+
+  .workspace-header > .workspace-nav a,
+  .workspace-subnav .workspace-nav a {
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 3px;
+    min-height: 50px;
+    padding: 4px 2px;
+    border-radius: 10px;
+    font-size: 11px;
+    line-height: 1.1;
+    background: transparent;
+  }
+
+  .workspace-nav a[aria-current="page"] {
+    color: var(--color-primary, #2563eb) !important;
+    background: transparent !important;
+  }
+
+  /* Размер значка задан заранее: пока шрифт иконок грузится, место под
+     значок уже занято, и подпись под ним не сдвигается. */
+  .workspace-nav__icon {
+    display: block;
+    width: 22px;
+    height: 18px;
+    font-size: 18px;
+    line-height: 18px;
+    text-align: center;
+  }
+
+  /* Место под панель, чтобы она не закрывала низ страницы */
+  body:has(.workspace-nav) {
+    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Пустые обёртки, где раньше стояла навигация, не занимают место */
+  .workspace-subnav { margin: 0 !important; padding: 0 !important; height: 0; }
+
+  /* Кнопка «Наверх» — над панелью вкладок */
+  .scroll-to-top {
+    bottom: calc(var(--tabbar-h) + 12px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+
+/* ============================================================
+   6. ПАНЕЛЬ ВЫБРАННЫХ СТРОК — снизу, над вкладками
+   На телефоне кнопки «CSV / TXT / Удалить / Статус / Поле» без выбора
+   неактивны и занимали пять строк экрана. Теперь они в плавающей панели
+   у нижнего края и выезжают, только когда что-то отмечено
+   (класс body.has-selection ставит dashboard-selection.js / trash.js).
+   Панель fixed и появляется через transform — таблица под ней не сдвигается.
+   ============================================================ */
+/* На компьютере обёртка корзины не существует для раскладки */
+.trash-bulk-bar { display: contents; }
+.trash-bulk-bar__count { display: none; }
+
+@media (max-width: 767.98px) {
+  .toolbar-row--selection,
+  .trash-bulk-bar {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: calc(var(--tabbar-h, 0px) + 8px + env(safe-area-inset-bottom, 0px));
+    z-index: 1035;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0 !important;
+    padding: 10px !important;
+    border: 1px solid var(--color-border, #e5e7eb) !important;
+    border-radius: 14px;
+    background: var(--bg-primary, #fff);
+    box-shadow: 0 8px 28px rgba(15, 23, 42, .18);
+    transform: translate3d(0, calc(100% + 120px), 0);
+    visibility: hidden;
+    transition: transform .25s cubic-bezier(.2, .8, .2, 1), visibility 0s linear .25s;
+  }
+  body.has-selection .toolbar-row--selection,
+  body.has-selection .trash-bulk-bar {
+    transform: none;
+    visibility: visible;
+    transition: transform .25s cubic-bezier(.2, .8, .2, 1), visibility 0s;
+  }
+
+  .toolbar-row--selection .toolbar-selected {
+    width: auto !important;
+    flex: 1 1 100%;
+    border: 0 !important;
+    padding: 0 !important;
+  }
+  .toolbar-row--selection .toolbar-selected { display: flex; align-items: center; gap: 8px; }
+  .toolbar-row--selection .toolbar-selected__clear { margin-left: auto; flex: 0 0 auto; }
+  /* Кнопка «Наверх» не должна лечь поверх панели действий */
+  body.has-selection .scroll-to-top { opacity: 0 !important; visibility: hidden !important; }
+
+  .toolbar-row--selection .toolbar-actions__bulk {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+    width: 100%;
+    gap: 6px !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+  .toolbar-row--selection .toolbar-actions__bulk .btn { width: 100%; }
+
+  .trash-bulk-bar__count { display: block; flex: 1 1 100%; font-size: 14px; }
+  .trash-bulk-bar .btn { flex: 1 1 0; margin: 0 !important; white-space: normal; padding-left: 8px !important; padding-right: 8px !important; line-height: 1.2; }
+
+  /* Когда панель открыта, низ страницы не прячется под ней */
+  body.has-selection { padding-bottom: calc(var(--tabbar-h, 0px) + 170px + env(safe-area-inset-bottom, 0px)) !important; }
+}
+
+/* Пока открыта экранная клавиатура, нижние плавающие панели прячем —
+   иначе они всплывают над клавиатурой и закрывают поле ввода
+   (класс kb-open ставит mobile-touch.js). */
+@media (max-width: 767.98px) {
+  body.kb-open .workspace-header > .workspace-nav,
+  body.kb-open .workspace-subnav .workspace-nav,
+  body.kb-open .toolbar-row--selection,
+  body.kb-open .trash-bulk-bar,
+  body.kb-open .scroll-to-top {
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toolbar-row--selection,
+  .trash-bulk-bar,
+  .workspace-nav a { transition: none !important; }
+}
+
+
+/* ============================================================
+   7. ДЛИННЫЕ СТРОКИ — переносим, а не выталкиваем за экран
+   ============================================================ */
+@media (max-width: 767.98px) {
+  .user-badge,
+  .account-link,
+  .user-stat-chip,
+  .bundle-meta,
+  .alert,
+  .empty-state,
+  .modal-body,
+  .card-body,
+  .log-entry,
+  .history-item {
+    overflow-wrap: anywhere;
+  }
+}
+
+
+/* ============================================================
+   8. ТАБЛИЦА АККАУНТОВ НА ТЕЛЕФОНЕ
+   В таблице десятки колонок, и сравнивать аккаунты удобно именно по
+   столбцам, поэтому в карточки её не превращаем. Вместо этого при
+   прокрутке вбок остаются на месте галочка и номер аккаунта — всегда
+   видно, чья это строка. Раньше core-mobile.css (≤991px) залипание
+   выключал целиком; галочку возвращаем, номер добавляем.
+   Ширина галочки на телефоне ровно 44px (core-mobile.css), отсюда left.
+   ============================================================ */
+@media (max-width: 767.98px) {
+  #accountsTable .ac-cell--checkbox,
+  #accountsTable thead th.ac-cell--checkbox {
+    position: sticky !important;
+    left: 0;
+  }
+  /* Непрозрачный фон, иначе при прокрутке сквозь галочку видны буквы
+     соседних колонок (на телефоне фон ячейки сбрасывается в прозрачный). */
+  #accountsTable td.ac-cell--checkbox { background-color: #fff !important; }
+  #accountsTable tbody tr:hover td.ac-cell--checkbox { background-color: var(--gray-50, #f9fafb) !important; }
+  #accountsTable tr.row-selected td.ac-cell--checkbox { background-color: var(--gray-100, #f3f4f6) !important; }
+  [data-bs-theme="dark"] #accountsTable td.ac-cell--checkbox { background-color: var(--bg-primary) !important; }
+  [data-bs-theme="dark"] #accountsTable tbody tr:hover td.ac-cell--checkbox { background-color: var(--bg-secondary) !important; }
+  [data-bs-theme="dark"] #accountsTable tr.row-selected td.ac-cell--checkbox { background-color: var(--bg-active) !important; }
+  #accountsTable thead th.ac-cell--checkbox { z-index: 53 !important; }
+  #accountsTable td.ac-cell--id,
+  #accountsTable thead th[data-col="id"] {
+    position: sticky;
+    left: 44px;
+    z-index: 39;
+    background: #fff;
+    box-shadow: 1px 0 0 var(--gray-200, #e5e7eb);
+  }
+  #accountsTable thead th[data-col="id"] { z-index: 52; background: var(--gray-50, #f9fafb); }
+  #accountsTable tbody tr:hover td.ac-cell--id { background: var(--gray-50, #f9fafb); }
+  #accountsTable tr.row-selected td.ac-cell--id { background: var(--gray-100, #f3f4f6); }
+  [data-bs-theme="dark"] #accountsTable td.ac-cell--id { background: var(--bg-primary); }
+  [data-bs-theme="dark"] #accountsTable thead th[data-col="id"] { background: var(--bg-secondary); }
+  [data-bs-theme="dark"] #accountsTable tbody tr:hover td.ac-cell--id { background: var(--bg-secondary); }
+  [data-bs-theme="dark"] #accountsTable tr.row-selected td.ac-cell--id { background: var(--bg-active); }
+
+  /* Счётчик над таблицей: на ≤479px core-mobile.css прятал подписи и
+     оставлял «50 54 / 0 50» — непонятно, что есть что. Возвращаем слова. */
+  .dashboard-table__counter .text-muted { display: inline !important; }
+  .dashboard-table__counter::after { content: none !important; }
+  .dashboard-table__toolbar-main { row-gap: 2px !important; font-size: 13px; }
+}
+
+
+/* ============================================================
+   9. ШАПКА ДАШБОРДА НА САМОМ УЗКОМ ЭКРАНЕ (320px)
+   Логотип + профиль + три кнопки по 44px не помещались в строку, и шапка
+   раскладывалась на две. На ≤359px оставляем от логотипа только значок.
+   ============================================================ */
+@media (max-width: 359.98px) {
+  .workspace-brand > span { display: none; }
+}
+
+
+/* ============================================================
+   10. КОРЗИНА НА ТЕЛЕФОНЕ
+   Вертикальные разделители между кнопками при переносе строк
+   оказывались посреди пустоты, а «Выбрано аккаунтов» теперь
+   показывает нижняя панель выбора (раздел 6).
+   ============================================================ */
+@media (max-width: 767.98px) {
+  .retention-bar .vr,
+  .toolbar-modern .vr { display: none !important; }
+  .retention-bar > .btn { flex: 1 1 100%; }
+  .toolbar-modern {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .toolbar-modern > .d-flex > .text-muted.small { display: none; }
+  .toolbar-modern-actions { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+  .toolbar-modern-actions > .btn { width: 100%; }
+}
+
+
+/* ============================================================
+   11. ПАНЕЛЬ ФИЛЬТРОВ НА ТЕЛЕФОНЕ
+   Блок «Активные фильтры» без единого фильтра был пустой серой полосой
+   в 121px (под чипы заранее зарезервирована высота). На телефоне это
+   почти шестая часть экрана ни о чём, поэтому, пока фильтров нет, блок
+   скрыт. Появляется он только в ответ на действие пользователя (выбрал
+   фильтр) — такой сдвиг браузер и пользователь ожидают. Класс has-filters
+   ставит/снимает filters-modern.js.
+   ============================================================ */
+@media (max-width: 767.98px) {
+  .active-filters-section:not(.has-filters) { display: none !important; }
+}
+
+
+/* ============================================================
+   12. ШАПКИ ИЗБРАННОГО И КОРЗИНЫ НА ТЕЛЕФОНЕ
+   Логотип, имя подключения, тема, «Назад» и выход не помещались в строку,
+   и шапка раскладывалась на две. «Назад» на телефоне дублирует вкладку
+   «Аккаунты» в нижней панели, а длинное имя подключения обрезалось
+   многоточием и ничего не сообщало — прячем их, остаются логотип, тема
+   и выход.
+   ============================================================ */
+@media (max-width: 575.98px) {
+  .page-nav-user,
+  .page-nav-back,
+  .navbar .vr { display: none !important; }
+  .navbar > .container-fluid:has(.page-nav-back) { padding-left: 16px !important; padding-right: 16px !important; flex-wrap: nowrap; }
+}
