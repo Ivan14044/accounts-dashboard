@@ -147,6 +147,9 @@ function updateSelectedCount() {
     const hasSelection = selectedAllFiltered || count > 0;
     clearAllBtn.style.display = hasSelection ? '' : 'none';
   }
+  // Класс на body — только для вида: на телефоне панель действий с выбранными
+  // выезжает снизу, когда что-то отмечено (core-touch.css, раздел 6).
+  document.body.classList.toggle('has-selection', selectedAllFiltered || count > 0);
   
   const notice = getElementById('selectAllNotice');
   if (!notice) {

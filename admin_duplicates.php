@@ -246,7 +246,7 @@ $csrf = getCsrfToken();
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <script>
     (function(){try{var t=localStorage.getItem('dashboard-theme');
       if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
@@ -331,11 +331,13 @@ $csrf = getCsrfToken();
       .empty-state { padding: 2.5rem 1rem; }
     }
   </style>
+  <!-- Мобильный слой: подключается последним, после стилей страницы (см. шапку файла) -->
+  <link href="assets/css/core-touch.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 </head>
 <body>
 
 <div class="header">
-  <div class="d-flex align-items-center justify-content-between">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
     <div>
       <h1 class="h4 mb-1"><i class="fas fa-clone me-2 text-warning"></i>Поиск и удаление дублей</h1>
       <small class="text-muted">Аккаунты с одинаковым FB ID (id_soc_account / c_user в cookies / FB ID в social_url)</small>
@@ -370,7 +372,7 @@ $csrf = getCsrfToken();
         <div>
           <strong><?= $totalDupGroups ?></strong> групп · <strong><?= $totalDupAccounts ?></strong> аккаунтов с дублями · к удалению по умолчанию: <strong class="text-danger"><?= $totalToDelete ?></strong>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2">
           <button type="button" id="keepNewest" class="btn btn-sm btn-outline-secondary" title="В каждой группе оставить самый новый">Оставить новые</button>
           <button type="button" id="keepOldest" class="btn btn-sm btn-outline-secondary" title="В каждой группе оставить самый старый (дефолт)">Оставить старые</button>
           <button type="submit" class="btn btn-danger" onclick="return confirm('Удалить <?= $totalToDelete ?> аккаунтов в корзину?\n\nИх можно будет восстановить из корзины.');">

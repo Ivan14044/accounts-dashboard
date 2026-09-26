@@ -83,7 +83,15 @@
   </div>
 
   <!-- Email + 2FA -->
-  <div class="stat-card fade-in" data-card="custom:email_twofa">
+  <?php /* hidden — не ошибка. custom-cards.js при запуске (initializeCustomCards →
+           renderCustomCardsOnDashboard) БЕЗУСЛОВНО удаляет все карточки
+           data-card="custom:*" и заново рисует только сохранённые пользователем.
+           Эта серверная карточка поэтому жила лишь до ответа /api/settings:
+           мелькала и исчезала, а фильтры и таблица под ней подпрыгивали
+           (замер 2026-09-26: сдвиг вёрстки 0,07 на телефоне при каждой загрузке).
+           Итоговый вид страницы тот же, пропало только мелькание. Если скрипт
+           не загрузится, карточки просто не будет — как и сейчас после загрузки. */ ?>
+  <div class="stat-card fade-in" data-card="custom:email_twofa" hidden>
     <button type="button" class="stat-card-hide-btn" data-card="custom:email_twofa" title="Скрыть карточку" aria-label="Скрыть карточку">
       <i class="fas fa-eye-slash" aria-hidden="true"></i>
     </button>

@@ -212,7 +212,7 @@ function highlightLevel($line) {
 <html lang="ru" data-bs-theme="light">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <script>
     (function(){try{var t=localStorage.getItem('dashboard-theme');
       if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
@@ -319,11 +319,23 @@ function highlightLevel($line) {
     [data-bs-theme="dark"] .stats-warning { color: #fbbf24; }
     [data-bs-theme="dark"] .stats-info    { color: #60a5fa; }
     [data-bs-theme="dark"] .stats-debug   { color: #9ca3af; }
+
+    /* Телефон: одна прокрутка на странице вместо окна в 70% экрана внутри
+       неё, и перенос по словам — раньше break-all резал имя сотрудника и
+       дату посередине («26.09. 2026 0 3:15:5 1»). Сами значения «Было/Стало»
+       по-прежнему переносятся где угодно (у них свой стиль). */
+    @media (max-width: 767.98px) {
+      .log-container { max-height: none; overflow: visible; padding: var(--space-2); }
+      .log-line { word-break: normal; overflow-wrap: anywhere; }
+      .log-line .btn { margin-bottom: 6px; }
+    }
   </style>
+  <!-- Мобильный слой: подключается последним, после стилей страницы (см. шапку файла) -->
+  <link href="assets/css/core-touch.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 </head>
 <body>
   <div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
       <h1 class="h3 mb-0">
         <i class="fas fa-file-alt me-2"></i>
         Логи системы
@@ -393,7 +405,7 @@ function highlightLevel($line) {
         <?php else: ?>
           <div class="col-md-2">
             <label class="form-label">ID аккаунта</label>
-            <input type="number" name="account_id" class="form-control" 
+            <input type="number" inputmode="numeric" name="account_id" class="form-control" 
                    placeholder="Фильтр по ID" value="<?= $accountId > 0 ? $accountId : '' ?>">
           </div>
           <div class="col-md-2">
@@ -416,7 +428,7 @@ function highlightLevel($line) {
         
         <div class="col-md-3">
           <label class="form-label">Поиск</label>
-          <input type="text" name="search" class="form-control" 
+          <input type="text" enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false" name="search" class="form-control" 
                  placeholder="Поиск в логах..." value="<?= e($search) ?>">
         </div>
         
@@ -481,7 +493,7 @@ function highlightLevel($line) {
         <?php else: ?>
           <?php foreach ($auditLogs as $item): ?>
             <div class="log-line" style="padding: 1rem; border-left: 3px solid #0d6efd; margin-bottom: 0.5rem;">
-              <div class="d-flex justify-content-between align-items-start mb-2">
+              <div class="d-flex justify-content-between align-items-start flex-wrap gap-1 mb-2">
                 <div>
                   <strong class="text-primary">Аккаунт #<?= e($item['account_id']) ?></strong>
                   <span class="badge bg-secondary ms-2"><?= e($item['field_name']) ?></span>
@@ -496,7 +508,7 @@ function highlightLevel($line) {
                     </small>
                   <?php endif; ?>
                 </div>
-                <small class="text-muted">
+                <small class="text-muted text-nowrap">
                   <?= date('d.m.Y H:i:s', strtotime($item['changed_at'])) ?>
                 </small>
               </div>

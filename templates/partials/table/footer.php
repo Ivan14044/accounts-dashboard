@@ -107,7 +107,7 @@ $page        = isset($page)  ? (int)$page  : 1;
     <div class="dashboard-table__footer-select d-flex align-items-center gap-2">
       <label class="form-label mb-0 small" for="pageJumpInput" title="Перейти на страницу">Стр.:</label>
       <input
-        type="number"
+        type="number" inputmode="numeric"
         class="form-control form-control-sm dashboard-table__footer-page-input"
         id="pageJumpInput"
         min="1"

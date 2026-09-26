@@ -54,7 +54,8 @@ class AssetBundles
             'assets/css/core-tables.css',
             'assets/css/core-mobile.css',     // мобильные оверрайды — после базовых
             'assets/css/core-design-v2.css',  // слой полировки дизайна
-            'assets/css/core-dark.css',       // тёмная тема — последней
+            'assets/css/core-dark.css',       // тёмная тема
+            'assets/css/core-touch.css',      // телефон/планшет: цели под палец, шторки, нижняя панель — самым последним
         ),
 
         // ── JS без defer: выполняются по ходу парсинга, строго в этом порядке ──
@@ -115,6 +116,7 @@ class AssetBundles
             'assets/js/modules/cards-hide-sync.js',
             'assets/js/density-toggle.js',
             'assets/js/theme-toggle.js',
+            'assets/js/mobile-touch.js',                    // жест «смахнуть окно вниз» на телефоне; самостоятельный, ни от кого не зависит
         ),
     );
 
