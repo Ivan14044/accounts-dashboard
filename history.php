@@ -33,7 +33,7 @@ $history = $auditLogger->getAccountHistory($accountId, 200);
 <html lang="ru">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <script>
       (function(){try{var t=localStorage.getItem('dashboard-theme');
         if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
@@ -87,6 +87,8 @@ $history = $auditLogger->getAccountHistory($accountId, 200);
         [data-bs-theme="dark"] .field-name { color: #60a5fa; }
         [data-bs-theme="dark"] .history-item { border-left-color: #3b82f6; }
     </style>
+    <!-- Мобильный слой: подключается последним, после стилей страницы (см. шапку файла) -->
+    <link href="assets/css/core-touch.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg">
@@ -95,7 +97,7 @@ $history = $auditLogger->getAccountHistory($accountId, 200);
                 <i class="fas fa-chart-line text-primary me-2"></i>
                 Dashboard
             </a>
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 ms-auto">
                 <button type="button" id="themeToggle" class="btn btn-sm btn-outline-secondary" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему">
                     <i class="fas fa-moon"></i>
                 </button>
@@ -125,14 +127,14 @@ $history = $auditLogger->getAccountHistory($accountId, 200);
                     <div class="history-list">
                         <?php foreach ($history as $item): ?>
                             <div class="history-item">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="d-flex justify-content-between align-items-start flex-wrap gap-1 mb-2">
                                     <div>
                                         <span class="field-name"><?= htmlspecialchars($item['field_name']) ?></span>
                                         <small class="text-muted ms-2">
                                             <?= htmlspecialchars($item['changed_by']) ?>
                                         </small>
                                     </div>
-                                    <small class="text-muted">
+                                    <small class="text-muted text-nowrap">
                                         <?= date('d.m.Y H:i:s', strtotime($item['changed_at'])) ?>
                                     </small>
                                 </div>

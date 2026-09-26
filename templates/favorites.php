@@ -7,7 +7,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 <html lang="ru" data-bs-theme="light">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <script>
     (function(){try{var t=localStorage.getItem('dashboard-theme');
       if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
@@ -77,7 +77,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
         Dashboard
       </a>
       <div class="d-flex align-items-center gap-3">
-        <span class="text-muted small fw-medium">
+        <span class="text-muted small fw-medium page-nav-user">
           <i class="fas fa-user-circle me-1 text-primary"></i>
           <?php 
           $username = 'Пользователь';
@@ -97,7 +97,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
         <button type="button" id="themeToggle" class="page-theme-toggle" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему">
           <i class="fas fa-moon"></i>
         </button>
-        <a href="index.php" class="btn btn-sm btn-outline-primary rounded-pill">
+        <a href="index.php" class="btn btn-sm btn-outline-primary rounded-pill page-nav-back">
           <i class="fas fa-arrow-left me-1"></i> Назад
         </a>
         <form method="POST" action="logout.php" style="margin:0;display:inline">
@@ -151,6 +151,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
             <i class="fas fa-search position-absolute text-muted" style="top: 50%; left: 16px; transform: translateY(-50%);"></i>
             <input 
               type="search" 
+              enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false"
               name="q" 
               class="form-control" 
               placeholder="Поиск по логину, email, имени..." 
@@ -275,6 +276,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
   </script>
   <script src="assets/js/list-refresh.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
   <script src="assets/js/favorites.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
+  <script src="assets/js/mobile-touch.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
   <script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
 </body>
 </html>

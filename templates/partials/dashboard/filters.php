@@ -279,6 +279,10 @@
                 value="<?= e($q) ?>"
                 id="modernSearchInput"
                 aria-label="Поиск по всем полям"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck="false"
+                enterkeyhint="search"
                 autocomplete="off">
               <i class="fas fa-search search-input-icon"></i>
               <?php if ($q !== ''): ?>
@@ -463,9 +467,9 @@
                 <div class="fp-year-inline" id="fpYearInline"<?= $fpYearOn ? '' : ' hidden' ?>>
                   <span class="fp-year-inline-label" title="Год создания Fan Page"><i class="fas fa-calendar-alt"></i><span class="fp-year-inline-label-text">Год создания страницы</span></span>
                   <div class="fp-year-inline-inputs">
-                    <input type="number" class="range-input-modern" name="fp_year_from" aria-label="Год создания Fan Page от" placeholder="От" min="2004" max="2100" step="1" value="<?= e($fpYearFrom ?? '') ?>">
+                    <input type="number" inputmode="numeric" class="range-input-modern" name="fp_year_from" aria-label="Год создания Fan Page от" placeholder="От" min="2004" max="2100" step="1" value="<?= e($fpYearFrom ?? '') ?>">
                     <span class="range-separator">—</span>
-                    <input type="number" class="range-input-modern" name="fp_year_to" aria-label="Год создания Fan Page до" placeholder="До" min="2004" max="2100" step="1" value="<?= e($fpYearTo ?? '') ?>">
+                    <input type="number" inputmode="numeric" class="range-input-modern" name="fp_year_to" aria-label="Год создания Fan Page до" placeholder="До" min="2004" max="2100" step="1" value="<?= e($fpYearTo ?? '') ?>">
                   </div>
                 </div>
                 <?php endif; ?>
@@ -590,9 +594,9 @@
                   Сценарий фарма
                 </div>
                 <div class="range-inputs">
-                  <input type="number" class="range-input-modern" name="pharma_from" placeholder="От" min="0" max="50" step="1" value="<?= e($pharmaFrom) ?>">
+                  <input type="number" inputmode="numeric" class="range-input-modern" name="pharma_from" placeholder="От" min="0" max="50" step="1" value="<?= e($pharmaFrom) ?>">
                   <span class="range-separator">—</span>
-                  <input type="number" class="range-input-modern" name="pharma_to" placeholder="До" min="0" max="50" step="1" value="<?= e($pharmaTo) ?>">
+                  <input type="number" inputmode="numeric" class="range-input-modern" name="pharma_to" placeholder="До" min="0" max="50" step="1" value="<?= e($pharmaTo) ?>">
                 </div>
               </div>
               <?php endif; ?>
@@ -604,9 +608,9 @@
                   Количество друзей
                 </div>
                 <div class="range-inputs">
-                  <input type="number" class="range-input-modern" name="friends_from" placeholder="От" min="0" max="1000" step="1" value="<?= e($friendsFrom) ?>">
+                  <input type="number" inputmode="numeric" class="range-input-modern" name="friends_from" placeholder="От" min="0" max="1000" step="1" value="<?= e($friendsFrom) ?>">
                   <span class="range-separator">—</span>
-                  <input type="number" class="range-input-modern" name="friends_to" placeholder="До" min="0" max="1000" step="1" value="<?= e($friendsTo) ?>">
+                  <input type="number" inputmode="numeric" class="range-input-modern" name="friends_to" placeholder="До" min="0" max="1000" step="1" value="<?= e($friendsTo) ?>">
                 </div>
               </div>
               <?php endif; ?>
@@ -623,9 +627,9 @@
                   Количество БМ
                 </div>
                 <div class="range-inputs">
-                  <input type="number" id="bm_from" class="range-input-modern" name="bm_from" placeholder="От" min="0" step="1" value="<?= e($bmFrom ?? '') ?>">
+                  <input type="number" inputmode="numeric" id="bm_from" class="range-input-modern" name="bm_from" placeholder="От" min="0" step="1" value="<?= e($bmFrom ?? '') ?>">
                   <span class="range-separator">—</span>
-                  <input type="number" id="bm_to" class="range-input-modern" name="bm_to" placeholder="До" min="0" step="1" value="<?= e($bmTo ?? '') ?>">
+                  <input type="number" inputmode="numeric" id="bm_to" class="range-input-modern" name="bm_to" placeholder="До" min="0" step="1" value="<?= e($bmTo ?? '') ?>">
                 </div>
               </div>
               <?php if ($hasBmStatusCols): ?>
@@ -682,9 +686,9 @@
                   Год создания
                 </div>
                 <div class="range-inputs">
-                  <input type="number" class="range-input-modern" name="year_created_from" placeholder="От" min="1900" max="2100" step="1" value="<?= e($yearCreatedFrom ?? '') ?>">
+                  <input type="number" inputmode="numeric" class="range-input-modern" name="year_created_from" placeholder="От" min="1900" max="2100" step="1" value="<?= e($yearCreatedFrom ?? '') ?>">
                   <span class="range-separator">—</span>
-                  <input type="number" class="range-input-modern" name="year_created_to" placeholder="До" min="1900" max="2100" step="1" value="<?= e($yearCreatedTo ?? '') ?>">
+                  <input type="number" inputmode="numeric" class="range-input-modern" name="year_created_to" placeholder="До" min="1900" max="2100" step="1" value="<?= e($yearCreatedTo ?? '') ?>">
                 </div>
               </div>
               <?php endif; ?>
@@ -697,9 +701,9 @@
                   Limit RK
                 </div>
                 <div class="range-inputs">
-                  <input type="number" class="range-input-modern" name="limit_rk_from" placeholder="От" min="0" step="1" value="<?= e($limitRkFrom ?? '') ?>">
+                  <input type="number" inputmode="numeric" class="range-input-modern" name="limit_rk_from" placeholder="От" min="0" step="1" value="<?= e($limitRkFrom ?? '') ?>">
                   <span class="range-separator">—</span>
-                  <input type="number" class="range-input-modern" name="limit_rk_to" placeholder="До" min="0" step="1" value="<?= e($limitRkTo ?? '') ?>">
+                  <input type="number" inputmode="numeric" class="range-input-modern" name="limit_rk_to" placeholder="До" min="0" step="1" value="<?= e($limitRkTo ?? '') ?>">
                 </div>
               </div>
               <?php endif; ?>

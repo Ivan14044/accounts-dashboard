@@ -7,7 +7,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 <html lang="ru" data-bs-theme="light">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <script>
     (function(){try{var t=localStorage.getItem('dashboard-theme');
       if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
@@ -100,6 +100,13 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       gap: var(--space-3);
       color: var(--warning-700);
     }
+    /* Место под значок «внимание» — заранее. Шрифт значков приходит позже
+       текста: до него значок нулевой ширины, текст на 1280px влезал в одну
+       строку, а с появлением значка переносился на вторую — и вся страница
+       ниже прыгала на строку вниз (сдвиг вёрстки 0,51, замер 2026-09-26; так
+       было и до мобильных правок). 20px — ширина загруженного значка, поэтому
+       итоговый вид тот же, только без прыжка. */
+    .trash-warning > i { flex: 0 0 20px; width: 20px; text-align: center; }
     [data-bs-theme="dark"] .trash-warning { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.25); border-left-color: var(--warning-500); color: #fcd34d; }
 
     /* Нейтральное уведомление (итог прошлой автоочистки). Зеркалит .trash-warning
@@ -191,7 +198,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
         Dashboard
       </a>
       <div class="d-flex align-items-center gap-3">
-        <span class="text-muted small fw-medium">
+        <span class="text-muted small fw-medium page-nav-user">
           <i class="fas fa-user-circle me-1 text-primary"></i>
           <?php
           $username = 'Пользователь';
@@ -210,8 +217,8 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
         <button type="button" id="themeToggle" class="btn btn-sm btn-outline-secondary rounded-circle" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему" style="width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
           <i class="fas fa-moon"></i>
         </button>
-        <div class="vr mx-1"></div>
-        <a href="index.php" class="btn btn-sm btn-outline-primary rounded-pill">
+        <div class="vr mx-1 page-nav-back"></div>
+        <a href="index.php" class="btn btn-sm btn-outline-primary rounded-pill page-nav-back">
           <i class="fas fa-arrow-left me-1"></i> Назад
         </a>
         <form method="POST" action="logout.php" style="margin:0;display:inline">
@@ -343,6 +350,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
                 <i class="fas fa-search position-absolute text-muted" style="top: 50%; left: 16px; transform: translateY(-50%);"></i>
                 <input
                   type="search"
+                  enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false"
                   name="q"
                   class="form-control"
                   placeholder="Логин, email, ID..."
@@ -412,7 +420,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
         <label class="form-check-label small" for="retentionEnabled">Включена</label>
       </div>
       <span class="small text-muted">Удалять навсегда старше</span>
-      <input type="number" min="1" max="3650" class="form-control form-control-sm" id="retentionDays" value="<?= (int)$retentionDays ?>">
+      <input type="number" inputmode="numeric" min="1" max="3650" class="form-control form-control-sm" id="retentionDays" value="<?= (int)$retentionDays ?>">
       <span class="small text-muted">дней</span>
       <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="saveRetentionBtn">
         <i class="fas fa-save me-1"></i> Сохранить
@@ -438,12 +446,19 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
         <span class="text-muted small">Выбрано аккаунтов: <strong id="selectedCount" class="text-primary fs-6">0</strong></span>
       </div>
       <div class="toolbar-modern-actions">
-        <button class="btn btn-sm btn-outline-success rounded-pill px-3" id="restoreSelectedBtn" disabled>
-          <i class="fas fa-undo me-1"></i> Восстановить выбранное
-        </button>
-        <button class="btn btn-sm btn-outline-danger rounded-pill px-3" id="deletePermanentlyBtn" disabled>
-          <i class="fas fa-minus-circle me-1"></i> Удалить навсегда
-        </button>
+        <?php /* Обёртка нужна только телефону: там эти две кнопки уезжают в
+                 плавающую панель у нижнего края и появляются, когда что-то
+                 отмечено (core-touch.css, раздел 6). На компьютере у обёртки
+                 display: contents — раскладка ровно прежняя. */ ?>
+        <div class="trash-bulk-bar">
+          <span class="trash-bulk-bar__count">Отмечено: <strong data-selected-count>0</strong></span>
+          <button class="btn btn-sm btn-outline-success rounded-pill px-3" id="restoreSelectedBtn" disabled>
+            <i class="fas fa-undo me-1"></i> Восстановить выбранное
+          </button>
+          <button class="btn btn-sm btn-outline-danger rounded-pill px-3" id="deletePermanentlyBtn" disabled>
+            <i class="fas fa-minus-circle me-1"></i> Удалить навсегда
+          </button>
+        </div>
         <div class="vr mx-1"></div>
         <button class="btn btn-sm btn-danger rounded-pill px-3 shadow-sm" id="emptyTrashBtn">
           <i class="fas fa-dumpster-fire me-1"></i> Очистить корзину полностью
@@ -636,7 +651,8 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       <div class="modal-content rounded-xl">
         <div class="modal-header bg-danger text-white">
           <h5 class="modal-title"><i class="fas fa-triangle-exclamation me-2"></i>Подтверждение удаления</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+          <?php /* Без btn-close-white: шапка светлая (bg-danger перекрашен дизайн-слоем), белый крестик на ней не был виден. Найдено 2026-09-26. */ ?>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
         </div>
         <div class="modal-body">
           <p id="confirmDeleteText" class="mb-3"></p>
@@ -655,6 +671,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 
   <script src="assets/vendor/bootstrap/bootstrap.bundle.min.js"></script>
   <script src="assets/js/toast.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
+  <script src="assets/js/mobile-touch.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" defer></script>
   <script src="assets/js/theme-toggle.js?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>"></script>
   <script>
     window.DashboardConfig = window.DashboardConfig || {};

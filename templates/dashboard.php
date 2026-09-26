@@ -7,12 +7,28 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
 <html lang="ru" data-bs-theme="light">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- Тема: выставляем data-bs-theme ДО отрисовки (no-flash) -->
   <script>
     (function(){try{var t=localStorage.getItem('dashboard-theme');
       if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
       document.documentElement.setAttribute('data-bs-theme',t);}catch(e){}})();
+  </script>
+  <?php /* Скрытые карточки — ДО первой отрисовки.
+           cards-hide-sync.js подключён с defer и прячет их уже после того, как
+           браузер показал страницу: карточка мелькала и исчезала, а всё ниже неё
+           (фильтры, таблица) подпрыгивало. На телефоне карточки идут по одной в
+           ряд, и прыжок был на всю её высоту — замер 2026-09-26: сдвиг вёрстки
+           0,07 при загрузке. Здесь только временный <style> по тому же списку из
+           localStorage; как только defer-скрипты отработали и повесили своё
+           скрытие, стиль снимается — иначе он мешал бы вернуть карточку из
+           настроек. Логика «что скрыто» по-прежнему целиком в cards-hide-sync.js. */ ?>
+  <script>
+    (function(){try{var a=JSON.parse(localStorage.getItem('dashboard_hidden_cards')||'[]');
+      if(!Array.isArray(a)||!a.length)return;
+      var css=a.map(function(id){return '.stat-card[data-card="'+String(id).replace(/["\\]/g,'\\$&')+'"]';}).join(',')+'{display:none!important}';
+      var s=document.createElement('style');s.id='preHiddenCards';s.textContent=css;document.head.appendChild(s);
+      document.addEventListener('DOMContentLoaded',function(){s.remove();});}catch(e){}})();
   </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
@@ -761,44 +777,44 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
               <?php if (isset($ALL_COLUMNS['scenario_pharma'])): ?>
               <div class="col-md-3 col-6">
                 <label class="form-label small">Сценарий фарма (от)</label>
-                <input type="number" class="form-control form-control-sm" id="customPharmaFrom" min="0" max="50" placeholder="От">
+                <input type="number" inputmode="numeric" class="form-control form-control-sm" id="customPharmaFrom" min="0" max="50" placeholder="От">
               </div>
               <div class="col-md-3 col-6">
                 <label class="form-label small">Сценарий фарма (до)</label>
-                <input type="number" class="form-control form-control-sm" id="customPharmaTo" min="0" max="50" placeholder="До">
+                <input type="number" inputmode="numeric" class="form-control form-control-sm" id="customPharmaTo" min="0" max="50" placeholder="До">
               </div>
               <?php endif; ?>
               
               <?php if (isset($ALL_COLUMNS['quantity_friends'])): ?>
               <div class="col-md-3 col-6">
                 <label class="form-label small">Друзья (от)</label>
-                <input type="number" class="form-control form-control-sm" id="customFriendsFrom" min="0" placeholder="От">
+                <input type="number" inputmode="numeric" class="form-control form-control-sm" id="customFriendsFrom" min="0" placeholder="От">
               </div>
               <div class="col-md-3 col-6">
                 <label class="form-label small">Друзья (до)</label>
-                <input type="number" class="form-control form-control-sm" id="customFriendsTo" min="0" placeholder="До">
+                <input type="number" inputmode="numeric" class="form-control form-control-sm" id="customFriendsTo" min="0" placeholder="До">
               </div>
               <?php endif; ?>
               
               <?php if (isset($ALL_COLUMNS['year_created'])): ?>
               <div class="col-md-3 col-6">
                 <label class="form-label small">Год (от)</label>
-                <input type="number" class="form-control form-control-sm" id="customYearCreatedFrom" min="2000" max="2100" placeholder="От">
+                <input type="number" inputmode="numeric" class="form-control form-control-sm" id="customYearCreatedFrom" min="2000" max="2100" placeholder="От">
               </div>
               <div class="col-md-3 col-6">
                 <label class="form-label small">Год (до)</label>
-                <input type="number" class="form-control form-control-sm" id="customYearCreatedTo" min="2000" max="2100" placeholder="До">
+                <input type="number" inputmode="numeric" class="form-control form-control-sm" id="customYearCreatedTo" min="2000" max="2100" placeholder="До">
               </div>
               <?php endif; ?>
               
               <?php if (isset($ALL_COLUMNS['limit_rk'])): ?>
               <div class="col-md-3 col-6">
                 <label class="form-label small">Limit RK (от)</label>
-                <input type="number" class="form-control form-control-sm" id="customLimitRkFrom" min="0" placeholder="От">
+                <input type="number" inputmode="numeric" class="form-control form-control-sm" id="customLimitRkFrom" min="0" placeholder="От">
               </div>
               <div class="col-md-3 col-6">
                 <label class="form-label small">Limit RK (до)</label>
-                <input type="number" class="form-control form-control-sm" id="customLimitRkTo" min="0" placeholder="До">
+                <input type="number" inputmode="numeric" class="form-control form-control-sm" id="customLimitRkTo" min="0" placeholder="До">
               </div>
               <?php endif; ?>
             </div>

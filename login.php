@@ -136,7 +136,7 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) max(filemtime(__
 <html lang="ru">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Вход в систему — Dashboard</title>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link rel="alternate icon" href="assets/favicon.svg">
@@ -301,6 +301,8 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) max(filemtime(__
       .login-brand { margin-bottom: 22px; }
     }
   </style>
+  <!-- Мобильный слой: подключается последним, после стилей страницы (см. шапку файла) -->
+  <link href="assets/css/core-touch.css?v=<?= e($assetV) ?>" rel="stylesheet">
 </head>
 <body>
   <button type="button" id="themeToggle" class="login-theme-toggle" title="Тёмная тема" aria-pressed="false" aria-label="Переключить тему">
@@ -339,6 +341,9 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) max(filemtime(__
           name="db_connection_string"
           id="db_connection_string"
           placeholder="server=host;port=3306;user id=username;password=pass;database=dbname"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
           required
           autofocus><?= e($_POST['db_connection_string'] ?? '') ?></textarea>
         <div class="login-help">

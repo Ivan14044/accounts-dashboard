@@ -24,7 +24,7 @@ $indexUrl = $baseUrl . '/index.php' . $queryString;
 <html lang="ru">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <script>
     (function(){try{var t=localStorage.getItem('dashboard-theme');
       if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
@@ -37,6 +37,7 @@ $indexUrl = $baseUrl . '/index.php' . $queryString;
     body {
       margin: 0;
       min-height: 100vh;
+      min-height: 100dvh; /* iOS: без прыжка при скрытии адресной строки */
       display: flex;
       align-items: center;
       justify-content: center;
@@ -77,6 +78,8 @@ $indexUrl = $baseUrl . '/index.php' . $queryString;
     [data-bs-theme="dark"] .loading-box p { color: #A9AFB9; }
     @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.6s; } }
   </style>
+  <!-- Мобильный слой: подключается последним, после стилей страницы (см. шапку файла) -->
+  <link href="assets/css/core-touch.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 </head>
 <body>
   <div class="loading-box">

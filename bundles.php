@@ -155,7 +155,7 @@ if ($bundles) {
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <script>
     (function(){try{var t=localStorage.getItem('dashboard-theme');
       if(!t){t=(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
@@ -181,11 +181,13 @@ if ($bundles) {
     [data-bs-theme="dark"] .bundle-num { color:#60a5fa; }
     [data-bs-theme="dark"] .bundle-meta { color:#8C929C; }
   </style>
+  <!-- Мобильный слой: подключается последним, после стилей страницы (см. шапку файла) -->
+  <link href="assets/css/core-touch.css?v=<?= defined('ASSETS_VERSION') ? ASSETS_VERSION : time() ?>" rel="stylesheet">
 </head>
 <body>
-  <div class="header d-flex align-items-center justify-content-between">
+  <div class="header d-flex align-items-center justify-content-between flex-wrap gap-2">
     <h5 class="mb-0"><i class="fas fa-link me-2"></i>Связки «кинг + рекламные кабинеты»</h5>
-    <a href="index.php" class="btn btn-sm btn-outline-secondary">
+    <a href="index.php" class="btn btn-sm btn-outline-secondary text-nowrap">
       <i class="fas fa-arrow-left me-1"></i>К аккаунтам
     </a>
   </div>
