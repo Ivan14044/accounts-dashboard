@@ -218,6 +218,16 @@ layout-догон (`tableLayoutManager.refresh()`, виртуализация, s
 ## Настройка окружения
 
 1. Подключение к БД задаётся через форму логина (`login.php` → сессия `db_config`).
+   Кроме строки подключения форма требует **пароль панели**
+   (`includes/PanelPassword.php`). Его bcrypt-хэш лежит в `.panel_password.php`
+   в корне (в `.gitignore`; на проде пишется деплоем из секрета
+   `PANEL_PASSWORD_HASH`). Для локального стенда файл создаётся руками:
+   `printf '%s' 'пароль' | php tools/panel_password.php hash`, затем
+   `PANEL_PASSWORD_HASH='<хэш>' php tools/panel_password.php write`. Без файла
+   вход закрыт всем — это намеренно.
+   `isAuthenticated()` сверяет отпечаток пароля в сессии с текущим, поэтому
+   смена пароля = выход всех; `forgetStaleAuthentication()` на странице
+   логина стирает из такой сессии строку подключения.
 2. `DEBUG` в `config.php` — включение отладочных логов.
 3. `php tools/migrations/apply_indexes_safe.php` — применение индексов БД.
 

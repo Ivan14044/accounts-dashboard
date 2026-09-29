@@ -1,6 +1,6 @@
 # Автодеплой по FTPS при пуше в main. main — единственный trunk.
 #
-# Секреты: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, NPPR_API_TOKEN.
+# Секреты: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, NPPR_API_TOKEN, PANEL_PASSWORD_HASH.
 
 name: Deploy to FTP
 
@@ -97,6 +97,18 @@ jobs:
           else
             echo "::warning::NPPR_API_TOKEN secret is not set — account validation will be disabled until configured"
           fi
+
+      # Второй пароль входа в панель (includes/PanelPassword.php). Репозиторий
+      # публичный, поэтому в git нет ни пароля, ни хэша — только секрет
+      # PANEL_PASSWORD_HASH (bcrypt), который здесь становится .panel_password.php.
+      # Имя с точки → 403 по .htaccess, и это PHP — при запуске ничего не печатает.
+      # В ОТЛИЧИЕ от токена NPPR выше, без секрета деплой ПАДАЕТ: панель без файла
+      # с хэшем закрывает вход всем, лучше не выкладывать её вовсе.
+      # Сменить пароль (заодно выкинуть всех вошедших) — см. шапку tools/panel_password.php.
+      - name: Write panel password file
+        env:
+          PANEL_PASSWORD_HASH: ${{ secrets.PANEL_PASSWORD_HASH }}
+        run: php tools/panel_password.php write
 
       # Хостинг периодически рвёт FTPS-соединение (FIN / ECONNRESET на data-сокете),
       # поэтому деплой запускается до 3 раз подряд. Sync-state сохраняется на сервере

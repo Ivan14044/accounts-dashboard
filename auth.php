@@ -12,6 +12,8 @@ if (!SessionManager::isActive()) {
     SessionManager::start();
 }
 
+require_once __DIR__ . '/includes/PanelPassword.php';
+
 /**
  * Класс для управления пользователями
  */
@@ -140,10 +142,42 @@ class UserManager {
 }
 
 /**
- * Проверка авторизации
+ * Проверка авторизации.
+ *
+ * Вход действителен, только если он сделан под ТЕКУЩИМ паролем панели
+ * (см. {@see PanelPassword}). Поэтому сессии, открытые до появления пароля
+ * или под прежним паролем, здесь дают false — человек попадает на страницу
+ * входа. Пароль не настроен (нет файла) → false для всех.
+ *
+ * @return bool
  */
 function isAuthenticated(): bool {
-    return isset($_SESSION['user_authenticated']) && $_SESSION['user_authenticated'] === true;
+    if (!isset($_SESSION['user_authenticated']) || $_SESSION['user_authenticated'] !== true) {
+        return false;
+    }
+    return PanelPassword::sessionMatches($_SESSION, PanelPassword::loadHash());
+}
+
+/**
+ * Стереть из сессии устаревший вход.
+ *
+ * Если в сессии стоит признак входа, но пароль панели с тех пор сменился (или
+ * вход был ещё до пароля), isAuthenticated() уже не пускает — а в файле
+ * сессии на хостинге всё ещё лежит строка подключения к БД с паролем. Здесь
+ * она и всё остальное из сессии удаляются, а id сессии меняется.
+ * Действующий вход и сессию без входа (обычный заход на страницу логина)
+ * не трогает.
+ *
+ * Вызывается со страницы логина: туда приводят и requireAuth(), и 401 из AJAX.
+ *
+ * @return void
+ */
+function forgetStaleAuthentication(): void {
+    if (empty($_SESSION['user_authenticated']) || isAuthenticated()) {
+        return;
+    }
+    $_SESSION = [];
+    SessionManager::regenerateId();
 }
 
 /**
@@ -288,14 +322,28 @@ function testDatabaseConnection(array $dbConfig): array {
 }
 
 /**
- * Авторизация пользователя по строке подключения к БД
- * Авторизация происходит автоматически при успешном подключении к БД
+ * Авторизация пользователя по строке подключения к БД.
+ *
+ * ВАЖНО: вызывать только ПОСЛЕ того, как пароль панели проверен
+ * ({@see PanelPassword::verify()} в login.php) и подключение к БД удалось.
+ * Сама функция пароль не спрашивает — она записывает в сессию отпечаток
+ * текущего пароля, по которому isAuthenticated() потом узнаёт действующий вход.
+ *
+ * @param array $dbConfig   Результат parseConnectionString().
+ * @param bool  $rememberMe true — cookie на 30 дней, иначе до закрытия браузера.
+ * @return bool false — неполный dbConfig или пароль панели не настроен.
  */
 function authenticate(array $dbConfig, bool $rememberMe = true): bool {
     // Проверяем, что dbConfig передан и содержит необходимые параметры
     if (empty($dbConfig) || empty($dbConfig['host']) || empty($dbConfig['user']) || empty($dbConfig['database'])) {
         require_once __DIR__ . '/includes/Logger.php';
         Logger::warning('AUTH: Invalid dbConfig provided', ['keys' => array_keys($dbConfig ?? [])]);
+        return false;
+    }
+
+    // Без настроенного пароля панели входа нет ни у кого (см. PanelPassword).
+    $panelHash = PanelPassword::loadHash();
+    if ($panelHash === null) {
         return false;
     }
     
@@ -310,6 +358,8 @@ function authenticate(array $dbConfig, bool $rememberMe = true): bool {
     $_SESSION['username'] = $dbConfig['user'] . '@' . $dbConfig['host']; // Используем user@host как идентификатор
     $_SESSION['login_time'] = time();
     $_SESSION['remember_me'] = $rememberMe;
+    // Отпечаток пароля, под которым вошли: сменят пароль — этот вход перестанет действовать.
+    $_SESSION[PanelPassword::SESSION_KEY] = PanelPassword::stampFor($panelHash);
     
     // Сохраняем параметры подключения к БД в сессии
     $_SESSION['db_config'] = $dbConfig;
