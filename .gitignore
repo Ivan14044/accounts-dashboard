@@ -6,6 +6,9 @@
 config.local.php
 nppr_token.txt
 .nppr_token
+# Хэш пароля панели: пишется при деплое из GitHub Secret PANEL_PASSWORD_HASH
+# (tools/panel_password.php). Репозиторий публичный — даже хэшу тут не место.
+.panel_password.php
 
 # Логи
 *.log

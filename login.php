@@ -7,6 +7,10 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/includes/Utils.php';
 require_once __DIR__ . '/includes/RateLimitMiddleware.php';
 
+// Вход, сделанный до появления пароля панели или под прежним паролем, больше не
+// действует — стираем его вместе с сохранённой строкой подключения к БД.
+forgetStaleAuthentication();
+
 // Если пользователь уже авторизован, перенаправляем на главную
 if (isAuthenticated()) {
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
@@ -47,10 +51,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($error)) {
             $dbConnectionString = trim($_POST['db_connection_string'] ?? '');
+            // Без trim: пробел — законная часть пароля. Массив вместо строки — «не введён».
+            $panelPassword = isset($_POST['panel_password']) && is_string($_POST['panel_password'])
+                ? $_POST['panel_password'] : '';
             $rememberMe = isset($_POST['remember_me']) && $_POST['remember_me'] === '1';
+            $panelHash = PanelPassword::loadHash();
 
+            // Пароль панели проверяется ДО подключения к БД: без него панель не
+            // должна ни ходить в чужую базу, ни подтверждать, что строка рабочая,
+            // ни запускать автомиграцию схемы (её делает testDatabaseConnection).
             if (empty($dbConnectionString)) {
                 $error = 'Введите строку подключения к базе данных';
+            } elseif ($panelHash === null) {
+                $error = 'Вход временно закрыт: на сервере не задан пароль панели.';
+                require_once __DIR__ . '/includes/Logger.php';
+                Logger::error('AUTH: panel password is not configured', ['file' => PanelPassword::FILE_NAME]);
+            } elseif ($panelPassword === '') {
+                $error = 'Введите пароль панели';
+            } elseif (!PanelPassword::verify($panelPassword, $panelHash)) {
+                $error = 'Неверный пароль панели';
+                require_once __DIR__ . '/includes/Logger.php';
+                // Адрес — чтобы владелец видел, откуда подбирают. За Cloudflare
+                // REMOTE_ADDR — адрес его узла, настоящий клиент — в CF-Connecting-IP.
+                Logger::warning('AUTH: wrong panel password', [
+                    'ip'    => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                    'cf_ip' => substr((string)($_SERVER['HTTP_CF_CONNECTING_IP'] ?? ''), 0, 45),
+                ]);
             } else {
                 if (!function_exists('parseConnectionString')) {
                     $error = 'Ошибка системы: функция parseConnectionString не найдена';
@@ -111,6 +137,15 @@ if (isset($_SESSION['message'])) {
     $message = $_SESSION['message'];
     unset($_SESSION['message']);
 }
+
+// Пароль панели не настроен — предупреждаем сразу, а не после попытки входа.
+if ($error === '' && PanelPassword::loadHash() === null) {
+    $error = 'Вход временно закрыт: на сервере не задан пароль панели.';
+}
+
+// Строка подключения уже введена (вернулись с ошибкой) — курсор сразу в поле пароля.
+$focusPanelPassword = isset($_POST['db_connection_string']) && is_string($_POST['db_connection_string'])
+    && trim($_POST['db_connection_string']) !== '';
 
 // Проверяем сообщения из URL
 if (isset($_GET['message'])) {
@@ -233,6 +268,8 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) max(filemtime(__
       outline: none; resize: vertical; min-height: 104px;
       transition: border-color .18s ease, box-shadow .18s ease;
     }
+    /* Однострочное поле (пароль панели): без высоты и ручки textarea */
+    .login-input--line { min-height: 0; resize: none; font-family: var(--font-family-base); }
     .login-input::placeholder { color: var(--color-text-muted); }
     .login-input:hover { border-color: var(--color-border-hover); }
     .login-input:focus { border-color: var(--primary-500); box-shadow: var(--shadow-focus); }
@@ -345,10 +382,26 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) max(filemtime(__
           autocorrect="off"
           spellcheck="false"
           required
-          autofocus><?= e($_POST['db_connection_string'] ?? '') ?></textarea>
+          <?= $focusPanelPassword ? '' : 'autofocus' ?>><?= e($_POST['db_connection_string'] ?? '') ?></textarea>
         <div class="login-help">
           Формат: <code>server=host;port=3306;user id=username;password=pass;database=dbname;characterset=utf8mb4</code>
         </div>
+      </div>
+
+      <div class="login-field">
+        <label class="login-label" for="panel_password">Пароль панели</label>
+        <input
+          class="login-input login-input--line"
+          type="password"
+          name="panel_password"
+          id="panel_password"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          required
+          <?= $focusPanelPassword ? 'autofocus' : '' ?>>
+        <div class="login-help">Отдельный пароль входа в панель — не тот, что в строке подключения.</div>
       </div>
 
       <label class="login-check">
@@ -378,7 +431,8 @@ $assetV = defined('ASSETS_VERSION') ? ASSETS_VERSION : (string) max(filemtime(__
       }, false);
 
       document.addEventListener('DOMContentLoaded', function () {
-        var field = document.getElementById('db_connection_string');
+        // Поле с autofocus выбирает сервер: строка уже введена → пароль, иначе строка.
+        var field = document.querySelector('[autofocus]') || document.getElementById('db_connection_string');
         if (field) setTimeout(function () { field.focus(); }, 100);
       });
     })();
