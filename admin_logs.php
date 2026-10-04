@@ -11,6 +11,7 @@ require_once __DIR__ . '/includes/AuditLogger.php';
 require_once __DIR__ . '/includes/Utils.php';
 require_once __DIR__ . '/includes/Validator.php';
 require_once __DIR__ . '/includes/Csv.php';
+require_once __DIR__ . '/includes/ExportAudit.php';
 
 // Проверяем авторизацию
 requireAuth();
@@ -113,6 +114,15 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv' && ($_SERVER['REQUEST_ME
         $stmt->execute();
         $result = $stmt->get_result();
 
+        try {
+            $exportAudit = new ExportAudit($mysqli, 'account_history', 'csv', 'audit_log', 'filtered', ['id', 'account_id', 'field_name', 'old_value', 'new_value', 'changed_by', 'changed_at', 'ip_address']);
+        } catch (Throwable $e) {
+            $stmt->close();
+            http_response_code(500);
+            header('Content-Type: text/plain; charset=utf-8');
+            die('Export audit unavailable');
+        }
+
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="audit_log_' . date('Y-m-d_H-i') . '.csv"');
 
@@ -125,6 +135,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv' && ($_SERVER['REQUEST_ME
         Csv::writeRow($output, ['ID', 'ID аккаунта', 'Поле', 'Старое значение', 'Новое значение', 'Пользователь', 'Дата/Время', 'IP-адрес'], ',');
 
         while ($row = $result->fetch_assoc()) {
+            $exportAudit->addIdCount(1);
             Csv::writeRow($output, [
                 sanitizeCsvCell($row['id']),
                 sanitizeCsvCell($row['account_id']),
@@ -138,6 +149,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv' && ($_SERVER['REQUEST_ME
         }
 
         fclose($output);
+        $exportAudit->complete();
         $stmt->close();
         exit;
     }
@@ -908,6 +920,9 @@ function activePeriod(): string {
                     </form>
                     <a href="log.php" class="btn btn-sm btn-outline-light">
                         <i class="fas fa-server me-1"></i> Системные логи
+                    </a>
+                    <a href="export_logs.php" class="btn btn-sm btn-outline-light">
+                        <i class="fas fa-download me-1"></i> Выгрузки
                     </a>
                     <a href="index.php" class="btn btn-sm btn-outline-light">
                         <i class="fas fa-arrow-left me-1"></i> Дашборд

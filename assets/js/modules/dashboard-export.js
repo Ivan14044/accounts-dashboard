@@ -270,6 +270,7 @@
                 prog.set('Готовлю список аккаунтов…');
                 const body = new URLSearchParams(opts.filterSearch || '');
                 body.set('mode', 'idlist');
+                body.set('export_scope', opts.scope);
                 body.set('sort', opts.sort || 'id');
                 body.set('dir', opts.dir || 'ASC');
                 const j = await postJson(url, body, csrf);
@@ -287,6 +288,7 @@
                 const slice = ids.slice(i, i + CHUNK);
                 const body = new URLSearchParams();
                 body.set('mode', 'rows');
+                body.set('export_scope', opts.scope);
                 body.set('ids', slice.join(','));
                 body.set('cols', (opts.cols || []).join(','));
                 body.set('sort', opts.sort || 'id');

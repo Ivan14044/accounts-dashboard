@@ -59,6 +59,7 @@ try {
     require_once __DIR__ . '/includes/Config.php';
     require_once __DIR__ . '/includes/RateLimitMiddleware.php';
     require_once __DIR__ . '/includes/Validator.php';
+    require_once __DIR__ . '/includes/ExportAudit.php';
 } catch (Throwable $e) {
     Logger::error('EXPORT_CHUNK: bootstrap failed', ['error' => $e->getMessage()]);
     chunk_fail(500, 'bootstrap failed', $e->getMessage());
@@ -93,6 +94,8 @@ if (!isset($tableName) || !preg_match('/^[a-zA-Z0-9_]+$/', (string)$tableName)) 
 $mode = isset($_POST['mode']) ? (string)$_POST['mode'] : 'rows';
 $sort = isset($_POST['sort']) ? (string)$_POST['sort'] : 'id';
 $dir  = isset($_POST['dir'])  ? (string)$_POST['dir']  : 'ASC';
+$auditScope = isset($_POST['export_scope']) ? (string)$_POST['export_scope'] : 'selected';
+if (!in_array($auditScope, ['selected', 'all', 'custom'], true)) { $auditScope = 'selected'; }
 
 try {
     $service = new AccountsService($tableName);
@@ -126,6 +129,14 @@ if ($mode === 'idlist') {
 
         $rows = Database::getInstance()->prepare($sql, $sqlParams);
         $ids = array_map(static function ($r) { return (int)$r['id']; }, $rows);
+
+        // Список ID тоже является результатом массового чтения.
+        $statusFilter = $params['status'] ?? [];
+        if (!is_array($statusFilter)) { $statusFilter = [$statusFilter]; }
+        $statusFilter = array_slice(array_map('strval', array_filter($statusFilter, 'is_scalar')), 0, 100);
+        $audit = new ExportAudit(Database::getInstance()->getConnection(), $tableName, 'txt', 'idlist', $auditScope, ['id'], $statusFilter);
+        $audit->addIdCount(count($ids));
+        $audit->complete();
 
         echo json_encode(['ok' => true, 'ids' => $ids, 'total' => count($ids)], JSON_UNESCAPED_UNICODE);
         exit;
@@ -183,17 +194,23 @@ try {
     $filter = $service->createFilterFromRequest(['ids' => $idArray]);
     // Тянем ТОЛЬКО выбранные колонки (+id), а не всю таблицу — иначе тяжёлые cookies на
     // тысячу строк исчерпывают память (memory_limit на шаринге залочен на 256M).
-    $accounts = $service->getAccounts($filter, $sort, $dir, count($idArray), 0, false, $selectedCols);
+    // Статус читаем и для аудита, даже если его нет в выбранных колонках файла.
+    $fetchCols = array_values(array_unique(array_merge($selectedCols, ['status'])));
+    $audit = new ExportAudit(Database::getInstance()->getConnection(), $tableName, 'txt', 'rows', $auditScope, $selectedCols);
+    $accounts = $service->getAccounts($filter, $sort, $dir, count($idArray), 0, false, $fetchCols);
 
     $EOL = "\r\n";
     $buf = '';
     foreach ($accounts as $row) {
+        $audit->addRow($row);
         $line = [];
         foreach ($selectedCols as $key) {
             $line[] = $sanitizeCell($row[$key] ?? '');
         }
         $buf .= implode('|', $line) . $EOL;
     }
+
+    $audit->complete();
 
     echo json_encode(['ok' => true, 'text' => $buf, 'count' => count($accounts)], JSON_UNESCAPED_UNICODE);
     exit;

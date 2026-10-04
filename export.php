@@ -440,6 +440,33 @@ if (empty($preflightRows)) {
 }
 unset($preflightRows); // не держим в памяти — основной flow перечитает свою порцию
 
+// Фиксируем запрос до отправки заголовков и данных. Если запись не создаётся,
+// выгрузку не начинаем: иначе появится скачивание без следа в журнале.
+try {
+    require_once __DIR__ . '/includes/ExportAudit.php';
+    $auditColumns = $format === 'txt' && $colsParam !== ''
+        ? array_values(array_unique(array_intersect(array_map('trim', explode(',', $colsParam)), $allCols)))
+        : ($format === 'txt' ? ['id', 'login', 'email', 'status'] : $allCols);
+    if ($format === 'txt' && !$auditColumns) { $auditColumns = ['id', 'login', 'email', 'status']; }
+    $auditStatuses = $queryParams['status'] ?? [];
+    if (!is_array($auditStatuses)) { $auditStatuses = [$auditStatuses]; }
+    $auditStatuses = array_slice(array_map('strval', array_filter($auditStatuses, 'is_scalar')), 0, 100);
+    $exportAudit = new ExportAudit(
+        Database::getInstance()->getConnection(),
+        $tableName,
+        $format === 'txt' ? 'txt' : 'csv',
+        'file',
+        !empty($idArray) ? 'selected' : ($selectAll ? 'all' : 'filtered'),
+        $auditColumns,
+        $auditStatuses
+    );
+} catch (Throwable $e) {
+    Logger::error('EXPORT: Audit unavailable', ['error' => $e->getMessage()]);
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    die('Export audit unavailable');
+}
+
 // Устанавливаем заголовки с правильным именем файла ДО начала вывода данных
 $obLevel = function_exists('ob_get_level') ? ob_get_level() : 0;
 Logger::info('EXPORT: Setting headers', [
@@ -591,6 +618,7 @@ if ($format === 'txt') {
                     }
                     fwrite($output, implode('|', $line) . $EOL);
                     $exportedCount++;
+                    $exportAudit->addRow($row);
                 }
                 
                 unset($accounts);
@@ -656,6 +684,7 @@ if ($format === 'txt') {
                         }
                         fwrite($output, implode('|', $line) . $EOL);
                         $exportedCount++;
+                        $exportAudit->addRow($row);
                     }
                     
                     // Очищаем память и отправляем данные браузеру
@@ -721,6 +750,7 @@ if ($format === 'txt') {
                     }
                     fwrite($output, $EOL);
                     $exportedCount++;
+                    $exportAudit->addRow($row);
                 }
                 
                 unset($accounts);
@@ -763,6 +793,7 @@ if ($format === 'txt') {
                         }
                         fwrite($output, $EOL);
                         $exportedCount++;
+                        $exportAudit->addRow($row);
                     }
                     
                     // Очищаем память и отправляем данные браузеру
@@ -868,6 +899,7 @@ if ($format === 'txt') {
             // Используем точку с запятой как разделитель для Excel
             Csv::writeRow($output, $line, ';');
             $exportedCount++;
+            $exportAudit->addRow($row);
         }
         
         // Очищаем память и отправляем данные браузеру
@@ -896,6 +928,7 @@ if ($format === 'txt') {
 }
 
 // Завершаем выполнение явно после успешного экспорта
+$exportAudit->complete();
 exit(0);
 
 } catch (Exception $e) {
