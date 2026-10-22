@@ -1075,22 +1075,14 @@ document.addEventListener('click', handleDocumentClick, { passive: false });
       if (!DS || (!DS.getSelectedAllFiltered() && DS.getSelectedIds().size === 0)) return;
       const currentSort = window.DashboardConfig.currentSort;
       const currentDir = window.DashboardConfig.currentDir;
-      let visibleCols = [];
-      try { const saved = localStorage.getItem('dashboard_visible_columns'); if (saved) visibleCols = JSON.parse(saved); } catch (_) {}
-      if (!Array.isArray(visibleCols) || visibleCols.length === 0) {
-        visibleCols = Array.from(document.querySelectorAll('#accountsTable thead th[data-col]')).map(th => th.getAttribute('data-col'));
-      }
-      const ALL_COL_KEYS = window.DashboardConfig.allColKeys;
-      visibleCols = (visibleCols || []).filter(c => ALL_COL_KEYS.includes(c));
-      // Убираем ID из экспорта, если он есть
-      visibleCols = visibleCols.filter(c => c !== 'id');
-
       // Качаем частями (chunked): браузер собирает один файл из множества быстрых
       // запросов к export_chunk.php — большой объём не упирается в ~120s таймаут сервера.
       if (!window.DashboardExport || typeof window.DashboardExport.downloadTxtChunked !== 'function') {
         showToast('Модуль экспорта не загружен', 'error');
         return;
       }
+      // Графы — по галочкам на экране (см. getExportColumns в dashboard-export.js).
+      const visibleCols = window.DashboardExport.getExportColumns(window.DashboardConfig.allColKeys);
 
       const allFiltered = DS.getSelectedAllFiltered();
       window.DashboardExport.downloadTxtChunked({
