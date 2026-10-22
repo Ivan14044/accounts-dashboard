@@ -102,6 +102,37 @@
         bsModal.show();
     }
 
+    /**
+     * Графы для TXT-выгрузки — ровно те, что отмечены в «Настройках колонок».
+     *
+     * Раньше графы брались из сохранённого списка dashboard_visible_columns, а
+     * экран рисуется по галочкам. Список общий на все таблицы: поменял галочку
+     * в другой таблице — он перезаписан её графами, и по возвращении графы
+     * основной таблицы (cookies и т.д.) видны и отмечены, но в файл не идут.
+     * Поэтому первоисточник — галочки на странице; список и заголовки таблицы —
+     * только запасные варианты для страниц без окна настроек.
+     *
+     * @param {string[]} allKeys реальные колонки таблицы; всё прочее отбрасывается
+     * @return {string[]} колонки в порядке таблицы, без id
+     */
+    function getExportColumns(allKeys) {
+        const keys = Array.isArray(allKeys) ? allKeys : [];
+        let cols = [];
+        const toggles = Array.from(document.querySelectorAll('.column-toggle'));
+        if (toggles.length > 0) {
+            cols = toggles.filter(cb => cb.checked).map(cb => cb.getAttribute('data-col'));
+        } else {
+            try {
+                const saved = localStorage.getItem('dashboard_visible_columns');
+                if (saved) cols = JSON.parse(saved);
+            } catch (_) { cols = []; }
+            if (!Array.isArray(cols) || cols.length === 0) {
+                cols = Array.from(document.querySelectorAll('#accountsTable thead th[data-col]')).map(th => th.getAttribute('data-col'));
+            }
+        }
+        return cols.filter(c => keys.includes(c) && c !== 'id');
+    }
+
     // Сбор параметров и отправка запроса
     function submitExport() {
         const format = getElementById('exportFormat').value;
@@ -123,16 +154,8 @@
         // TXT качаем частями (chunked) — большой объём не упирается в таймаут сервера.
         // Колонки и формат не меняем: качаются ровно выбранные колонки.
         if (format === 'txt') {
-            let visibleCols = [];
-            try {
-                const saved = localStorage.getItem('dashboard_visible_columns');
-                if (saved) visibleCols = JSON.parse(saved);
-            } catch (_) { }
-            if (!Array.isArray(visibleCols) || visibleCols.length === 0) {
-                visibleCols = Array.from(document.querySelectorAll('#accountsTable thead th[data-col]')).map(th => th.getAttribute('data-col'));
-            }
             const ALL_COL_KEYS = (window.__DASHBOARD_CONFIG__ && window.__DASHBOARD_CONFIG__.allColumnKeys) || [];
-            visibleCols = (visibleCols || []).filter(c => ALL_COL_KEYS.includes(c)).filter(c => c !== 'id');
+            const visibleCols = getExportColumns(ALL_COL_KEYS);
 
             closeModal();
             downloadTxtChunked({
@@ -324,7 +347,8 @@
     window.DashboardExport = {
         init: initExportModule,
         openModal: openExportModal,
-        downloadTxtChunked: downloadTxtChunked
+        downloadTxtChunked: downloadTxtChunked,
+        getExportColumns: getExportColumns
     };
 
     // Авто-инициализация при загрузке DOM
