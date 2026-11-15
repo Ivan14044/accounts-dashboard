@@ -149,6 +149,8 @@
       if (this.virtualScroller) this.virtualScroller.disable(true);
       // Полные значения доступны copy/edit через getRowValue, включая пустой ответ.
       this.rowsById = new Map(rows.map(r => [String(r.id), r]));
+      // Пришли свежие данные — запомненные раньше полные значения могли устареть.
+      if (window.CellValues && typeof window.CellValues.clearCache === 'function') window.CellValues.clearCache();
       if (!rows.length) {
         tbody.innerHTML = this.emptyStateHtml(columns.length);
         this.tbody = tbody;
@@ -226,11 +228,18 @@
     /**
      * Значение поля строки из последнего render() (или null, если данных нет —
      * например, на первично отрендеренной сервером странице до первого refresh).
+     *
+     * null и для поля из row._clipped: refresh.php присылает длинные значения
+     * (full_cookies ~33 КБ) только началом — см. includes/RefreshRowsClipper.php.
+     * Обрезок нельзя отдавать как полное значение: копирование скопировало бы
+     * кусок, а правка сохранила бы кусок в базу. По null CellValues идёт на
+     * сервер (field_value.php).
      */
     getRowValue(rowId, field) {
       if (!this.rowsById) return null;
       const row = this.rowsById.get(String(rowId));
       if (!row || !(field in row)) return null;
+      if (Array.isArray(row._clipped) && row._clipped.indexOf(field) !== -1) return null;
       const v = row[field];
       return v === null || v === undefined ? '' : String(v);
     }
@@ -708,6 +717,9 @@
       };
     }
   }
+
+  // Наружу — для поведенческих тестов (tests/refresh-two-phase.test.cjs).
+  window.TableModule = TableModule;
 
   function bootstrapTableModule() {
     const root = getSel('[data-module="accounts-table"]');
