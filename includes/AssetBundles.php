@@ -93,6 +93,7 @@ class AssetBundles
             'assets/js/modules/status-filter.js',            // список статусов; запускает dashboard-main.js ниже
             'assets/js/modules/dashboard-stats.js',
             'assets/js/modules/dashboard-modals.js',
+            'assets/js/modules/status-picker.js',            // поле «выбери статус или впиши свой»; строго ДО dashboard-validate.js
             'assets/js/modules/dashboard-validate.js',
             'assets/js/modules/dashboard-main.js',
             'assets/js/sticky-scrollbar.js',

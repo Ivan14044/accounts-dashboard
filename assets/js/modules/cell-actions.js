@@ -161,6 +161,11 @@
     const wrap = td.querySelector('.editable-field-wrap');
     const container = pwMask || wrap || td;
     if (container.getAttribute && container.getAttribute('data-editing') === 'true') return;
+    // Страховка на случай редактора без метки data-editing: в ячейке открыто
+    // поле ввода — значит, её сейчас правят, и панель легла бы на кнопки
+    // сохранения (так было с паролем, 15.11.2026). В обычной ячейке данных
+    // полей ввода не бывает. Стережёт tests/test_pw_editor_editing_flag.php.
+    if (container.querySelector('input, textarea, select')) { removePanel(); return; }
 
     placePanel(container, pwMask ? 'pw' : (wrap ? 'edit' : 'copy'));
   }
