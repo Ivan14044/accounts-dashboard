@@ -24,6 +24,7 @@ require_once __DIR__ . '/includes/Logger.php';
 require_once __DIR__ . '/includes/RequestHandler.php';
 require_once __DIR__ . '/includes/Config.php';
 require_once __DIR__ . '/includes/ResponseHeaders.php';
+require_once __DIR__ . '/includes/RefreshRowsClipper.php';
 
 /**
  * Строит HTML-блок пагинации — идентично footer.php.
@@ -122,6 +123,12 @@ try {
     $dir = $sortParams['dir'];
 
     $light = isset($_GET['light']) && ($_GET['light'] === '1' || $_GET['light'] === 'true');
+    // Только счётчики, без строк таблицы. Обновление после действия идёт в два
+    // запроса: сначала light (строки + число найденного, ~0,3 с на рабочей
+    // панели), потом этот (карточки статусов). Пересчёт статистики после своей
+    // правки занимает там 1,1–1,3 с, и раньше таблица ждала его под
+    // «Загрузка данных…». См. assets/js/modules/dashboard-refresh.js.
+    $statsOnly = !$light && isset($_GET['stats_only']) && $_GET['stats_only'] === '1';
 
     if ($light) {
         $filteredTotal = $service->getAccountsCount($filter);
@@ -139,6 +146,17 @@ try {
             $stats = $service->getStatistics($filter);
             $filteredTotal = $stats['filteredTotal'];
         }
+    }
+
+    if ($statsOnly) {
+        ResponseHeaders::setJsonHeaders();
+        json_success([
+            'statsOnly'        => true,
+            'totals'           => ['all' => $stats['total']],
+            'byStatus'         => $stats['byStatus'],
+            'byStatusFiltered' => $stats['byStatusFiltered'],
+            'filteredTotal'    => $filteredTotal,
+        ]);
     }
 
     // Плашка «показаны похожие / только точные» — рендерим ТЕМ ЖЕ партиалом,
@@ -161,7 +179,9 @@ try {
         $page = 1;
     }
     $offset = ($page - 1) * $perPage;
-    $rows = $service->getAccounts($filter, $sort, $dir, $perPage, $offset);
+    // Длинные значения (full_cookies ~33 КБ на аккаунт) — только началом:
+    // таблица показывает 80 знаков, полное значение браузер догружает сам.
+    $rows = RefreshRowsClipper::clip($service->getAccounts($filter, $sort, $dir, $perPage, $offset));
 
     // Вычисляем окно кнопок (те же правила, что в DashboardController)
     $prev = max(1, $page - 1);

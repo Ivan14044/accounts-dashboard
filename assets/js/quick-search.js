@@ -324,7 +324,10 @@ class QuickSearch {
                     q: query,
                     per_page: 10,
                     sort: 'id',
-                    dir: 'desc'
+                    dir: 'desc',
+                    // Нужны только строки (id, логин, почта, статус) — пересчёт
+                    // счётчиков карточек по всей базе здесь лишний.
+                    light: '1'
                 });
                 
                 const refreshResponse = await fetch(`refresh.php?${refreshParams.toString()}`, {

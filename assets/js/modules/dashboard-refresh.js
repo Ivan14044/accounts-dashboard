@@ -23,6 +23,18 @@
    */
   let refreshController = null;
   let loadingTimer = null;
+  /**
+   * Контроллер ЖИВОГО запроса счётчиков (второй фазы) или null.
+   *
+   * Зачем две фазы (15.11.2026). Владелец: «после действия долго висит
+   * "Загрузка данных"». Замер на рабочей панели: после своей правки сервер
+   * пересчитывает счётчики карточек по всей базе — ответ 1,1–1,3 с, а строки
+   * таблицы без этого пересчёта приходят за 0,3 с. Таблица ждала карточки.
+   * Теперь «Загрузка» снимается по лёгкому запросу (light=1), а карточки и
+   * числа в списке статусов догружаются следом (stats_only=1) и таблицу не
+   * держат. Каждое новое обновление отменяет недогруженные счётчики прошлого.
+   */
+  let statsController = null;
 
   function collectRefreshParams() {
     const params = new URLSearchParams(window.location.search);
@@ -83,16 +95,20 @@
     if (refreshController) {
       try { refreshController.abort(); } catch(_) {}
     }
+    cancelStats();
+    const isLight = !!(options && (options.light === true || options.light === 'true'));
     const params = new URLSearchParams(window.location.search);
-    if (options && (options.light === true || options.light === 'true')) {
+    if (isLight) {
       params.set('light', '1');
     }
-    const url = 'refresh.php?' + params.toString();
+    // Строки таблицы — всегда лёгким запросом: счётчики идут вторым (loadStats).
+    const tableParams = new URLSearchParams(params);
+    tableParams.set('light', '1');
+    const url = 'refresh.php?' + tableParams.toString();
     const myController = new AbortController();
     refreshController = myController;
     const signal = myController.signal;
 
-    const isLight = options && (options.light === true || options.light === 'true');
     let failed = false;
     // Данные ИМЕННО этого запроса легли на экран. Отменённый (его сменил более
     // свежий) и упавший запрос остаются false — подписчикам важно отличать.
@@ -211,44 +227,9 @@
       // пользователь видит тост и кнопку «Повторить», а не молчаливую ошибку в
       // консоли с навсегда висящим прелоадером, как было при вызове из rAF.
       function applyDataToDom() {
-        // Карточка «Всего»
-        const totalEl = getS('[data-card="total"] .stat-value');
-        if (totalEl && data.totals && typeof data.totals.all === 'number') {
-          if (typeof updateStatValue === 'function') {
-            updateStatValue(totalEl, data.totals.all);
-          } else {
-            totalEl.textContent = String(data.totals.all);
-          }
-        }
-
-        // Карточки статусов
-        if (data.byStatus && Object.keys(data.byStatus).length > 0) {
-          const statusCards = document.querySelectorAll('.stat-card[data-card^="status:"]');
-          log('Обновление карточек статистики:', { cards_found: statusCards.length, byStatus_keys: Object.keys(data.byStatus) });
-          statusCards.forEach(cardElement => {
-            const statusKey = cardElement.getAttribute('data-status');
-            if (!statusKey) return;
-            const cnt = typeof data.byStatus[statusKey] !== 'undefined' ? data.byStatus[statusKey] : 0;
-            const valEl = cardElement.querySelector('.stat-value');
-            if (valEl) {
-              if (typeof updateStatValue === 'function') {
-                updateStatValue(valEl, cnt);
-              } else {
-                valEl.textContent = String(cnt);
-              }
-            }
-          });
-          // Числа в списке статусов. Свой цикл здесь искал byStatus['__empty__'],
-          // а сервер кладёт пустой статус под ключ '' — «Пустой статус» после
-          // каждого обновления показывал 0 (на рабочей панели 436 → 0, 22.09.2026).
-          if (window.DashboardStatusFilter) {
-            window.DashboardStatusFilter.updateCounts(data.byStatus);
-          }
-          // Те же числа — в поле статуса окна проверки (modules/status-picker.js).
-          if (window.DashboardStatusPicker && typeof window.DashboardStatusPicker.updateCounts === 'function') {
-            window.DashboardStatusPicker.updateCounts(data.byStatus);
-          }
-        }
+        // Карточки «Всего» и статусов здесь НЕ трогаем: в лёгком ответе
+        // «всего» — это найденное по фильтру, а счётчиков статусов нет вовсе.
+        // Их кладёт applyStatsToDom по ответу второй фазы.
 
         // Таблица (основная тяжёлая операция)
         if (window.tableModule && typeof window.tableModule.updateRows === 'function') {
@@ -318,6 +299,7 @@
       }
       applyDataToDom();
       applied = true;
+      if (!isLight) loadStats(params);
 
     } catch (error) {
       if (error.name === 'AbortError' || (error.message && error.message.includes && error.message.includes('aborted'))) {
@@ -365,6 +347,102 @@
       // шёл, адрес мог уже смениться на следующий фильтр.
       notifyAfterRefresh({ applied: applied, search: '?' + params.toString() });
     }
+  }
+
+  // ── Вторая фаза: счётчики карточек и списка статусов ─────────────────────
+
+  /** Отменить недогруженные счётчики прошлого обновления. */
+  function cancelStats() {
+    if (!statsController) return;
+    try { statsController.abort(); } catch (_) {}
+    statsController = null;
+    const row = getEl('statsRow');
+    if (row) row.setAttribute('aria-busy', 'false');
+  }
+
+  /**
+   * Числа на карточках и в списках статусов по ответу stats_only=1.
+   * @param {{totals?: {all?: number}, byStatus?: Object<string, number>}} data
+   */
+  function applyStatsToDom(data) {
+    const totalEl = getS('[data-card="total"] .stat-value');
+    if (totalEl && data.totals && typeof data.totals.all === 'number') {
+      if (typeof updateStatValue === 'function') {
+        updateStatValue(totalEl, data.totals.all);
+      } else {
+        totalEl.textContent = String(data.totals.all);
+      }
+    }
+
+    if (!data.byStatus || typeof data.byStatus !== 'object' || Object.keys(data.byStatus).length === 0) return;
+    const statusCards = document.querySelectorAll('.stat-card[data-card^="status:"]');
+    log('Обновление карточек статистики:', { cards_found: statusCards.length, byStatus_keys: Object.keys(data.byStatus) });
+    statusCards.forEach(cardElement => {
+      const statusKey = cardElement.getAttribute('data-status');
+      if (!statusKey) return;
+      const cnt = typeof data.byStatus[statusKey] !== 'undefined' ? data.byStatus[statusKey] : 0;
+      const valEl = cardElement.querySelector('.stat-value');
+      if (valEl) {
+        if (typeof updateStatValue === 'function') {
+          updateStatValue(valEl, cnt);
+        } else {
+          valEl.textContent = String(cnt);
+        }
+      }
+    });
+    // Числа в списке статусов. Свой цикл здесь искал byStatus['__empty__'],
+    // а сервер кладёт пустой статус под ключ '' — «Пустой статус» после
+    // каждого обновления показывал 0 (на рабочей панели 436 → 0, 22.09.2026).
+    if (window.DashboardStatusFilter) {
+      window.DashboardStatusFilter.updateCounts(data.byStatus);
+    }
+    // Те же числа — в поле статуса окна проверки (modules/status-picker.js).
+    if (window.DashboardStatusPicker && typeof window.DashboardStatusPicker.updateCounts === 'function') {
+      window.DashboardStatusPicker.updateCounts(data.byStatus);
+    }
+  }
+
+  /**
+   * Запросить счётчики с тем же фильтром, что у только что показанной таблицы.
+   * Не ждётся вызывающим: refreshDashboardData() уже вернулся, «Загрузка»
+   * снята. Сбой здесь — не повод пугать тостом: таблица верная, просто
+   * карточки останутся с прошлыми числами до следующего обновления.
+   * @param {URLSearchParams} baseParams параметры запроса таблицы
+   */
+  function loadStats(baseParams) {
+    cancelStats();
+    const ctrl = new AbortController();
+    statsController = ctrl;
+    const statsParams = new URLSearchParams(baseParams);
+    statsParams.delete('light');
+    statsParams.set('stats_only', '1');
+    const row = getEl('statsRow');
+    if (row) row.setAttribute('aria-busy', 'true');
+
+    fetch('refresh.php?' + statsParams.toString(), {
+      credentials: 'same-origin',
+      signal: ctrl.signal,
+      cache: 'no-store',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(data => {
+        if (statsController !== ctrl) return;
+        if (!data || !data.success) throw new Error((data && data.error) || 'Не удалось обновить счётчики');
+        applyStatsToDom(data);
+      })
+      .catch(err => {
+        if (statsController !== ctrl || (err && err.name === 'AbortError')) return;
+        logErr('Счётчики карточек не обновились:', err);
+      })
+      .finally(() => {
+        if (statsController !== ctrl) return;
+        statsController = null;
+        if (row) row.setAttribute('aria-busy', 'false');
+      });
   }
 
   // ── Подписка на «данные обновились» ──────────────────────────────────────

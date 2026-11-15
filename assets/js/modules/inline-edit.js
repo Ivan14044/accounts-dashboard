@@ -181,6 +181,9 @@
         // AJAX-рендер читает тот же объект из rowsData: правка переживает скролл.
         var cachedRow = tableModule && tableModule.rowsById && tableModule.rowsById.get(String(rowId));
         if (cachedRow) cachedRow[field] = newVal;
+        // Полное значение, запомненное до правки (копирование/просмотр), — уже
+        // старое: без сброса «копировать» отдавало бы значение до правки.
+        if (window.CellValues && typeof window.CellValues.clearCache === 'function') window.CellValues.clearCache();
         wrap.innerHTML = originalContent;
         var updatedFieldValue = wrap.querySelector('.field-value');
         if (newVal === '' || newVal === null) {
