@@ -25,6 +25,9 @@
   // ─── DOM ───────────────────────────────────────────────
   var $ = function (id) { return document.getElementById(id); };
 
+  // Поле статуса для невалидных; создаётся в init(), см. initPicker().
+  var picker = null;
+
   // ─── Состояние ─────────────────────────────────────────
   var state = {
     cancelled  : false,
@@ -141,6 +144,8 @@
     setWidth('vldResRatioInvalid', '0%');
     addClass('vldResSkippedCard', 'd-none');
     addClass('vldActionsBlock', 'd-none');
+    if (picker) picker.clear();
+    showActionResult('', null);
 
     // Reset stepper
     setStep('count');
@@ -657,7 +662,11 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.success) {
-          totalAffected += (d.affected || d.deleted_count || batch.length);
+          // Считаем то, что вернул сервер. Раньше стояло `d.affected || … ||
+          // batch.length`: честный ноль превращался в «обработано всё».
+          if (typeof d.affected === 'number') totalAffected += d.affected;
+          else if (typeof d.deleted_count === 'number') totalAffected += d.deleted_count;
+          else totalAffected += batch.length;
         } else {
           errors.push(d.error || 'Ошибка');
         }
@@ -671,31 +680,70 @@
     });
   }
 
+  /**
+   * Перенести невалидные в статус из поля «выбери или впиши свой».
+   * Статуса нет в базе — он появляется самим переносом: отдельного
+   * справочника статусов нет, статус — значение в строке аккаунта.
+   */
   function applyStatus() {
     var ids = window.__validateInvalidIds;
     if (!ids || !ids.length) { toast('Нет невалидных', 'warning'); return; }
-    var sel = $('vldActionStatusSelect');
-    var status = (sel && sel.value) ? sel.value.trim() : '';
-    if (!status) { toast('Выберите статус', 'warning'); return; }
+    var res = picker ? picker.getResolution() : { kind: 'empty', value: '' };
+    if (res.kind === 'empty') {
+      toast('Выберите статус или впишите новый', 'warning');
+      if (picker) picker.focus();
+      return;
+    }
+    if (res.kind === 'invalid') {
+      toast(res.error, 'warning');
+      if (picker) picker.focus();
+      return;
+    }
+    var status = res.value;
+    var isNew = res.kind === 'new';
 
     var btn = $('vldActionSetStatusBtn');
-    btnLoading(btn, true, '<i class="fas fa-spinner fa-spin me-1"></i>Применяю…');
+    btnLoading(btn, true, '<i class="fas fa-spinner fa-spin me-1"></i>Переношу…');
+    showActionResult('', null);
 
     sendInBatches('status_update.php', ids, { status: status })
       .then(function (result) {
+        var done = result.totalAffected;
         if (result.errors.length) {
           toast('Ошибки: ' + result.errors.join('; '), 'error');
+          showActionResult('Перенесено ' + done + ' из ' + ids.length + ' в «' + status + '». Остальные — с ошибкой: ' + result.errors.join('; '), 'error');
         } else {
-          toast('Статус обновлён (' + result.totalAffected + ')', 'success');
+          var msg = (isNew ? 'Создан статус «' + status + '», перенесено: ' : 'Перенесено в «' + status + '»: ') +
+            done + (done !== ids.length ? ' из ' + ids.length : '');
+          toast(msg, 'success');
+          showActionResult(msg + '. Отменить можно кнопкой «Отменить последнее».', 'success');
         }
-        if (result.totalAffected > 0) {
+        if (done > 0) {
+          if (picker) picker.applied(status);
+          if (isNew && window.DashboardStatusPicker) window.DashboardStatusPicker.addToSelects(status);
           if (typeof window.refreshDashboardData === 'function') window.refreshDashboardData();
           if (window.DashboardSelection && typeof window.DashboardSelection.clearSelection === 'function') {
             window.DashboardSelection.clearSelection();
           }
         }
       })
-      .finally(function () { btnLoading(btn, false, '<i class="fas fa-tag me-1"></i>Применить'); });
+      .finally(function () { btnLoading(btn, false, applyLabel()); });
+  }
+
+  /** Надпись на кнопке: новый статус — «Создать и перенести», иначе «Применить». */
+  function applyLabel(res) {
+    res = res || (picker ? picker.getResolution() : null);
+    return res && res.kind === 'new'
+      ? '<i class="fas fa-plus me-1"></i>Создать и перенести'
+      : '<i class="fas fa-tag me-1"></i>Применить';
+  }
+
+  /** Строка итога под действиями: тост исчезает, а итог остаётся перед глазами. */
+  function showActionResult(text, kind) {
+    var el = $('vldActionResult');
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'vld-action-result' + (text ? ' is-' + kind : ' d-none');
   }
 
   function deleteInvalid() {
@@ -759,11 +807,32 @@
         toast('Проверка отменена', 'info');
       }
     });
+    initPicker();
     on('vldActionSetStatusBtn', 'click', applyStatus);
     on('vldActionDeleteBtn',    'click', deleteInvalid);
 
     modal.addEventListener('hidden.bs.modal', function () {
       resetState(); resetDOM(); showPane('vldScopePane');
+    });
+  }
+
+  /** Поле «выбери статус или впиши свой» (modules/status-picker.js). */
+  function initPicker() {
+    var input = $('vldActionStatusInput');
+    if (!input || !window.DashboardStatusPicker) return;
+    var list = [];
+    var counts = null;
+    try { list = JSON.parse(input.getAttribute('data-statuses') || '[]'); } catch (e) { list = []; }
+    try { counts = JSON.parse(input.getAttribute('data-status-counts') || 'null'); } catch (e) { counts = null; }
+    picker = window.DashboardStatusPicker.attach(input, {
+      statuses: Array.isArray(list) ? list : [],
+      counts: counts && typeof counts === 'object' && !Array.isArray(counts) ? counts : null,
+      table: (window.DashboardConfig && window.DashboardConfig.currentTable) || 'accounts',
+      hint: $('vldActionStatusHint'),
+      onChange: function (res) {
+        var btn = $('vldActionSetStatusBtn');
+        if (btn && !btn.disabled) btn.innerHTML = applyLabel(res);
+      }
     });
   }
 
