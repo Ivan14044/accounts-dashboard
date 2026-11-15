@@ -89,7 +89,7 @@ trait AccountsRepoDeleteTrait {
         $supportsSoftDelete = $this->metadata->columnExists('deleted_at');
 
         // Частями по Config::ID_LIST_CHUNK: 1000 id за раз на проде читали
-        // всю таблицу, и удаление пачки шло 45–57 с
+        // всю таблицу, и удаление пачки шло 44–57 с
         if ($supportsSoftDelete) {
             // Soft Delete - помечаем как удалённые
             $affectedRows = $this->executeForIdChunks(

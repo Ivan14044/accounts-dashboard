@@ -237,6 +237,16 @@ layout-догон (`tableLayoutManager.refresh()`, виртуализация, s
 2. **Frontend:** Создайте модуль в `assets/js/modules/` или используйте `dashboard-main.js` для координации.
 3. **API:** Добавьте маршрут в `api/routes/<resource>.php` (роутер — `api/index.php`).
 4. **Логирование:** Используйте `logger.debug/warn/error` вместо `console.log`.
+5. **Долгая операция (массовая правка, выгрузка, импорт):** сразу после
+   `requireAuth()` + `checkSessionTimeout()` (+ `checkRateLimit()`) вызовите
+   `SessionManager::releaseLock()` (для чтения — `releaseLock(false)`). Иначе
+   PHP держит файл сессии запертым до конца запроса, и все остальные вкладки
+   панели в этом браузере «просто грузятся». После этого запись в `$_SESSION`
+   не сохраняется; отметку «сам менял данные» дописывает `json_response()`.
+6. **Запрос по списку id:** не больше `Config::ID_LIST_CHUNK` (500) id в одном
+   `WHERE id IN (...)`. В репозитории для этого есть `executeForIdChunks()` и
+   `selectIdsInChunks()` (`includes/repositories/AccountsRepoIdChunksTrait.php`):
+   список в 1000 id на проде уводил запрос в полный проход по таблице.
 
 ### Добавление фильтра дашборда
 
