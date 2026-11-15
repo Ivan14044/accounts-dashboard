@@ -13,6 +13,9 @@ require_once __DIR__ . '/includes/Database.php';
 try {
     requireAuth();
     checkSessionTimeout();
+    // Долгая операция: отпускаем сессию, чтобы другие вкладки панели в этом
+    // браузере не ждали её конца (см. SessionManager::releaseLock).
+    SessionManager::releaseLock();
     
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         json_error('Method not allowed', 405);

@@ -294,6 +294,12 @@ function dir_arrow(string $currentSort, string $dir, string $thCol): string {
  */
 if (!function_exists('json_response')) {
 function json_response(array $data, int $status = 200): void {
+    // Долгая операция могла отпустить сессию (SessionManager::releaseLock) —
+    // дописываем в неё отметку записи, пока заголовки ещё не ушли.
+    if (class_exists('SessionManager') && method_exists('SessionManager', 'finishReleasedRequest')) {
+        SessionManager::finishReleasedRequest();
+    }
+
     // Используем ResponseHeaders если доступен
     if (class_exists('ResponseHeaders')) {
         ResponseHeaders::setJsonHeaders();

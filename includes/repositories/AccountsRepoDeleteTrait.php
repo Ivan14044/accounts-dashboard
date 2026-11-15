@@ -25,19 +25,46 @@ trait AccountsRepoDeleteTrait {
             return;
         }
 
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $types = str_repeat('i', count($ids));
-
-        // Удаляем из избранного
-        $sql = "DELETE FROM account_favorites WHERE account_id IN ($placeholders)";
-        $stmt = $mysqli->prepare($sql);
-        if ($stmt) {
-            $stmt->bind_param($types, ...$ids);
-            $stmt->execute();
-            $stmt->close();
+        // Удаляем из избранного (частями — см. AccountsRepoIdChunksTrait)
+        foreach (array_chunk(array_values($ids), Config::ID_LIST_CHUNK) as $chunk) {
+            $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+            $stmt = $mysqli->prepare("DELETE FROM account_favorites WHERE account_id IN ($placeholders)");
+            if ($stmt) {
+                $stmt->bind_param(str_repeat('i', count($chunk)), ...$chunk);
+                $stmt->execute();
+                $stmt->close();
+            }
         }
 
         // История изменений (account_history) намеренно НЕ удаляется — сохраняется для аудита.
+    }
+
+    /**
+     * Какие из переданных id сейчас НЕ в корзине (deleted_at IS NULL).
+     *
+     * Нужна журналу удаления: в историю операции должны попасть только строки,
+     * которые она реально перенесёт в корзину. Иначе отмена операции вытащит
+     * из корзины и то, что удалял кто-то раньше.
+     * Выборка по PRIMARY частями по Config::ID_LIST_CHUNK.
+     *
+     * @param int[] $ids Id (уже приведённые к int)
+     * @return int[] Подмножество $ids в исходном порядке
+     */
+    public function idsOutsideTrash(array $ids): array {
+        $ids = array_values(array_filter(array_map('intval', $ids)));
+        if (empty($ids)) {
+            return [];
+        }
+
+        $live = array_fill_keys($this->selectIdsInChunks(
+            "SELECT id FROM {$this->table} WHERE id IN ({IDS}) AND deleted_at IS NULL",
+            $ids,
+            'Failed to check trash state'
+        ), true);
+
+        return array_values(array_filter($ids, function ($id) use ($live) {
+            return isset($live[$id]);
+        }));
     }
 
     /**
@@ -61,49 +88,29 @@ trait AccountsRepoDeleteTrait {
         // Проверяем, поддерживается ли Soft Delete
         $supportsSoftDelete = $this->metadata->columnExists('deleted_at');
 
+        // Частями по Config::ID_LIST_CHUNK: 1000 id за раз на проде читали
+        // всю таблицу, и удаление пачки шло 44–57 с
         if ($supportsSoftDelete) {
             // Soft Delete - помечаем как удалённые
-            $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-            $sql = "UPDATE {$this->table} SET deleted_at = CURRENT_TIMESTAMP WHERE id IN ($placeholders) AND deleted_at IS NULL";
-
-            $stmt = $this->db->getConnection()->prepare($sql);
-            if (!$stmt) {
-                throw new Exception('Failed to prepare delete statement');
-            }
-
-            $types = str_repeat('i', count($ids));
-            $stmt->bind_param($types, ...$ids);
-
-            if (!$stmt->execute()) {
-                $stmt->close();
-                throw new Exception('Failed to delete accounts');
-            }
-
-            $affectedRows = $stmt->affected_rows;
-            $stmt->close();
+            $affectedRows = $this->executeForIdChunks(
+                "UPDATE {$this->table} SET deleted_at = CURRENT_TIMESTAMP WHERE id IN ({IDS}) AND deleted_at IS NULL",
+                '',
+                [],
+                $ids,
+                'Failed to delete accounts'
+            );
         } else {
             // Hard Delete - физическое удаление
             // Сначала очищаем связанные данные
             $this->cleanupRelatedData($ids);
 
-            $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-            $sql = "DELETE FROM {$this->table} WHERE id IN ($placeholders)";
-
-            $stmt = $this->db->getConnection()->prepare($sql);
-            if (!$stmt) {
-                throw new Exception('Failed to prepare delete statement');
-            }
-
-            $types = str_repeat('i', count($ids));
-            $stmt->bind_param($types, ...$ids);
-
-            if (!$stmt->execute()) {
-                $stmt->close();
-                throw new Exception('Failed to delete accounts');
-            }
-
-            $affectedRows = $stmt->affected_rows;
-            $stmt->close();
+            $affectedRows = $this->executeForIdChunks(
+                "DELETE FROM {$this->table} WHERE id IN ({IDS})",
+                '',
+                [],
+                $ids,
+                'Failed to delete accounts'
+            );
         }
 
         $this->db->clearCache();
@@ -188,31 +195,14 @@ trait AccountsRepoDeleteTrait {
             throw new Exception('Soft Delete не поддерживается. Поле deleted_at не существует.');
         }
 
-        // Проверяем, что аккаунты действительно удалены
-        $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-        // Для TIMESTAMP колонки достаточно проверки IS NOT NULL (пустая строка там быть не может)
-        $checkSql = "SELECT id FROM {$this->table} WHERE id IN ($placeholders) AND deleted_at IS NOT NULL";
-        $checkStmt = $this->db->getConnection()->prepare($checkSql);
-
-        if (!$checkStmt) {
-            throw new Exception('Failed to prepare check statement');
-        }
-
-        $types = str_repeat('i', count($ids));
-        $checkStmt->bind_param($types, ...$ids);
-
-        if (!$checkStmt->execute()) {
-            $checkStmt->close();
-            throw new Exception('Failed to execute check statement');
-        }
-
-        $result = $checkStmt->get_result();
-
-        $validIds = [];
-        while ($row = $result->fetch_assoc()) {
-            $validIds[] = (int)$row['id'];
-        }
-        $checkStmt->close();
+        // Проверяем, что аккаунты действительно удалены.
+        // Для TIMESTAMP колонки достаточно проверки IS NOT NULL (пустая строка там быть не может).
+        // Частями по Config::ID_LIST_CHUNK — см. AccountsRepoIdChunksTrait.
+        $validIds = $this->selectIdsInChunks(
+            "SELECT id FROM {$this->table} WHERE id IN ({IDS}) AND deleted_at IS NOT NULL",
+            $ids,
+            'Failed to execute check statement'
+        );
 
         if (empty($validIds)) {
             return 0; // Нет удалённых аккаунтов для восстановления
@@ -223,24 +213,13 @@ trait AccountsRepoDeleteTrait {
             ? ', updated_at = CURRENT_TIMESTAMP'
             : '';
 
-        $placeholders = str_repeat('?,', count($validIds) - 1) . '?';
-        $sql = "UPDATE {$this->table} SET deleted_at = NULL $updateTimestamp WHERE id IN ($placeholders)";
-
-        $stmt = $this->db->getConnection()->prepare($sql);
-        if (!$stmt) {
-            throw new Exception('Failed to prepare restore statement');
-        }
-
-        $types = str_repeat('i', count($validIds));
-        $stmt->bind_param($types, ...$validIds);
-
-        if (!$stmt->execute()) {
-            $stmt->close();
-            throw new Exception('Failed to restore accounts');
-        }
-
-        $affectedRows = $stmt->affected_rows;
-        $stmt->close();
+        $affectedRows = $this->executeForIdChunks(
+            "UPDATE {$this->table} SET deleted_at = NULL $updateTimestamp WHERE id IN ({IDS})",
+            '',
+            [],
+            $validIds,
+            'Failed to restore accounts'
+        );
 
         $this->db->clearCache();
 

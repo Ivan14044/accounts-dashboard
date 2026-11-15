@@ -71,6 +71,9 @@ try {
     requireAuth();
     checkSessionTimeout();
     checkRateLimit('api');
+    // Выгрузка может идти минутами: отпускаем сессию, чтобы другие вкладки
+    // панели в этом браузере не ждали её конца (см. SessionManager::releaseLock).
+    SessionManager::releaseLock(false);
 } catch (Throwable $e) {
     chunk_fail(403, 'auth', $e->getMessage());
 }

@@ -27,8 +27,6 @@ trait AccountsRepoWriteTrait {
             throw new InvalidArgumentException('Valid IDs are required');
         }
 
-        $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-
         // Проверяем наличие поля updated_at
         $updateTimestamp = $this->metadata->columnExists('updated_at')
             ? ', updated_at = CURRENT_TIMESTAMP'
@@ -36,24 +34,14 @@ trait AccountsRepoWriteTrait {
 
         // Исключаем soft-deleted аккаунты из обновления статуса
         $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
-        $sql = "UPDATE {$this->table} SET status = ? $updateTimestamp WHERE id IN ($placeholders)$softDeleteClause";
-        $params = array_merge([$status], $ids);
-
-        $stmt = $this->db->getConnection()->prepare($sql);
-        if (!$stmt) {
-            throw new Exception('Failed to prepare update statement');
-        }
-
-        $types = 's' . str_repeat('i', count($ids));
-        $stmt->bind_param($types, ...$params);
-
-        if (!$stmt->execute()) {
-            $stmt->close();
-            throw new Exception('Failed to update status');
-        }
-
-        $affectedRows = $stmt->affected_rows;
-        $stmt->close();
+        // Частями по Config::ID_LIST_CHUNK: 1000 id за раз на проде читали всю таблицу
+        $affectedRows = $this->executeForIdChunks(
+            "UPDATE {$this->table} SET status = ? $updateTimestamp WHERE id IN ({IDS})$softDeleteClause",
+            's',
+            [$status],
+            $ids,
+            'Failed to update status'
+        );
 
         // Очищаем кэш после изменений
         $this->db->clearCache();
@@ -249,8 +237,6 @@ trait AccountsRepoWriteTrait {
             throw new InvalidArgumentException('Valid IDs are required');
         }
 
-        $placeholders = str_repeat('?,', count($ids) - 1) . '?';
-
         $updateTimestamp = $this->metadata->columnExists('updated_at')
             ? ', updated_at = CURRENT_TIMESTAMP'
             : '';
@@ -262,31 +248,18 @@ trait AccountsRepoWriteTrait {
 
         // Исключаем soft-deleted аккаунты из массового обновления
         $softDeleteClause = $this->metadata->columnExists('deleted_at') ? ' AND deleted_at IS NULL' : '';
-        $sql = "UPDATE {$this->table} SET `$field` = ? $updateTimestamp WHERE id IN ($placeholders)$softDeleteClause";
 
-        // Обработка NULL для массового обновления
-        if ($normalizedValue === null) {
-            $params = array_merge([null], $ids);
-            $types = 's' . str_repeat('i', count($ids));
-        } else {
-            $params = array_merge([$normalizedValue], $ids);
-            $types = $valueType . str_repeat('i', count($ids));
-        }
+        // NULL передаётся строковым параметром со значением null
+        $headType = $normalizedValue === null ? 's' : $valueType;
 
-        $stmt = $this->db->getConnection()->prepare($sql);
-        if (!$stmt) {
-            throw new Exception('Failed to prepare update statement');
-        }
-
-        $stmt->bind_param($types, ...$params);
-
-        if (!$stmt->execute()) {
-            $stmt->close();
-            throw new Exception('Failed to bulk update field');
-        }
-
-        $affectedRows = $stmt->affected_rows;
-        $stmt->close();
+        // Частями по Config::ID_LIST_CHUNK: 1000 id за раз на проде читали всю таблицу
+        $affectedRows = $this->executeForIdChunks(
+            "UPDATE {$this->table} SET `$field` = ? $updateTimestamp WHERE id IN ({IDS})$softDeleteClause",
+            $headType,
+            [$normalizedValue],
+            $ids,
+            'Failed to bulk update field'
+        );
 
         $this->db->clearCache();
 

@@ -92,6 +92,9 @@ try {
     requireAuth();
     checkSessionTimeout();
     checkRateLimit('export'); // Более строгий лимит для экспорта
+    // Выгрузка может идти минутами: отпускаем сессию, чтобы другие вкладки
+    // панели в этом браузере не ждали её конца (см. SessionManager::releaseLock).
+    SessionManager::releaseLock(false);
 } catch (Exception $e) {
     Logger::error('EXPORT: Auth/rate limit error', ['error' => $e->getMessage()]);
     http_response_code(403);

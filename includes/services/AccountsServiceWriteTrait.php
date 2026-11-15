@@ -220,7 +220,18 @@ trait AccountsServiceWriteTrait {
 
     /**
      * Удаление аккаунтов по ID (Soft Delete - в корзину)
-     * Делегирует работу в AccountsRepository с логированием в audit log
+     * Делегирует работу в AccountsRepository с логированием в audit log.
+     *
+     * Журнал пишется пачкой (logBulkKnownChange), а не строкой на аккаунт:
+     * раньше здесь был цикл logChange() — отдельный INSERT на каждый id
+     * (~1000 обращений к базе на пачку из интерфейса).
+     * В журнал попадают только строки, которые были вне корзины: отмена
+     * операции не должна вытаскивать то, что удалял кто-то раньше (старый цикл
+     * журналировал все присланные id, и отмена возвращала из корзины чужое).
+     * Стережёт tests/integration_delete_audit_mysql.php.
+     *
+     * @param array $ids Id аккаунтов
+     * @return int Сколько строк перенесено в корзину (или удалено физически)
      */
     public function deleteAccounts(array $ids): int {
         // Проверяем, поддерживается ли Soft Delete для логирования
@@ -232,9 +243,21 @@ trait AccountsServiceWriteTrait {
             if ($auditLogger->isEnabled()) {
                 $auditLogger->beginAction('delete', $this->table,
                     'Удаление в корзину (' . count($ids) . ' акк.)');
+            } else {
+                $auditLogger = null;
             }
         } catch (Exception $e) {
-            // Игнорируем ошибки audit log
+            $auditLogger = null; // Игнорируем ошибки audit log
+        }
+
+        // Кого журналировать — решаем ДО удаления: после него все строки уже в корзине
+        $toLog = $ids;
+        if ($auditLogger !== null && $supportsSoftDelete) {
+            try {
+                $toLog = $this->repository->idsOutsideTrash($ids);
+            } catch (Exception $e) {
+                $toLog = $ids; // журнал не должен мешать самому удалению
+            }
         }
 
         // Делегируем в репозиторий
@@ -242,10 +265,18 @@ trait AccountsServiceWriteTrait {
         try {
             $affectedRows = $this->repository->deleteAccounts($ids);
 
-            // Логируем удаление в audit log
-            if ($auditLogger !== null && $auditLogger->isEnabled()) {
-                foreach ($ids as $accountId) {
-                    $auditLogger->logChange($accountId, 'deleted_at', null, $supportsSoftDelete ? date('Y-m-d H:i:s') : 'DELETED');
+            if ($auditLogger !== null) {
+                try {
+                    $auditLogger->logBulkKnownChange(
+                        $toLog,
+                        'deleted_at',
+                        null,
+                        $supportsSoftDelete ? date('Y-m-d H:i:s') : 'DELETED',
+                        null,
+                        $this->table
+                    );
+                } catch (Exception $e) {
+                    // Игнорируем ошибки audit log
                 }
             }
         } finally {

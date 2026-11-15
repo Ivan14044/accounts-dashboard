@@ -19,6 +19,9 @@ try {
     
     requireAuth();
     checkSessionTimeout();
+    // Долгая операция: отпускаем сессию, чтобы другие вкладки панели в этом
+    // браузере не ждали её конца (см. SessionManager::releaseLock).
+    SessionManager::releaseLock();
     
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         Logger::warning('EMPTY TRASH: Неверный метод запроса', ['method' => $_SERVER['REQUEST_METHOD'] ?? 'unknown']);
