@@ -283,3 +283,97 @@
 .navbar.navbar-expand > .container-fluid > .d-flex > button {
   flex: 0 0 auto;
 }
+
+/* ── Поле статуса «выбери или впиши свой» (assets/js/modules/status-picker.js) ──
+ * Цвета — переменные Bootstrap 5.3, поэтому тёмная тема подхватывается сама.
+ * Список position: fixed — координаты ставит JS от поля: внутри модалки
+ * абсолютный список раздувал бы её прокрутку или обрезался краем. */
+.status-picker {
+  position: relative;
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 320px;
+}
+.status-picker > .form-control { width: 100%; }
+.status-picker-list {
+  position: fixed;
+  z-index: 1090; /* выше модалки (1055) и её подложки */
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
+  font-size: .875rem;
+}
+.status-picker-list[hidden] { display: none; }
+.status-picker-group {
+  padding: 6px 10px 2px;
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+}
+.status-picker-option {
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status-picker-option.is-active { background: var(--bs-tertiary-bg); }
+.status-picker-option.is-selected { font-weight: 600; color: var(--bs-primary); }
+.status-picker-option.is-create { color: var(--bs-success); }
+.status-picker-option.is-create.is-active { background: rgba(var(--bs-success-rgb), .12); }
+.status-picker-empty {
+  padding: 8px 10px;
+  color: var(--bs-secondary-color);
+}
+.status-picker-hint {
+  margin-top: 6px;
+  min-height: 1.2em;
+  font-size: .8rem;
+  line-height: 1.35;
+}
+.status-picker-hint.is-muted { color: var(--bs-secondary-color); }
+.status-picker-hint.is-info { color: var(--bs-info-text-emphasis); }
+.status-picker-hint.is-new { color: var(--bs-success-text-emphasis); }
+.status-picker-hint.is-error { color: var(--bs-danger-text-emphasis); }
+.status-picker-take {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--bs-link-color);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.vld-action-result {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: .82rem;
+}
+.vld-action-result.is-success { background: rgba(var(--bs-success-rgb), .12); color: var(--bs-success-text-emphasis); }
+.vld-action-result.is-error { background: rgba(var(--bs-danger-rgb), .12); color: var(--bs-danger-text-emphasis); }
+@media (pointer: coarse) {
+  .status-picker-option { padding: 10px 12px; } /* под палец */
+}
+@media (max-width: 575.98px) {
+  .status-picker { max-width: none; flex-basis: 100%; }
+}
+/* Число аккаунтов справа от имени статуса */
+.status-picker-option:not(.is-create) { display: flex; align-items: center; gap: 10px; }
+.status-picker-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.status-picker-count {
+  flex: 0 0 auto;
+  font-size: .75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--bs-secondary-color);
+}

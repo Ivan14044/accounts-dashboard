@@ -886,7 +886,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
             </h6>
             <div class="mb-2">
               <label class="form-label small">Установить статус</label>
-              <select class="form-select form-select-sm" id="customCardTargetStatus">
+              <select class="form-select form-select-sm" id="customCardTargetStatus" data-status-options>
                 <option value="">Не изменять статус</option>
                 <?php foreach ($statuses as $st): ?>
                 <option value="<?= e($st) ?>"><?= e($st) ?></option>
@@ -932,7 +932,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       <div class="modal-body">
         <div class="mb-3">
           <label class="form-label">Выберите статус</label>
-          <select class="form-select" id="statusSelect">
+          <select class="form-select" id="statusSelect" data-status-options>
             <option value="">— Выберите —</option>
             <?php foreach ($statuses as $st): ?>
               <option value="<?= e($st) ?>"><?= e($st) ?></option>
@@ -1208,13 +1208,30 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
               <i class="fas fa-exclamation-triangle text-danger me-1"></i>
               Действия с невалидными аккаунтами
             </div>
+            <?php
+              // Статусы для поля «выбери или впиши свой» (modules/status-picker.js).
+              // Пустой статус выбирать нечего — он не «статус», а его отсутствие.
+              // Рядом с каждым статусом — сколько в нём аккаунтов: $byStatus, те же
+              // числа (вся таблица, без фильтра), что в списке фильтра статусов.
+              // Объект, а не массив: json_encode пустого массива даёт «[]».
+              $vldStatuses = array();
+              $vldCounts = new stdClass();
+              $vldByStatus = isset($byStatus) && is_array($byStatus) ? $byStatus : array();
+              foreach ((isset($statuses) && is_array($statuses) ? $statuses : array()) as $st) {
+                  $st = (string)$st;
+                  if ($st === '') continue;
+                  $vldStatuses[] = $st;
+                  $vldCounts->{$st} = isset($vldByStatus[$st]) ? (int)$vldByStatus[$st] : 0;
+              }
+              $vldJsonFlags = JSON_UNESCAPED_UNICODE | (defined('JSON_INVALID_UTF8_SUBSTITUTE') ? JSON_INVALID_UTF8_SUBSTITUTE : 0);
+            ?>
             <div class="d-flex flex-wrap gap-2 align-items-center">
-              <select class="form-select form-select-sm" id="vldActionStatusSelect" style="max-width: 200px;">
-                <option value="">— Выберите статус —</option>
-                <?php foreach ($statuses as $st): ?>
-                  <option value="<?= e($st) ?>"><?= e($st) ?></option>
-                <?php endforeach; ?>
-              </select>
+              <label class="visually-hidden" for="vldActionStatusInput">Статус для невалидных</label>
+              <input type="text" class="form-control form-control-sm vld-status-input" id="vldActionStatusInput"
+                     placeholder="Статус: выберите или впишите"
+                     data-statuses="<?= e((string)json_encode($vldStatuses, $vldJsonFlags)) ?>"
+                     data-status-counts="<?= e((string)json_encode($vldCounts, $vldJsonFlags)) ?>"
+                     aria-describedby="vldActionStatusHint">
               <button type="button" class="btn btn-sm btn-primary" id="vldActionSetStatusBtn">
                 <i class="fas fa-tag me-1"></i>Применить
               </button>
@@ -1222,6 +1239,8 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
                 <i class="fas fa-trash-alt me-1"></i>Удалить в корзину
               </button>
             </div>
+            <div class="status-picker-hint is-muted" id="vldActionStatusHint" aria-live="polite"></div>
+            <div class="vld-action-result d-none" id="vldActionResult" role="status"></div>
           </div>
 
         </div>
@@ -1288,7 +1307,7 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
           </label>
           <div class="row g-2">
             <div class="col-md-6">
-              <select class="form-select" id="transferStatusSelect">
+              <select class="form-select" id="transferStatusSelect" data-status-options>
                 <option value="">— Выберите из существующих —</option>
                 <?php foreach ($statuses as $st): ?>
                   <option value="<?= e($st) ?>"><?= e($st) ?></option>

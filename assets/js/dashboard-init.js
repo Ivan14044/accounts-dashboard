@@ -485,6 +485,24 @@ function handleDocumentClick(e) {
     // её копия запечётся в ячейку при восстановлении из снимка.
     if (window.CellActions) window.CellActions.detach(pwWrap);
     var originalContent = pwWrap.innerHTML;
+    // Метка «редактируется» — как у modules/inline-edit.js. Без неё панель
+    // «глазик / карандаш / копировать» (cell-actions.js) по первому же движению
+    // мыши садилась обратно в ячейку прямо на галочку и крестик, и сохранить
+    // пароль было нельзя (жалоба владельца 15.11.2026). Та же метка на строке
+    // не даёт виртуализации стереть редактор при перерисовке таблицы.
+    // Стережёт tests/test_pw_editor_editing_flag.php.
+    var pwCell = pwWrap.closest('td');
+    var pwRow = pwWrap.closest('tr[data-id]');
+    pwWrap.setAttribute('data-editing', 'true');
+    if (pwCell) pwCell.setAttribute('data-editing', 'true');
+    if (pwRow) pwRow.setAttribute('data-editing', 'true');
+    // Единственный выход из редактора: вернуть ячейку и снять метки.
+    var restore = function() {
+      pwWrap.innerHTML = originalContent;
+      pwWrap.removeAttribute('data-editing');
+      if (pwCell) pwCell.removeAttribute('data-editing');
+      if (pwRow) pwRow.removeAttribute('data-editing');
+    };
     pwWrap.innerHTML = '';
     pwWrap.appendChild(input);
     pwWrap.appendChild(saveBtn);
@@ -501,7 +519,7 @@ function handleDocumentClick(e) {
         });
         var data = await response.json();
         if (data.success) {
-          pwWrap.innerHTML = originalContent;
+          restore();
           var updatedPwText = pwWrap.querySelector('.pw-text');
           var updatedPwDots = pwWrap.querySelector('.pw-dots');
           updatedPwText.textContent = newPassword;
@@ -510,15 +528,15 @@ function handleDocumentClick(e) {
           showToast('Пароль успешно обновлен', 'success');
         } else {
           showToast('Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
-          pwWrap.innerHTML = originalContent;
+          restore();
         }
       } catch (error) {
         logger.error('Error:', error);
         showToast('Ошибка при сохранении пароля', 'error');
-        pwWrap.innerHTML = originalContent;
+        restore();
       }
     };
-    var cancel = function() { pwWrap.innerHTML = originalContent; };
+    var cancel = restore;
     saveBtn.addEventListener('click', save);
     cancelBtn.addEventListener('click', cancel);
     input.addEventListener('keydown', function(ev) {

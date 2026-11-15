@@ -28,6 +28,9 @@
   // Закреплённые и недавние статусы (modules/status-filter.js). Это префикс:
   // к нему через «:» дописывается имя таблицы — у каждой таблицы свой список.
   window.LS_KEY_STATUS_QUICK = 'dashboard_status_quick_v1';
+  // Последние статусы, в которые переносили аккаунты (modules/status-picker.js).
+  // Тоже префикс + «:» + имя таблицы.
+  window.LS_KEY_STATUS_APPLIED = 'dashboard_status_applied_v1';
 
   // Число активных фильтров приходит с сервера через init-script.php.
   // Старая версия файла читала window.__DASHBOARD_CONFIG__ — такого объекта в

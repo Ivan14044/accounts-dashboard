@@ -244,6 +244,10 @@
           if (window.DashboardStatusFilter) {
             window.DashboardStatusFilter.updateCounts(data.byStatus);
           }
+          // Те же числа — в поле статуса окна проверки (modules/status-picker.js).
+          if (window.DashboardStatusPicker && typeof window.DashboardStatusPicker.updateCounts === 'function') {
+            window.DashboardStatusPicker.updateCounts(data.byStatus);
+          }
         }
 
         // Таблица (основная тяжёлая операция)
