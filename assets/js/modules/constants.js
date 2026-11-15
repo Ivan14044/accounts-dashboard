@@ -31,6 +31,10 @@
   // Последние статусы, в которые переносили аккаунты (modules/status-picker.js).
   // Тоже префикс + «:» + имя таблицы.
   window.LS_KEY_STATUS_APPLIED = 'dashboard_status_applied_v1';
+  // Свёрнуты ли карточки статусов (modules/status-cards-toggle.js). Тот же
+  // ключ буквально повторён в <head> templates/dashboard.php — там констант
+  // ещё нет; совпадение стережёт tests/test_status_cards_toggle_markup.php.
+  window.LS_KEY_STATUS_CARDS_COLLAPSED = 'dashboard_status_cards_collapsed_v1';
 
   // Число активных фильтров приходит с сервера через init-script.php.
   // Старая версия файла читала window.__DASHBOARD_CONFIG__ — такого объекта в

@@ -95,6 +95,7 @@ class AssetBundles
             'assets/js/modules/dashboard-modals.js',
             'assets/js/modules/status-picker.js',            // поле «выбери статус или впиши свой»; строго ДО dashboard-validate.js
             'assets/js/modules/dashboard-validate.js',
+            'assets/js/modules/status-cards-toggle.js',      // кнопка «Свернуть статусы»; запускает dashboard-main.js ниже
             'assets/js/modules/dashboard-main.js',
             'assets/js/sticky-scrollbar.js',
             'assets/js/table-module.js',

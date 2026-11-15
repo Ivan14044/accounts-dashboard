@@ -30,6 +30,14 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       var s=document.createElement('style');s.id='preHiddenCards';s.textContent=css;document.head.appendChild(s);
       document.addEventListener('DOMContentLoaded',function(){s.remove();});}catch(e){}})();
   </script>
+  <?php /* Свёрнутые карточки статусов — тоже ДО первой отрисовки, по той же
+           причине: иначе на каждой загрузке экран карточек показывался и
+           схлопывался, а фильтры и таблица прыгали вверх. Класс на <html>
+           прячет карточки и переключает надпись кнопки через CSS; остальное —
+           modules/status-cards-toggle.js. Ключ = LS_KEY_STATUS_CARDS_COLLAPSED. */ ?>
+  <script>
+    (function(){try{if(localStorage.getItem('dashboard_status_cards_collapsed_v1')==='1'){document.documentElement.classList.add('status-cards-collapsed');}}catch(e){}})();
+  </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
@@ -336,9 +344,34 @@ require_once __DIR__ . '/../includes/AssetBundles.php';
       </div>
     <?php endif; ?>
 
+    <?php
+    // Сколько карточек статусов нарисует stats-cards.php (пустой статус там
+    // пропускается). Нет ни одной — кнопке «Свернуть» нечего сворачивать.
+    $statusCardsCount = 0;
+    foreach ((isset($byStatus) && is_array($byStatus) ? $byStatus : array()) as $stName => $stCnt) {
+        if ($stName !== '' && $stName !== null) {
+            $statusCardsCount++;
+        }
+    }
+    ?>
     <section class="workspace-intro" aria-labelledby="workspaceTitle">
       <div><p class="workspace-eyebrow">Рабочее пространство</p><h1 id="workspaceTitle">Аккаунты</h1></div>
-      <p class="workspace-description">Обзор базы и управление аккаунтами</p>
+      <div class="workspace-intro-aside">
+        <p class="workspace-description">Обзор базы и управление аккаунтами</p>
+        <?php if ($statusCardsCount > 0): ?>
+        <?php /* Обе надписи в разметке: какая видна, решает класс на <html> из
+                 скрипта в <head>, так что до запуска JS надпись уже верная.
+                 aria-expanded и число уточняет modules/status-cards-toggle.js
+                 (вычитает карточки, скрытые пользователем). */ ?>
+        <button type="button" class="status-cards-toggle" id="statusCardsToggle" aria-controls="statsRow" aria-expanded="true" title="Свернуть карточки статусов">
+          <i class="fas fa-chevron-up status-cards-toggle-icon" aria-hidden="true"></i>
+          <?php /* -long/-short: на телефоне полная надпись рядом с заголовком
+                   не влезала и давала прокрутку вбок (замер на 375px). */ ?>
+          <span class="status-cards-toggle-open">Свернуть<span class="status-cards-toggle-long"> статусы</span></span>
+          <span class="status-cards-toggle-closed"><span class="status-cards-toggle-long">Показать статусы</span><span class="status-cards-toggle-short">Статусы</span> <span class="status-cards-toggle-count"><?= number_format($statusCardsCount) ?></span></span>
+        </button>
+        <?php endif; ?>
+      </div>
     </section>
     <!-- Статистические карточки -->
     <?php include __DIR__ . '/partials/dashboard/stats-cards.php'; ?>

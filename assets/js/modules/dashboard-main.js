@@ -57,6 +57,13 @@ class DashboardMain {
         logger.warn('⚠️ Модуль DashboardStatusFilter не найден');
       }
 
+      // Кнопка «Свернуть статусы» над карточками
+      if (typeof window.DashboardStatusCards !== 'undefined') {
+        window.DashboardStatusCards.init();
+      } else if (typeof logger !== 'undefined') {
+        logger.warn('⚠️ Модуль DashboardStatusCards не найден');
+      }
+
       // Инициализация модуля статистики
       if (typeof window.DashboardStats !== 'undefined') {
         window.DashboardStats.init();
