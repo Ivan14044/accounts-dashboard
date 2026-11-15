@@ -377,3 +377,107 @@
   font-variant-numeric: tabular-nums;
   color: var(--bs-secondary-color);
 }
+
+/* ========================================
+   Кнопка «Свернуть статусы» над карточками (modules/status-cards-toggle.js)
+   Свёрнутое состояние — класс status-cards-collapsed на <html>, его ставит
+   скрипт в <head> до отрисовки. Прячутся ТОЛЬКО карточки статусов: «Всего
+   аккаунтов», «Пустые статусы» и свои карточки пользователя остаются.
+   Обе надписи кнопки переключаются тем же классом, без участия JS.
+   ======================================== */
+/* Селектор с .workspace-intro: у core-design-v2.css есть `.workspace-intro > div`
+   с flex-direction: row-reverse (для заголовка), и без него кнопка вставала
+   левее подписи, а не у правого края. */
+.workspace-intro > .workspace-intro-aside {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0; /* кнопку не сжимать: иначе надпись вылезает из рамки */
+}
+
+.status-cards-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 5px 12px 5px 10px;
+  border: 1px solid var(--color-border, var(--border-light));
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+}
+.status-cards-toggle:hover {
+  color: var(--color-text-primary, var(--gray-900));
+  border-color: var(--border-medium, var(--color-border));
+  background: var(--bg-secondary);
+}
+.status-cards-toggle-icon {
+  font-size: 11px;
+  transition: transform .2s ease;
+}
+/* Число спрятанных карточек — отдельной плашкой, цифры одной ширины, чтобы
+   надпись не дрожала при обновлении. */
+.status-cards-toggle-count {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-secondary, var(--gray-100));
+  color: var(--color-text-primary, var(--gray-900));
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-cards-collapsed .status-cards-toggle-open { display: none; }
+:root:not(.status-cards-collapsed) .status-cards-toggle-closed { display: none; }
+.status-cards-collapsed .status-cards-toggle-icon { transform: rotate(180deg); }
+/* Свёрнуто — кнопка заметнее: за ней спрятана часть страницы. Синий только
+   на рамке и стрелке: --primary-* в тёмной теме не переопределены, и
+   текст цветом primary-700 на тёмном фоне давал контраст 2,7 (замер на стенде). */
+.status-cards-collapsed .status-cards-toggle {
+  color: var(--color-text-primary, var(--gray-900));
+  border-color: var(--color-primary);
+}
+.status-cards-collapsed .status-cards-toggle-icon { color: var(--color-primary); }
+
+.status-cards-collapsed #statsRow .stat-card[data-card^="status:"] { display: none !important; }
+
+/* Без карточек статусов в сетке остаются одна-три карточки; при auto-fit они
+   растягивались бы на всю ширину экрана. auto-fill держит их обычный размер.
+   Только там, где сетка обычная: на телефоне и сенсорном планшете карточки
+   идут лентой (core-touch.css, раздел 13), а ≤575px — столбиком. */
+@media (min-width: 992px), (min-width: 768px) and (pointer: fine) {
+  .status-cards-collapsed #statsRow.stats-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)) !important;
+  }
+}
+
+@media (pointer: coarse) {
+  .status-cards-toggle { min-height: 40px; padding-inline: 14px 12px; }
+}
+
+/* Короткая надпись для узких экранов: «Свернуть» / «Статусы 97». */
+.status-cards-toggle-short { display: none; }
+@media (max-width: 575.98px) {
+  .status-cards-toggle-long { display: none; }
+  .status-cards-toggle-short { display: inline; }
+  .status-cards-toggle { padding-inline: 12px 10px; }
+  /* Подпись «Рабочее пространство» рядом с заголовком на телефоне съедала
+     ~100px, и кнопка вылезала за край экрана на 3–48px (замер на 375px).
+     Заголовок «Аккаунты» и меню сверху и так говорят, где ты. */
+  .workspace-intro .workspace-eyebrow { display: none; }
+  .workspace-intro { gap: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-cards-toggle, .status-cards-toggle-icon { transition: none; }
+}
