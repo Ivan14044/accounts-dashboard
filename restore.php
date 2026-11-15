@@ -12,6 +12,9 @@ require_once __DIR__ . '/includes/ErrorHandler.php';
 try {
     requireAuth();
     checkSessionTimeout();
+    // Долгая операция: отпускаем сессию, чтобы другие вкладки панели в этом
+    // браузере не ждали её конца (см. SessionManager::releaseLock).
+    SessionManager::releaseLock();
     
     require_once __DIR__ . '/includes/Validator.php';
     require_once __DIR__ . '/includes/ErrorHandler.php';

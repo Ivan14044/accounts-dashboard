@@ -265,7 +265,6 @@ class AuditLogger {
             return 0;
         }
         
-        $count = 0;
         $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
         
         if ($changedBy === null) {
@@ -286,25 +285,24 @@ class AuditLogger {
         
         // Для массовых изменений получаем старые значения из БД (только для нечувствительных полей)
         if (!$isSensitive) {
-            $placeholders = implode(',', array_fill(0, count($accountIds), '?'));
-            $sql = "SELECT id, `$fieldName` FROM `$tableName` WHERE id IN ($placeholders)";
-            
-            $stmt = $this->mysqli->prepare($sql);
-            if (!$stmt) {
-                return 0;
-            }
-            
-            $types = str_repeat('i', count($accountIds));
-            $stmt->bind_param($types, ...$accountIds);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            
-            // Сохраняем старые значения для каждого аккаунта
+            // Частями по Config::ID_LIST_CHUNK: выборка по 1000 id на проде
+            // читала всю таблицу (см. AccountsRepoIdChunksTrait)
+            require_once __DIR__ . '/Config.php';
             $oldValues = [];
-            while ($row = $result->fetch_assoc()) {
-                $oldValues[$row['id']] = $this->valueToString($row[$fieldName] ?? null);
+            foreach (array_chunk(array_values($accountIds), Config::ID_LIST_CHUNK) as $chunk) {
+                $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+                $stmt = $this->mysqli->prepare("SELECT id, `$fieldName` FROM `$tableName` WHERE id IN ($placeholders)");
+                if (!$stmt) {
+                    return 0;
+                }
+                $stmt->bind_param(str_repeat('i', count($chunk)), ...$chunk);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                while ($row = $result->fetch_assoc()) {
+                    $oldValues[$row['id']] = $this->valueToString($row[$fieldName] ?? null);
+                }
+                $stmt->close();
             }
-            $stmt->close();
         }
         
         // Собираем «нормализованные» строки. Для нечувствительных полей пропускаем
@@ -327,13 +325,81 @@ class AuditLogger {
             return 0;
         }
 
-        // Чанкуем INSERT, чтобы не упереться в max_allowed_packet
-        // при массовых операциях на 10k+ записей.
+        return $this->insertHistoryRows($rowsToInsert, $tableName);
+    }
+
+    /**
+     * Записать в журнал одно и то же изменение для пачки аккаунтов, когда
+     * старое значение уже известно вызывающему коду.
+     *
+     * Отличие от logBulkChange(): старые значения НЕ читаются из таблицы.
+     * Нужно там, где запись в журнал идёт ПОСЛЕ изменения (удаление в корзину:
+     * вызывающий код заранее отобрал только строки вне корзины, их старое
+     * deleted_at — пустое). Раньше такие места звали logChange() в цикле —
+     * отдельный INSERT со своим коммитом на каждый аккаунт; на проде 1000
+     * удалённых аккаунтов писались в журнал ~50 секунд.
+     *
+     * @param array       $accountIds Id аккаунтов
+     * @param string      $fieldName  Поле
+     * @param mixed       $oldValue   Старое значение (одно на всех)
+     * @param mixed       $newValue   Новое значение (одно на всех)
+     * @param string|null $changedBy  Автор; по умолчанию — пользователь сессии
+     * @param string|null $tableName  Таблица; по умолчанию — таблица текущего действия
+     * @return int Сколько строк журнала записано (0, если журнал выключен,
+     *             список пуст или старое значение совпадает с новым)
+     */
+    public function logBulkKnownChange(array $accountIds, string $fieldName, $oldValue, $newValue, string $changedBy = null, ?string $tableName = null): int {
+        if (!$this->enabled || empty($accountIds)) {
+            return 0;
+        }
+
+        $tableName = $tableName ?? $this->currentActionTable ?? 'accounts';
+        if (!$this->isValidTableName($tableName)) {
+            return 0;
+        }
+
+        if ($this->isSensitiveField($fieldName)) {
+            $oldValueStr = '[СКРЫТО]';
+            $newValueStr = '[СКРЫТО]';
+        } else {
+            $oldValueStr = $this->valueToString($oldValue);
+            $newValueStr = $this->valueToString($newValue);
+            // То же правило, что у logChange(): «изменения» без изменения не пишем
+            if ($oldValueStr === $newValueStr) {
+                return 0;
+            }
+        }
+
+        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
+        if ($changedBy === null) {
+            $changedBy = $_SESSION['username'] ?? 'system';
+        }
+
+        $rows = [];
+        foreach ($accountIds as $accountId) {
+            $rows[] = [(int)$accountId, $fieldName, $oldValueStr, $newValueStr, $changedBy, $ipAddress];
+        }
+
+        return $this->insertHistoryRows($rows, $tableName);
+    }
+
+    /**
+     * Вставить готовые строки журнала пачками по 500 (одна команда на пачку).
+     *
+     * Пачка — чтобы не упереться в max_allowed_packet на операциях в 10k+
+     * строк. Сбой пачки не прерывает остальные: он логируется, а вызывающий
+     * код получает меньшее число записанных строк.
+     *
+     * @param array  $rows      Строки [account_id, field, old, new, changed_by, ip]
+     * @param string $tableName Таблица, к которой относятся аккаунты
+     * @return int Сколько строк записано
+     */
+    private function insertHistoryRows(array $rows, string $tableName): int {
         $CHUNK = 500;
         $insertSql = "INSERT INTO account_history (account_id, field_name, old_value, new_value, changed_by, ip_address, action_id, table_name) VALUES ";
         $count = 0;
 
-        foreach (array_chunk($rowsToInsert, $CHUNK) as $chunk) {
+        foreach (array_chunk($rows, $CHUNK) as $chunk) {
             $placeholders = [];
             $params       = [];
             $types        = '';

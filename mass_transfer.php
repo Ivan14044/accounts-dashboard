@@ -59,6 +59,9 @@ try {
     requireAuth();
     checkSessionTimeout();
     checkRateLimit('api'); // Rate limiting для API
+    // Долгая операция: отпускаем сессию, чтобы другие вкладки панели в этом
+    // браузере не ждали её конца (см. SessionManager::releaseLock).
+    SessionManager::releaseLock();
     
     // Чтение входных данных
     $rawInput = file_get_contents('php://input');

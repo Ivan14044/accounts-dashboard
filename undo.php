@@ -53,6 +53,9 @@ try {
 
     // Откат массовой операции может обрабатывать десятки тысяч строк
     set_time_limit(0);
+    // Долгая операция: отпускаем сессию, чтобы другие вкладки панели в этом
+    // браузере не ждали её конца (см. SessionManager::releaseLock).
+    SessionManager::releaseLock();
 
     $report = $service->undoAction($actionId, $username);
     json_success($report);

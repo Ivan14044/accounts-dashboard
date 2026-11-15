@@ -49,6 +49,106 @@ class SessionManager {
         session_start();
     }
     
+    /** @var bool Запрос отпустил замок сессии через releaseLock() */
+    private static $lockReleased = false;
+
+    /** @var bool После долгой операции надо записать в сессию отметку «сам менял данные» */
+    private static $pendingSelfWrite = false;
+
+    /**
+     * Отпустить замок сессии на время долгой операции.
+     *
+     * PHP держит файл сессии запертым до конца запроса, и пока он заперт,
+     * любой другой запрос из того же браузера ждёт: новая вкладка панели,
+     * F5, фоновое обновление таблицы «просто грузятся». На проде удаление
+     * 1000 аккаунтов держало замок до 57 с, массовый перенос — до 5 минут
+     * (повторное нажатие переноса 21.10.2026 ждало первый 96 с, прежде чем
+     * начать работу). После вызова $_SESSION остаётся читаемым снимком —
+     * проверка CSRF и имя пользователя для журнала работают, — но запись в
+     * $_SESSION до конца запроса уже НЕ сохраняется.
+     *
+     * Звать сразу после requireAuth() + checkSessionTimeout() + checkRateLimit():
+     * они обновляют время активности и cookie, это должно успеть записаться.
+     *
+     * @param bool $willWrite true — операция меняет аккаунты: в конце запроса
+     *                        finishReleasedRequest() поставит отметку, по которой
+     *                        счётчики панели покажут свежие числа сразу
+     *                        (см. StatisticsService::viewerJustWrote). false —
+     *                        только чтение (выгрузка).
+     * @return void
+     */
+    public static function releaseLock(bool $willWrite = true): void {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
+        session_write_close();
+        self::$lockReleased = true;
+        self::$pendingSelfWrite = $willWrite;
+    }
+
+    /**
+     * Запрос отпустил замок сессии через releaseLock().
+     *
+     * @return bool
+     */
+    public static function isLockReleased(): bool {
+        return self::$lockReleased;
+    }
+
+    /**
+     * Дописать в сессию то, что накопилось после releaseLock().
+     *
+     * Сейчас это одна вещь — отметка «пользователь только что менял данные»
+     * (Config::STATS_SELF_WRITE_FLAG). Обычно её ставит Database::prepare()
+     * прямо во время записи, но при отпущенной сессии писать некуда. Ставить
+     * её заранее, перед долгой операцией, нельзя: отметка живёт одно окно
+     * округления (30 с) и к концу минутного удаления уже истекла бы.
+     * Поэтому сессия открывается на миг здесь, в конце: замок берётся, отметка
+     * пишется, замок отпускается.
+     *
+     * Вызывается из json_response() — то есть автоматически перед любым
+     * JSON-ответом. Если заголовки уже ушли (потоковая выгрузка), сессию не
+     * открыть — тогда молча ничего не делаем: худшее последствие — счётчики
+     * обновятся не сразу, а в пределах окна округления.
+     *
+     * @return void
+     */
+    public static function finishReleasedRequest(): void {
+        if (!self::$lockReleased || !self::$pendingSelfWrite) {
+            return;
+        }
+        self::$pendingSelfWrite = false;
+
+        if (headers_sent() || session_status() !== PHP_SESSION_NONE) {
+            return;
+        }
+
+        $id = session_id();
+        if ($id === '') {
+            return;
+        }
+
+        require_once __DIR__ . '/Config.php';
+
+        // Повторный session_start() в том же запросе заново шлёт браузеру
+        // Set-Cookie — без срока годности. У входа с «Запомнить меня» это
+        // затёрло бы 30-дневную cookie сессионной, и после перезапуска
+        // браузера человека выкинуло бы на логин (на стенде видно глазами:
+        // без этой защиты delete.php отдавал лишний Set-Cookie). Поэтому
+        // открываем сессию по уже известному id, не трогая cookie.
+        $useCookies = ini_get('session.use_cookies');
+        ini_set('session.use_cookies', '0');
+        try {
+            session_id($id);
+            if (@session_start() && session_status() === PHP_SESSION_ACTIVE) {
+                $_SESSION[Config::STATS_SELF_WRITE_FLAG] = time() + Config::STATS_FINGERPRINT_BUCKET;
+                session_write_close();
+            }
+        } finally {
+            ini_set('session.use_cookies', (string)$useCookies);
+        }
+    }
+
     /**
      * Проверка, является ли хост localhost
      * 

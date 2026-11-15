@@ -30,6 +30,7 @@ require_once __DIR__ . '/repositories/AccountsRepoWriteTrait.php';
 require_once __DIR__ . '/repositories/AccountsRepoDeleteTrait.php';
 require_once __DIR__ . '/repositories/AccountsRepoCreateTrait.php';
 require_once __DIR__ . '/repositories/AccountsRepoBulkTrait.php';
+require_once __DIR__ . '/repositories/AccountsRepoIdChunksTrait.php';
 
 class AccountsRepository {
     use AccountsRepoSelectTrait;
@@ -37,6 +38,7 @@ class AccountsRepository {
     use AccountsRepoDeleteTrait;
     use AccountsRepoCreateTrait;
     use AccountsRepoBulkTrait;
+    use AccountsRepoIdChunksTrait;
 
     private $db;
     private $table;

@@ -5,7 +5,8 @@
  * Логика:
  * 1. Парсит ID из текста (формат: (10|61)[0-9A-Za-z]{10,23} или числа 11+ цифр)
  * 2. Ищет точное совпадение в колонке id_soc_account (мгновенно, по индексу)
- * 3. Если enable_like=true — для ненайденных ищет в social_url батчевым OR-запросом
+ * 3. Если enable_like=true (или во входе были ссылки) — для строк, где точный поиск
+ *    не нашёл ничего, ищет в social_url батчевым OR-запросом
  * 4. Обновляет статус найденных аккаунтов батчами в транзакции
  * 
  * @version 5.0
@@ -20,7 +21,9 @@ class MassTransferService {
 
     const MAX_INPUT_SIZE = 20 * 1024 * 1024; // 20MB
     const MAX_LINES = 50000;
-    const MAX_BATCH_SIZE = 1000;  // SELECT IN() для поиска по id_soc_account
+    // SELECT IN() для поиска по id_soc_account/login. Не больше Config::ID_LIST_CHUNK:
+    // список в 1000 значений на проде уводил запрос в полный проход по таблице
+    const MAX_BATCH_SIZE = 500;
     const MAX_URL_BATCH_SIZE = 50;
     const UPDATE_BATCH_SIZE = 200;
 
@@ -63,8 +66,11 @@ class MassTransferService {
         $urls = []; // Сохраняем оригинальные URL для поиска по social_url
         $unparsed = [];
 
+        $lineTokens = [];
+
         foreach ($lines as $line) {
             $parsed = false;
+            $idsBeforeLine = count($ids);
 
             // 1. Специальная обработка Facebook URL: profile.php?id=XXXXX (ID + сохраняем для URL-поиска)
             if (preg_match_all('/profile\.php\?id=(\d{8,})/', $line, $urlMatch)) {
@@ -105,6 +111,10 @@ class MassTransferService {
             if (!$parsed && $line !== '' && count($unparsed) < 50) {
                 $unparsed[] = mb_substr($line, 0, 100);
             }
+
+            if (count($ids) > $idsBeforeLine) {
+                $lineTokens[] = array_values(array_unique(array_slice($ids, $idsBeforeLine)));
+            }
         }
 
         $ids = array_values(array_unique($ids));
@@ -112,6 +122,9 @@ class MassTransferService {
         return [
             'ids' => $ids,
             'urls' => array_values(array_unique($urls)),
+            // Кандидаты каждой строки отдельно: строка = один аккаунт, и если он
+            // нашёлся по одному кандидату, остальные — мусор (см. selectUrlSearchCandidates)
+            'line_tokens' => $lineTokens,
             'unparsed' => $unparsed,
             'total_lines' => count($lines)
         ];
@@ -121,8 +134,10 @@ class MassTransferService {
      * Поиск аккаунтов в БД.
      * @param bool $enableLike Искать ли в social_url для ненайденных (медленно)
      * @param bool $hadUrls Входные данные содержали URL (автоматически включает поиск по social_url)
+     * @param array|null $lineTokens Кандидаты по строкам из parseText(); если переданы,
+     *                   поиск по social_url идёт только для строк без точного совпадения
      */
-    public function findAccounts(array $ids, bool $enableLike = false, bool $hadUrls = false): array {
+    public function findAccounts(array $ids, bool $enableLike = false, bool $hadUrls = false, ?array $lineTokens = null): array {
         if (empty($ids)) {
             return ['ids' => [], 'matched_by_id_soc' => 0, 'matched_by_url' => 0, 'total' => 0];
         }
@@ -159,6 +174,7 @@ class MassTransferService {
             $notFoundIds = array_values(array_filter($ids, function($id) use ($matchedTokens) {
                 return !isset($matchedTokens[$id]);
             }));
+            $notFoundIds = self::selectUrlSearchCandidates($notFoundIds, $matchedTokens, $lineTokens);
 
             if (!empty($notFoundIds)) {
                 $urlResult = $this->searchBySocialUrl($notFoundIds);
@@ -176,6 +192,61 @@ class MassTransferService {
             'matched_by_url' => $matchedByUrl,
             'total' => count($foundIds)
         ];
+    }
+
+    /**
+     * Какие ненайденные кандидаты стоит искать медленным `social_url LIKE`.
+     *
+     * Поиск по social_url — полный проход по таблице на каждые
+     * MAX_URL_BATCH_SIZE кандидатов. Раньше туда шли ВСЕ ненайденные, а в
+     * типичной строке `логин|пароль|ссылка|куки` кандидатов три-четыре, и
+     * аккаунт находится точным поиском по одному из них. Остальные — логин,
+     * числа из кук — уходили в LIKE впустую: 21.10.2026 перенос 2101 аккаунта
+     * из 6479 кандидатов шёл на проде 253 с, и почти всё это время — проходы,
+     * не нашедшие ничего (воспроизведено на стенде: 300 строк — 18,4 с).
+     *
+     * Правило: кандидат ищется по ссылке, только если он встречается хотя бы
+     * в одной строке, где точный поиск не нашёл НИ ОДНОГО кандидата. Строка —
+     * один аккаунт; если он уже найден, искать его второй раз по ссылке незачем.
+     * Строки без совпадений ищутся по ссылке целиком, как и раньше.
+     * Сравнение без учёта регистра: база (коллация *_ci) возвращает значение
+     * в том регистре, в котором оно лежит, а не в котором его вставили.
+     *
+     * @param string[]   $notFoundIds   Кандидаты, не найденные точным поиском
+     * @param array      $matchedTokens Найденные значения [значение => true]
+     * @param array|null $lineTokens    Кандидаты по строкам (parseText()['line_tokens']);
+     *                                  null — старое поведение, ищутся все ненайденные
+     * @return string[] Подмножество $notFoundIds в исходном порядке
+     */
+    public static function selectUrlSearchCandidates(array $notFoundIds, array $matchedTokens, ?array $lineTokens): array {
+        if ($lineTokens === null || empty($notFoundIds)) {
+            return array_values($notFoundIds);
+        }
+
+        $matchedLower = [];
+        foreach ($matchedTokens as $token => $_) {
+            $matchedLower[strtolower((string)$token)] = true;
+        }
+
+        $fromUnmatchedLines = [];
+        foreach ($lineTokens as $tokens) {
+            $lineMatched = false;
+            foreach ($tokens as $token) {
+                if (isset($matchedLower[strtolower((string)$token)])) {
+                    $lineMatched = true;
+                    break;
+                }
+            }
+            if (!$lineMatched) {
+                foreach ($tokens as $token) {
+                    $fromUnmatchedLines[(string)$token] = true;
+                }
+            }
+        }
+
+        return array_values(array_filter($notFoundIds, function ($id) use ($fromUnmatchedLines) {
+            return isset($fromUnmatchedLines[(string)$id]);
+        }));
     }
 
     /**
@@ -366,7 +437,7 @@ class MassTransferService {
         
         // 2. Поиск (если были URL — автоматически включаем поиск по social_url)
         $hadUrls = !empty($parseResult['urls']);
-        $searchResult = $this->findAccounts($parseResult['ids'], $enableLike, $hadUrls);
+        $searchResult = $this->findAccounts($parseResult['ids'], $enableLike, $hadUrls, $parseResult['line_tokens']);
         
         if (empty($searchResult['ids'])) {
             throw new Exception('Ни один из распознанных ID не найден в базе данных.');

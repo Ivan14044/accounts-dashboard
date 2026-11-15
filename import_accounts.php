@@ -45,6 +45,9 @@ try {
         throw new InvalidArgumentException('Превышен лимит импортов (' . Config::IMPORT_RATE_LIMIT_PER_HOUR . ' в час). Попробуйте через час.');
     }
     Logger::debug('IMPORT ACCOUNTS: Rate limit проверен', ['user' => $userId]);
+    // Долгая операция: отпускаем сессию, чтобы другие вкладки панели в этом
+    // браузере не ждали её конца (см. SessionManager::releaseLock).
+    SessionManager::releaseLock();
     
     // Проверка метода запроса
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
