@@ -213,6 +213,19 @@ layout-догон (`tableLayoutManager.refresh()`, виртуализация, s
 | `performance.js` | debounce, batchDOM, BatchUpdater |
 | `logger.js` | Логирование (вместо console) |
 
+### Страница аккаунта (`view.php`)
+
+Какое поле в какой раздел — решает чистый класс `includes/AccountViewLayout.php`
+(без HTML и БД): `build($row)` раскладывает строку по двум колонкам, сводит
+`*_fan_page_N`/`*_bm_N` в таблицы и помечает пустые поля. Новая колонка базы,
+которой нет в его списках, сама попадёт в раздел «Прочее» — добавьте её в
+нужный раздел с русской подписью. Скрипт страницы — `assets/js/account-view.js`
+(копирование, код 2FA по RFC 6238 через `crypto.subtle`, показ пустых),
+стили — `assets/css/account-view.css`. Данные скрипту отдаются через
+`<script type="application/json" id="accountViewData">` с `JSON_HEX_TAG`.
+Стерегут `tests/test_account_view_layout.php` (ни одна колонка не теряется и не
+дублируется) и `tests/account-view.test.cjs` (векторы RFC 6238).
+
 ### Чем помечены карточки статистики
 
 Атрибуты у карточек разные, и это стык, на котором уже ломался свайп:
